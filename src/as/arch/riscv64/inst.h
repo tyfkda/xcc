@@ -41,6 +41,7 @@ enum Opcode {
   RET,
 
   FADD_D, FSUB_D, FMUL_D, FDIV_D,
+  FMV_D, FNEG_D,
   FLD, FLW, FSD, FSW,
 };
 

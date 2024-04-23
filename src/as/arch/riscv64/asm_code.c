@@ -114,6 +114,8 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define W_FLW(rd, ofs, rs)       ITYPE(ofs, rs, 0x02, rd, 0x07)
 #define W_FSD(rs2, ofs, rs1)     STYPE(ofs, rs2, rs1, 0x03, 0x27)
 #define W_FSW(rs2, ofs, rs1)     STYPE(ofs, rs2, rs1, 0x02, 0x27)
+#define W_FSGNJ_D(rd, rs1, rs2)  RTYPE(0x11, rs2, rs1, 0x00, rd, 0x53)
+#define W_FSGNJN_D(rd, rs1, rs2) RTYPE(0x11, rs2, rs1, 0x01, rd, 0x53)
 
 #define C_MV(rd, rs)          MAKE_CODE16(inst, code, 0x8002 | ((rd) << 7) | ((rs) << 2))
 #define C_LI(rd, imm)         MAKE_CODE16(inst, code, 0x4001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
@@ -163,6 +165,9 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define P_SNEZ(rd, rs)        W_SLTU(rd, ZERO, rs)
 #define P_SLTZ(rd, rs)        W_SLT(rd, rs, ZERO)
 #define P_SGTZ(rd, rs)        W_SLT(rd, ZERO, rs)
+
+#define P_FMV_D(rd, rs)       W_FSGNJ_D(rd, rs, rs)
+#define P_FNEG_D(rd, rs)      W_FSGNJN_D(rd, rs, rs)
 
 extern inline bool is_rvc_reg(int reg);
 extern inline int to_rvc_reg(int reg);
@@ -527,6 +532,20 @@ static unsigned char *asm_3fr(Inst *inst, Code *code) {
   return code->buf;
 }
 
+static unsigned char *asm_2fr(Inst *inst, Code *code) {
+  assert(inst->opr1.type == FREG);
+  assert(inst->opr2.type == FREG);
+  int rd = inst->opr1.freg;
+  int rs = inst->opr2.freg;
+
+  switch (inst->op) {
+  case FMV_D:     P_FMV_D(rd, rs); break;
+  case FNEG_D:    P_FNEG_D(rd, rs); break;
+  default: assert(false); return NULL;
+  }
+  return code->buf;
+}
+
 static unsigned char *asm_fld(Inst *inst, Code *code) {
   int rd = inst->opr1.freg;
   Expr *offset = inst->opr2.indirect.offset;
@@ -620,6 +639,10 @@ static const AsmInstTable table_3fr[] ={
     {asm_3fr, FREG, FREG, FREG},
     {NULL} };
 
+static const AsmInstTable table_2fr[] ={
+    {asm_2fr, FREG, FREG, NOOPERAND},
+    {NULL} };
+
 static const AsmInstTable table_fld[] ={
     {asm_fld, FREG, INDIRECT, NOOPERAND},
     {NULL} };
@@ -663,6 +686,7 @@ static const AsmInstTable *table[] = {
   [RET] = (const AsmInstTable[]){ {asm_ret, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
 
   [FADD_D] = table_3fr, [FSUB_D] = table_3fr, [FMUL_D] = table_3fr, [FDIV_D] = table_3fr,
+  [FMV_D] = table_2fr, [FNEG_D] = table_2fr,
   [FLD] = table_fld, [FLW] = table_fld, [FSD] = table_fsd, [FSW] = table_fsd,
 };
 
