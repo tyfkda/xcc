@@ -75,6 +75,8 @@
 #define W_FSUB_S(rd, rs1, rs2)    RTYPE(0x04, rs2, rs1, 0x07, rd, 0x53)
 #define W_FMUL_S(rd, rs1, rs2)    RTYPE(0x08, rs2, rs1, 0x07, rd, 0x53)
 #define W_FDIV_S(rd, rs1, rs2)    RTYPE(0x0c, rs2, rs1, 0x07, rd, 0x53)
+#define W_FSQRT_D(rd, rs)         RTYPE(0x2d, 0, rs, 0x07, rd, 0x53)
+#define W_FSQRT_S(rd, rs)         RTYPE(0x2c, 0, rs, 0x07, rd, 0x53)
 #define W_FEQ_D(rd, rs1, rs2)     RTYPE(0x51, rs2, rs1, 0x02, rd, 0x53)
 #define W_FLT_D(rd, rs1, rs2)     RTYPE(0x51, rs2, rs1, 0x01, rd, 0x53)
 #define W_FLE_D(rd, rs1, rs2)     RTYPE(0x51, rs2, rs1, 0x00, rd, 0x53)
@@ -89,6 +91,8 @@
 #define W_FSGNJ_S(rd, rs1, rs2)   RTYPE(0x10, rs2, rs1, 0x00, rd, 0x53)
 #define W_FSGNJN_D(rd, rs1, rs2)  RTYPE(0x11, rs2, rs1, 0x01, rd, 0x53)
 #define W_FSGNJN_S(rd, rs1, rs2)  RTYPE(0x10, rs2, rs1, 0x01, rd, 0x53)
+#define W_FSGNJX_D(rd, rs1, rs2)  RTYPE(0x11, rs2, rs1, 0x02, rd, 0x53)
+#define W_FSGNJX_S(rd, rs1, rs2)  RTYPE(0x10, rs2, rs1, 0x02, rd, 0x53)
 
 #define W_FCVT_D_W(rd, rs)        RTYPE(0x69, 0, rs, 0x00, rd, 0x53)
 #define W_FCVT_D_WU(rd, rs)       RTYPE(0x69, 1, rs, 0x00, rd, 0x53)

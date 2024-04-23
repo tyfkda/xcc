@@ -14,6 +14,8 @@ double sqrt(double x) {
   __asm("sqrtsd %xmm0, %xmm0");
 #elif defined(__aarch64__) && !defined(__GNUC__)
   __asm("fsqrt d0, d0");
+#elif defined(__riscv) && !defined(__GNUC__)
+  __asm("fsqrt.d fa0, fa0");
 #else
   if (x < 0)
     return NAN;

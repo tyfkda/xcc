@@ -391,14 +391,20 @@ static unsigned char *asm_3fr(Inst *inst, Code *code) {
   int rs2 = inst->opr3.freg;
 
   switch (inst->op) {
-  case FADD_D:  W_FADD_D(rd, rs1, rs2); break;
-  case FSUB_D:  W_FSUB_D(rd, rs1, rs2); break;
-  case FMUL_D:  W_FMUL_D(rd, rs1, rs2); break;
-  case FDIV_D:  W_FDIV_D(rd, rs1, rs2); break;
-  case FADD_S:  W_FADD_S(rd, rs1, rs2); break;
-  case FSUB_S:  W_FSUB_S(rd, rs1, rs2); break;
-  case FMUL_S:  W_FMUL_S(rd, rs1, rs2); break;
-  case FDIV_S:  W_FDIV_S(rd, rs1, rs2); break;
+  case FADD_D:    W_FADD_D(rd, rs1, rs2); break;
+  case FSUB_D:    W_FSUB_D(rd, rs1, rs2); break;
+  case FMUL_D:    W_FMUL_D(rd, rs1, rs2); break;
+  case FDIV_D:    W_FDIV_D(rd, rs1, rs2); break;
+  case FADD_S:    W_FADD_S(rd, rs1, rs2); break;
+  case FSUB_S:    W_FSUB_S(rd, rs1, rs2); break;
+  case FMUL_S:    W_FMUL_S(rd, rs1, rs2); break;
+  case FDIV_S:    W_FDIV_S(rd, rs1, rs2); break;
+  case FSGNJ_D:   W_FSGNJ_D(rd, rs1, rs2); break;
+  case FSGNJN_D:  W_FSGNJN_D(rd, rs1, rs2); break;
+  case FSGNJX_D:  W_FSGNJX_D(rd, rs1, rs2); break;
+  case FSGNJ_S:   W_FSGNJ_S(rd, rs1, rs2); break;
+  case FSGNJN_S:  W_FSGNJN_S(rd, rs1, rs2); break;
+  case FSGNJX_S:  W_FSGNJX_S(rd, rs1, rs2); break;
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -411,6 +417,8 @@ static unsigned char *asm_2fr(Inst *inst, Code *code) {
   int rs = inst->opr2.freg;
 
   switch (inst->op) {
+  case FSQRT_D:   W_FSQRT_D(rd, rs); break;
+  case FSQRT_S:   W_FSQRT_S(rd, rs); break;
   case FMV_D:     P_FMV_D(rd, rs); break;
   case FNEG_D:    P_FNEG_D(rd, rs); break;
   case FMV_S:     P_FMV_S(rd, rs); break;
@@ -636,6 +644,9 @@ static const AsmInstTable *table[] = {
 
   [FADD_D] = table_3fr, [FSUB_D] = table_3fr, [FMUL_D] = table_3fr, [FDIV_D] = table_3fr,
   [FADD_S] = table_3fr, [FSUB_S] = table_3fr, [FMUL_S] = table_3fr, [FDIV_S] = table_3fr,
+  [FSQRT_D] = table_2fr, [FSQRT_S] = table_2fr,
+  [FSGNJ_D] = table_3fr, [FSGNJN_D] = table_3fr, [FSGNJX_D] = table_3fr,
+  [FSGNJ_S] = table_3fr, [FSGNJN_S] = table_3fr, [FSGNJX_S] = table_3fr,
   [FMV_D] = table_2fr, [FNEG_D] = table_2fr,
   [FMV_S] = table_2fr, [FNEG_S] = table_2fr,
   [FMV_X_D] = table_if, [FMV_X_W] = table_if,
