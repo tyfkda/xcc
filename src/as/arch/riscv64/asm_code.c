@@ -110,6 +110,10 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define W_FSUB_D(rd, rs1, rs2)   RTYPE(0x05, rs2, rs1, 0x07, rd, 0x53)
 #define W_FMUL_D(rd, rs1, rs2)   RTYPE(0x09, rs2, rs1, 0x07, rd, 0x53)
 #define W_FDIV_D(rd, rs1, rs2)   RTYPE(0x0d, rs2, rs1, 0x07, rd, 0x53)
+#define W_FLD(rd, ofs, rs)       ITYPE(ofs, rs, 0x03, rd, 0x07)
+#define W_FLW(rd, ofs, rs)       ITYPE(ofs, rs, 0x02, rd, 0x07)
+#define W_FSD(rs2, ofs, rs1)     STYPE(ofs, rs2, rs1, 0x03, 0x27)
+#define W_FSW(rs2, ofs, rs1)     STYPE(ofs, rs2, rs1, 0x02, 0x27)
 
 #define C_MV(rd, rs)          MAKE_CODE16(inst, code, 0x8002 | ((rd) << 7) | ((rs) << 2))
 #define C_LI(rd, imm)         MAKE_CODE16(inst, code, 0x4001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
@@ -139,6 +143,11 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define C_JALR(rs)            MAKE_CODE16(inst, code, 0x9002 | ((rs) << 7))
 #define C_BEQZ(rs)            MAKE_CODE16(inst, code, 0xc001 | (to_rvc_reg(rs) << 7))
 #define C_BNEZ(rs)            MAKE_CODE16(inst, code, 0xe001 | (to_rvc_reg(rs) << 7))
+
+#define C_FLD(rd, imm, rs)    MAKE_CODE16(inst, code, 0x2000 | (IMM(imm, 5, 3) << 10) | (to_rvc_freg(rs) << 7) | (IMM(imm, 7, 6) << 5) | (to_rvc_freg(rd) << 2))
+#define C_FSD(rs2, imm, rs1)  MAKE_CODE16(inst, code, 0xa000 | (IMM(imm, 5, 3) << 10) | (to_rvc_freg(rs1) << 7) | (IMM(imm, 7, 6) << 5) | (to_rvc_freg(rs2) << 2))
+#define C_FLDSP(rd, imm)      MAKE_CODE16(inst, code, 0x2002 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 3) << 5) | (IMM(imm, 8, 6) << 2))
+#define C_FSDSP(rs, imm)      MAKE_CODE16(inst, code, 0xa002 | (IMM(imm, 5, 3) << 10) | (IMM(imm, 8, 6) << 7) | ((rs) << 2))
 
 #define P_RET()               C_JR(RA)
 #define P_LI(rd, imm)         W_ADDI(rd, ZERO, imm)
@@ -518,6 +527,60 @@ static unsigned char *asm_3fr(Inst *inst, Code *code) {
   return code->buf;
 }
 
+static unsigned char *asm_fld(Inst *inst, Code *code) {
+  int rd = inst->opr1.freg;
+  Expr *offset = inst->opr2.indirect.offset;
+  if (offset == NULL || offset->kind == EX_FIXNUM) {
+    int64_t ofs = offset != NULL ? offset->fixnum : 0;
+    int rs = inst->opr2.indirect.reg.no;
+    if (inst->op == FLD) {
+      if (ofs >= 0 && ofs < (1 << 9) && (ofs & 7) == 0 && rs == SP) {
+        C_FLDSP(rd, ofs);
+        return code->buf;
+      }
+      if (ofs >= 0 && ofs < (1 << 8) && (ofs & 7) == 0 && is_rvc_freg(rd) && is_rvc_freg(rs)) {
+        C_FLD(rd, ofs, rs);
+        return code->buf;
+      }
+    }
+    // TODO: Check offset range.
+    switch (inst->op) {
+    case FLD:  W_FLD(rd, ofs, rs); break;
+    case FLW:  W_FLW(rd, ofs, rs); break;
+    default: assert(false); break;
+    }
+    return code->buf;
+  }
+  return NULL;
+}
+
+static unsigned char *asm_fsd(Inst *inst, Code *code) {
+  Expr *offset = inst->opr2.indirect.offset;
+  if (offset == NULL || offset->kind == EX_FIXNUM) {
+    int64_t ofs = offset != NULL ? offset->fixnum : 0;
+    int rs2 = inst->opr1.freg;
+    int rs1 = inst->opr2.indirect.reg.no;
+    if (inst->op == FLD) {
+      if (ofs >= 0 && ofs < (1 << 9) && (ofs & 7) == 0 && rs1 == SP) {
+        C_FSDSP(rs2, ofs);
+        return code->buf;
+      }
+      if (ofs >= 0 && ofs < (1 << 8) && (ofs & 7) == 0 && is_rvc_freg(rs1) && is_rvc_freg(rs2)) {
+        C_FSD(rs2, ofs, rs1);
+        return code->buf;
+      }
+    }
+    // TODO: Check offset range.
+    switch (inst->op) {
+    case FSD:  W_FSD(rs2, ofs, rs1); break;
+    case FSW:  W_FSW(rs2, ofs, rs1); break;
+    default: assert(false); break;
+    }
+    return code->buf;
+  }
+  return NULL;
+}
+
 ////////////////////////////////////////////////
 
 typedef unsigned char *(*AsmInstFunc)(Inst *inst, Code *code);
@@ -557,6 +620,14 @@ static const AsmInstTable table_3fr[] ={
     {asm_3fr, FREG, FREG, FREG},
     {NULL} };
 
+static const AsmInstTable table_fld[] ={
+    {asm_fld, FREG, INDIRECT, NOOPERAND},
+    {NULL} };
+
+static const AsmInstTable table_fsd[] ={
+    {asm_fsd, FREG, INDIRECT, NOOPERAND},
+    {NULL} };
+
 static const AsmInstTable *table[] = {
   [NOOP] = (const AsmInstTable[]){ {asm_noop, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
   [MV] = (const AsmInstTable[]){ {asm_mv, REG, REG, NOOPERAND}, {NULL} },
@@ -592,6 +663,7 @@ static const AsmInstTable *table[] = {
   [RET] = (const AsmInstTable[]){ {asm_ret, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
 
   [FADD_D] = table_3fr, [FSUB_D] = table_3fr, [FMUL_D] = table_3fr, [FDIV_D] = table_3fr,
+  [FLD] = table_fld, [FLW] = table_fld, [FSD] = table_fsd, [FSW] = table_fsd,
 };
 
 void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
