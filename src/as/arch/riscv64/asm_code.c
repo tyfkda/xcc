@@ -136,6 +136,9 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define W_FCVT_D_S(rd, rs)       RTYPE(0x21, 0, rs, 0x00, rd, 0x53)
 #define W_FCVT_S_D(rd, rs)       RTYPE(0x20, 1, rs, 0x07, rd, 0x53)
 
+#define W_FMV_X_D(rd, rs)        RTYPE(0x71, 0, rs, 0x00, rd, 0x53)
+#define W_FMV_X_W(rd, rs)        RTYPE(0x70, 0, rs, 0x00, rd, 0x53)
+
 #define C_MV(rd, rs)          MAKE_CODE16(inst, code, 0x8002 | ((rd) << 7) | ((rs) << 2))
 #define C_LI(rd, imm)         MAKE_CODE16(inst, code, 0x4001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
 #define C_LUI(rd, imm)        MAKE_CODE16(inst, code, 0x6001 | (IMM(imm, 17, 17) << 12) | ((rd) << 7) | (IMM(imm, 16, 12) << 2))
@@ -662,6 +665,8 @@ static unsigned char *asm_if(Inst *inst, Code *code) {
   int rs = inst->opr2.freg;
   int rm = inst->opr3.type == ROUNDMODE ? inst->opr3.roundmode : 0;
   switch (inst->op) {
+  case FMV_X_D:   W_FMV_X_D(rd, rs); break;
+  case FMV_X_W:   W_FMV_X_W(rd, rs); break;
   case FCVT_W_D:  W_FCVT_W_D(rd, rs, rm); break;
   case FCVT_WU_D: W_FCVT_WU_D(rd, rs, rm); break;
   case FCVT_L_D:  W_FCVT_L_D(rd, rs, rm); break;
@@ -771,6 +776,7 @@ static const AsmInstTable *table[] = {
 
   [FADD_D] = table_3fr, [FSUB_D] = table_3fr, [FMUL_D] = table_3fr, [FDIV_D] = table_3fr,
   [FMV_D] = table_2fr, [FNEG_D] = table_2fr,
+  [FMV_X_D] = table_if, [FMV_X_W] = table_if,
   [FEQ_D] = table_fcmp, [FLT_D] = table_fcmp, [FLE_D] = table_fcmp,
   [FEQ_S] = table_fcmp, [FLT_S] = table_fcmp, [FLE_S] = table_fcmp,
   [FLD] = table_fld, [FLW] = table_fld, [FSD] = table_fsd, [FSW] = table_fsd,

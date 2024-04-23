@@ -42,6 +42,7 @@ enum Opcode {
 
   FADD_D, FSUB_D, FMUL_D, FDIV_D,
   FMV_D, FNEG_D,
+  FMV_X_D, FMV_X_W,
   FEQ_D, FLT_D, FLE_D,
   FEQ_S, FLT_S, FLE_S,
   FLD, FLW, FSD, FSW,
