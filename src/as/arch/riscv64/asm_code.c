@@ -123,6 +123,19 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define W_FSGNJ_D(rd, rs1, rs2)  RTYPE(0x11, rs2, rs1, 0x00, rd, 0x53)
 #define W_FSGNJN_D(rd, rs1, rs2) RTYPE(0x11, rs2, rs1, 0x01, rd, 0x53)
 
+#define W_FCVT_D_W(rd, rs)       RTYPE(0x69, 0, rs, 0x00, rd, 0x53)
+#define W_FCVT_D_WU(rd, rs)      RTYPE(0x69, 1, rs, 0x00, rd, 0x53)
+#define W_FCVT_D_L(rd, rs)       RTYPE(0x69, 2, rs, 0x07, rd, 0x53)
+#define W_FCVT_D_LU(rd, rs)      RTYPE(0x69, 3, rs, 0x07, rd, 0x53)
+
+#define W_FCVT_W_D(rd, rs, rm)   RTYPE(0x61, 0, rs, rm, rd, 0x53)
+#define W_FCVT_WU_D(rd, rs, rm)  RTYPE(0x61, 1, rs, rm, rd, 0x53)
+#define W_FCVT_L_D(rd, rs, rm)   RTYPE(0x61, 2, rs, rm, rd, 0x53)
+#define W_FCVT_LU_D(rd, rs, rm)  RTYPE(0x61, 3, rs, rm, rd, 0x53)
+
+#define W_FCVT_D_S(rd, rs)       RTYPE(0x21, 0, rs, 0x00, rd, 0x53)
+#define W_FCVT_S_D(rd, rs)       RTYPE(0x20, 1, rs, 0x07, rd, 0x53)
+
 #define C_MV(rd, rs)          MAKE_CODE16(inst, code, 0x8002 | ((rd) << 7) | ((rs) << 2))
 #define C_LI(rd, imm)         MAKE_CODE16(inst, code, 0x4001 | (IMM(imm, 5, 5) << 12) | ((rd) << 7) | (IMM(imm, 4, 0) << 2))
 #define C_LUI(rd, imm)        MAKE_CODE16(inst, code, 0x6001 | (IMM(imm, 17, 17) << 12) | ((rd) << 7) | (IMM(imm, 16, 12) << 2))
@@ -547,6 +560,8 @@ static unsigned char *asm_2fr(Inst *inst, Code *code) {
   switch (inst->op) {
   case FMV_D:     P_FMV_D(rd, rs); break;
   case FNEG_D:    P_FNEG_D(rd, rs); break;
+  case FCVT_D_S:  W_FCVT_D_S(rd, rs); break;
+  case FCVT_S_D:  W_FCVT_S_D(rd, rs); break;
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -625,6 +640,37 @@ static unsigned char *asm_fsd(Inst *inst, Code *code) {
   return NULL;
 }
 
+static unsigned char *asm_fi(Inst *inst, Code *code) {
+  assert(inst->opr1.type == FREG);
+  assert(inst->opr2.type == REG);
+  int rd = inst->opr1.freg;
+  int rs = inst->opr2.reg.no;
+  switch (inst->op) {
+  case FCVT_D_W:  W_FCVT_D_W(rd, rs); break;
+  case FCVT_D_WU: W_FCVT_D_WU(rd, rs); break;
+  case FCVT_D_L:  W_FCVT_D_L(rd, rs); break;
+  case FCVT_D_LU: W_FCVT_D_LU(rd, rs); break;
+  default: assert(false); return NULL;
+  }
+  return code->buf;
+}
+
+static unsigned char *asm_if(Inst *inst, Code *code) {
+  assert(inst->opr1.type == REG);
+  assert(inst->opr2.type == FREG);
+  int rd = inst->opr1.reg.no;
+  int rs = inst->opr2.freg;
+  int rm = inst->opr3.type == ROUNDMODE ? inst->opr3.roundmode : 0;
+  switch (inst->op) {
+  case FCVT_W_D:  W_FCVT_W_D(rd, rs, rm); break;
+  case FCVT_WU_D: W_FCVT_WU_D(rd, rs, rm); break;
+  case FCVT_L_D:  W_FCVT_L_D(rd, rs, rm); break;
+  case FCVT_LU_D: W_FCVT_LU_D(rd, rs, rm); break;
+  default: assert(false); return NULL;
+  }
+  return code->buf;
+}
+
 ////////////////////////////////////////////////
 
 typedef unsigned char *(*AsmInstFunc)(Inst *inst, Code *code);
@@ -680,6 +726,15 @@ static const AsmInstTable table_fsd[] ={
     {asm_fsd, FREG, INDIRECT, NOOPERAND},
     {NULL} };
 
+static const AsmInstTable table_fi[] ={
+    {asm_fi, FREG, REG, NOOPERAND},
+    {NULL} };
+
+static const AsmInstTable table_if[] ={
+    {asm_if, REG, FREG, NOOPERAND},
+    {asm_if, REG, FREG, ROUNDMODE},
+    {NULL} };
+
 static const AsmInstTable *table[] = {
   [NOOP] = (const AsmInstTable[]){ {asm_noop, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
   [MV] = (const AsmInstTable[]){ {asm_mv, REG, REG, NOOPERAND}, {NULL} },
@@ -719,6 +774,12 @@ static const AsmInstTable *table[] = {
   [FEQ_D] = table_fcmp, [FLT_D] = table_fcmp, [FLE_D] = table_fcmp,
   [FEQ_S] = table_fcmp, [FLT_S] = table_fcmp, [FLE_S] = table_fcmp,
   [FLD] = table_fld, [FLW] = table_fld, [FSD] = table_fsd, [FSW] = table_fsd,
+
+  [FCVT_D_W] = table_fi, [FCVT_D_WU] = table_fi,
+  [FCVT_D_L] = table_fi, [FCVT_D_LU] = table_fi,
+  [FCVT_W_D] = table_if, [FCVT_WU_D] = table_if,
+  [FCVT_L_D] = table_if, [FCVT_LU_D] = table_if,
+  [FCVT_D_S] = table_2fr, [FCVT_S_D] = table_2fr,
 };
 
 void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {

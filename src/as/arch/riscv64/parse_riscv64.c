@@ -47,6 +47,9 @@ static const char *kOpTable[] = {
   "feq.d", "flt.d", "fle.d",
   "feq.s", "flt.s", "fle.s",
   "fld", "flw", "fsd", "fsw",
+  "fcvt.d.w", "fcvt.d.wu", "fcvt.d.l", "fcvt.d.lu",
+  "fcvt.w.d", "fcvt.wu.d", "fcvt.l.d", "fcvt.lu.d",
+  "fcvt.d.s", "fcvt.s.d",
 };
 
 #define ZEROREG  X0
@@ -163,6 +166,17 @@ static const struct {
   {"ft8", FT8},  {"ft9", FT9},  {"ft10", FT10},  {"ft11", FT11},
 };
 
+static const struct {
+  const char *name;
+  enum RoundMode mode;
+} kRoundModes[] = {
+  {"rne", RNE},
+  {"rtz", RTZ},
+  {"rdn", RDN},
+  {"rup", RUP},
+  {"rmm", RMM},
+};
+
 static int find_match_index(const char **pp, const char **table, size_t count) {
   const char *p = *pp;
   const char *start = p;
@@ -213,6 +227,19 @@ static enum FRegType find_fregister(const char **pp) {
   return NOFREG;
 }
 
+static enum RoundMode find_round_mode(const char **pp) {
+  const char *p = *pp;
+  for (int i = 0; i < (int)ARRAY_SIZE(kRoundModes); ++i) {
+    const char *name = kRoundModes[i].name;
+    size_t n = strlen(name);
+    if (strncmp(p, name, n) == 0 && !is_label_chr(p[n])) {
+      *pp = p + n;
+      return kRoundModes[i].mode;
+    }
+  }
+  return NOROUND;
+}
+
 static bool parse_indirect_register(ParseInfo *info, Expr *offset, Operand *operand) {
   // Already read "(".
   enum RegType base_reg = find_register(&info->p);
@@ -234,7 +261,16 @@ static bool parse_indirect_register(ParseInfo *info, Expr *offset, Operand *oper
   return true;
 }
 
-static bool parse_operand(ParseInfo *info, Operand *operand) {
+static bool parse_operand(ParseInfo *info, Operand *operand, bool search_round_mode) {
+  if (search_round_mode) {
+    enum RoundMode roundmode = find_round_mode(&info->p);
+    if (roundmode != NOROUND) {
+      operand->type = ROUNDMODE;
+      operand->roundmode = roundmode;
+      return true;
+    }
+  }
+
   enum RegType reg = find_register(&info->p);
   if (reg != NOREG) {
     operand->type = REG;
@@ -288,7 +324,7 @@ void parse_inst(ParseInfo *info, Line *line) {
   inst->op = op;
   if (op != NOOP) {
     for (int i = 0; i < (int)ARRAY_SIZE(opr_table); ++i) {
-      if (!parse_operand(info, opr_table[i]))
+      if (!parse_operand(info, opr_table[i], i >= 2))
         break;
       info->p = skip_whitespaces(info->p);
       if (i == (int)ARRAY_SIZE(opr_table) - 1 || *info->p != ',')

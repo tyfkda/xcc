@@ -45,6 +45,10 @@ enum Opcode {
   FEQ_D, FLT_D, FLE_D,
   FEQ_S, FLT_S, FLE_S,
   FLD, FLW, FSD, FSW,
+
+  FCVT_D_W, FCVT_D_WU, FCVT_D_L, FCVT_D_LU,
+  FCVT_W_D, FCVT_WU_D, FCVT_L_D, FCVT_LU_D,
+  FCVT_D_S, FCVT_S_D,
 };
 
 enum RegType {
@@ -63,6 +67,15 @@ enum FRegType {
   F16, F17, F18, F19, F20, F21, F22, F23, F24, F25, F26, F27, F28, F29, F30, F31,
 };
 
+enum RoundMode {
+  NOROUND = -1,
+  RNE,  // Round to Nearest, ties to Even
+  RTZ,  // Round towards Zero
+  RDN,  // Round Down (towards -Inf)
+  RUP,  // Round Up (towards +Inf)
+  RMM,  // Round to Nearest, ties to Max Magnitude
+};
+
 enum OperandType {
   NOOPERAND,
   REG,        // reg
@@ -70,6 +83,7 @@ enum OperandType {
   DIRECT,     // foobar + 345
   INDIRECT,   // ofs(reg)
   FREG,       // freg
+  ROUNDMODE,  // rm
 };
 
 typedef struct {
@@ -85,6 +99,7 @@ typedef struct {
       Reg reg;
     } indirect;
     enum FRegType freg;
+    enum RoundMode roundmode;
   };
 } Operand;
 
