@@ -43,13 +43,17 @@ static const char *kOpTable[] = {
   "ret",
 
   "fadd.d", "fsub.d", "fmul.d", "fdiv.d",
+  "fadd.s", "fsub.s", "fmul.s", "fdiv.s",
   "fmv.d", "fneg.d",
+  "fmv.s", "fneg.s",
   "fmv.x.d", "fmv.x.w",
   "feq.d", "flt.d", "fle.d",
   "feq.s", "flt.s", "fle.s",
   "fld", "flw", "fsd", "fsw",
   "fcvt.d.w", "fcvt.d.wu", "fcvt.d.l", "fcvt.d.lu",
   "fcvt.w.d", "fcvt.wu.d", "fcvt.l.d", "fcvt.lu.d",
+  "fcvt.s.w", "fcvt.s.wu", "fcvt.s.l", "fcvt.s.lu",
+  "fcvt.w.s", "fcvt.wu.s", "fcvt.l.s", "fcvt.lu.s",
   "fcvt.d.s", "fcvt.s.d",
 };
 

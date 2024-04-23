@@ -110,6 +110,10 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define W_FSUB_D(rd, rs1, rs2)   RTYPE(0x05, rs2, rs1, 0x07, rd, 0x53)
 #define W_FMUL_D(rd, rs1, rs2)   RTYPE(0x09, rs2, rs1, 0x07, rd, 0x53)
 #define W_FDIV_D(rd, rs1, rs2)   RTYPE(0x0d, rs2, rs1, 0x07, rd, 0x53)
+#define W_FADD_S(rd, rs1, rs2)   RTYPE(0x00, rs2, rs1, 0x07, rd, 0x53)
+#define W_FSUB_S(rd, rs1, rs2)   RTYPE(0x04, rs2, rs1, 0x07, rd, 0x53)
+#define W_FMUL_S(rd, rs1, rs2)   RTYPE(0x08, rs2, rs1, 0x07, rd, 0x53)
+#define W_FDIV_S(rd, rs1, rs2)   RTYPE(0x0c, rs2, rs1, 0x07, rd, 0x53)
 #define W_FEQ_D(rd, rs1, rs2)    RTYPE(0x51, rs2, rs1, 0x02, rd, 0x53)
 #define W_FLT_D(rd, rs1, rs2)    RTYPE(0x51, rs2, rs1, 0x01, rd, 0x53)
 #define W_FLE_D(rd, rs1, rs2)    RTYPE(0x51, rs2, rs1, 0x00, rd, 0x53)
@@ -121,17 +125,27 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define W_FSD(rs2, ofs, rs1)     STYPE(ofs, rs2, rs1, 0x03, 0x27)
 #define W_FSW(rs2, ofs, rs1)     STYPE(ofs, rs2, rs1, 0x02, 0x27)
 #define W_FSGNJ_D(rd, rs1, rs2)  RTYPE(0x11, rs2, rs1, 0x00, rd, 0x53)
+#define W_FSGNJ_S(rd, rs1, rs2)  RTYPE(0x10, rs2, rs1, 0x00, rd, 0x53)
 #define W_FSGNJN_D(rd, rs1, rs2) RTYPE(0x11, rs2, rs1, 0x01, rd, 0x53)
+#define W_FSGNJN_S(rd, rs1, rs2) RTYPE(0x10, rs2, rs1, 0x01, rd, 0x53)
 
 #define W_FCVT_D_W(rd, rs)       RTYPE(0x69, 0, rs, 0x00, rd, 0x53)
 #define W_FCVT_D_WU(rd, rs)      RTYPE(0x69, 1, rs, 0x00, rd, 0x53)
 #define W_FCVT_D_L(rd, rs)       RTYPE(0x69, 2, rs, 0x07, rd, 0x53)
 #define W_FCVT_D_LU(rd, rs)      RTYPE(0x69, 3, rs, 0x07, rd, 0x53)
+#define W_FCVT_S_W(rd, rs)       RTYPE(0x68, 0, rs, 0x07, rd, 0x53)
+#define W_FCVT_S_WU(rd, rs)      RTYPE(0x68, 1, rs, 0x07, rd, 0x53)
+#define W_FCVT_S_L(rd, rs)       RTYPE(0x68, 2, rs, 0x07, rd, 0x53)
+#define W_FCVT_S_LU(rd, rs)      RTYPE(0x68, 3, rs, 0x07, rd, 0x53)
 
 #define W_FCVT_W_D(rd, rs, rm)   RTYPE(0x61, 0, rs, rm, rd, 0x53)
 #define W_FCVT_WU_D(rd, rs, rm)  RTYPE(0x61, 1, rs, rm, rd, 0x53)
 #define W_FCVT_L_D(rd, rs, rm)   RTYPE(0x61, 2, rs, rm, rd, 0x53)
 #define W_FCVT_LU_D(rd, rs, rm)  RTYPE(0x61, 3, rs, rm, rd, 0x53)
+#define W_FCVT_W_S(rd, rs, rm)   RTYPE(0x60, 0, rs, rm, rd, 0x53)
+#define W_FCVT_WU_S(rd, rs, rm)  RTYPE(0x60, 1, rs, rm, rd, 0x53)
+#define W_FCVT_L_S(rd, rs, rm)   RTYPE(0x60, 2, rs, rm, rd, 0x53)
+#define W_FCVT_LU_S(rd, rs, rm)  RTYPE(0x60, 3, rs, rm, rd, 0x53)
 
 #define W_FCVT_D_S(rd, rs)       RTYPE(0x21, 0, rs, 0x00, rd, 0x53)
 #define W_FCVT_S_D(rd, rs)       RTYPE(0x20, 1, rs, 0x07, rd, 0x53)
@@ -189,7 +203,9 @@ inline bool assemble_error(const ParseInfo *info, const char *message) {
 #define P_SGTZ(rd, rs)        W_SLT(rd, ZERO, rs)
 
 #define P_FMV_D(rd, rs)       W_FSGNJ_D(rd, rs, rs)
+#define P_FMV_S(rd, rs)       W_FSGNJ_S(rd, rs, rs)
 #define P_FNEG_D(rd, rs)      W_FSGNJN_D(rd, rs, rs)
+#define P_FNEG_S(rd, rs)      W_FSGNJN_S(rd, rs, rs)
 
 extern inline bool is_rvc_reg(int reg);
 extern inline int to_rvc_reg(int reg);
@@ -549,6 +565,10 @@ static unsigned char *asm_3fr(Inst *inst, Code *code) {
   case FSUB_D:  W_FSUB_D(rd, rs1, rs2); break;
   case FMUL_D:  W_FMUL_D(rd, rs1, rs2); break;
   case FDIV_D:  W_FDIV_D(rd, rs1, rs2); break;
+  case FADD_S:  W_FADD_S(rd, rs1, rs2); break;
+  case FSUB_S:  W_FSUB_S(rd, rs1, rs2); break;
+  case FMUL_S:  W_FMUL_S(rd, rs1, rs2); break;
+  case FDIV_S:  W_FDIV_S(rd, rs1, rs2); break;
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -563,6 +583,8 @@ static unsigned char *asm_2fr(Inst *inst, Code *code) {
   switch (inst->op) {
   case FMV_D:     P_FMV_D(rd, rs); break;
   case FNEG_D:    P_FNEG_D(rd, rs); break;
+  case FMV_S:     P_FMV_S(rd, rs); break;
+  case FNEG_S:    P_FNEG_S(rd, rs); break;
   case FCVT_D_S:  W_FCVT_D_S(rd, rs); break;
   case FCVT_S_D:  W_FCVT_S_D(rd, rs); break;
   default: assert(false); return NULL;
@@ -653,6 +675,10 @@ static unsigned char *asm_fi(Inst *inst, Code *code) {
   case FCVT_D_WU: W_FCVT_D_WU(rd, rs); break;
   case FCVT_D_L:  W_FCVT_D_L(rd, rs); break;
   case FCVT_D_LU: W_FCVT_D_LU(rd, rs); break;
+  case FCVT_S_W:  W_FCVT_S_W(rd, rs); break;
+  case FCVT_S_WU: W_FCVT_S_WU(rd, rs); break;
+  case FCVT_S_L:  W_FCVT_S_L(rd, rs); break;
+  case FCVT_S_LU: W_FCVT_S_LU(rd, rs); break;
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -671,6 +697,10 @@ static unsigned char *asm_if(Inst *inst, Code *code) {
   case FCVT_WU_D: W_FCVT_WU_D(rd, rs, rm); break;
   case FCVT_L_D:  W_FCVT_L_D(rd, rs, rm); break;
   case FCVT_LU_D: W_FCVT_LU_D(rd, rs, rm); break;
+  case FCVT_W_S:  W_FCVT_W_S(rd, rs, rm); break;
+  case FCVT_WU_S: W_FCVT_WU_S(rd, rs, rm); break;
+  case FCVT_L_S:  W_FCVT_L_S(rd, rs, rm); break;
+  case FCVT_LU_S: W_FCVT_LU_S(rd, rs, rm); break;
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -775,7 +805,9 @@ static const AsmInstTable *table[] = {
   [RET] = (const AsmInstTable[]){ {asm_ret, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
 
   [FADD_D] = table_3fr, [FSUB_D] = table_3fr, [FMUL_D] = table_3fr, [FDIV_D] = table_3fr,
+  [FADD_S] = table_3fr, [FSUB_S] = table_3fr, [FMUL_S] = table_3fr, [FDIV_S] = table_3fr,
   [FMV_D] = table_2fr, [FNEG_D] = table_2fr,
+  [FMV_S] = table_2fr, [FNEG_S] = table_2fr,
   [FMV_X_D] = table_if, [FMV_X_W] = table_if,
   [FEQ_D] = table_fcmp, [FLT_D] = table_fcmp, [FLE_D] = table_fcmp,
   [FEQ_S] = table_fcmp, [FLT_S] = table_fcmp, [FLE_S] = table_fcmp,
@@ -785,6 +817,10 @@ static const AsmInstTable *table[] = {
   [FCVT_D_L] = table_fi, [FCVT_D_LU] = table_fi,
   [FCVT_W_D] = table_if, [FCVT_WU_D] = table_if,
   [FCVT_L_D] = table_if, [FCVT_LU_D] = table_if,
+  [FCVT_S_W] = table_fi, [FCVT_S_WU] = table_fi,
+  [FCVT_S_L] = table_fi, [FCVT_S_LU] = table_fi,
+  [FCVT_W_S] = table_if, [FCVT_WU_S] = table_if,
+  [FCVT_L_S] = table_if, [FCVT_LU_S] = table_if,
   [FCVT_D_S] = table_2fr, [FCVT_S_D] = table_2fr,
 };
 
