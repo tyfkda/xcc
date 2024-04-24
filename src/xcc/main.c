@@ -549,20 +549,24 @@ int main(int argc, char *argv[]) {
   const char *prefix = get_exe_prefix(xccpath);
   char *cpp_path = join_exe_prefix(xccpath, prefix, "cpp");
   char *cc1_path = join_exe_prefix(xccpath, prefix, "cc1");
-#if !defined(AS_USE_CC)
-  char *as_path = join_exe_prefix(xccpath, prefix, "as");
-  char *ld_path = join_exe_prefix(xccpath, prefix, "ld");
-#elif defined(HOST_CC_PREFIX)
 #define S(x)   S2(x)
 #define S2(x)  #x
+#if !defined(USE_SYS_AS)
+  char *as_path = join_exe_prefix(xccpath, prefix, "as");
+#elif defined(HOST_CC_PREFIX)
   char *as_path = S(HOST_CC_PREFIX) "as";
-  char *ld_path = S(HOST_CC_PREFIX) "gcc";
-#undef S2
-#undef S
 #else
   char *as_path = "/usr/bin/as";
+#endif
+#if !defined(USE_SYS_LD)
+  char *ld_path = join_exe_prefix(xccpath, prefix, "ld");
+#elif defined(HOST_CC_PREFIX)
+  char *ld_path = S(HOST_CC_PREFIX) "gcc";
+#else
   char *ld_path = "/usr/bin/cc";
 #endif
+#undef S2
+#undef S
 
   Vector *cpp_cmd = new_vector();
   vec_push(cpp_cmd, cpp_path);
@@ -635,7 +639,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (opts.out_type >= OutExecutable && !opts.use_ld) {
-#if !defined(AS_USE_CC) || defined(NO_STD_LIB)
+#if !defined(USE_SYS_LD) || defined(NO_STD_LIB)
     if (!opts.nostdlib)
       vec_push(opts.sources, JOIN_PATHS(root, "lib/crt0.a"));
     if (!opts.nodefaultlibs && !opts.nostdlib)
