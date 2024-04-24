@@ -177,6 +177,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
             break;
           case J:
             if (inst->opr1.type == DIRECT) {
+              int64_t target_address = 0;
               Value value = calc_expr(label_table, inst->opr1.direct.expr);
               if (value.label != NULL) {
                 // Put rela even if the label is defined in the same object file.
@@ -188,17 +189,35 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 info->offset = address - start_address;
                 info->add = value.offset;
                 vec_push(unresolved, info);
-                break;
+
+                LabelInfo *label_info = table_get(label_table, value.label);
+                if (label_info != NULL)
+                  target_address = label_info->address + value.offset;
+              }
+
+              if (target_address != 0) {
+                Code *code = &ir->code;
+                int64_t offset = target_address - VOIDP2INT(address);
+                if (offset < (1 << 11) && offset >= -(1 << 11)) {
+                  assert(code->len == 2);
+                  uint16_t *buf = (uint16_t*)code->buf;
+                  // Compressed: imm[11|4|9:8|10|6|7|3:1|5]
+#define IMM(imm, t, b)  (((imm) >> (b)) & ((1 << (t - b + 1)) - 1))
+                  buf[0] = (buf[0] & 0xe003) | (IMM(offset, 11, 11) << 12) | (IMM(offset, 4, 4) << 11) |
+                    (IMM(offset, 9, 8) << 9) | (IMM(offset, 10, 10) << 8) | (IMM(offset, 6, 6) << 7) |
+                    (IMM(offset, 7, 7) << 6) | (IMM(offset, 3, 1) << 3) | (IMM(offset, 5, 5) << 2);
+                }
               }
             }
             break;
           case BEQ: case BNE: case BLT: case BGE: case BLTU: case BGEU:
             if (inst->opr3.type == DIRECT) {
+              bool comp = inst->opr2.reg.no == 0 && is_rvc_reg(inst->opr1.reg.no) &&
+                (inst->op == BEQ || inst->op == BNE);
+              int64_t target_address = 0;
               Value value = calc_expr(label_table, inst->opr3.direct.expr);
               if (value.label != NULL) {
                 assert(inst->opr2.type == REG);
-                bool comp = inst->opr2.reg.no == 0 && is_rvc_reg(inst->opr1.reg.no) &&
-                  (inst->op == BEQ || inst->op == BNE);
                 // Put rela even if the label is defined in the same object file.
                 UnresolvedInfo *info;
                 info = calloc_or_die(sizeof(*info));
@@ -208,7 +227,21 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 info->offset = address - start_address;
                 info->add = value.offset;
                 vec_push(unresolved, info);
-                break;
+
+                LabelInfo *label_info = table_get(label_table, value.label);
+                if (label_info != NULL)
+                  target_address = label_info->address + value.offset;
+              }
+
+              if (!comp && target_address != 0) {
+                Code *code = &ir->code;
+                int64_t offset = target_address - VOIDP2INT(address);
+                if (offset < (1 << 11) && offset >= -(1 << 11)) {
+                  assert(code->len == 4);
+                  uint32_t *buf = (uint32_t*)code->buf;
+                  // STYPE
+                  buf[0] = (buf[0] & 0x01fff07f) | (IMM(offset, 11, 5) << 25) | (IMM(offset, 4, 0) << 7);
+                }
               }
             }
             break;
