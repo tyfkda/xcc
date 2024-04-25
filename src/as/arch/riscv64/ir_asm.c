@@ -115,6 +115,31 @@ bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
   return settle;
 }
 
+#ifndef MAKE_CODE32
+#define MAKE_CODE32(inst, code, ...)  do { unsigned int buf[] = {__VA_ARGS__}; make_code32(inst, code, buf, sizeof(buf)); } while (0)
+#endif
+void make_code32(Inst *inst, Code *code, unsigned int *buf, int len);
+
+#define ZERO  0
+#define IMM(imm, t, b)  (((imm) >> (b)) & ((1 << (t - b + 1)) - 1))
+#define UTYPE(imm, rd, opcode)                       MAKE_CODE32(inst, code, (IMM(imm, 31, 12) << 12) | ((rd) << 7) | (opcode)) // U-type
+#define W_JAL(rd, imm)        UTYPE(imm, rd, 0x6f)
+
+static bool make_jmp_long(IR *ir) {
+  if (ir->code.flag & INST_LONG_OFFSET)
+    return false;
+
+  Code *code = &ir->code;
+  Inst *inst = code->inst;
+  // Change to long offset, and recalculate.
+  code->flag |= INST_LONG_OFFSET;
+  code->len = 0;
+  assert(inst->op == J);
+
+  W_JAL(ZERO, 0);
+  return true;
+}
+
 bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved) {
   assert(unresolved != NULL);
   vec_clear(unresolved);
@@ -183,7 +208,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 // Put rela even if the label is defined in the same object file.
                 UnresolvedInfo *info;
                 info = calloc_or_die(sizeof(*info));
-                info->kind = UNRES_RISCV_RVC_JUMP;
+                info->kind = (ir->code.flag & INST_LONG_OFFSET) ? UNRES_RISCV_JAL : UNRES_RISCV_RVC_JUMP;
                 info->label = value.label;
                 info->src_section = sec;
                 info->offset = address - start_address;
@@ -198,14 +223,28 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               if (target_address != 0) {
                 Code *code = &ir->code;
                 int64_t offset = target_address - VOIDP2INT(address);
-                if (offset < (1 << 11) && offset >= -(1 << 11)) {
+                bool long_offset = ir->code.flag & INST_LONG_OFFSET;
+                if (!long_offset) {
                   assert(code->len == 2);
-                  uint16_t *buf = (uint16_t*)code->buf;
-                  // Compressed: imm[11|4|9:8|10|6|7|3:1|5]
-#define IMM(imm, t, b)  (((imm) >> (b)) & ((1 << (t - b + 1)) - 1))
-                  buf[0] = (buf[0] & 0xe003) | (IMM(offset, 11, 11) << 12) | (IMM(offset, 4, 4) << 11) |
-                    (IMM(offset, 9, 8) << 9) | (IMM(offset, 10, 10) << 8) | (IMM(offset, 6, 6) << 7) |
-                    (IMM(offset, 7, 7) << 6) | (IMM(offset, 3, 1) << 3) | (IMM(offset, 5, 5) << 2);
+                  if (offset < (1 << 11) && offset >= -(1 << 11)) {
+                    uint16_t *buf = (uint16_t*)code->buf;
+                    // Compressed: imm[11|4|9:8|10|6|7|3:1|5]
+                    buf[0] = (buf[0] & 0xe003) | (IMM(offset, 11, 11) << 12) | (IMM(offset, 4, 4) << 11) |
+                      (IMM(offset, 9, 8) << 9) | (IMM(offset, 10, 10) << 8) | (IMM(offset, 6, 6) << 7) |
+                      (IMM(offset, 7, 7) << 6) | (IMM(offset, 3, 1) << 3) | (IMM(offset, 5, 5) << 2);
+                  } else {
+                    size_upgraded |= make_jmp_long(ir);
+                  }
+                } else {
+                  if (offset < (1 << 20) && offset >= -(1 << 20)) {
+                    uint32_t *buf = (uint32_t*)code->buf;
+                    // Compressed: imm[20|10:1|11|19:12]
+                    buf[0] = (buf[0] & 0x000007ff) | (IMM(offset, 20, 20) << 31) | (IMM(offset, 10, 1) << 21) |
+                      (IMM(offset, 11, 11) << 20) | (IMM(offset, 19, 12) << 12);
+                  } else {
+                    // Linker extends the branch instruction to long offset?
+                    assert(false);
+                  }
                 }
               }
             }
@@ -241,6 +280,9 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   uint32_t *buf = (uint32_t*)code->buf;
                   // STYPE
                   buf[0] = (buf[0] & 0x01fff07f) | (IMM(offset, 11, 5) << 25) | (IMM(offset, 4, 0) << 7);
+                } else {
+                  // Linker extends the branch instruction to long offset?
+                  // assert(false);
                 }
               }
             }

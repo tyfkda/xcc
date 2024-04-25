@@ -289,13 +289,14 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
         rela->r_addend = u->add;
       }
       break;
+    case UNRES_RISCV_JAL:
     case UNRES_RISCV_RVC_JUMP:
       {
         int symidx = symtab_find(&symtab, u->label);
         assert(symidx >= 0);
 
         rela->r_offset = u->offset;
-        rela->r_info = ELF64_R_INFO(symidx, R_RISCV_RVC_JUMP);
+        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_RISCV_JAL ? R_RISCV_JAL : R_RISCV_RVC_JUMP);
         rela->r_addend = u->add;
       }
       break;

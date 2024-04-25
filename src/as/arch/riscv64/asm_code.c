@@ -499,7 +499,6 @@ static unsigned char *asm_sd(Inst *inst, Code *code) {
 
 static unsigned char *asm_j(Inst *inst, Code *code) {
   UNUSED(inst);
-  // TODO: Non compact instruction?
   // imm[11|4|9:8|10|6|7|3:1|5]
   C_J();
   return code->buf;

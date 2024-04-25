@@ -15,7 +15,7 @@ typedef struct {
 static Section sections[SECTION_COUNT];
 static size_t bss_size;
 
-size_t section_aligns[SECTION_COUNT] = {1, 1, 1, 1};
+size_t section_aligns[SECTION_COUNT] = {8, 8, 1, 1};
 uintptr_t section_start_addresses[SECTION_COUNT];
 
 void add_bss(size_t size) {
