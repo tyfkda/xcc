@@ -114,8 +114,3 @@ typedef struct Inst {
   Operand opr2;
   Operand opr3;
 } Inst;
-
-inline bool is_rvc_reg(int reg)  { return reg >= 8 && reg <= 15; }  // X8~X15
-inline int to_rvc_reg(int reg)  { return reg - 8; }
-#define is_rvc_freg  is_rvc_reg
-#define to_rvc_freg  to_rvc_reg

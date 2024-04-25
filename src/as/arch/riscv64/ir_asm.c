@@ -7,6 +7,7 @@
 #include "gen_section.h"
 #include "inst.h"
 #include "parse_asm.h"
+#include "riscv64_code.h"
 #include "table.h"
 #include "util.h"
 
@@ -114,16 +115,6 @@ bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
   }
   return settle;
 }
-
-#ifndef MAKE_CODE32
-#define MAKE_CODE32(inst, code, ...)  do { unsigned int buf[] = {__VA_ARGS__}; make_code32(inst, code, buf, sizeof(buf)); } while (0)
-#endif
-void make_code32(Inst *inst, Code *code, unsigned int *buf, int len);
-
-#define ZERO  0
-#define IMM(imm, t, b)  (((imm) >> (b)) & ((1 << (t - b + 1)) - 1))
-#define UTYPE(imm, rd, opcode)                       MAKE_CODE32(inst, code, (IMM(imm, 31, 12) << 12) | ((rd) << 7) | (opcode)) // U-type
-#define W_JAL(rd, imm)        UTYPE(imm, rd, 0x6f)
 
 static bool make_jmp_long(IR *ir) {
   if (ir->code.flag & INST_LONG_OFFSET)
