@@ -15,37 +15,6 @@
 #define LONG_SIZE   (4)
 #define QUAD_SIZE   (8)
 
-static LabelInfo *new_label(int section, uintptr_t address) {
-  LabelInfo *info = malloc_or_die(sizeof(*info));
-  info->section = section;
-  info->flag = 0;
-  info->address = address;
-  info->kind = LK_NONE;
-  return info;
-}
-
-LabelInfo *add_label_table(Table *label_table, const Name *label, int section, bool define, bool global) {
-  LabelInfo *info = table_get(label_table, label);
-  if (info != NULL) {
-    if (define) {
-      if ((info->flag & LF_DEFINED) != 0) {
-        fprintf(stderr, "`%.*s' already defined\n", NAMES(label));
-        return NULL;
-      }
-      info->address = 1;
-      info->section = section;
-    }
-  } else {
-    info = new_label(section, 0);
-    table_put(label_table, label, info);
-  }
-  if (define)
-    info->flag |= LF_DEFINED;
-  if (global)
-    info->flag |= LF_GLOBAL;
-  return info;
-}
-
 IR *new_ir_label(const Name *label) {
   IR *ir = malloc_or_die(sizeof(*ir));
   ir->kind = IR_LABEL;
@@ -87,13 +56,6 @@ IR *new_ir_expr(enum IrKind kind, const Expr *expr) {
   ir->kind = kind;
   ir->expr = expr;
   return ir;
-}
-
-static uintptr_t align_next_section(enum SectionType sec, uintptr_t address) {
-  size_t align = section_aligns[sec];
-  if (align > 1)
-    address = ALIGN(address, align);
-  return address;
 }
 
 bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table) {

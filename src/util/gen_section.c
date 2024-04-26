@@ -34,6 +34,13 @@ void align_section_size(enum SectionType secno, size_t align) {
   }
 }
 
+uintptr_t align_next_section(enum SectionType sec, uintptr_t address) {
+  size_t align = section_aligns[sec];
+  if (align > 1)
+    address = ALIGN(address, align);
+  return address;
+}
+
 void add_section_data(enum SectionType secno, const void *data, size_t bytes) {
   assert(secno != SEC_BSS);
   Section *sec = &sections[secno];

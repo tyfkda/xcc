@@ -38,6 +38,37 @@ static const char *kDirectiveTable[] = {
 #endif
 };
 
+static LabelInfo *new_label(int section, uintptr_t address) {
+  LabelInfo *info = malloc_or_die(sizeof(*info));
+  info->section = section;
+  info->flag = 0;
+  info->address = address;
+  info->kind = LK_NONE;
+  return info;
+}
+
+LabelInfo *add_label_table(Table *label_table, const Name *label, int section, bool define, bool global) {
+  LabelInfo *info = table_get(label_table, label);
+  if (info != NULL) {
+    if (define) {
+      if ((info->flag & LF_DEFINED) != 0) {
+        fprintf(stderr, "`%.*s' already defined\n", NAMES(label));
+        return NULL;
+      }
+      info->address = 1;
+      info->section = section;
+    }
+  } else {
+    info = new_label(section, 0);
+    table_put(label_table, label, info);
+  }
+  if (define)
+    info->flag |= LF_DEFINED;
+  if (global)
+    info->flag |= LF_GLOBAL;
+  return info;
+}
+
 void parse_error(const ParseInfo *info, const char *message) {
   fprintf(stderr, "%s(%d): %s\n", info->filename, info->lineno, message);
   fprintf(stderr, "%s\n", info->rawline);

@@ -104,3 +104,22 @@ Value calc_expr(Table *label_table, const Expr *expr);
 
 bool is_label_first_chr(char c);
 bool is_label_chr(char c);
+
+#define LF_GLOBAL    (1 << 0)
+#define LF_DEFINED   (1 << 1)
+#define LF_REFERRED  (1 << 2)
+
+enum LabelKind {
+  LK_NONE,
+  LK_FUNC,
+  LK_OBJECT,
+};
+
+typedef struct {
+  int section;
+  int flag;
+  uintptr_t address;
+  enum LabelKind kind;
+} LabelInfo;
+
+LabelInfo *add_label_table(Table *label_table, const Name *label, int section, bool define, bool global);
