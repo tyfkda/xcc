@@ -4,9 +4,14 @@
 #include <assert.h>
 #include <string.h>  // memcpy
 
+#include "aarch64_code.h"
 #include "inst.h"
 #include "parse_asm.h"
 #include "util.h"
+
+#define ZERO  31
+#define SP    31
+#define LR    30
 
 void make_code16(Inst *inst, Code *code, unsigned short *buf, int len) {
   assert(code->len + len <= (int)sizeof(code->buf));
@@ -36,13 +41,51 @@ static unsigned char *asm_noop(Inst *inst, Code *code) {
 static unsigned char *asm_mov(Inst *inst, Code *code) {
   Operand *opr1 = &inst->opr[0];
   Operand *opr2 = &inst->opr[1];
-  uint32_t x = 0x52800000U | (opr1->reg.size == REG64 ? (1U << 31) : 0U) | (opr2->immediate << 5) | opr1->reg.no;
-  MAKE_CODE32(inst, code, x);
+  if (opr2->type == IMMEDIATE) {
+    uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
+    W_MOVZ(sz, opr1->reg.no, opr2->immediate, 0);
+    return code->buf;
+  }
+  return NULL;
+}
+
+static unsigned char *asm_ldpstp(Inst *inst, Code *code) {
+  static const uint32_t kPrePost[] = { 2 , 3, 1 };
+  Operand *opr1 = &inst->opr[0];
+  Operand *opr2 = &inst->opr[1];
+  assert(opr1->reg.size == opr2->reg.size);
+  uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
+  Operand *opr3 = &inst->opr[2];
+  assert(opr3->indirect.reg.size == REG64);
+  assert(opr3->indirect.offset == NULL || opr3->indirect.offset->kind == EX_FIXNUM);
+  int64_t offset = opr3->indirect.offset != NULL ? opr3->indirect.offset->fixnum : 0;
+  assert(offset < (1 << (6 + 3)) && offset >= -(1 << (6 + 3)));
+  uint32_t base = opr3->indirect.reg.no;
+  uint32_t prepost = kPrePost[opr3->indirect.prepost];
+  switch (inst->op) {
+  case LDP:  W_LDP(sz, opr1->reg.no, opr2->reg.no, offset, base, prepost); break;
+  case STP:  W_STP(sz, opr1->reg.no, opr2->reg.no, offset, base, prepost); break;
+  default: assert(false); break;
+  }
   return code->buf;
 }
 
+static unsigned char *asm_bl(Inst *inst, Code *code) {
+  W_BL(0);
+  return code->buf;
+}
+
+static unsigned char *asm_blr(Inst *inst, Code *code) {
+  Operand *opr1 = &inst->opr[0];
+  if (opr1->reg.size == REG64) {
+    W_BLR(opr1->reg.no);
+    return code->buf;
+  }
+  return NULL;
+}
+
 static unsigned char *asm_ret(Inst *inst, Code *code) {
-  MAKE_CODE32(inst, code, 0xd65f03c0);
+  W_RET(LR);
   return code->buf;
 }
 
@@ -53,6 +96,10 @@ typedef unsigned char *(*AsmInstFunc)(Inst *inst, Code *code);
 static const AsmInstFunc table[] = {
   [NOOP] = asm_noop,
   [MOV] = asm_mov,
+  [LDP] = asm_ldpstp,
+  [STP] = asm_ldpstp,
+  [BL] = asm_bl,
+  [BLR] = asm_blr,
   [RET] = asm_ret,
 };
 

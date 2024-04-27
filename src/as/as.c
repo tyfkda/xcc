@@ -268,16 +268,24 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
         rela->r_addend = u->add;
       }
       break;
-    case UNRES_RISCV_CALL:
+
+    case UNRES_CALL:
       {
         int symidx = symtab_find(&symtab, u->label);
         assert(symidx >= 0);
 
         rela->r_offset = u->offset;
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
         rela->r_info = ELF64_R_INFO(symidx, R_RISCV_CALL);
+#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+        rela->r_info = ELF64_R_INFO(symidx, R_AARCH64_CALL26);
+#else
+        assert(false);
+#endif
         rela->r_addend = u->add;
       }
       break;
+
     case UNRES_RISCV_PCREL_HI20:
     case UNRES_RISCV_PCREL_LO12_I:
       {

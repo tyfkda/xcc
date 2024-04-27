@@ -147,6 +147,8 @@ typedef struct {
 #define R_X86_64_PC32   (2)        /* PC relative 32 bit signed */
 #define R_X86_64_PLT32  (4)        /* 32 bit PLT address */
 
+#define R_AARCH64_CALL26      283
+
 #define R_RISCV_64            (2)
 #define R_RISCV_BRANCH        (16)
 #define R_RISCV_JAL           (17)

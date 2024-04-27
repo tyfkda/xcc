@@ -3,6 +3,7 @@
 
 #include <assert.h>
 
+#include "aarch64_code.h"
 #include "gen_section.h"
 #include "parse_asm.h"
 #include "table.h"
@@ -114,10 +115,53 @@ bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
 }
 
 bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved) {
-  UNUSED(section_irs);
-  UNUSED(label_table);
-  UNUSED(unresolved);
-  return true;
+  assert(unresolved != NULL);
+  vec_clear(unresolved);
+  bool size_upgraded = false;
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    Vector *irs = section_irs[sec];
+    uintptr_t start_address = irs->len > 0 ? ((IR*)irs->data[0])->address : 0;
+    for (int i = 0, len = irs->len; i < len; ++i) {
+      IR *ir = irs->data[i];
+      uintptr_t address = ir->address;
+      switch (ir->kind) {
+      case IR_CODE:
+        {
+          Inst *inst = ir->code.inst;
+          switch (inst->op) {
+          case BL:
+            if (inst->opr[0].type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr[0].direct.expr);
+              if (value.label != NULL) {
+                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                info->kind = UNRES_CALL;
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = address - start_address;
+                info->add = value.offset;
+                vec_push(unresolved, info);
+              }
+            }
+            break;
+          default:
+            break;
+          }
+        }
+        break;
+      case IR_EXPR_BYTE:
+      case IR_EXPR_SHORT:
+      case IR_EXPR_LONG:
+      case IR_EXPR_QUAD:
+      case IR_LABEL:
+      case IR_DATA:
+      case IR_BSS:
+      case IR_ALIGN:
+        break;
+      }
+    }
+  }
+
+  return !size_upgraded;
 }
 
 void emit_irs(Vector **section_irs) {

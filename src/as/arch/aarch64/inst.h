@@ -9,6 +9,8 @@ typedef struct Expr Expr;
 enum Opcode {
   NOOP,
   MOV,
+  LDP, STP,
+  BL, BLR,
   RET,
 };
 
@@ -26,6 +28,10 @@ enum OperandType {
   NOOPERAND,
   REG,        // reg
   IMMEDIATE,  // 1234
+  DIRECT,     // foobar + 345
+  INDIRECT,   // indirect:   [reg,#12]
+              // pre-index:  [reg,#34]!
+              // post-index: [reg],#34
 };
 
 typedef struct {
@@ -33,6 +39,14 @@ typedef struct {
   union {
     Reg reg;
     int64_t immediate;
+    struct {
+      Expr *expr;
+    } direct;
+    struct {
+      Expr *offset;
+      Reg reg;
+      int prepost;  // 0=none, 1=pre, 2=post
+    } indirect;
   };
 } Operand;
 

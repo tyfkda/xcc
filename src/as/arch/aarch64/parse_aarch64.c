@@ -11,11 +11,16 @@
 enum RawOpcode {
   R_NOOP,
   R_MOV,
+  R_LDP, R_STP,
+  R_BL, R_BLR,
   R_RET,
 };
 
 const char *kRawOpTable[] = {
   "mov",
+  "ldp",
+  "stp",
+  "bl", "blr",
   "ret",
   NULL,
 };
@@ -77,6 +82,7 @@ inline bool is_reg64(enum RegType reg) {
 #define R64  (1 << 1)
 #define IMM  (1 << 2)
 #define IND  (1 << 3)
+#define EXP  (1 << 4)
 
 static enum RegType find_register(const char **pp, unsigned int flag) {
   const char *p = *pp;
@@ -99,6 +105,70 @@ static enum RegType find_register(const char **pp, unsigned int flag) {
   return NOREG;
 }
 
+static bool parse_indirect_register(ParseInfo *info, Operand *operand) {
+  const char *p = skip_whitespaces(info->p);
+  enum RegType reg = find_register(&p, R64);
+  if (reg == NOREG) {
+    parse_error(info, "Base register expected");
+    return false;
+  }
+  if (is_reg64(reg)) {
+    operand->indirect.reg.size = REG64;
+    operand->indirect.reg.no = reg - X0;
+  } else {
+    parse_error(info, "Base register expected");
+  }
+
+  p = skip_whitespaces(p);
+  Expr *offset = NULL;
+  int prepost = 0;
+  if (*p == ',') {
+    p = skip_whitespaces(p + 1);
+    if (*p == '#') {
+      ++p;
+      int64_t imm;
+      if (immediate(&p, &imm)) {
+        offset = new_expr(EX_FIXNUM);
+        offset->fixnum = imm;
+      } else {
+        parse_error(info, "Offset expected");
+      }
+    }
+    if (*p == ']') {
+      if (*++p == '!') {
+        prepost = 1;
+        ++p;
+      }
+    } else {
+      parse_error(info, "`]' expected");
+    }
+  } else if (*p == ']') {
+    p = skip_whitespaces(p + 1);
+    if (*p == ',') {
+      const char *q = skip_whitespaces(p + 1);
+      if (*q == '#') {
+        p = q + 1;
+        int64_t imm;
+        if (immediate(&p, &imm)) {
+          offset = new_expr(EX_FIXNUM);
+          offset->fixnum = imm;
+          prepost = 2;
+        } else {
+          parse_error(info, "Offset expected");
+        }
+      }
+    }
+  } else {
+    parse_error(info, "`,` or `]' expected");
+  }
+
+  operand->type = INDIRECT;
+  operand->indirect.offset = offset;
+  operand->indirect.prepost = prepost;
+  info->p = p;
+  return true;
+}
+
 unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *operand) {
   const char *p = info->p;
   if (opr_flag & IMM) {
@@ -108,6 +178,14 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
         return 0;
       operand->type = IMMEDIATE;
       return IMM;
+    }
+  }
+
+  if (opr_flag & IND) {
+    if (*p == '[') {
+      info->p = p + 1;
+      if (parse_indirect_register(info, operand))
+        return IND;
     }
   }
 
@@ -134,10 +212,23 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
     }
   }
 
+  if (opr_flag & EXP) {
+    Expr *expr = parse_expr(info);
+    if (expr != NULL) {
+      operand->type = DIRECT;
+      operand->direct.expr = expr;
+      return EXP;
+    }
+  }
+
   return 0;
 }
 
 const ParseInstTable kParseInstTable[] = {
   [R_MOV] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){MOV, {R32 | R64, IMM}} } },
+  [R_LDP] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){LDP, {R32, R32, IND}}, &(ParseOpArray){LDP, {R64, R64, IND}} } },
+  [R_STP] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){STP, {R32, R32, IND}}, &(ParseOpArray){STP, {R64, R64, IND}} } },
+  [R_BL] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BL, {EXP}} } },
+  [R_BLR] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BLR, {R64}} } },
   [R_RET] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){RET} } },
 };
