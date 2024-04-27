@@ -8,14 +8,6 @@
 #include "parse_asm.h"
 #include "util.h"
 
-#ifndef MAKE_CODE16
-#define MAKE_CODE16(inst, code, ...)  do { unsigned short buf[] = {__VA_ARGS__}; make_code16(inst, code, buf, sizeof(buf)); } while (0)
-#endif
-
-#ifndef MAKE_CODE32
-#define MAKE_CODE32(inst, code, ...)  do { unsigned int buf[] = {__VA_ARGS__}; make_code32(inst, code, buf, sizeof(buf)); } while (0)
-#endif
-
 void make_code16(Inst *inst, Code *code, unsigned short *buf, int len) {
   assert(code->len + len <= (int)sizeof(code->buf));
   code->inst = inst;

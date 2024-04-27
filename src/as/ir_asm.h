@@ -12,31 +12,19 @@ typedef struct Name Name;
 typedef struct Table Table;
 typedef struct Vector Vector;
 
-#define LF_GLOBAL   (1 << 0)
-#define LF_DEFINED  (1 << 1)
-
-enum LabelKind {
-  LK_NONE,
-  LK_FUNC,
-  LK_OBJECT,
-};
-
-typedef struct {
-  int section;
-  int flag;
-  uintptr_t address;
-  enum LabelKind kind;
-} LabelInfo;
-
-LabelInfo *add_label_table(Table *label_table, const Name *label, int section, bool define, bool global);
-
 enum UnresolvedKind {
   UNRES_EXTERN,
   UNRES_EXTERN_PC32,
   UNRES_OTHER_SECTION,
   UNRES_ABS64,
 
+  UNRES_RISCV_BRANCH,
+  UNRES_RISCV_JAL,
   UNRES_RISCV_CALL,
+  UNRES_RISCV_PCREL_HI20,
+  UNRES_RISCV_PCREL_LO12_I,
+  UNRES_RISCV_RVC_BRANCH,
+  UNRES_RISCV_RVC_JUMP,
   UNRES_RISCV_RELAX,
 };
 

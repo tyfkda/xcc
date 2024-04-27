@@ -118,7 +118,7 @@ enum Opcode {
 };
 
 enum RegType {
-  NOREG,
+  NOREG = -1,
 
   // 8bit
   AL,  CL,  DL,  BL,
@@ -151,7 +151,7 @@ enum RegType {
 };
 
 enum RegXmmType {
-  NOREGXMM,
+  NOREGXMM = -1,
   XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7,
   XMM8, XMM9, XMM10, XMM11, XMM12, XMM13, XMM14, XMM15,
 };

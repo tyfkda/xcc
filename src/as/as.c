@@ -75,6 +75,18 @@ static void putnum(FILE *fp, unsigned long num, int bytes) {
   }
 }
 
+static LabelInfo *make_label_referred(Table *label_table, const Name *label, bool und) {
+  LabelInfo *label_info = table_get(label_table, label);
+  if (label_info == NULL) {
+    if (!und)
+      return NULL;
+    const int SEC_UND = -1;
+    label_info = add_label_table(label_table, label, SEC_UND, false, true);
+  }
+  label_info->flag |= LF_REFERRED;
+  return label_info;
+}
+
 static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
   size_t codesz, rodatasz, datasz, bsssz;
   get_section_size(SEC_CODE, &codesz, NULL);
@@ -85,7 +97,16 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
   // Construct symtab and strtab.
   Symtab symtab;
   symtab_init(&symtab);
+  int local_symbol_count;
   {
+    Symtab symtab_global;
+    symtab_init(&symtab_global);
+
+    Symtab *symtabs[] = {
+      [STB_LOCAL] = &symtab,
+      [STB_GLOBAL] = &symtab_global,
+    };
+
     // UND
     Elf64_Sym *sym;
     sym = symtab_add(&symtab, alloc_name("", NULL, false));
@@ -97,23 +118,32 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
       sym->st_shndx = i + 1;  // Section index.
     }
 
-    // Label symbols
     const Name *name;
     LabelInfo *info;
     for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&info)) != -1; ) {
-      if (!(info->flag & LF_GLOBAL) || !(info->flag & LF_DEFINED))
+      int bind;
+      if (info->flag & LF_GLOBAL) {
+        bind = STB_GLOBAL;
+      } else if (info->flag & LF_REFERRED) {
+        bind = STB_LOCAL;
+      } else {
         continue;
-      sym = symtab_add(&symtab, name);
+      }
+      sym = symtab_add(symtabs[bind], name);
       int type;
       switch (info->kind) {
       case LK_NONE:    type = STT_NOTYPE; break;
       case LK_FUNC:    type = STT_FUNC; break;
       case LK_OBJECT:  type = STT_OBJECT; break;
       }
-      sym->st_info = ELF64_ST_INFO(STB_GLOBAL, type);
-      sym->st_value = info->address - section_start_addresses[info->section];
-      sym->st_shndx = info->section + 1;  // Symbol index for Local section.
+      sym->st_info = ELF64_ST_INFO(bind, type);
+      sym->st_value = (info->flag & LF_DEFINED) ? info->address - section_start_addresses[info->section] : 0;
+      sym->st_shndx = info->section >= 0 ? info->section + 1 : SHN_UNDEF;  // Symbol index for Local section.
     }
+
+    local_symbol_count = symtab.count;
+    // Append global symbols after locals;
+    symtab_concat(&symtab, &symtab_global);
   }
 
   FILE *ofp;
@@ -185,13 +215,12 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
     case UNRES_EXTERN:
     case UNRES_EXTERN_PC32:
       {
-        Elf64_Sym *sym = symtab_add(&symtab, u->label);
-        sym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE);
-        size_t index = sym - symtab.buf;
+        int symidx = symtab_find(&symtab, u->label);
+        assert(symidx >= 0);
 
         rela->r_offset = u->offset;
-        rela->r_info = ELF64_R_INFO(index, u->kind == UNRES_EXTERN_PC32 ? R_X86_64_PC32
-                                                                        : R_X86_64_PLT32);
+        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_EXTERN_PC32 ? R_X86_64_PC32
+                                                                         : R_X86_64_PLT32);
         rela->r_addend = u->add;
       }
       break;
@@ -199,47 +228,80 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
       {
         LabelInfo *label = table_get(label_table, u->label);
         assert(label != NULL);
-        // Symtab index for .rodata section = section number + 1
-        int rodata_index = label->section + 1;
+        int secidx = label->section + 1;
         rela->r_offset = u->offset;
-        rela->r_info = ELF64_R_INFO(rodata_index, R_X86_64_PC32);
+        rela->r_info = ELF64_R_INFO(secidx, R_X86_64_PC32);
         rela->r_addend = u->add;
       }
       break;
     case UNRES_ABS64:
       {
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+        const int type = R_RISCV_64;
+#else  // #elif XCC_TARGET_ARCH == XCC_ARCH_X64
+        const int type = R_X86_64_64;
+#endif
         LabelInfo *label = table_get(label_table, u->label);
-        if (label == NULL || label->flag & LF_GLOBAL) {
-          Elf64_Sym *sym = symtab_add(&symtab, u->label);
-          sym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE);
-          size_t index = sym - symtab.buf;
+        if (label == NULL || label->flag & (LF_GLOBAL | LF_REFERRED)) {
+          int symidx = symtab_find(&symtab, u->label);
+          assert(symidx >= 0);
 
           rela->r_offset = u->offset;
-          rela->r_info = ELF64_R_INFO(index, R_X86_64_64);
+          rela->r_info = ELF64_R_INFO(symidx, type);
           rela->r_addend = u->add;
         } else {
           rela->r_offset = u->offset;
-          rela->r_info = ELF64_R_INFO(label->section + 1, R_X86_64_64);
+          rela->r_info = ELF64_R_INFO(label->section + 1, type);
           rela->r_addend = u->add + (label->address - section_start_addresses[label->section]);
         }
       }
       break;
-    case UNRES_RISCV_CALL:
+    case UNRES_RISCV_BRANCH:
+    case UNRES_RISCV_RVC_BRANCH:
       {
         Elf64_Sym *sym = symtab_add(&symtab, u->label);
-        sym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE);
         size_t index = sym - symtab.buf;
 
         rela->r_offset = u->offset;
-        rela->r_info = ELF64_R_INFO(index, R_RISCV_CALL);
+        rela->r_info = ELF64_R_INFO(index, u->kind == UNRES_RISCV_RVC_BRANCH ? R_RISCV_RVC_BRANCH
+                                                                             : R_RISCV_BRANCH);
+        rela->r_addend = u->add;
+      }
+      break;
+    case UNRES_RISCV_CALL:
+      {
+        int symidx = symtab_find(&symtab, u->label);
+        assert(symidx >= 0);
+
+        rela->r_offset = u->offset;
+        rela->r_info = ELF64_R_INFO(symidx, R_RISCV_CALL);
+        rela->r_addend = u->add;
+      }
+      break;
+    case UNRES_RISCV_PCREL_HI20:
+    case UNRES_RISCV_PCREL_LO12_I:
+      {
+        int symidx = symtab_find(&symtab, u->label);
+        assert(symidx >= 0);
+
+        rela->r_offset = u->offset;
+        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_RISCV_PCREL_HI20 ? R_RISCV_PCREL_HI20 : R_RISCV_PCREL_LO12_I);
+        rela->r_addend = u->add;
+      }
+      break;
+    case UNRES_RISCV_JAL:
+    case UNRES_RISCV_RVC_JUMP:
+      {
+        int symidx = symtab_find(&symtab, u->label);
+        assert(symidx >= 0);
+
+        rela->r_offset = u->offset;
+        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_RISCV_JAL ? R_RISCV_JAL : R_RISCV_RVC_JUMP);
         rela->r_addend = u->add;
       }
       break;
     case UNRES_RISCV_RELAX:
       {
-        Elf64_Sym *sym = symtab_add(&symtab, u->label);
-        sym->st_info = ELF64_ST_INFO(STB_GLOBAL, STT_NOTYPE);
-
         rela->r_offset = u->offset;
         rela->r_info = ELF64_R_INFO(0, R_RISCV_RELAX);
         rela->r_addend = u->add;
@@ -380,7 +442,7 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
       .sh_offset = symtab_ofs,
       .sh_size = sizeof(*symtab.buf) * symtab.count,
       .sh_link = 8,  // Index of strtab
-      .sh_info = 5,  // Number of local symbols
+      .sh_info = local_symbol_count,  // Number of local symbols
       .sh_addralign = 8,
       .sh_entsize = sizeof(Elf64_Sym),
     };
@@ -489,6 +551,12 @@ int main(int argc, char *argv[]) {
     settle1 = calc_label_address(LOAD_ADDRESS, section_irs, &label_table);
     settle2 = resolve_relative_address(section_irs, &label_table, unresolved);
   } while (!(settle1 && settle2));
+
+  for (int i = 0; i < unresolved->len; ++i) {
+    UnresolvedInfo *u = unresolved->data[i];
+    make_label_referred(&label_table, u->label, true);
+  }
+
   emit_irs(section_irs);
 
   fix_section_size(LOAD_ADDRESS);

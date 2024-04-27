@@ -125,7 +125,7 @@ static enum RegType find_register(const char **pp) {
   for (int i = 0; i < (int)ARRAY_SIZE(kRegisters); ++i) {
     const char *name = kRegisters[i].name;
     size_t n = strlen(name);
-    if (strncmp(p, name, n) == 0 && !isdigit(p[n])) {
+    if (strncmp(p, name, n) == 0 && !is_label_chr(p[n])) {
       *pp = p + n;
       return kRegisters[i].reg;
     }
@@ -167,7 +167,8 @@ static bool parse_operand(ParseInfo *info, Operand *operand) {
   return false;
 }
 
-void parse_inst(ParseInfo *info, Inst *inst) {
+void parse_inst(ParseInfo *info, Line *line) {
+  Inst *inst  = &line->inst;
   Operand *opr_table[] = {&inst->opr1, &inst->opr2, &inst->opr3};
   for (int i = 0; i < (int)ARRAY_SIZE(opr_table); ++i)
     opr_table[i]->type = NOOPERAND;

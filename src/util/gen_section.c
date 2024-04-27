@@ -15,7 +15,7 @@ typedef struct {
 static Section sections[SECTION_COUNT];
 static size_t bss_size;
 
-size_t section_aligns[SECTION_COUNT] = {1, 1, 1, 1};
+size_t section_aligns[SECTION_COUNT] = {8, 8, 1, 1};
 uintptr_t section_start_addresses[SECTION_COUNT];
 
 void add_bss(size_t size) {
@@ -32,6 +32,13 @@ void align_section_size(enum SectionType secno, size_t align) {
   } else {
     bss_size = ALIGN(bss_size, align);
   }
+}
+
+uintptr_t align_next_section(enum SectionType sec, uintptr_t address) {
+  size_t align = section_aligns[sec];
+  if (align > 1)
+    address = ALIGN(address, align);
+  return address;
 }
 
 void add_section_data(enum SectionType secno, const void *data, size_t bytes) {

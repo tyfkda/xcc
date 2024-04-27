@@ -38,6 +38,37 @@ static const char *kDirectiveTable[] = {
 #endif
 };
 
+static LabelInfo *new_label(int section, uintptr_t address) {
+  LabelInfo *info = malloc_or_die(sizeof(*info));
+  info->section = section;
+  info->flag = 0;
+  info->address = address;
+  info->kind = LK_NONE;
+  return info;
+}
+
+LabelInfo *add_label_table(Table *label_table, const Name *label, int section, bool define, bool global) {
+  LabelInfo *info = table_get(label_table, label);
+  if (info != NULL) {
+    if (define) {
+      if ((info->flag & LF_DEFINED) != 0) {
+        fprintf(stderr, "`%.*s' already defined\n", NAMES(label));
+        return NULL;
+      }
+      info->address = 1;
+      info->section = section;
+    }
+  } else {
+    info = new_label(section, 0);
+    table_put(label_table, label, info);
+  }
+  if (define)
+    info->flag |= LF_DEFINED;
+  if (global)
+    info->flag |= LF_GLOBAL;
+  return info;
+}
+
 void parse_error(const ParseInfo *info, const char *message) {
   fprintf(stderr, "%s(%d): %s\n", info->filename, info->lineno, message);
   fprintf(stderr, "%s\n", info->rawline);
@@ -88,11 +119,11 @@ bool immediate(const char **pp, int64_t *value) {
   return true;
 }
 
-inline bool is_label_first_chr(char c) {
+bool is_label_first_chr(char c) {
   return isalpha(c) || c == '_' || c == '.';
 }
 
-inline bool is_label_chr(char c) {
+bool is_label_chr(char c) {
   return is_label_first_chr(c) || isdigit(c);
 }
 
@@ -322,7 +353,7 @@ static const Token *match(ParseInfo *info, enum TokenKind kind) {
   return token;
 }
 
-static Expr *new_expr(enum ExprKind kind) {
+Expr *new_expr(enum ExprKind kind) {
   Expr *expr = malloc_or_die(sizeof(*expr));
   expr->kind = kind;
   return expr;
@@ -504,7 +535,7 @@ Line *parse_line(ParseInfo *info) {
       info->p = r;
     } else if (*p != '\0') {
       info->p = p;
-      parse_inst(info, &line->inst);
+      parse_inst(info, line);
       check_line_end(info);
     }
   }
@@ -648,11 +679,11 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
     {
       const Name *label = parse_label(info);
       if (label == NULL) {
-        parse_error(info, ".comm: label expected");
+        parse_error(info, ".type: label expected");
         break;
       }
       if (*info->p != ',') {
-        parse_error(info, ".comm: `,' expected");
+        parse_error(info, ".type: `,' expected");
         break;
       }
       info->p = skip_whitespaces(info->p + 1);

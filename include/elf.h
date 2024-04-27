@@ -147,8 +147,15 @@ typedef struct {
 #define R_X86_64_PC32   (2)        /* PC relative 32 bit signed */
 #define R_X86_64_PLT32  (4)        /* 32 bit PLT address */
 
-#define R_RISCV_CALL    (18)
-#define R_RISCV_RELAX   (51)
+#define R_RISCV_64            (2)
+#define R_RISCV_BRANCH        (16)
+#define R_RISCV_JAL           (17)
+#define R_RISCV_CALL          (18)
+#define R_RISCV_PCREL_HI20    (23)
+#define R_RISCV_PCREL_LO12_I  (24)
+#define R_RISCV_RVC_BRANCH    (44)
+#define R_RISCV_RVC_JUMP      (45)
+#define R_RISCV_RELAX         (51)
 
 #define ELF64_R_SYM(info)            ((info) >> 32)
 #define ELF64_R_TYPE(info)           ((Elf64_Word)(info))

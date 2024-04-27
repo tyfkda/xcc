@@ -7,6 +7,7 @@
 #include "gen_section.h"
 #include "inst.h"
 #include "parse_asm.h"
+#include "riscv64_code.h"
 #include "table.h"
 #include "util.h"
 
@@ -14,37 +15,6 @@
 #define SHORT_SIZE  (2)
 #define LONG_SIZE   (4)
 #define QUAD_SIZE   (8)
-
-static LabelInfo *new_label(int section, uintptr_t address) {
-  LabelInfo *info = malloc_or_die(sizeof(*info));
-  info->section = section;
-  info->flag = 0;
-  info->address = address;
-  info->kind = LK_NONE;
-  return info;
-}
-
-LabelInfo *add_label_table(Table *label_table, const Name *label, int section, bool define, bool global) {
-  LabelInfo *info = table_get(label_table, label);
-  if (info != NULL) {
-    if (define) {
-      if ((info->flag & LF_DEFINED) != 0) {
-        fprintf(stderr, "`%.*s' already defined\n", NAMES(label));
-        return NULL;
-      }
-      info->address = 1;
-      info->section = section;
-    }
-  } else {
-    info = new_label(section, 0);
-    table_put(label_table, label, info);
-  }
-  if (define)
-    info->flag |= LF_DEFINED;
-  if (global)
-    info->flag |= LF_GLOBAL;
-  return info;
-}
 
 IR *new_ir_label(const Name *label) {
   IR *ir = malloc_or_die(sizeof(*ir));
@@ -87,13 +57,6 @@ IR *new_ir_expr(enum IrKind kind, const Expr *expr) {
   ir->kind = kind;
   ir->expr = expr;
   return ir;
-}
-
-static uintptr_t align_next_section(enum SectionType sec, uintptr_t address) {
-  size_t align = section_aligns[sec];
-  if (align > 1)
-    address = ALIGN(address, align);
-  return address;
 }
 
 bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table) {
@@ -153,6 +116,21 @@ bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
   return settle;
 }
 
+static bool make_jmp_long(IR *ir) {
+  if (ir->code.flag & INST_LONG_OFFSET)
+    return false;
+
+  Code *code = &ir->code;
+  Inst *inst = code->inst;
+  // Change to long offset, and recalculate.
+  code->flag |= INST_LONG_OFFSET;
+  code->len = 0;
+  assert(inst->op == J);
+
+  W_JAL(ZERO, 0);
+  return true;
+}
+
 bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved) {
   assert(unresolved != NULL);
   vec_clear(unresolved);
@@ -168,12 +146,145 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
         {
           Inst *inst = ir->code.inst;
           switch (inst->op) {
+          case LA:
+            assert(inst->opr3.type == DIRECT);
+            if (inst->opr2.type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr2.direct.expr);
+              if (value.label != NULL) {
+                uintptr_t offset = address - start_address;
+                UnresolvedInfo *info;
+                info = calloc_or_die(sizeof(*info));
+                info->kind = UNRES_RISCV_PCREL_HI20;
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = offset;
+                info->add = value.offset;
+                vec_push(unresolved, info);
+
+                info = calloc_or_die(sizeof(*info));
+                info->kind = UNRES_RISCV_RELAX;
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = offset;
+                info->add = value.offset;
+                vec_push(unresolved, info);
+
+                // hilabel points to AUIPC instruction, just above one.
+                assert(inst->opr3.direct.expr->kind == EX_LABEL);
+                const Name *hilabel = inst->opr3.direct.expr->label;
+                info = calloc_or_die(sizeof(*info));
+                info->kind = UNRES_RISCV_PCREL_LO12_I;
+                info->label = hilabel;
+                info->src_section = sec;
+                info->offset = offset + 4;
+                info->add = 0;
+                vec_push(unresolved, info);
+
+                info = calloc_or_die(sizeof(*info));
+                info->kind = UNRES_RISCV_RELAX;
+                info->label = hilabel;
+                info->src_section = sec;
+                info->offset = offset + 4;
+                info->add = 0;
+                vec_push(unresolved, info);
+                break;
+              }
+            }
+            break;
+          case J:
+            if (inst->opr1.type == DIRECT) {
+              int64_t target_address = 0;
+              Value value = calc_expr(label_table, inst->opr1.direct.expr);
+              if (value.label != NULL) {
+                // Put rela even if the label is defined in the same object file.
+                UnresolvedInfo *info;
+                info = calloc_or_die(sizeof(*info));
+                info->kind = (ir->code.flag & INST_LONG_OFFSET) ? UNRES_RISCV_JAL : UNRES_RISCV_RVC_JUMP;
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = address - start_address;
+                info->add = value.offset;
+                vec_push(unresolved, info);
+
+                LabelInfo *label_info = table_get(label_table, value.label);
+                if (label_info != NULL)
+                  target_address = label_info->address + value.offset;
+              }
+
+              if (target_address != 0) {
+                Code *code = &ir->code;
+                int64_t offset = target_address - VOIDP2INT(address);
+                bool long_offset = ir->code.flag & INST_LONG_OFFSET;
+                if (!long_offset) {
+                  assert(code->len == 2);
+                  if (offset < (1 << 11) && offset >= -(1 << 11)) {
+                    uint16_t *buf = (uint16_t*)code->buf;
+                    // Compressed: imm[11|4|9:8|10|6|7|3:1|5]
+                    buf[0] = (buf[0] & 0xe003) | (IMM(offset, 11, 11) << 12) | (IMM(offset, 4, 4) << 11) |
+                      (IMM(offset, 9, 8) << 9) | (IMM(offset, 10, 10) << 8) | (IMM(offset, 6, 6) << 7) |
+                      (IMM(offset, 7, 7) << 6) | (IMM(offset, 3, 1) << 3) | (IMM(offset, 5, 5) << 2);
+                  } else {
+                    size_upgraded |= make_jmp_long(ir);
+                  }
+                } else {
+                  if (offset < (1 << 20) && offset >= -(1 << 20)) {
+                    uint32_t *buf = (uint32_t*)code->buf;
+                    // Compressed: imm[20|10:1|11|19:12]
+                    buf[0] = (buf[0] & 0x000007ff) | (IMM(offset, 20, 20) << 31) | (IMM(offset, 10, 1) << 21) |
+                      (IMM(offset, 11, 11) << 20) | (IMM(offset, 19, 12) << 12);
+                  } else {
+                    // Linker extends the branch instruction to long offset?
+                    assert(false);
+                  }
+                }
+              }
+            }
+            break;
+          case BEQ: case BNE: case BLT: case BGE: case BLTU: case BGEU:
+            if (inst->opr3.type == DIRECT) {
+              bool comp = inst->opr2.reg.no == 0 && is_rvc_reg(inst->opr1.reg.no) &&
+                (inst->op == BEQ || inst->op == BNE);
+              int64_t target_address = 0;
+              Value value = calc_expr(label_table, inst->opr3.direct.expr);
+              if (value.label != NULL) {
+                assert(inst->opr2.type == REG);
+                // Put rela even if the label is defined in the same object file.
+                UnresolvedInfo *info;
+                info = calloc_or_die(sizeof(*info));
+                info->kind = comp ? UNRES_RISCV_RVC_BRANCH : UNRES_RISCV_BRANCH;
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = address - start_address;
+                info->add = value.offset;
+                vec_push(unresolved, info);
+
+                LabelInfo *label_info = table_get(label_table, value.label);
+                if (label_info != NULL)
+                  target_address = label_info->address + value.offset;
+              }
+
+              if (!comp && target_address != 0) {
+                Code *code = &ir->code;
+                int64_t offset = target_address - VOIDP2INT(address);
+                if (offset < (1 << 11) && offset >= -(1 << 11)) {
+                  assert(code->len == 4);
+                  uint32_t *buf = (uint32_t*)code->buf;
+                  // STYPE
+                  buf[0] = (buf[0] & 0x01fff07f) | (IMM(offset, 11, 5) << 25) | (IMM(offset, 4, 0) << 7);
+                } else {
+                  // Linker extends the branch instruction to long offset?
+                  // assert(false);
+                }
+              }
+            }
+            break;
           case CALL:
             if (inst->opr1.type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr1.direct.expr);
               if (value.label != NULL) {
                 // Put rela even if the label is defined in the same object file.
-                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                UnresolvedInfo *info;
+                info = calloc_or_die(sizeof(*info));
                 info->kind = UNRES_RISCV_CALL;
                 info->label = value.label;
                 info->src_section = sec;
@@ -181,7 +292,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 info->add = value.offset;
                 vec_push(unresolved, info);
 
-                info = malloc_or_die(sizeof(*info));
+                info = calloc_or_die(sizeof(*info));
                 info->kind = UNRES_RISCV_RELAX;
                 info->label = value.label;
                 info->src_section = sec;
@@ -197,7 +308,26 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
           }
         }
         break;
-      default:
+      case IR_EXPR_BYTE:
+      case IR_EXPR_SHORT:
+      case IR_EXPR_LONG:
+      case IR_EXPR_QUAD:
+        {
+          Value value = calc_expr(label_table, ir->expr);
+          assert(value.label != NULL);
+          UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+          info->kind = UNRES_ABS64;  // TODO:
+          info->label = value.label;
+          info->src_section = sec;
+          info->offset = address - start_address;
+          info->add = value.offset;
+          vec_push(unresolved, info);
+        }
+        break;
+      case IR_LABEL:
+      case IR_DATA:
+      case IR_BSS:
+      case IR_ALIGN:
         break;
       }
     }
