@@ -266,8 +266,11 @@ static bool parse_indirect_register(ParseInfo *info, Expr *offset, Operand *oper
   return true;
 }
 
-static bool parse_operand(ParseInfo *info, Operand *operand, bool search_round_mode) {
-  if (search_round_mode) {
+#define OPR_NOREG      (1 << 4)
+#define OPR_ROUNDMODE  (1 << 5)
+
+static bool parse_operand(ParseInfo *info, Operand *operand, int flag) {
+  if (flag & OPR_ROUNDMODE) {
     enum RoundMode roundmode = find_round_mode(&info->p);
     if (roundmode != NOROUND) {
       operand->type = ROUNDMODE;
@@ -276,18 +279,20 @@ static bool parse_operand(ParseInfo *info, Operand *operand, bool search_round_m
     }
   }
 
-  enum RegType reg = find_register(&info->p);
-  if (reg != NOREG) {
-    operand->type = REG;
-    operand->reg.no = reg - X0;
-    return true;
-  }
+  if (!(flag & OPR_NOREG)) {
+    enum RegType reg = find_register(&info->p);
+    if (reg != NOREG) {
+      operand->type = REG;
+      operand->reg.no = reg - X0;
+      return true;
+    }
 
-  enum FRegType freg = find_fregister(&info->p);
-  if (freg != NOFREG) {
-    operand->type = FREG;
-    operand->freg = freg;
-    return true;
+    enum FRegType freg = find_fregister(&info->p);
+    if (freg != NOFREG) {
+      operand->type = FREG;
+      operand->freg = freg;
+      return true;
+    }
   }
 
   Expr *expr = parse_expr(info);
@@ -319,6 +324,23 @@ static const Name *alloc_dummy_label(void) {
   return alloc_name(buf, NULL, true);
 }
 
+#define OPERAND_FLAG(op, index, flag)  [op] = ((flag) | (index))
+static const int kOperandFlags[] = {
+  OPERAND_FLAG(LA, OPR_NOREG, 1),
+  OPERAND_FLAG(CALL, OPR_NOREG, 1),
+
+  OPERAND_FLAG(FMV_X_D, OPR_ROUNDMODE, 2),
+  OPERAND_FLAG(FMV_X_W, OPR_ROUNDMODE, 2),
+  OPERAND_FLAG(FCVT_W_D, OPR_ROUNDMODE, 2),
+  OPERAND_FLAG(FCVT_WU_D, OPR_ROUNDMODE, 2),
+  OPERAND_FLAG(FCVT_L_D, OPR_ROUNDMODE, 2),
+  OPERAND_FLAG(FCVT_LU_D, OPR_ROUNDMODE, 2),
+  OPERAND_FLAG(FCVT_W_S, OPR_ROUNDMODE, 2),
+  OPERAND_FLAG(FCVT_WU_S, OPR_ROUNDMODE, 2),
+  OPERAND_FLAG(FCVT_L_S, OPR_ROUNDMODE, 2),
+  OPERAND_FLAG(FCVT_LU_S, OPR_ROUNDMODE, 2),
+};
+
 void parse_inst(ParseInfo *info, Line *line) {
   Inst *inst  = &line->inst;
   Operand *opr_table[] = {&inst->opr1, &inst->opr2, &inst->opr3};
@@ -329,7 +351,10 @@ void parse_inst(ParseInfo *info, Line *line) {
   inst->op = op;
   if (op != NOOP) {
     for (int i = 0; i < (int)ARRAY_SIZE(opr_table); ++i) {
-      if (!parse_operand(info, opr_table[i], i >= 2))
+      int flag = inst->op < (int)ARRAY_SIZE(kOperandFlags) ? kOperandFlags[inst->op] : 0;
+      if (i < (flag & 3))
+        flag = 0;
+      if (!parse_operand(info, opr_table[i], flag))
         break;
       info->p = skip_whitespaces(info->p);
       if (i == (int)ARRAY_SIZE(opr_table) - 1 || *info->p != ',')
