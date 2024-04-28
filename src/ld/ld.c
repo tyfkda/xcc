@@ -185,6 +185,21 @@ static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
   return address;
 }
 
+// RISC-V
+#define ZERO  0
+#define RA    1
+#define SP    2
+
+#define IMM(imm, t, b)  (((imm) >> (b)) & ((1 << (t - b + 1)) - 1))
+#define SWIZZLE_JAL(ofs)  ((IMM(ofs, 20, 20) << 31) | (IMM(ofs, 10, 1) << 21) | (IMM(ofs, 11, 11) << 20) | (IMM(ofs, 19, 12) << 12))
+
+#define MAKE_CODE32(x)            (x)
+#define ITYPE(imm, rs1, funct3, rd, opcode)          MAKE_CODE32((IMM(imm, 11, 0) << 20) | ((rs1) << 15) | ((funct3) << 12) | ((rd) << 7) | (opcode))
+#define UTYPE(imm, rd, opcode)                       MAKE_CODE32((IMM(imm, 31, 12) << 12) | ((rd) << 7) | (opcode))
+#define W_JAL(rd, imm)            UTYPE(SWIZZLE_JAL(imm), rd, 0x6f)
+#define W_ADDI(rd, rs, imm)       ITYPE(imm, rs, 0x00, rd, 0x13)
+#define P_NOP()                   W_ADDI(ZERO, ZERO, 0)
+
 static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
   for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
     Elf64_Shdr *shdr = &elfobj->shdrs[sec];
@@ -237,6 +252,21 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       case R_X86_64_PLT32:
         *(uint32_t*)p = address - pc;
         break;
+
+      case R_RISCV_CALL:
+        {
+          int64_t offset = address - pc;
+          assert(offset < (1L << 19) && offset >= -(1L << 19));  // TODO
+          *(uint32_t*)p = W_JAL(RA, offset);
+        }
+        break;
+      case R_RISCV_RELAX:
+        {
+          // TODO: Check
+          ((uint32_t*)p)[1] = P_NOP();
+        }
+        break;
+
       default: assert(false); break;
       }
     }

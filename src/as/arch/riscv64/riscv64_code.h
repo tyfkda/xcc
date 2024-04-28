@@ -7,6 +7,7 @@
 #define SP    2
 
 #define IMM(imm, t, b)  (((imm) >> (b)) & ((1 << (t - b + 1)) - 1))
+#define SWIZZLE_JAL(ofs)  ((IMM(ofs, 20, 20) << 31) | (IMM(ofs, 10, 1) << 21) | (IMM(ofs, 11, 11) << 20) | (IMM(ofs, 19, 12) << 12))
 
 // Instruction formats: 32bit=[7|5|5|3|5|7]
 #define RTYPE(funct7, rs2, rs1, funct3, rd, opcode)  MAKE_CODE32(inst, code, ((funct7) << 25) | ((rs2) << 20) | ((rs1) << 15) | ((funct3) << 12) | ((rd) << 7) | (opcode))
@@ -63,7 +64,7 @@
 #define W_SD(rs2, ofs, rs1)       STYPE(ofs, rs2, rs1, 0x03, 0x23)
 #define W_LUI(rd, imm)            UTYPE(imm, rd, 0x37)
 #define W_AUIPC(rd, imm)          UTYPE(imm, rd, 0x17)
-#define W_JAL(rd, imm)            UTYPE(imm, rd, 0x6f)
+#define W_JAL(rd, imm)            UTYPE(SWIZZLE_JAL(imm), rd, 0x6f)
 #define W_JALR(rd, rs, imm)       ITYPE(imm, rs, 0x00, rd, 0x67)
 #define W_BXX(xx, rs1, rs2, ofs)  STYPE(ofs, rs2, rs1, xx, 0x63)
 #define W_ECALL()                 UTYPE(0, 0, 0x73)
