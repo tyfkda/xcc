@@ -76,6 +76,21 @@
 #define __NR_clock_gettime  113
 #define __NR_newfstatat  79
 
+#elif defined(__riscv)
+
+#define SYSCALL(no)  _SYSCALL2(no)
+#define _SYSCALL2(no) \
+    __asm("li a7, " #no "\n" \
+          "ecall")
+
+#define SYSCALL_RET(no, ret)  _SYSCALL_RET2(no, ret)
+#define _SYSCALL_RET2(no, ret) \
+    __asm("li a7, " #no "\n" \
+          "ecall" \
+          : "=r"(ret))
+
+#define __NR_exit    93
+
 #else
 #error unknown
 #endif

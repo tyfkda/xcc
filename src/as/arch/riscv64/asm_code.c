@@ -329,7 +329,6 @@ static unsigned char *asm_sd(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_j(Inst *inst, Code *code) {
-  UNUSED(inst);
   // imm[11|4|9:8|10|6|7|3:1|5]
   C_J();
   return code->buf;
@@ -371,7 +370,6 @@ static unsigned char *asm_bxx(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_call_d(Inst *inst, Code *code) {
-  UNUSED(inst);
   W_AUIPC(RA, 0);
   W_JALR(RA, RA, 0);
   return code->buf;
@@ -379,6 +377,11 @@ static unsigned char *asm_call_d(Inst *inst, Code *code) {
 
 static unsigned char *asm_ret(Inst *inst, Code *code) {
   P_RET();
+  return code->buf;
+}
+
+static unsigned char *asm_ecall(Inst *inst, Code *code) {
+  W_ECALL();
   return code->buf;
 }
 
@@ -641,6 +644,7 @@ static const AsmInstTable *table[] = {
   [BLTU] = table_bxx, [BGEU] = table_bxx,
   [CALL] = (const AsmInstTable[]){ {asm_call_d, DIRECT, NOOPERAND, NOOPERAND}, {NULL} },
   [RET] = (const AsmInstTable[]){ {asm_ret, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
+  [ECALL] = (const AsmInstTable[]){ {asm_ecall, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
 
   [FADD_D] = table_3fr, [FSUB_D] = table_3fr, [FMUL_D] = table_3fr, [FDIV_D] = table_3fr,
   [FADD_S] = table_3fr, [FSUB_S] = table_3fr, [FMUL_S] = table_3fr, [FDIV_S] = table_3fr,

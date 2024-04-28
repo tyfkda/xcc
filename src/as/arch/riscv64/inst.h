@@ -39,6 +39,7 @@ enum Opcode {
   BEQ, BNE, BLT, BGE, BLTU, BGEU,
   CALL,
   RET,
+  ECALL,
 
   FADD_D, FSUB_D, FMUL_D, FDIV_D,
   FADD_S, FSUB_S, FMUL_S, FDIV_S,

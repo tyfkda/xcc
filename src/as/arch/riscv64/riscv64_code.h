@@ -66,6 +66,7 @@
 #define W_JAL(rd, imm)            UTYPE(imm, rd, 0x6f)
 #define W_JALR(rd, rs, imm)       ITYPE(imm, rs, 0x00, rd, 0x67)
 #define W_BXX(xx, rs1, rs2, ofs)  STYPE(ofs, rs2, rs1, xx, 0x63)
+#define W_ECALL()                 UTYPE(0, 0, 0x73)
 
 #define W_FADD_D(rd, rs1, rs2)    RTYPE(0x01, rs2, rs1, 0x07, rd, 0x53)
 #define W_FSUB_D(rd, rs1, rs2)    RTYPE(0x05, rs2, rs1, 0x07, rd, 0x53)
