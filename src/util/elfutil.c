@@ -107,9 +107,9 @@ void out_elf_header(FILE *fp, uintptr_t entry, int phnum, int shnum, int flags) 
     .e_shoff     = 0, // dummy
     .e_flags     = flags,
     .e_ehsize    = sizeof(Elf64_Ehdr),
-    .e_phentsize = sizeof(Elf64_Phdr),
+    .e_phentsize = phnum > 0 ? sizeof(Elf64_Phdr) : 0,
     .e_phnum     = phnum,
-    .e_shentsize = sizeof(Elf64_Shdr),
+    .e_shentsize = shnum > 0 ? sizeof(Elf64_Shdr) : 0,
     .e_shnum     = shnum,
     .e_shstrndx  = shnum > 0 ? shnum - 1 : SHN_UNDEF,
   };
