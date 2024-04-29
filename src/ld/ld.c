@@ -300,8 +300,7 @@ static void link_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unresolved) {
         const Name *name;
         Elf64_Sym *sym;
         for (int it = 0; (it = table_iterate(symbol_table, it, &name, (void**)&sym)) != -1; ) {
-          unsigned char type = ELF64_ST_TYPE(sym->st_info);
-          if (type != STT_NOTYPE || str[sym->st_name] == '\0')
+          if (ELF64_ST_TYPE(sym->st_info) == STT_SECTION || str[sym->st_name] == '\0')
             continue;
           const Name *name = alloc_name(&str[sym->st_name], NULL, false);
           if (sym->st_shndx == SHN_UNDEF) {
@@ -328,7 +327,6 @@ static void link_archive(LinkEditor *ld, Archive *ar, Table *unresolved) {
       ArSymbol *symbol;
       if (!table_try_get(table, name, (void**)&symbol))
         continue;
-      table_delete(unresolved, name);
 
       ElfObj *elfobj = load_archive_elfobj(ar, symbol->offset);
       if (elfobj != NULL) {

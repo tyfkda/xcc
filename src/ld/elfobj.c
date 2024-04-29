@@ -90,8 +90,7 @@ static bool load_symtab(ElfObj *elfobj) {
     Elf64_Sym *symbols = p->symtab.syms;
     for (uint32_t i = 0; i < count; ++i) {
       Elf64_Sym *sym = &symbols[i];
-      unsigned char bind = ELF64_ST_BIND(sym->st_info);
-      if (bind == STB_GLOBAL) {
+      if (ELF64_ST_BIND(sym->st_info) == STB_GLOBAL) {
         const Name *name = alloc_name(&str[sym->st_name], NULL, false);
         table_put(symbol_table, name, sym);
       }

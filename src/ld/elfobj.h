@@ -37,7 +37,7 @@ typedef struct ElfObj {
   Elf64_Ehdr ehdr;
   Elf64_Shdr *shdrs;
   char *shstrtab;
-  Table *symbol_table;  // <Elf64_Sym*>
+  Table *symbol_table;  // <Elf64_Sym*>, global only
 
   ElfSectionInfo *section_infos;
 } ElfObj;
