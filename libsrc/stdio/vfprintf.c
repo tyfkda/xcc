@@ -115,16 +115,15 @@ static long double pow10(int order) {
 }
 
 static int printnonfinite(FILE *fp, long double x,
-                          int order, int suborder, bool sign, bool leftalign, char padding) {
-  static const char *ss[] = { "inf", "-inf", "nan", "-nan" };
-  int index = (isnan(x) ? 2 : 0) | (signbit(x) ? 1 : 0);
-  return snprintstr(fp, ss[index], order, suborder, leftalign, ' ');
+                          int order, int suborder, bool sign, bool leftalign) {
+  int o = sprintsign(fp, signbit(x), sign, &order);
+  return o + snprintstr(fp, isnan(x) ? "nan" : "inf", order, suborder, leftalign, ' ');
 }
 
 static int printfloat(FILE *fp, long double x,
                       int order, int suborder, bool sign, bool leftalign, char padding) {
   if (!isfinite(x))
-    return printnonfinite(fp, x, order, suborder, sign, leftalign, padding);
+    return printnonfinite(fp, x, order, suborder, sign, leftalign);
 
   bool neg = signbit(x);
   if (neg)
@@ -167,7 +166,7 @@ static int normalize_float(long double *px) {
 static int printscientific(FILE *fp, long double x, int order, int suborder, bool sign,
                            bool leftalign, char padding) {
   if (!isfinite(x))
-    return printnonfinite(fp, x, order, suborder, sign, leftalign, padding);
+    return printnonfinite(fp, x, order, suborder, sign, leftalign);
 
   bool neg = signbit(x);
   if (neg)
