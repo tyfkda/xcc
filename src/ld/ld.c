@@ -192,6 +192,16 @@ static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
 
 #define IMM(imm, t, b)  (((imm) >> (b)) & ((1 << (t - b + 1)) - 1))
 #define SWIZZLE_JAL(ofs)  ((IMM(ofs, 20, 20) << 31) | (IMM(ofs, 10, 1) << 21) | (IMM(ofs, 11, 11) << 20) | (IMM(ofs, 19, 12) << 12))
+#define SWIZZLE_C_J(offset) \
+    ((IMM(offset, 11, 11) << 12) | (IMM(offset, 4, 4) << 11) | \
+     (IMM(offset, 9, 8) << 9) | (IMM(offset, 10, 10) << 8) | (IMM(offset, 6, 6) << 7) | \
+     (IMM(offset, 7, 7) << 6) | (IMM(offset, 3, 1) << 3) | (IMM(offset, 5, 5) << 2))
+#define SWIZZLE_C_BXX(offset) \
+    ((IMM(offset, 8, 8) << 12) | (IMM(offset, 4, 3) << 10) | \
+     (IMM(offset, 7, 6) << 5) | (IMM(offset, 2, 1) << 3) | (IMM(offset, 5, 5) << 2))
+#define SWIZZLE_BXX(offset) \
+    ((IMM(offset, 12, 12) << 31) | (IMM(offset, 10, 5) << 25) | \
+     (IMM(offset, 4, 1) << 8) | (IMM(offset, 11, 11) << 7))
 
 #define MAKE_CODE32(x)            (x)
 #define ITYPE(imm, rs1, funct3, rd, opcode)          MAKE_CODE32((IMM(imm, 11, 0) << 20) | ((rs1) << 15) | ((funct3) << 12) | ((rd) << 7) | (opcode))
@@ -249,6 +259,11 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       void *p = dst_info->progbits.content + rela->r_offset;
       uintptr_t pc = elfobj->section_infos[shdr->sh_info].progbits.address + rela->r_offset;
       switch (ELF64_R_TYPE(rela->r_info)) {
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+      case R_RISCV_64:
+        *(uint64_t*)p = address;
+        break;
+#else
       case R_X86_64_64:
         *(uint64_t*)p = address;
         break;
@@ -256,6 +271,7 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       case R_X86_64_PLT32:
         *(uint32_t*)p = address - pc;
         break;
+#endif
 
       case R_RISCV_CALL:
         {
@@ -307,6 +323,44 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
           const uint32_t MASK20 = (1U << 20) - 1;
           const uint32_t MASK12 = (1U << 12) - 1;
           *(uint32_t*)p = (*(uint32_t*)p & MASK20) | (((uint32_t)offset & MASK12) << 20);
+        }
+        break;
+      case R_RISCV_RVC_JUMP:
+        {
+          int64_t offset = address - pc;
+          assert(offset < (1L << 11) && offset >= -(1L << 11));
+
+          uint16_t *q = (uint16_t*)p;
+          assert((*q & 0xe003) == 0xa001);  // c.j
+          *q = (*q & 0xe003) | SWIZZLE_C_J(offset);
+        }
+        break;
+      case R_RISCV_JAL:
+        {
+          int64_t offset = address - pc;
+          assert(offset < (1L << 19) && offset >= -(1L << 19));
+
+          uint32_t *q = (uint32_t*)p;
+          assert((*q & 0x0000007f) == 0x6f);  // jal
+          *q = (*q & 0x0000007f) | SWIZZLE_JAL(offset);
+        }
+        break;
+      case R_RISCV_BRANCH:
+      case R_RISCV_RVC_BRANCH:
+        {
+          int64_t offset = address - pc;
+
+          if (ELF64_R_TYPE(rela->r_info) == R_RISCV_RVC_BRANCH) {
+            assert(offset < (1 << 7) && offset >= -(1 << 7));
+            // c.beqz, c.bnez
+            uint16_t *q = (uint16_t*)p;
+            assert((*q & 0xc003) == 0xc001);
+            *q = (*q & 0xe383) | SWIZZLE_C_BXX(offset);
+          } else {
+            assert(offset < (1 << 11) && offset >= -(1 << 11));
+            uint32_t *q = (uint32_t*)p;
+            *q = (*q & 0x01fff07f) | SWIZZLE_BXX(offset);
+          }
         }
         break;
 

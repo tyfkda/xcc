@@ -220,16 +220,14 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   if (offset < (1 << 11) && offset >= -(1 << 11)) {
                     uint16_t *buf = (uint16_t*)code->buf;
                     // Compressed: imm[11|4|9:8|10|6|7|3:1|5]
-                    buf[0] = (buf[0] & 0xe003) | (IMM(offset, 11, 11) << 12) | (IMM(offset, 4, 4) << 11) |
-                      (IMM(offset, 9, 8) << 9) | (IMM(offset, 10, 10) << 8) | (IMM(offset, 6, 6) << 7) |
-                      (IMM(offset, 7, 7) << 6) | (IMM(offset, 3, 1) << 3) | (IMM(offset, 5, 5) << 2);
+                    buf[0] = (buf[0] & 0xe383) | SWIZZLE_C_J(offset);
                   } else {
                     size_upgraded |= make_jmp_long(ir);
                   }
                 } else {
                   if (offset < (1 << 20) && offset >= -(1 << 20)) {
                     uint32_t *buf = (uint32_t*)code->buf;
-                    // Compressed: imm[20|10:1|11|19:12]
+                    // jal: imm[20|10:1|11|19:12]
                     buf[0] = (buf[0] & 0x000007ff) | (IMM(offset, 20, 20) << 31) | (IMM(offset, 10, 1) << 21) |
                       (IMM(offset, 11, 11) << 20) | (IMM(offset, 19, 12) << 12);
                   } else {
@@ -270,7 +268,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   assert(code->len == 4);
                   uint32_t *buf = (uint32_t*)code->buf;
                   // STYPE
-                  buf[0] = (buf[0] & 0x01fff07f) | (IMM(offset, 11, 5) << 25) | (IMM(offset, 4, 0) << 7);
+                  buf[0] = (buf[0] & 0x01fff07f) | SWIZZLE_BXX(offset);
                 } else {
                   // Linker extends the branch instruction to long offset?
                   // assert(false);

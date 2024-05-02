@@ -176,6 +176,15 @@
 #define P_FNEG_D(rd, rs)          W_FSGNJN_D(rd, rs, rs)
 #define P_FNEG_S(rd, rs)          W_FSGNJN_S(rd, rs, rs)
 
+#define SWIZZLE_C_J(offset) \
+    ((IMM(offset, 11, 11) << 12) | (IMM(offset, 4, 4) << 11) | \
+     (IMM(offset, 9, 8) << 9) | (IMM(offset, 10, 10) << 8) | (IMM(offset, 6, 6) << 7) | \
+     (IMM(offset, 7, 7) << 6) | (IMM(offset, 3, 1) << 3) | (IMM(offset, 5, 5) << 2))
+
+#define SWIZZLE_BXX(offset) \
+    ((IMM(offset, 12, 12) << 31) | (IMM(offset, 10, 5) << 25) | \
+     (IMM(offset, 4, 1) << 8) | (IMM(offset, 11, 11) << 7))
+
 inline bool is_rvc_reg(int reg)  { return reg >= 8 && reg <= 15; }  // X8~X15
 inline int to_rvc_reg(int reg)  { return reg - 8; }
 #define is_rvc_freg  is_rvc_reg
