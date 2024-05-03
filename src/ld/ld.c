@@ -466,7 +466,7 @@ static bool output_exe(const char *ofn, uintptr_t entry_address) {
     fp = stdout;
   } else {
     const int mod = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;  // 0755
-    const int flag = O_WRONLY | O_CREAT;
+    const int flag = O_WRONLY | O_CREAT | O_TRUNC;
     int fd = open(ofn, flag, mod);
     if (fd < 0) {
       perror("open failed");
