@@ -62,7 +62,7 @@ endif
 # CFLAGS+=-DNDEBUG
 
 UNAME:=$(shell uname)
-ifeq ("$(UNAME)", "Darwin")
+ifeq ("$(UNAME):$(HOST_CC_PREFIX)", "Darwin:")
 LIBS:=
 else
 LIBS:=$(LIB_DIR)/crt0.a $(LIB_DIR)/libc.a

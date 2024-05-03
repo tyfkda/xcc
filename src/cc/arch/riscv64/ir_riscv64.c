@@ -815,13 +815,12 @@ static void ei_cast(IR *ir) {
 
 static void ei_asm(IR *ir) {
   EMIT_ASM(ir->asm_.str);
-  // if (ir->dst != NULL) {
-  //   assert(!(ir->dst->flag & VRF_CONST));
-  //   int pow = ir->dst->vsize;
-  //   assert(0 <= pow && pow < 4);
-  //   const char **regs = kRegSizeTable[pow];
-  //   MOV(regs[ir->dst->phys], regs[GET_X0_INDEX()]);
-  // }
+  if (ir->dst != NULL) {
+    assert(!(ir->dst->flag & VRF_CONST));
+    int pow = ir->dst->vsize;
+    assert(0 <= pow && pow < 4);
+    MV(kReg64s[ir->dst->phys], kReg64s[GET_A0_INDEX()]);
+  }
 }
 
 //

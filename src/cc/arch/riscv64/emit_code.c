@@ -109,7 +109,7 @@ static void move_params_to_assigned(Function *func) {
       int offset = vreg->frame.offset;
       assert(offset != 0);
       assert(offset != 0);
-      SD(src, IMMEDIATE_OFFSET(offset, FP));
+      FSD(src, IMMEDIATE_OFFSET(offset, FP));
     } else {
       if (p->index != vreg->phys) {
         const char *dst = kFReg64s[vreg->phys];

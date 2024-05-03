@@ -10,6 +10,9 @@ typedef uintptr_t jmp_buf[192 / 8];
 
 #elif defined(__x86_64__)
 typedef uintptr_t jmp_buf[200 / 8];  // GCC
+
+#elif defined(__riscv)
+typedef uintptr_t jmp_buf[208 / 8];
 #endif
 
 int setjmp(jmp_buf env);
