@@ -167,7 +167,7 @@ ifeq ("$(LIBS)", "")
 libs: exes
 else
 libs: exes
-	$(MAKE) CC=../xcc -C libsrc
+	$(MAKE) CC=../xcc HOST_CC_PREFIX=$(HOST_CC_PREFIX) -C libsrc
 endif
 
 ### Self hosting
