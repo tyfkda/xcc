@@ -7,14 +7,6 @@
 
 #include "./xtest.h"
 
-#if defined(__LP64__)
-#define LONG_SIZE  (8)
-#elif defined(__ILP32__)
-#define LONG_SIZE  (4)
-#else
-#error Environment unknonwn
-#endif
-
 #define EXPECT(title, expected, actual)  expecti64(title, expected, actual)
 
 int g_zero, g_work;
@@ -661,17 +653,14 @@ TEST(all) {
     EXPECT("ptr <- array", 55, ptr_from_array(a));
   }
 
-  EXPECT("sizeof(int)", 4, sizeof(int));
-  EXPECT("sizeof(long)", LONG_SIZE, sizeof(long));
+  EXPECT("sizeof(int)", __SIZEOF_INT__, sizeof(int));
+  EXPECT("sizeof(long)", __SIZEOF_LONG__, sizeof(long));
+  EXPECT("int*", __SIZEOF_POINTER__, sizeof(int*));
   EXPECT("int8_t",  1, sizeof(int8_t));
   EXPECT("int16_t", 2, sizeof(int16_t));
   EXPECT("int32_t", 4, sizeof(int32_t));
   EXPECT("int64_t", 8, sizeof(int64_t));
-#if defined(__LP64__)
-  EXPECT("intptr_t", 8, sizeof(intptr_t));
-#elif defined(__ILP32__)
-  EXPECT("intptr_t", 4, sizeof(intptr_t));
-#endif
+  EXPECT("intptr_t", __SIZEOF_POINTER__, sizeof(intptr_t));
   EXPECT("sizeof(void)", 1, sizeof(void));
   EXPECT("sizeof(array)", 3, sizeof(char[3]));
   {

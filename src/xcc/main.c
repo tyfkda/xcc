@@ -565,8 +565,6 @@ int main(int argc, char *argv[]) {
 #else
   char *ld_path = "/usr/bin/cc";
 #endif
-#undef S2
-#undef S
 
   Vector *cpp_cmd = new_vector();
   vec_push(cpp_cmd, cpp_path);
@@ -583,6 +581,22 @@ int main(int argc, char *argv[]) {
 #elif XCC_TARGET_PLATFORM == XCC_PLATFORM_POSIX
   vec_push(cpp_cmd, "-D__linux__");
 #endif
+
+  vec_push(cpp_cmd, "-D__SIZEOF_POINTER__=" S(POINTER_SIZE));
+#if defined(__ILP32__)
+  vec_push(cpp_cmd, "-D__SIZEOF_INT__=4");
+  vec_push(cpp_cmd, "-D__SIZEOF_LONG__=4");
+  vec_push(cpp_cmd, "-D__SIZEOF_LONG_LONG__=8");
+  vec_push(cpp_cmd, "-D__SIZEOF_SIZE_T__=4");
+#elif defined(__LP64__)
+  vec_push(cpp_cmd, "-D__SIZEOF_INT__=4");
+  vec_push(cpp_cmd, "-D__SIZEOF_LONG__=8");
+  vec_push(cpp_cmd, "-D__SIZEOF_LONG_LONG__=8");
+  vec_push(cpp_cmd, "-D__SIZEOF_SIZE_T__=8");
+#endif
+
+#undef S2
+#undef S
 
   Vector *cc1_cmd = new_vector();
   vec_push(cc1_cmd, cc1_path);

@@ -131,6 +131,11 @@ int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vec
   define_macro("__NO_VLA");
   define_macro("__STDC_NO_VLA__");
 #endif
+  define_macro("__SIZEOF_POINTER__=4");
+  define_macro("__SIZEOF_INT__=4");
+  define_macro("__SIZEOF_LONG__=4");
+  define_macro("__SIZEOF_LONG_LONG__=8");
+  define_macro("__SIZEOF_SIZE_T__=4");
 
   init_compiler();
 
