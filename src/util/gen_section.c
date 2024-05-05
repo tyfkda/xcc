@@ -15,7 +15,7 @@ typedef struct {
 static Section sections[SECTION_COUNT];
 static size_t bss_size;
 
-size_t section_aligns[SECTION_COUNT] = {8, 8, 1, 1};
+size_t section_aligns[SECTION_COUNT] = {8, 1, 8, 1};
 uintptr_t section_start_addresses[SECTION_COUNT];
 
 void add_bss(size_t size) {
@@ -53,14 +53,14 @@ void add_code(const void *buf, size_t bytes) {
 
 void fix_section_size(uintptr_t start_address) {
   sections[SEC_CODE].start_address = start_address;
-  int rodata_align = MAX(section_aligns[SEC_RODATA], 1);
+  int rodata_align = section_aligns[SEC_RODATA];
   uintptr_t rodata_addr = ALIGN(start_address + sections[SEC_CODE].ds.len, rodata_align);
   sections[SEC_RODATA].start_address = rodata_addr;
 
-  int data_align = MAX(section_aligns[SEC_DATA], 1);
+  int data_align = section_aligns[SEC_DATA];
   sections[SEC_DATA].start_address =
       ALIGN(sections[SEC_RODATA].start_address + sections[SEC_RODATA].ds.len, data_align);
-  int bss_align = MAX(section_aligns[SEC_BSS], 1);
+  int bss_align = section_aligns[SEC_BSS];
   sections[SEC_BSS].start_address =
       sections[SEC_DATA].start_address + ALIGN(sections[SEC_DATA].ds.len, bss_align);
 }

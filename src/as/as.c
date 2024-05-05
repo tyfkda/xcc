@@ -347,7 +347,7 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
       .sh_size = codesz,
       .sh_link = 0,
       .sh_info = 0,
-      .sh_addralign = MAX(section_aligns[SEC_CODE], 1),
+      .sh_addralign = section_aligns[SEC_CODE],
       .sh_entsize = 0,
     };
     Elf64_Shdr rodatasec = {
@@ -359,7 +359,7 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
       .sh_size = rodatasz,
       .sh_link = 0,
       .sh_info = 0,
-      .sh_addralign = MAX(section_aligns[SEC_RODATA], 1),
+      .sh_addralign = section_aligns[SEC_RODATA],
       .sh_entsize = 0,
     };
     Elf64_Shdr datasec = {
@@ -371,7 +371,7 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
       .sh_size = datasz,
       .sh_link = 0,
       .sh_info = 0,
-      .sh_addralign = MAX(section_aligns[SEC_DATA], 1),
+      .sh_addralign = section_aligns[SEC_DATA],
       .sh_entsize = 0,
     };
     Elf64_Shdr bsssec = {
@@ -383,7 +383,7 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
       .sh_size = bsssz,
       .sh_link = 0,
       .sh_info = 0,
-      .sh_addralign = MAX(section_aligns[SEC_BSS], 1),
+      .sh_addralign = section_aligns[SEC_BSS],
       .sh_entsize = 0,
     };
     Elf64_Shdr relatextsec = {

@@ -476,8 +476,8 @@ static bool output_exe(const char *ofn, uintptr_t entry_address) {
     assert(fp != NULL);
   }
 
-  size_t rodata_align = MAX(section_aligns[SEC_RODATA], 1);
-  size_t code_rodata_sz = ALIGN(codesz, rodata_align) + rodatasz;
+  size_t rodata_align = section_aligns[SEC_RODATA];
+  size_t code_rodata_sz = rodatasz > 0 ? ALIGN(codesz, rodata_align) + rodatasz : codesz;
 #if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
   const int flags = EF_RISCV_RVC | EF_RISCV_FLOAT_ABI_DOUBLE;
 #else
@@ -486,10 +486,12 @@ static bool output_exe(const char *ofn, uintptr_t entry_address) {
   out_elf_header(fp, entry_address, phnum, 0, flags);
   out_program_header(fp, 0, PROG_START, codeloadadr, code_rodata_sz, code_rodata_sz);
   if (phnum > 1) {
-    size_t bss_align = MAX(section_aligns[SEC_BSS], 1);
+    size_t bss_align = section_aligns[SEC_BSS];
     size_t datamemsz = ALIGN(datasz, bss_align) + bsssz;
-    out_program_header(fp, 1, ALIGN(PROG_START + code_rodata_sz, DATA_ALIGN), dataloadadr, datasz,
-                       datamemsz);
+    uintptr_t offset = PROG_START + code_rodata_sz;
+    if (datasz > 0)
+      offset = ALIGN(offset, DATA_ALIGN);
+    out_program_header(fp, 1, offset, dataloadadr, datasz, datamemsz);
   }
 
   uintptr_t addr = PROG_START;
@@ -497,7 +499,7 @@ static bool output_exe(const char *ofn, uintptr_t entry_address) {
   output_section(fp, SEC_CODE);
   addr += codesz;
   if (rodatasz > 0) {
-    size_t rodata_align = MAX(section_aligns[SEC_RODATA], 1);
+    size_t rodata_align = section_aligns[SEC_RODATA];
     addr = ALIGN(addr, rodata_align);
     put_padding(fp, addr);
     output_section(fp, SEC_RODATA);

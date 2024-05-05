@@ -128,11 +128,11 @@ void out_program_header(FILE *fp, int sec, uintptr_t offset, uintptr_t vaddr, si
     .p_type   = PT_LOAD,
     .p_offset = offset,
     .p_vaddr  = vaddr,
-    .p_paddr  = 0, // dummy
+    .p_paddr  = vaddr, // dummy
     .p_filesz = filesz,
     .p_memsz  = memsz,
     .p_flags  = kFlags[sec],
-    .p_align  = 0x10,
+    .p_align  = 0x1000,
   };
 
   fwrite(&phdr, sizeof(Elf64_Phdr), 1, fp);
