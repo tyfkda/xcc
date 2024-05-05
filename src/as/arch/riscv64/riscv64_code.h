@@ -180,7 +180,9 @@
     ((IMM(offset, 11, 11) << 12) | (IMM(offset, 4, 4) << 11) | \
      (IMM(offset, 9, 8) << 9) | (IMM(offset, 10, 10) << 8) | (IMM(offset, 6, 6) << 7) | \
      (IMM(offset, 7, 7) << 6) | (IMM(offset, 3, 1) << 3) | (IMM(offset, 5, 5) << 2))
-
+#define SWIZZLE_C_BXX(offset) \
+    ((IMM(offset, 8, 8) << 12) | (IMM(offset, 4, 3) << 10) | \
+     (IMM(offset, 7, 6) << 5) | (IMM(offset, 2, 1) << 3) | (IMM(offset, 5, 5) << 2))
 #define SWIZZLE_BXX(offset) \
     ((IMM(offset, 12, 12) << 31) | (IMM(offset, 10, 5) << 25) | \
      (IMM(offset, 4, 1) << 8) | (IMM(offset, 11, 11) << 7))

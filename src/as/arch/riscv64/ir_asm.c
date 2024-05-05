@@ -116,6 +116,28 @@ bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
   return settle;
 }
 
+static bool make_bxx_long(IR *ir) {
+  if (ir->code.flag & INST_LONG_OFFSET)
+    return false;
+
+  Code *code = &ir->code;
+  assert(code->len == 2);
+  uint16_t *buf = (uint16_t*)code->buf;
+  assert((*buf & 0xc003) == 0xc001);
+  uint16_t s = *buf;
+
+  Inst *inst = code->inst;
+  // Change to long offset, and recalculate.
+  code->flag |= INST_LONG_OFFSET;
+  code->len = 0;
+
+  uint16_t rs = ((s >> 7) & 7) + 8;
+  assert(inst->op == BEQ || inst->op == BNE);
+  int offset = 0;  // Offset is set at next iteration.
+  W_BXX(inst->op - BEQ, rs, 0, offset);
+  return true;
+}
+
 static bool make_jmp_long(IR *ir) {
   if (ir->code.flag & INST_LONG_OFFSET)
     return false;
@@ -214,8 +236,8 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               if (target_address != 0) {
                 Code *code = &ir->code;
                 int64_t offset = target_address - VOIDP2INT(address);
-                bool long_offset = ir->code.flag & INST_LONG_OFFSET;
-                if (!long_offset) {
+                bool is_long = ir->code.flag & INST_LONG_OFFSET;
+                if (!is_long) {
                   assert(code->len == 2);
                   if (offset < (1 << 11) && offset >= -(1 << 11)) {
                     uint16_t *buf = (uint16_t*)code->buf;
@@ -240,11 +262,19 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
             break;
           case BEQ: case BNE: case BLT: case BGE: case BLTU: case BGEU:
             if (inst->opr3.type == DIRECT) {
-              bool comp = inst->opr2.reg.no == 0 && is_rvc_reg(inst->opr1.reg.no) &&
-                (inst->op == BEQ || inst->op == BNE);
+              bool comp = false;
               int64_t target_address = 0;
               Value value = calc_expr(label_table, inst->opr3.direct.expr);
               if (value.label != NULL) {
+                LabelInfo *label_info = table_get(label_table, value.label);
+                if (label_info != NULL)
+                  target_address = label_info->address + value.offset;
+
+                int64_t offset = target_address - VOIDP2INT(address);
+                comp = inst->opr2.reg.no == 0 && is_rvc_reg(inst->opr1.reg.no) &&
+                  (inst->op == BEQ || inst->op == BNE) &&
+                  offset < (1 << 7) && offset >= -(1 << 7);
+
                 assert(inst->opr2.type == REG);
                 // Put rela even if the label is defined in the same object file.
                 UnresolvedInfo *info;
@@ -255,23 +285,31 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 info->offset = address - start_address;
                 info->add = value.offset;
                 vec_push(unresolved, info);
-
-                LabelInfo *label_info = table_get(label_table, value.label);
-                if (label_info != NULL)
-                  target_address = label_info->address + value.offset;
               }
 
-              if (!comp && target_address != 0) {
+              if (target_address != 0) {
                 Code *code = &ir->code;
                 int64_t offset = target_address - VOIDP2INT(address);
-                if (offset < (1 << 11) && offset >= -(1 << 11)) {
-                  assert(code->len == 4);
-                  uint32_t *buf = (uint32_t*)code->buf;
-                  // STYPE
-                  buf[0] = (buf[0] & 0x01fff07f) | SWIZZLE_BXX(offset);
+                bool is_long = ir->code.flag & INST_LONG_OFFSET;
+                if (!is_long) {
+                  assert(code->len == 2);
+                  if (offset < (1 << 7) && offset >= -(1 << 7)) {
+                    uint16_t *buf = (uint16_t*)code->buf;
+                    assert((*buf & 0xc003) == 0xc001);
+                    *buf = (*buf & 0xe383) | SWIZZLE_C_BXX(offset);
+                  } else {
+                    size_upgraded |= make_bxx_long(ir);
+                  }
                 } else {
-                  // Linker extends the branch instruction to long offset?
-                  // assert(false);
+                  if (offset < (1 << 11) && offset >= -(1 << 11)) {
+                    assert(code->len == 4);
+                    uint32_t *buf = (uint32_t*)code->buf;
+                    // STYPE
+                    buf[0] = (buf[0] & 0x01fff07f) | SWIZZLE_BXX(offset);
+                  } else {
+                    // Linker extends the branch instruction to long offset?
+                    // assert(false);
+                  }
                 }
               }
             }

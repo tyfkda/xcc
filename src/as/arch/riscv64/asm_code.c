@@ -363,6 +363,7 @@ static unsigned char *asm_bxx(Inst *inst, Code *code) {
     default: break;
     }
   }
+  code->flag |= INST_LONG_OFFSET;
   static const int kFunct3Table[] = { _BEQ, _BNE, _BLT, _BGE, _BLTU, _BGEU };
   int funct3 = kFunct3Table[inst->op - BEQ];
   W_BXX(funct3, rs1, rs2, 0);
