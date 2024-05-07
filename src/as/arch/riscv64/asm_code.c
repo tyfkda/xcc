@@ -134,17 +134,42 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
     }
   }
   switch (inst->op) {
-  case ADDI:   W_ADDI(rd, rs, imm); break;
-  case ADDIW:  W_ADDIW(rd, rs, imm); break;
-  case ANDI:   W_ANDI(rd, rs, imm); break;
-  case ORI:    W_ORI(rd, rs, imm); break;
-  case XORI:   W_XORI(rd, rs, imm); break;
-  case SLLI:   W_SLLI(rd, rs, imm); break;
-  case SLLIW:  W_SLLIW(rd, rs, imm); break;
-  case SRLI:   W_SRLI(rd, rs, imm); break;
-  case SRAI:   W_SRAI(rd, rs, imm); break;
-  case SLTI:   W_SLTI(rd, rs, imm); break;
-  case SLTIU:  W_SLTIU(rd, rs, imm); break;
+  case ADDI:
+  case ADDIW:
+  case ANDI:
+  case ORI:
+  case XORI:
+    if (imm >= 2048 || imm < -2048)
+      return NULL;
+    switch (inst->op) {
+    case ADDI:   W_ADDI(rd, rs, imm); break;
+    case ADDIW:  W_ADDIW(rd, rs, imm); break;
+    case ANDI:   W_ANDI(rd, rs, imm); break;
+    case ORI:    W_ORI(rd, rs, imm); break;
+    case XORI:   W_XORI(rd, rs, imm); break;
+    default: assert(false); break;
+    }
+    break;
+
+  case SLLI:
+  case SLLIW:
+  case SRLI:
+  case SRAI:
+  case SLTI:
+  case SLTIU:
+    if (imm >= 64 || (inst->op == SLLIW && imm >= 32) || imm < 0)
+      return NULL;
+    switch (inst->op) {
+    case SLLI:   W_SLLI(rd, rs, imm); break;
+    case SLLIW:  W_SLLIW(rd, rs, imm); break;
+    case SRLI:   W_SRLI(rd, rs, imm); break;
+    case SRAI:   W_SRAI(rd, rs, imm); break;
+    case SLTI:   W_SLTI(rd, rs, imm); break;
+    case SLTIU:  W_SLTIU(rd, rs, imm); break;
+    default: assert(false); break;
+    }
+    break;
+
   default: assert(false); return NULL;
   }
   return code->buf;
