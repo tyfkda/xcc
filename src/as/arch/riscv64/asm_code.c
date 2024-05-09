@@ -134,17 +134,42 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
     }
   }
   switch (inst->op) {
-  case ADDI:   W_ADDI(rd, rs, imm); break;
-  case ADDIW:  W_ADDIW(rd, rs, imm); break;
-  case ANDI:   W_ANDI(rd, rs, imm); break;
-  case ORI:    W_ORI(rd, rs, imm); break;
-  case XORI:   W_XORI(rd, rs, imm); break;
-  case SLLI:   W_SLLI(rd, rs, imm); break;
-  case SLLIW:  W_SLLIW(rd, rs, imm); break;
-  case SRLI:   W_SRLI(rd, rs, imm); break;
-  case SRAI:   W_SRAI(rd, rs, imm); break;
-  case SLTI:   W_SLTI(rd, rs, imm); break;
-  case SLTIU:  W_SLTIU(rd, rs, imm); break;
+  case ADDI:
+  case ADDIW:
+  case ANDI:
+  case ORI:
+  case XORI:
+    if (imm >= 2048 || imm < -2048)
+      return NULL;
+    switch (inst->op) {
+    case ADDI:   W_ADDI(rd, rs, imm); break;
+    case ADDIW:  W_ADDIW(rd, rs, imm); break;
+    case ANDI:   W_ANDI(rd, rs, imm); break;
+    case ORI:    W_ORI(rd, rs, imm); break;
+    case XORI:   W_XORI(rd, rs, imm); break;
+    default: assert(false); break;
+    }
+    break;
+
+  case SLLI:
+  case SLLIW:
+  case SRLI:
+  case SRAI:
+  case SLTI:
+  case SLTIU:
+    if (imm >= 64 || (inst->op == SLLIW && imm >= 32) || imm < 0)
+      return NULL;
+    switch (inst->op) {
+    case SLLI:   W_SLLI(rd, rs, imm); break;
+    case SLLIW:  W_SLLIW(rd, rs, imm); break;
+    case SRLI:   W_SRLI(rd, rs, imm); break;
+    case SRAI:   W_SRAI(rd, rs, imm); break;
+    case SLTI:   W_SLTI(rd, rs, imm); break;
+    case SLTIU:  W_SLTIU(rd, rs, imm); break;
+    default: assert(false); break;
+    }
+    break;
+
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -182,7 +207,10 @@ static unsigned char *asm_noop(Inst *inst, Code *code) {
 static unsigned char *asm_mv(Inst *inst, Code *code) {
   int rd = inst->opr1.reg.no;
   int rs = inst->opr2.reg.no;
-  C_MV(rd, rs);
+  if (rs != ZERO)
+    C_MV(rd, rs);
+  else
+    C_LI(rd, 0);
   return code->buf;
 }
 
@@ -329,7 +357,6 @@ static unsigned char *asm_sd(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_j(Inst *inst, Code *code) {
-  UNUSED(inst);
   // imm[11|4|9:8|10|6|7|3:1|5]
   C_J();
   return code->buf;
@@ -364,6 +391,7 @@ static unsigned char *asm_bxx(Inst *inst, Code *code) {
     default: break;
     }
   }
+  code->flag |= INST_LONG_OFFSET;
   static const int kFunct3Table[] = { _BEQ, _BNE, _BLT, _BGE, _BLTU, _BGEU };
   int funct3 = kFunct3Table[inst->op - BEQ];
   W_BXX(funct3, rs1, rs2, 0);
@@ -371,7 +399,6 @@ static unsigned char *asm_bxx(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_call_d(Inst *inst, Code *code) {
-  UNUSED(inst);
   W_AUIPC(RA, 0);
   W_JALR(RA, RA, 0);
   return code->buf;
@@ -379,6 +406,11 @@ static unsigned char *asm_call_d(Inst *inst, Code *code) {
 
 static unsigned char *asm_ret(Inst *inst, Code *code) {
   P_RET();
+  return code->buf;
+}
+
+static unsigned char *asm_ecall(Inst *inst, Code *code) {
+  W_ECALL();
   return code->buf;
 }
 
@@ -641,6 +673,7 @@ static const AsmInstTable *table[] = {
   [BLTU] = table_bxx, [BGEU] = table_bxx,
   [CALL] = (const AsmInstTable[]){ {asm_call_d, DIRECT, NOOPERAND, NOOPERAND}, {NULL} },
   [RET] = (const AsmInstTable[]){ {asm_ret, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
+  [ECALL] = (const AsmInstTable[]){ {asm_ecall, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
 
   [FADD_D] = table_3fr, [FSUB_D] = table_3fr, [FMUL_D] = table_3fr, [FDIV_D] = table_3fr,
   [FADD_S] = table_3fr, [FSUB_S] = table_3fr, [FMUL_S] = table_3fr, [FDIV_S] = table_3fr,

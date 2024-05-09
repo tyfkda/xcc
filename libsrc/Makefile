@@ -13,6 +13,10 @@ else
 CFLAGS:=-I$(INC_DIR) -Wall -Wextra -Werror
 endif
 
+ifneq ("$(HOST_CC_PREFIX)", "")
+  AR:=$(HOST_CC_PREFIX)ar
+endif
+
 ### Library
 
 CRT0_DIR:=$(SRC_DIR)/crt0

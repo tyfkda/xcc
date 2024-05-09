@@ -45,6 +45,13 @@ void _start(void) {
         "mov x1, x2\n"
         "mov x2, x3\n"
         "b start2");
+#elif defined(__riscv)
+  __asm("lw a0, 0(sp)\n"  // argc
+        "addi a1, sp, 8\n"  // argv
+        "slli a2, a0, 3\n"
+        "addi a2, a2, 8\n"
+        "add  a2, a2, a1\n"  // envp
+        "j start2\n");
 #else
 #error unknown target
 #endif

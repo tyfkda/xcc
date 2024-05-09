@@ -62,7 +62,7 @@ endif
 # CFLAGS+=-DNDEBUG
 
 UNAME:=$(shell uname)
-ifeq ("$(UNAME)", "Darwin")
+ifeq ("$(UNAME):$(HOST_CC_PREFIX)", "Darwin:")
 LIBS:=
 else
 LIBS:=$(LIB_DIR)/crt0.a $(LIB_DIR)/libc.a
@@ -167,7 +167,7 @@ ifeq ("$(LIBS)", "")
 libs: exes
 else
 libs: exes
-	$(MAKE) CC=../xcc -C libsrc
+	$(MAKE) CC=../xcc HOST_CC_PREFIX=$(HOST_CC_PREFIX) -C libsrc
 endif
 
 ### Self hosting

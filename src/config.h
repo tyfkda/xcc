@@ -43,9 +43,6 @@
 # if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
 #  define NO_STD_LIB
 # endif
-
-#elif XCC_TARGET_ARCH != XCC_ARCH_X64 && XCC_TARGET_ARCH != XCC_ARCH_WASM
-# define USE_SYS_LD
 #endif
 
 #define USE_ALLOCA

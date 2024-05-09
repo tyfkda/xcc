@@ -815,13 +815,12 @@ static void ei_cast(IR *ir) {
 
 static void ei_asm(IR *ir) {
   EMIT_ASM(ir->asm_.str);
-  // if (ir->dst != NULL) {
-  //   assert(!(ir->dst->flag & VRF_CONST));
-  //   int pow = ir->dst->vsize;
-  //   assert(0 <= pow && pow < 4);
-  //   const char **regs = kRegSizeTable[pow];
-  //   MOV(regs[ir->dst->phys], regs[GET_X0_INDEX()]);
-  // }
+  if (ir->dst != NULL) {
+    assert(!(ir->dst->flag & VRF_CONST));
+    int pow = ir->dst->vsize;
+    assert(0 <= pow && pow < 4);
+    MV(kReg64s[ir->dst->phys], kReg64s[GET_A0_INDEX()]);
+  }
 }
 
 //
@@ -988,8 +987,6 @@ static void insert_const_mov(VReg **pvreg, RegAlloc *ra, Vector *irs, int i) {
 #define insert_tmp_mov  insert_const_mov
 
 void tweak_irs(FuncBackend *fnbe) {
-  UNUSED(fnbe);
-
   BBContainer *bbcon = fnbe->bbcon;
   RegAlloc *ra = fnbe->ra;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
@@ -1012,10 +1009,9 @@ void tweak_irs(FuncBackend *fnbe) {
         assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
         if (ir->opr1->flag & VRF_CONST)
           swap_opr12(ir);
-        if (ir->opr2->flag & VRF_CONST) {
-          if (ir->opr2->fixnum > 0x0fff || ir->opr2->fixnum < -0x0fff)
-            insert_const_mov(&ir->opr2, ra, irs, j++);
-        }
+        if ((ir->opr2->flag & VRF_CONST) &&
+            (ir->opr2->fixnum > 0x07ff || ir->opr2->fixnum < -0x0800))
+          insert_const_mov(&ir->opr2, ra, irs, j++);
         break;
       case IR_SUB:
         assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
@@ -1028,10 +1024,9 @@ void tweak_irs(FuncBackend *fnbe) {
           }
           insert_const_mov(&ir->opr1, ra, irs, j++);
         }
-        if (ir->opr2->flag & VRF_CONST) {
-          if (ir->opr2->fixnum > 0x0fff || ir->opr2->fixnum < -0x0fff)
-            insert_const_mov(&ir->opr2, ra, irs, j++);
-        }
+        if ((ir->opr2->flag & VRF_CONST) &&
+            (ir->opr2->fixnum > 0x0800 || ir->opr2->fixnum < -0x07ff))
+          insert_const_mov(&ir->opr2, ra, irs, j++);
         break;
       case IR_MUL:
       case IR_DIV:
@@ -1071,6 +1066,9 @@ void tweak_irs(FuncBackend *fnbe) {
               if (dst->vsize != ir->opr1->vsize)
                 dst = reg_alloc_spawn(ra, ir->opr1->vsize, ir->opr1->flag & VRF_MASK);
 
+              if ((ir->opr2->flag & VRF_CONST) &&
+                  (ir->opr2->fixnum > 0x0800 || ir->opr2->fixnum < -0x07ff))
+                insert_const_mov(&ir->opr2, ra, irs, j++);
               IR *sub = new_ir_bop_raw(IR_SUB, dst, ir->opr1, ir->opr2, ir->flag);
               vec_insert(irs, j++, sub);
 

@@ -7,6 +7,7 @@
 #define SP    2
 
 #define IMM(imm, t, b)  (((imm) >> (b)) & ((1 << (t - b + 1)) - 1))
+#define SWIZZLE_JAL(ofs)  ((IMM(ofs, 20, 20) << 31) | (IMM(ofs, 10, 1) << 21) | (IMM(ofs, 11, 11) << 20) | (IMM(ofs, 19, 12) << 12))
 
 // Instruction formats: 32bit=[7|5|5|3|5|7]
 #define RTYPE(funct7, rs2, rs1, funct3, rd, opcode)  MAKE_CODE32(inst, code, ((funct7) << 25) | ((rs2) << 20) | ((rs1) << 15) | ((funct3) << 12) | ((rd) << 7) | (opcode))
@@ -63,9 +64,10 @@
 #define W_SD(rs2, ofs, rs1)       STYPE(ofs, rs2, rs1, 0x03, 0x23)
 #define W_LUI(rd, imm)            UTYPE(imm, rd, 0x37)
 #define W_AUIPC(rd, imm)          UTYPE(imm, rd, 0x17)
-#define W_JAL(rd, imm)            UTYPE(imm, rd, 0x6f)
+#define W_JAL(rd, imm)            UTYPE(SWIZZLE_JAL(imm), rd, 0x6f)
 #define W_JALR(rd, rs, imm)       ITYPE(imm, rs, 0x00, rd, 0x67)
 #define W_BXX(xx, rs1, rs2, ofs)  STYPE(ofs, rs2, rs1, xx, 0x63)
+#define W_ECALL()                 UTYPE(0, 0, 0x73)
 
 #define W_FADD_D(rd, rs1, rs2)    RTYPE(0x01, rs2, rs1, 0x07, rd, 0x53)
 #define W_FSUB_D(rd, rs1, rs2)    RTYPE(0x05, rs2, rs1, 0x07, rd, 0x53)
@@ -158,12 +160,12 @@
 #define P_LI(rd, imm)             W_ADDI(rd, ZERO, imm)
 #define P_NEG(rd, rs)             W_SUB(rd, ZERO, rs)
 #define P_NOT(rd, rs)             W_XORI(rd, rs, -1)
-#define P_SEXT_B(rd, rs)          do { if ((rd) == (rs) && (rs) != 0) C_SLLI(rd, 56); else W_SLLI(rd, rs, 56); C_SRAI(rd, 56); } while (0)
-#define P_SEXT_H(rd, rs)          do { if ((rd) == (rs) && (rs) != 0) C_SLLI(rd, 48); else W_SLLI(rd, rs, 48); C_SRAI(rd, 48); } while (0)
+#define P_SEXT_B(rd, rs)          do { if ((rd) == (rs)) C_SLLI(rd, 56); else W_SLLI(rd, rs, 56); if (is_rvc_reg(rd)) C_SRAI(rd, 56); else W_SRAI(rd, rd, 56); } while (0)
+#define P_SEXT_H(rd, rs)          do { if ((rd) == (rs)) C_SLLI(rd, 48); else W_SLLI(rd, rs, 48); if (is_rvc_reg(rd)) C_SRAI(rd, 48); else W_SRAI(rd, rd, 48); } while (0)
 #define P_SEXT_W(rd, rs)          do { if ((rd) == (rs)) C_ADDIW(rd, 0); else W_ADDIW(rd, rs, 0); } while (0)
 #define P_ZEXT_B(rd, rs)          W_ANDI(rd, rs, 0xff)
-#define P_ZEXT_H(rd, rs)          do { if ((rd) == (rs) && (rs) != 0) C_SLLI(rd, 48); else W_SLLI(rd, rs, 48); C_SRLI(rd, 48); } while (0)
-#define P_ZEXT_W(rd, rs)          do { if ((rd) == (rs) && (rs) != 0) C_SLLI(rd, 32); else W_SLLI(rd, rs, 32); C_SRLI(rd, 32); } while (0)
+#define P_ZEXT_H(rd, rs)          do { if ((rd) == (rs)) C_SLLI(rd, 48); else W_SLLI(rd, rs, 48); if (is_rvc_reg(rd)) C_SRLI(rd, 48); else W_SRLI(rd, rd, 48); } while (0)
+#define P_ZEXT_W(rd, rs)          do { if ((rd) == (rs)) C_SLLI(rd, 32); else W_SLLI(rd, rs, 32); if (is_rvc_reg(rd)) C_SRLI(rd, 32); else W_SRLI(rd, rd, 32); } while (0)
 #define P_SEQZ(rd, rs)            W_SLTIU(rd, rs, 1)
 #define P_SNEZ(rd, rs)            W_SLTU(rd, ZERO, rs)
 #define P_SLTZ(rd, rs)            W_SLT(rd, rs, ZERO)
@@ -173,6 +175,17 @@
 #define P_FMV_S(rd, rs)           W_FSGNJ_S(rd, rs, rs)
 #define P_FNEG_D(rd, rs)          W_FSGNJN_D(rd, rs, rs)
 #define P_FNEG_S(rd, rs)          W_FSGNJN_S(rd, rs, rs)
+
+#define SWIZZLE_C_J(offset) \
+    ((IMM(offset, 11, 11) << 12) | (IMM(offset, 4, 4) << 11) | \
+     (IMM(offset, 9, 8) << 9) | (IMM(offset, 10, 10) << 8) | (IMM(offset, 6, 6) << 7) | \
+     (IMM(offset, 7, 7) << 6) | (IMM(offset, 3, 1) << 3) | (IMM(offset, 5, 5) << 2))
+#define SWIZZLE_C_BXX(offset) \
+    ((IMM(offset, 8, 8) << 12) | (IMM(offset, 4, 3) << 10) | \
+     (IMM(offset, 7, 6) << 5) | (IMM(offset, 2, 1) << 3) | (IMM(offset, 5, 5) << 2))
+#define SWIZZLE_BXX(offset) \
+    ((IMM(offset, 12, 12) << 31) | (IMM(offset, 10, 5) << 25) | \
+     (IMM(offset, 4, 1) << 8) | (IMM(offset, 11, 11) << 7))
 
 inline bool is_rvc_reg(int reg)  { return reg >= 8 && reg <= 15; }  // X8~X15
 inline int to_rvc_reg(int reg)  { return reg - 8; }

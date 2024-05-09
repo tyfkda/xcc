@@ -41,5 +41,23 @@ int setjmp(jmp_buf env) {
         "stp d14, d15, [x0, 160]\n"
         "mov w0, wzr");
 }
+#elif defined(__riscv)
+int setjmp(jmp_buf env) {
+  __asm("sd ra, 0(a0)\n"
+        "sd sp, 8(a0)\n"
+        "sd fp, 16(a0)\n"
+        "sd s1, 24(a0)\n"
+        "sd s2, 32(a0)\n"
+        "sd s3, 40(a0)\n"
+        "sd s4, 48(a0)\n"
+        "sd s5, 56(a0)\n"
+        "sd s6, 64(a0)\n"
+        "sd s7, 72(a0)\n"
+        "sd s8, 80(a0)\n"
+        "sd s9, 88(a0)\n"
+        "sd s10, 96(a0)\n"
+        "sd s11, 104(a0)\n"
+        "li a0, 0\n");
+}
 #endif
 #endif

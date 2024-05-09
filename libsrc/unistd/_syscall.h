@@ -76,6 +76,34 @@
 #define __NR_clock_gettime  113
 #define __NR_newfstatat  79
 
+#elif defined(__riscv)
+
+#define SYSCALL(no)  _SYSCALL2(no)
+#define _SYSCALL2(no) \
+    __asm("li a7, " #no "\n" \
+          "ecall")
+
+#define SYSCALL_RET(no, ret)  _SYSCALL_RET2(no, ret)
+#define _SYSCALL_RET2(no, ret) \
+    __asm("li a7, " #no "\n" \
+          "ecall" \
+          : "=r"(ret))
+
+#define __NR_getcwd  17
+#define __NR_dup     23
+#define __NR_chdir   49
+#define __NR_openat  56
+#define __NR_close   57
+#define __NR_lseek   62
+#define __NR_read    63
+#define __NR_write   64
+#define __NR_exit    93
+#define __NR_kill    129
+#define __NR_brk     214
+#define __NR_execve  221
+#define __NR_wait4   260
+#define __NR_fstat   80
+
 #else
 #error unknown
 #endif

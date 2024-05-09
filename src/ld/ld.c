@@ -185,6 +185,57 @@ static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
   return address;
 }
 
+// RISC-V
+#define ZERO  0
+#define RA    1
+#define SP    2
+
+#define IMM(imm, t, b)  (((imm) >> (b)) & ((1 << (t - b + 1)) - 1))
+#define SWIZZLE_JAL(ofs)  ((IMM(ofs, 20, 20) << 31) | (IMM(ofs, 10, 1) << 21) | (IMM(ofs, 11, 11) << 20) | (IMM(ofs, 19, 12) << 12))
+#define SWIZZLE_C_J(offset) \
+    ((IMM(offset, 11, 11) << 12) | (IMM(offset, 4, 4) << 11) | \
+     (IMM(offset, 9, 8) << 9) | (IMM(offset, 10, 10) << 8) | (IMM(offset, 6, 6) << 7) | \
+     (IMM(offset, 7, 7) << 6) | (IMM(offset, 3, 1) << 3) | (IMM(offset, 5, 5) << 2))
+#define SWIZZLE_C_BXX(offset) \
+    ((IMM(offset, 8, 8) << 12) | (IMM(offset, 4, 3) << 10) | \
+     (IMM(offset, 7, 6) << 5) | (IMM(offset, 2, 1) << 3) | (IMM(offset, 5, 5) << 2))
+#define SWIZZLE_BXX(offset) \
+    ((IMM(offset, 12, 12) << 31) | (IMM(offset, 10, 5) << 25) | \
+     (IMM(offset, 4, 1) << 8) | (IMM(offset, 11, 11) << 7))
+
+#define MAKE_CODE32(x)            (x)
+#define ITYPE(imm, rs1, funct3, rd, opcode)          MAKE_CODE32((IMM(imm, 11, 0) << 20) | ((rs1) << 15) | ((funct3) << 12) | ((rd) << 7) | (opcode))
+#define UTYPE(imm, rd, opcode)                       MAKE_CODE32((IMM(imm, 31, 12) << 12) | ((rd) << 7) | (opcode))
+#define W_JAL(rd, imm)            UTYPE(SWIZZLE_JAL(imm), rd, 0x6f)
+#define W_ADDI(rd, rs, imm)       ITYPE(imm, rs, 0x00, rd, 0x13)
+#define P_NOP()                   W_ADDI(ZERO, ZERO, 0)
+
+static uintptr_t calc_rela_sym_address(LinkEditor *ld, ElfObj *elfobj, const Elf64_Rela *rela, const Elf64_Sym *sym, const ElfSectionInfo *strinfo) {
+  uintptr_t address = 0;
+  switch (ELF64_ST_BIND(sym->st_info)) {
+  case STB_LOCAL:
+    if (ELF64_ST_TYPE(sym->st_info) == STT_SECTION) {
+      assert(ELF64_R_SYM(rela->r_info) < elfobj->ehdr.e_shnum);
+      const ElfSectionInfo *s = &elfobj->section_infos[ELF64_R_SYM(rela->r_info)];
+      address = s->progbits.address;
+    } else {
+      uintptr_t sectop = elfobj->section_infos[sym->st_shndx].progbits.address;
+      address = sectop + sym->st_value;
+    }
+    break;
+  case STB_GLOBAL:
+    {
+      const char *label = &strinfo->strtab.buf[sym->st_name];
+      address = ld_symbol_address(ld, alloc_name(label, NULL, false));
+      assert(address != (uintptr_t)-1);
+    }
+    break;
+  default: assert(false); break;
+  }
+
+  return address + rela->r_addend;
+}
+
 static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
   for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
     Elf64_Shdr *shdr = &elfobj->shdrs[sec];
@@ -203,33 +254,16 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
     for (size_t j = 0, n = shdr->sh_size / sizeof(Elf64_Rela); j < n; ++j) {
       const Elf64_Rela *rela = &relas[j];
       const Elf64_Sym *sym = &symhdrinfo->symtab.syms[ELF64_R_SYM(rela->r_info)];
-
-      uintptr_t address = 0;
-      switch (ELF64_ST_BIND(sym->st_info)) {
-      case STB_LOCAL:
-        if (ELF64_ST_TYPE(sym->st_info) == STT_SECTION) {
-          assert(ELF64_R_SYM(rela->r_info) < elfobj->ehdr.e_shnum);
-          const ElfSectionInfo *s = &elfobj->section_infos[ELF64_R_SYM(rela->r_info)];
-          address = s->progbits.address;
-        } else {
-          uintptr_t sectop = elfobj->section_infos[sym->st_shndx].progbits.address;
-          address = sectop + sym->st_value;
-        }
-        break;
-      case STB_GLOBAL:
-        {
-          const char *label = &strinfo->strtab.buf[sym->st_name];
-          address = ld_symbol_address(ld, alloc_name(label, NULL, false));
-          assert(address != (uintptr_t)-1);
-        }
-        break;
-      default: assert(false); break;
-      }
-      address += rela->r_addend;
+      uintptr_t address = calc_rela_sym_address(ld, elfobj, rela, sym, strinfo);
 
       void *p = dst_info->progbits.content + rela->r_offset;
       uintptr_t pc = elfobj->section_infos[shdr->sh_info].progbits.address + rela->r_offset;
       switch (ELF64_R_TYPE(rela->r_info)) {
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+      case R_RISCV_64:
+        *(uint64_t*)p = address;
+        break;
+#else
       case R_X86_64_64:
         *(uint64_t*)p = address;
         break;
@@ -237,6 +271,99 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       case R_X86_64_PLT32:
         *(uint32_t*)p = address - pc;
         break;
+#endif
+
+      case R_RISCV_CALL:
+        {
+          int64_t offset = address - pc;
+          assert(offset < (1L << 19) && offset >= -(1L << 19));  // TODO
+          *(uint32_t*)p = W_JAL(RA, offset);
+        }
+        break;
+      case R_RISCV_RELAX:
+        {
+          // TODO: Check
+          assert(j > 0);
+          const Elf64_Rela *rela0 = &relas[j - 1];
+          switch (ELF64_R_TYPE(rela0->r_info)) {
+          case R_RISCV_CALL:
+            ((uint32_t*)p)[1] = P_NOP();
+            break;
+          case R_RISCV_PCREL_HI20:
+          case R_RISCV_PCREL_LO12_I:
+            break;
+          default: assert(false); break;
+          }
+        }
+        break;
+      case R_RISCV_PCREL_HI20:
+        {
+          int64_t offset = address - pc;
+          assert(offset < (1L << 31) && offset >= -(1L << 31));
+          // const uint32_t MASK20 = (1U << 20) - 1;
+          const uint32_t MASK12 = (1U << 12) - 1;
+          if ((offset & MASK12) >= (1U << 11))
+            offset += 1U << 12;
+          *(uint32_t*)p = (*(uint32_t*)p & MASK12) | ((uint32_t)offset & ~MASK12);
+        }
+        break;
+      case R_RISCV_PCREL_LO12_I:
+        {
+          // Get corresponding HI20 rela, and calculate the offset.
+          // Assume [..., [j-2]=PCREL_HI20, [j-1]=RELAX, [j]=PCREL_LO12_I, ...]
+          assert(j >= 2);
+          const Elf64_Rela *hirela = &relas[j - 2];
+          assert(ELF64_R_TYPE(hirela->r_info) == R_RISCV_PCREL_HI20);
+          const Elf64_Sym *hisym = &symhdrinfo->symtab.syms[ELF64_R_SYM(hirela->r_info)];
+          uintptr_t hiaddress = calc_rela_sym_address(ld, elfobj, hirela, hisym, strinfo);
+          uintptr_t hipc = elfobj->section_infos[shdr->sh_info].progbits.address + hirela->r_offset;
+
+          int64_t offset = hiaddress - hipc;
+          assert(offset < (1L << 31) && offset >= -(1L << 31));
+          const uint32_t MASK20 = (1U << 20) - 1;
+          const uint32_t MASK12 = (1U << 12) - 1;
+          *(uint32_t*)p = (*(uint32_t*)p & MASK20) | (((uint32_t)offset & MASK12) << 20);
+        }
+        break;
+      case R_RISCV_RVC_JUMP:
+        {
+          int64_t offset = address - pc;
+          assert(offset < (1L << 11) && offset >= -(1L << 11));
+
+          uint16_t *q = (uint16_t*)p;
+          assert((*q & 0xe003) == 0xa001);  // c.j
+          *q = (*q & 0xe003) | SWIZZLE_C_J(offset);
+        }
+        break;
+      case R_RISCV_JAL:
+        {
+          int64_t offset = address - pc;
+          assert(offset < (1L << 19) && offset >= -(1L << 19));
+
+          uint32_t *q = (uint32_t*)p;
+          assert((*q & 0x0000007f) == 0x6f);  // jal
+          *q = (*q & 0x0000007f) | SWIZZLE_JAL(offset);
+        }
+        break;
+      case R_RISCV_BRANCH:
+      case R_RISCV_RVC_BRANCH:
+        {
+          int64_t offset = address - pc;
+
+          if (ELF64_R_TYPE(rela->r_info) == R_RISCV_RVC_BRANCH) {
+            assert(offset < (1 << 7) && offset >= -(1 << 7));
+            // c.beqz, c.bnez
+            uint16_t *q = (uint16_t*)p;
+            assert((*q & 0xc003) == 0xc001);
+            *q = (*q & 0xe383) | SWIZZLE_C_BXX(offset);
+          } else {
+            assert(offset < (1 << 11) && offset >= -(1 << 11));
+            uint32_t *q = (uint32_t*)p;
+            *q = (*q & 0x01fff07f) | SWIZZLE_BXX(offset);
+          }
+        }
+        break;
+
       default: assert(false); break;
       }
     }
