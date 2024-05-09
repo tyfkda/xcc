@@ -207,7 +207,10 @@ static unsigned char *asm_noop(Inst *inst, Code *code) {
 static unsigned char *asm_mv(Inst *inst, Code *code) {
   int rd = inst->opr1.reg.no;
   int rs = inst->opr2.reg.no;
-  C_MV(rd, rs);
+  if (rs != ZERO)
+    C_MV(rd, rs);
+  else
+    C_LI(rd, 0);
   return code->buf;
 }
 

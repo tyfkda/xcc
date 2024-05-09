@@ -49,5 +49,26 @@ void longjmp(jmp_buf env, int result) {
         "mov w0, #1\n"
         ".longjmp_0:");
 }
+#elif defined(__riscv)
+void longjmp(jmp_buf env, int result) {
+  __asm("ld ra, 0(a0)\n"
+        "ld sp, 8(a0)\n"
+        "ld fp, 16(a0)\n"
+        "ld s1, 24(a0)\n"
+        "ld s2, 32(a0)\n"
+        "ld s3, 40(a0)\n"
+        "ld s4, 48(a0)\n"
+        "ld s5, 56(a0)\n"
+        "ld s6, 64(a0)\n"
+        "ld s7, 72(a0)\n"
+        "ld s8, 80(a0)\n"
+        "ld s9, 88(a0)\n"
+        "ld s10, 96(a0)\n"
+        "ld s11, 104(a0)\n"
+        "mv a0, a1\n"
+        "bne a0, zero, .longjmp_0\n"
+        "li a0, 1\n"
+        ".longjmp_0:");
+}
 #endif
 #endif
