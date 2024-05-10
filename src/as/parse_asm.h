@@ -64,10 +64,18 @@ enum ExprKind {
 typedef long double Flonum;
 #endif
 
+#define LF_PAGE     (1 << 0)
+#define LF_PAGEOFF  (1 << 1)
+#define LF_LO12     (1 << 2)
+#define LF_GOT      (1 << 3)
+
 typedef struct Expr {
   enum ExprKind kind;
   union {
-    const Name *label;
+    struct {
+      const Name *name;
+      int flag;
+    } label;
     int64_t fixnum;
     struct {
       struct Expr *lhs;
@@ -113,6 +121,7 @@ Expr *new_expr(enum ExprKind kind);
 typedef struct {
   const Name *label;
   int64_t offset;
+  int flag;
 } Value;
 
 Value calc_expr(Table *label_table, const Expr *expr);

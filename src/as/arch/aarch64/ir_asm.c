@@ -129,6 +129,38 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
         {
           Inst *inst = ir->code.inst;
           switch (inst->op) {
+          case ADD_I:
+            if (inst->opr[2].type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr[2].direct.expr);
+              if (value.label != NULL) {
+                if (value.flag == LF_PAGEOFF || value.flag == LF_LO12) {
+                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                  info->kind = value.flag == LF_PAGEOFF ? UNRES_AARCH64_PAGEOFF : UNRES_PCREL_LO;
+                  info->label = value.label;
+                  info->src_section = sec;
+                  info->offset = address - start_address;
+                  info->add = value.offset;
+                  vec_push(unresolved, info);
+                }
+              }
+            }
+            break;
+          case ADRP:
+            if (inst->opr[1].type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr[1].direct.expr);
+              if (value.label != NULL) {
+                if (value.flag == 0 || value.flag == LF_PAGE) {
+                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                  info->kind = value.flag == LF_PAGE ? UNRES_AARCH64_PAGE : UNRES_PCREL_HI;
+                  info->label = value.label;
+                  info->src_section = sec;
+                  info->offset = address - start_address;
+                  info->add = value.offset;
+                  vec_push(unresolved, info);
+                }
+              }
+            }
+            break;
           case BL:
             if (inst->opr[0].type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr[0].direct.expr);
@@ -152,6 +184,18 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
       case IR_EXPR_SHORT:
       case IR_EXPR_LONG:
       case IR_EXPR_QUAD:
+        {
+          Value value = calc_expr(label_table, ir->expr);
+          assert(value.label != NULL);
+          UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+          info->kind = UNRES_ABS64;  // TODO:
+          info->label = value.label;
+          info->src_section = sec;
+          info->offset = address - start_address;
+          info->add = value.offset;
+          vec_push(unresolved, info);
+        }
+        break;
       case IR_LABEL:
       case IR_DATA:
       case IR_BSS:

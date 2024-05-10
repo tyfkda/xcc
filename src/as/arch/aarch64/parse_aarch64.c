@@ -11,15 +11,22 @@
 enum RawOpcode {
   R_NOOP,
   R_MOV,
+  R_ADD,
+  R_LDRB, R_LDRH, R_LDR, R_LDRSB, R_LDRSH, R_LDRSW,
+  R_STRB, R_STRH, R_STR,
   R_LDP, R_STP,
+  R_ADRP,
   R_BL, R_BLR,
   R_RET,
 };
 
 const char *kRawOpTable[] = {
   "mov",
-  "ldp",
-  "stp",
+  "add",
+  "ldrb", "ldrh", "ldr", "ldrsb", "ldrsh", "ldrsw",
+  "strb", "strh", "str",
+  "ldp", "stp",
+  "adrp",
   "bl", "blr",
   "ret",
   NULL,
@@ -226,8 +233,23 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
 
 const ParseInstTable kParseInstTable[] = {
   [R_MOV] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){MOV, {R32 | R64, IMM}} } },
+  [R_ADD] = { 4, (const ParseOpArray*[]){
+    &(ParseOpArray){ADD_I, {R32, R32, IMM}},
+    &(ParseOpArray){ADD_I, {R32, R32, EXP}},
+    &(ParseOpArray){ADD_I, {R64, R64, IMM}},
+    &(ParseOpArray){ADD_I, {R64, R64, EXP}},
+  } },
+  [R_LDRB] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDRB, {R32 | R64, IND}} } },
+  [R_LDRH] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDRH, {R32 | R64, IND}} } },
+  [R_LDR] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDR, {R32 | R64, IND}} } },
+  [R_LDRSB] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDRSB, {R32 | R64, IND}} } },
+  [R_LDRSH] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDRSH, {R32 | R64, IND}} } },
+  [R_STRB] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){STRB, {R32, IND}} } },
+  [R_STRH] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){STRH, {R32, IND}} } },
+  [R_STR] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){STR, {R32 | R64, IND}} } },
   [R_LDP] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){LDP, {R32, R32, IND}}, &(ParseOpArray){LDP, {R64, R64, IND}} } },
   [R_STP] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){STP, {R32, R32, IND}}, &(ParseOpArray){STP, {R64, R64, IND}} } },
+  [R_ADRP] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){ADRP, {R64, EXP}} } },
   [R_BL] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BL, {EXP}} } },
   [R_BLR] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BLR, {R64}} } },
   [R_RET] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){RET} } },
