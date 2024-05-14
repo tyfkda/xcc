@@ -9,11 +9,15 @@ typedef struct Expr Expr;
 enum Opcode {
   NOOP,
   MOV,
-  ADD_I,
+  ADD_R, ADD_I, SUB_R, SUB_I,
+  CMP,
   LDRB, LDRH, LDR, LDRSB, LDRSH, LDRSW,
   STRB, STRH, STR,
   LDP, STP,
   ADRP,
+  B, BR,
+  BEQ, BNE, BHS, BLO, BMI, BPL, BVS, BVC,
+  BHI, BLS, BGE, BLT, BGT, BLE, BAL, BNV,
   BL, BLR,
   RET,
 };

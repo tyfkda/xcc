@@ -11,22 +11,30 @@
 enum RawOpcode {
   R_NOOP,
   R_MOV,
-  R_ADD,
+  R_ADD, R_SUB,
+  R_CMP,
   R_LDRB, R_LDRH, R_LDR, R_LDRSB, R_LDRSH, R_LDRSW,
   R_STRB, R_STRH, R_STR,
   R_LDP, R_STP,
   R_ADRP,
+  R_B, R_BR,
+  R_BEQ, R_BNE, R_BHS, R_BLO, R_BMI, R_BPL, R_BVS, R_BVC,
+  R_BHI, R_BLS, R_BGE, R_BLT, R_BGT, R_BLE, R_BAL, R_BNV,
   R_BL, R_BLR,
   R_RET,
 };
 
 const char *kRawOpTable[] = {
   "mov",
-  "add",
+  "add", "sub",
+  "cmp",
   "ldrb", "ldrh", "ldr", "ldrsb", "ldrsh", "ldrsw",
   "strb", "strh", "str",
   "ldp", "stp",
   "adrp",
+  "b", "br",
+  "beq", "bne", "bhs", "blo", "bmi", "bpl", "bvs", "bvc",
+  "bhi", "bls", "bge", "blt", "bgt", "ble", "bal", "bnv",
   "bl", "blr",
   "ret",
   NULL,
@@ -52,6 +60,8 @@ typedef struct {
 #define FP   X29
 #define LR   X30
 #define SP   X31
+#define XZR  X31
+#define WZR  W31
 
 static const RegisterTable kRegisters32[] = {
   {"w0", W0},    {"w1", W1},    {"w2", W2},    {"w3", W3},
@@ -62,6 +72,8 @@ static const RegisterTable kRegisters32[] = {
   {"w20", W20},  {"w21", W21},  {"w22", W22},  {"w23", W23},
   {"w24", W24},  {"w25", W25},  {"w26", W26},  {"w27", W27},
   {"w28", W28},  {"w29", W29},  {"w30", W30},  {"w31", W31},
+  // Alias
+  {"wzr", WZR},
 };
 
 static const RegisterTable kRegisters64[] = {
@@ -74,7 +86,7 @@ static const RegisterTable kRegisters64[] = {
   {"x24", X24},  {"x25", X25},  {"x26", X26},  {"x27", X27},
   {"x28", X28},  {"x29", X29},  {"x30", X30},  {"x31", X31},
   // Alias
-  {"fp", FP},    {"lr", LR},    {"sp", SP},
+  {"fp", FP},    {"lr", LR},    {"sp", SP},    {"xzr", XZR},
 };
 
 inline bool is_reg32(enum RegType reg) {
@@ -232,10 +244,16 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
 }
 
 const ParseInstTable kParseInstTable[] = {
-  [R_MOV] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){MOV, {R32 | R64, IMM}} } },
-  [R_ADD] = { 4, (const ParseOpArray*[]){
+  [R_MOV] = { 3, (const ParseOpArray*[]){
+    &(ParseOpArray){MOV, {R32, R32}},
+    &(ParseOpArray){MOV, {R64, R64}},
+    &(ParseOpArray){MOV, {R32 | R64, IMM}},
+  } },
+  [R_ADD] = { 6, (const ParseOpArray*[]){
+    &(ParseOpArray){ADD_R, {R32, R32, R32}},
     &(ParseOpArray){ADD_I, {R32, R32, IMM}},
     &(ParseOpArray){ADD_I, {R32, R32, EXP}},
+    &(ParseOpArray){ADD_R, {R64, R64, R64}},
     &(ParseOpArray){ADD_I, {R64, R64, IMM}},
     &(ParseOpArray){ADD_I, {R64, R64, EXP}},
   } },
@@ -250,6 +268,24 @@ const ParseInstTable kParseInstTable[] = {
   [R_LDP] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){LDP, {R32, R32, IND}}, &(ParseOpArray){LDP, {R64, R64, IND}} } },
   [R_STP] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){STP, {R32, R32, IND}}, &(ParseOpArray){STP, {R64, R64, IND}} } },
   [R_ADRP] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){ADRP, {R64, EXP}} } },
+  [R_B] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){B, {EXP}} } },
+  [R_BR] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BR, {R64}} } },
+  [R_BEQ] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BEQ, {EXP}} } },
+  [R_BNE] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BNE, {EXP}} } },
+  [R_BHS] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BHS, {EXP}} } },
+  [R_BLO] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BLO, {EXP}} } },
+  [R_BMI] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BMI, {EXP}} } },
+  [R_BPL] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BPL, {EXP}} } },
+  [R_BVS] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BVS, {EXP}} } },
+  [R_BVC] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BVC, {EXP}} } },
+  [R_BHI] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BHI, {EXP}} } },
+  [R_BLS] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BLS, {EXP}} } },
+  [R_BGE] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BGE, {EXP}} } },
+  [R_BLT] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BLT, {EXP}} } },
+  [R_BGT] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BGT, {EXP}} } },
+  [R_BLE] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BLE, {EXP}} } },
+  [R_BAL] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BAL, {EXP}} } },
+  [R_BNV] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BNV, {EXP}} } },
   [R_BL] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BL, {EXP}} } },
   [R_BLR] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BLR, {R64}} } },
   [R_RET] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){RET} } },

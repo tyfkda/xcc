@@ -161,6 +161,49 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               }
             }
             break;
+          case B:
+          case BEQ: case BNE: case BHS: case BLO:
+          case BMI: case BPL: case BVS: case BVC:
+          case BHI: case BLS: case BGE: case BLT:
+          case BGT: case BLE: case BAL: case BNV:
+            if (inst->opr[0].type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr[0].direct.expr);
+              if (value.label != NULL) {
+                LabelInfo *label_info = table_get(label_table, value.label);
+                if (label_info == NULL) {
+                  /*UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                  info->kind = UNRES_EXTERN;
+                  info->label = value.label;
+                  info->src_section = sec;
+                  info->offset = address - start_address;
+                  info->add = value.offset - 4;
+                  vec_push(unresolved, info);
+                  break;*/
+                  assert(false);
+                } else {
+                  value.offset += label_info->address;
+                }
+              }
+
+              intptr_t offset = value.offset - VOIDP2INT(address);
+              if (inst->op == B) {
+                if (offset >= (1L << 27) || offset < -(1L << 27) || (offset & 3) != 0)
+                  error("Jump offset too far (over 32bit)");
+
+                Code *code = &ir->code;
+                uint32_t *buf = (uint32_t*)code->buf;
+                *buf = (*buf & 0xfc000000) | ((offset >> 2) & ((1U << 26) - 1));
+              } else {
+                if (offset >= (1L << 20) || offset < -(1L << 20) || (offset & 3) != 0)
+                  error("Jump offset too far (over 32bit)");
+
+                Code *code = &ir->code;
+                uint32_t *buf = (uint32_t*)code->buf;
+                *buf = (*buf & 0xff00001f) | ((offset & ((1U << 21) - 1)) << (5 - 2));
+              }
+            }
+            break;
+
           case BL:
             if (inst->opr[0].type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr[0].direct.expr);

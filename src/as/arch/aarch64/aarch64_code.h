@@ -7,7 +7,11 @@
 #define W_MOVN(sz, rd, imm, sft)                   MAKE_CODE32(inst, code, 0x12800000U | ((sz) << 31) | ((sft) << 21) | (((imm) & ((1U << 16) - 1)) << 5) | (rd))
 
 #define W_ADD_I(sz, rd, rn, imm)                   MAKE_CODE32(inst, code, 0x11000000U | ((sz) << 31) | (((imm) & ((1U << 12) - 1)) << 10) | ((rn) << 5) | (rd))
+#define W_ADD_S(sz, rd, rn, rm, imm)               MAKE_CODE32(inst, code, 0x0b000000U | ((sz) << 31) | ((rm) << 16) | (((imm) & ((1U << 6) - 1)) << 10) | ((rn) << 5) | (rd))
 #define W_SUB_I(sz, rd, rn, imm)                   MAKE_CODE32(inst, code, 0x51000000U | ((sz) << 31) | (((imm) & ((1U << 12) - 1)) << 10) | ((rn) << 5) | (rd))
+#define W_SUB_S(sz, rd, rn, rm, imm)               MAKE_CODE32(inst, code, 0x4b000000U | ((sz) << 31) | ((rm) << 16) | (((imm) & ((1U << 6) - 1)) << 10) | ((rn) << 5) | (rd))
+#define W_SUBS_I(sz, rd, rn, imm)                  MAKE_CODE32(inst, code, 0x71000000U | ((sz) << 31) | (((imm) & ((1U << 12) - 1)) << 10) | ((rn) << 5) | (rd))
+#define W_ORR_S(sz, rd, rn, rm, imm)               MAKE_CODE32(inst, code, 0x2a000000U | ((sz) << 31) | ((rm) << 16) | (((imm) & ((1U << 6) - 1)) << 10) | ((rn) << 5) | (rd))
 
 #define W_LDUR(b, s, rt, ofs, base)                MAKE_CODE32(inst, code, 0x38400000U | ((b) << 30) | ((s) << 23) | ((((ofs) & ((1U << 9) - 1))) << 12) | ((base) << 5) | (rt))
 #define W_LDR_UIMM(b, s, rt, ofs, base)            MAKE_CODE32(inst, code, 0x39400000U | ((b) << 30) | ((s) << 23) | ((((ofs) & ((1U << 12) - 1))) << 10) | ((base) << 5) | (rt))
@@ -29,6 +33,13 @@
 
 #define W_ADRP(rd, imm)                            MAKE_CODE32(inst, code, 0x90000000U | (IMM(imm, 31, 30) << 29) | (IMM(imm, 29, 12) << 5) | (rd))
 
+#define W_B()                                      MAKE_CODE32(inst, code, 0x14000000U)
+#define W_BR(rn)                                   MAKE_CODE32(inst, code, 0xd61f0000U | ((rn) << 5))
+#define W_BCC(cond)                                MAKE_CODE32(inst, code, 0x54000000U | (cond))
+
 #define W_BL(offset)                               MAKE_CODE32(inst, code, 0x94000000U | ((offset) & ((1U << 26) - 1)))
 #define W_BLR(rn)                                  MAKE_CODE32(inst, code, 0xd63f0000U | ((rn) << 5))
 #define W_RET(rn)                                  MAKE_CODE32(inst, code, 0xd65f0000U | ((rn) << 5))
+
+#define P_MOV(sz, rd, rs)                          W_ORR_S(sz, rd, ZERO, rs, 0)
+#define P_CMP_I(sz, rd, imm)                       W_SUBS_I(sz, ZERO, rd, imm)
