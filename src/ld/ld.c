@@ -88,18 +88,20 @@ typedef struct {
   };
 } File;
 
+#define SEC_COUNT  (SEC_BSS + 1)
+
 typedef struct {
   File *files;
   int nfiles;
-  uintptr_t offsets[SEC_BSS + 1];
-  Vector *progbit_sections[SEC_BSS + 1];
+  uintptr_t offsets[SEC_COUNT];
+  Vector *progbit_sections[SEC_COUNT];
 } LinkEditor;
 
 void ld_init(LinkEditor *ld, int nfiles) {
   ld->files = calloc_or_die(sizeof(*ld->files) * nfiles);
   ld->nfiles = nfiles;
 
-  for (int secno = 0; secno < SEC_BSS + 1; ++secno) {
+  for (int secno = 0; secno < SEC_COUNT; ++secno) {
     ld->offsets[secno] = 0;
     ld->progbit_sections[secno] = new_vector();
   }
@@ -541,7 +543,7 @@ bool ld_link(LinkEditor *ld, Table *unresolved, uintptr_t start_address) {
   // Calculate address.
   {
     uintptr_t address = start_address;
-    for (int secno = 0; secno < SEC_BSS + 1; ++secno) {
+    for (int secno = 0; secno < SEC_COUNT; ++secno) {
       address = ALIGN(address, section_aligns[secno]);
       Vector *v = ld->progbit_sections[secno];
       if (v->len > 0) {
