@@ -249,12 +249,23 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
 #elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
     case UNRES_PCREL_HI:
     case UNRES_PCREL_LO:
+    case UNRES_RISCV_HI20:
+    case UNRES_RISCV_LO12_I:
       {
         int symidx = symtab_find(symtab, u->label);
         assert(symidx >= 0);
 
+        Elf64_Xword type;
+        switch (u->kind) {
+        default: // Fallthrough to suppress warning.
+        case UNRES_PCREL_HI:      type = R_RISCV_PCREL_HI20; break;
+        case UNRES_PCREL_LO:      type = R_RISCV_PCREL_LO12_I; break;
+        case UNRES_RISCV_HI20:    type = R_RISCV_HI20; break;
+        case UNRES_RISCV_LO12_I:  type = R_RISCV_LO12_I; break;
+        }
+
         rela->r_offset = u->offset;
-        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? R_RISCV_PCREL_HI20 : R_RISCV_PCREL_LO12_I);
+        rela->r_info = ELF64_R_INFO(symidx, type);
         rela->r_addend = u->add;
       }
       break;
