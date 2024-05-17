@@ -153,6 +153,8 @@ typedef struct {
 #define R_RISCV_CALL          (18)
 #define R_RISCV_PCREL_HI20    (23)
 #define R_RISCV_PCREL_LO12_I  (24)
+#define R_RISCV_HI20          (26)
+#define R_RISCV_LO12_I        (27)
 #define R_RISCV_RVC_BRANCH    (44)
 #define R_RISCV_RVC_JUMP      (45)
 #define R_RISCV_RELAX         (51)
