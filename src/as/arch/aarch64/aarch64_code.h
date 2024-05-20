@@ -8,10 +8,19 @@
 
 #define W_ADD_I(sz, rd, rn, imm)                   MAKE_CODE32(inst, code, 0x11000000U | ((sz) << 31) | (((imm) & ((1U << 12) - 1)) << 10) | ((rn) << 5) | (rd))
 #define W_ADD_S(sz, rd, rn, rm, imm)               MAKE_CODE32(inst, code, 0x0b000000U | ((sz) << 31) | ((rm) << 16) | (((imm) & ((1U << 6) - 1)) << 10) | ((rn) << 5) | (rd))
+#define W_ADDS_I(sz, rd, rn, imm)                  MAKE_CODE32(inst, code, 0x31000000U | ((sz) << 31) | (((imm) & ((1U << 12) - 1)) << 10) | ((rn) << 5) | (rd))
+#define W_ADDS_S(sz, rd, rn, rm, imm)              MAKE_CODE32(inst, code, 0x2b000000U | ((sz) << 31) | ((rm) << 16) | (((imm) & ((1U << 6) - 1)) << 10) | ((rn) << 5) | (rd))
 #define W_SUB_I(sz, rd, rn, imm)                   MAKE_CODE32(inst, code, 0x51000000U | ((sz) << 31) | (((imm) & ((1U << 12) - 1)) << 10) | ((rn) << 5) | (rd))
 #define W_SUB_S(sz, rd, rn, rm, imm)               MAKE_CODE32(inst, code, 0x4b000000U | ((sz) << 31) | ((rm) << 16) | (((imm) & ((1U << 6) - 1)) << 10) | ((rn) << 5) | (rd))
 #define W_SUBS_I(sz, rd, rn, imm)                  MAKE_CODE32(inst, code, 0x71000000U | ((sz) << 31) | (((imm) & ((1U << 12) - 1)) << 10) | ((rn) << 5) | (rd))
+#define W_SUBS_S(sz, rd, rn, rm, imm)              MAKE_CODE32(inst, code, 0x6b000000U | ((sz) << 31) | ((rm) << 16) | (((imm) & ((1U << 6) - 1)) << 10) | ((rn) << 5) | (rd))
+#define W_MUL(sz, rd, rn, rm)                      MAKE_CODE32(inst, code, 0x1b007c00U | ((sz) << 31) | ((rm) << 16) | ((rn) << 5) | (rd))
+#define W_SDIV(sz, rd, rn, rm)                     MAKE_CODE32(inst, code, 0x1ac00c00U | ((sz) << 31) | ((rm) << 16) | ((rn) << 5) | (rd))
+#define W_UDIV(sz, rd, rn, rm)                     MAKE_CODE32(inst, code, 0x1ac00800U | ((sz) << 31) | ((rm) << 16) | ((rn) << 5) | (rd))
+#define W_AND_S(sz, rd, rn, rm, imm)               MAKE_CODE32(inst, code, 0x0a000000U | ((sz) << 31) | ((rm) << 16) | (((imm) & ((1U << 6) - 1)) << 10) | ((rn) << 5) | (rd))
 #define W_ORR_S(sz, rd, rn, rm, imm)               MAKE_CODE32(inst, code, 0x2a000000U | ((sz) << 31) | ((rm) << 16) | (((imm) & ((1U << 6) - 1)) << 10) | ((rn) << 5) | (rd))
+#define W_EOR_S(sz, rd, rn, rm, imm)               MAKE_CODE32(inst, code, 0x4a000000U | ((sz) << 31) | ((rm) << 16) | (((imm) & ((1U << 6) - 1)) << 10) | ((rn) << 5) | (rd))
+#define W_EON_S(sz, rd, rn, rm, imm)               MAKE_CODE32(inst, code, 0x4a200000U | ((sz) << 31) | ((rm) << 16) | (((imm) & ((1U << 6) - 1)) << 10) | ((rn) << 5) | (rd))
 
 #define W_LDUR(b, s, rt, ofs, base)                MAKE_CODE32(inst, code, 0x38400000U | ((b) << 30) | ((s) << 23) | ((((ofs) & ((1U << 9) - 1))) << 12) | ((base) << 5) | (rt))
 #define W_LDR_UIMM(b, s, rt, ofs, base)            MAKE_CODE32(inst, code, 0x39400000U | ((b) << 30) | ((s) << 23) | ((((ofs) & ((1U << 12) - 1))) << 10) | ((base) << 5) | (rt))
@@ -42,4 +51,7 @@
 #define W_RET(rn)                                  MAKE_CODE32(inst, code, 0xd65f0000U | ((rn) << 5))
 
 #define P_MOV(sz, rd, rs)                          W_ORR_S(sz, rd, ZERO, rs, 0)
+#define P_CMP(sz, rm, rn)                          W_SUBS_S(sz, ZERO, rm, rn, 0)
 #define P_CMP_I(sz, rd, imm)                       W_SUBS_I(sz, ZERO, rd, imm)
+#define P_CMN(sz, rn, rm)                          W_ADDS_S(sz, ZERO, rn, rm, 0)
+#define P_CMN_I(sz, rd, imm)                       W_ADDS_I(sz, ZERO, rd, imm)

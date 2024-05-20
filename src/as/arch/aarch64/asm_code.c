@@ -73,6 +73,13 @@ static unsigned char *asm_3r(Inst *inst, Code *code) {
   switch (inst->op) {
   case ADD_R:  W_ADD_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, 0); break;
   case SUB_R:  W_SUB_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, 0); break;
+  case MUL:  W_MUL(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no); break;
+  case SDIV: W_SDIV(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no); break;
+  case UDIV: W_UDIV(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no); break;
+  case AND:  W_AND_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, 0); break;
+  case ORR:  W_ORR_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, 0); break;
+  case EOR:  W_EOR_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, 0); break;
+  case EON:  W_EON_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, 0); break;
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -105,6 +112,20 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
   return code->buf;
 }
 
+static unsigned char *asm_2r(Inst *inst, Code *code) {
+  Operand *opr1 = &inst->opr[0];
+  Operand *opr2 = &inst->opr[1];
+  assert(opr1->reg.size == opr2->reg.size);
+  uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
+
+  switch (inst->op) {
+  case CMP_R:  P_CMP(sz, opr1->reg.no, opr2->reg.no); break;
+  case CMN_R:  P_CMN(sz, opr1->reg.no, opr2->reg.no); break;
+  default: assert(false); return NULL;
+  }
+  return code->buf;
+}
+
 static unsigned char *asm_ri(Inst *inst, Code *code) {
   Operand *opr1 = &inst->opr[0];
   Operand *opr2 = &inst->opr[1];
@@ -117,7 +138,8 @@ static unsigned char *asm_ri(Inst *inst, Code *code) {
   }
 
   switch (inst->op) {
-  case CMP:  P_CMP_I(sz, opr1->reg.no, imm); break;
+  case CMP_I:  P_CMP_I(sz, opr1->reg.no, imm); break;
+  case CMN_I:  P_CMN_I(sz, opr1->reg.no, imm); break;
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -245,7 +267,10 @@ static const AsmInstFunc table[] = {
   [MOV] = asm_mov,
   [ADD_R] = asm_3r, [ADD_I] = asm_2ri,
   [SUB_R] = asm_3r, [SUB_I] = asm_2ri,
-  [CMP] = asm_ri,
+  [MUL] = asm_3r, [SDIV] = asm_3r, [UDIV] = asm_3r,
+  [AND] = asm_3r, [ORR] = asm_3r, [EOR] = asm_3r, [EON] = asm_3r,
+  [CMP_R] = asm_2r, [CMP_I] = asm_ri,
+  [CMN_R] = asm_2r, [CMN_I] = asm_ri,
   [LDRB] = asm_ldrstr, [LDRSB] = asm_ldrstr, [LDR] = asm_ldrstr,
   [LDRH] = asm_ldrstr, [LDRSH] = asm_ldrstr, [LDRSW] = asm_ldrstr,
   [STRB] = asm_ldrstr, [STRH] = asm_ldrstr,  [STR] = asm_ldrstr,
