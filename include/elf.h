@@ -152,6 +152,8 @@ typedef struct {
 #define R_AARCH64_ADR_PREL_PG_HI21_NC  276
 #define R_AARCH64_ADD_ABS_LO12_NC      277
 #define R_AARCH64_CALL26               283
+#define R_AARCH64_ADR_GOT_PAGE         311
+#define R_AARCH64_LD64_GOT_LO12_NC     312
 
 #define R_RISCV_64            (2)
 #define R_RISCV_BRANCH        (16)

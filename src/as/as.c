@@ -315,6 +315,25 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
 #endif
       }
       break;
+    case UNRES_AARCH64_GOT:
+    case UNRES_AARCH64_GOT_LO12:
+      {
+        LabelInfo *label = table_get(label_table, u->label);
+        int type = u->kind == UNRES_AARCH64_GOT ? R_AARCH64_ADR_GOT_PAGE : R_AARCH64_LD64_GOT_LO12_NC;
+        if (label == NULL || label->flag & (LF_GLOBAL | LF_REFERRED)) {
+          int symidx = symtab_find(&symtab, u->label);
+          assert(symidx >= 0);
+
+          rela->r_offset = u->offset;
+          rela->r_info = ELF64_R_INFO(symidx, type);
+          rela->r_addend = u->add;
+        } else {
+          rela->r_offset = u->offset;
+          rela->r_info = ELF64_R_INFO(label->section + 1, type);
+          rela->r_addend = u->add + (label->address - section_start_addresses[label->section]);
+        }
+      }
+      break;
 
     case UNRES_PCREL_HI:
     case UNRES_PCREL_LO:

@@ -94,6 +94,7 @@ extern int current_section;  // enum SectionType
 extern bool err;
 
 Line *parse_line(ParseInfo *info);
+void parse_set_p(ParseInfo *info, const char *p);
 void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_irs,
                       Table *label_table);
 void parse_error(const ParseInfo *info, const char *message);
@@ -117,6 +118,10 @@ bool immediate(const char **pp, int64_t *value);
 const Name *unquote_label(const char *p, const char *q);
 Expr *parse_expr(ParseInfo *info);
 Expr *new_expr(enum ExprKind kind);
+
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+Expr *parse_got_label(ParseInfo *info);
+#endif
 
 typedef struct {
   const Name *label;

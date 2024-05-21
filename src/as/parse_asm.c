@@ -90,6 +90,30 @@ static enum DirectiveType find_directive(const char *p, size_t n) {
   return NODIRECTIVE;
 }
 
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+static int find_aarch_label_flag(const char **pp) {
+  static struct {
+    const char *name;
+    int flag;
+  } const kPrefixes[] = {
+    {":lo12:", LF_LO12},
+    {":got:", LF_GOT},
+    {":got_lo12:", LF_GOT | LF_LO12},
+  };
+
+  const char *p = *pp;
+  for (size_t i = 0; i < ARRAY_SIZE(kPrefixes); ++i) {
+    const char *name = kPrefixes[i].name;
+    size_t n = strlen(name);
+    if (strncasecmp(p, name, n) == 0) {
+      *pp = p + n;
+      return kPrefixes[i].flag;
+    }
+  }
+  return 0;
+}
+#endif
+
 bool immediate(const char **pp, int64_t *value) {
   const char *p = *pp;
   bool negative = false;
@@ -366,26 +390,9 @@ static const Token *fetch_token(ParseInfo *info) {
 
   int flag = 0;
 #if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-  {
-    static struct {
-      const char *name;
-      int flag;
-    } const kPrefixes[] = {
-      {":lo12:", LF_LO12},
-      {":got:", LF_GOT},
-      {":got_lo12:", LF_GOT | LF_LO12},
-    };
-    for (size_t i = 0; i < ARRAY_SIZE(kPrefixes); ++i) {
-      const char *name = kPrefixes[i].name;
-      size_t n = strlen(name);
-      if (strncasecmp(p, name, n) == 0) {
-        flag = kPrefixes[i].flag;
-        p += n;
-        c = *p;
-        break;
-      }
-    }
-  }
+  flag = find_aarch_label_flag(&p);
+  if (flag != 0)
+    c = *p;
 #endif
   if (is_label_first_chr(c)) {
     const char *label = p;
@@ -420,6 +427,24 @@ Expr *new_expr(enum ExprKind kind) {
   expr->kind = kind;
   return expr;
 }
+
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+Expr *parse_got_label(ParseInfo *info) {
+  const char *p = info->p;
+  int flag = find_aarch_label_flag(&p);
+  if (flag != 0) {
+    parse_set_p(info, p);
+    const Token *tok;
+    if ((tok = match(info, TK_LABEL)) != NULL) {
+      Expr *offset = new_expr(EX_LABEL);
+      offset->label.name = tok->label.name;
+      offset->label.flag = flag;
+      return offset;
+    }
+  }
+  return NULL;
+}
+#endif
 
 static Expr *prim(ParseInfo *info) {
   Expr *expr = NULL;
@@ -718,6 +743,11 @@ Line *parse_line(ParseInfo *info) {
   return line;
 }
 
+void parse_set_p(ParseInfo *info, const char *p) {
+  info->p = p;
+  info->prefetched = NULL;
+}
+
 static char unescape_char(ParseInfo *info) {
   const char *p = info->p;
   char c = *p++;
@@ -1011,14 +1041,14 @@ Value calc_expr(Table *label_table, const Expr *expr) {
           error("Illegal expression");
         }
         // offset + label
-        return (Value){.label = rhs.label, .offset = lhs.offset + rhs.offset};
+        return (Value){.label = rhs.label, .offset = lhs.offset + rhs.offset, .flag = rhs.flag};
       }
       if (lhs.label != NULL) {
         if (expr->kind != EX_ADD) {
           error("Illegal expression");
         }
         // label + offset
-        return (Value){.label = lhs.label, .offset = lhs.offset + rhs.offset};
+        return (Value){.label = lhs.label, .offset = lhs.offset + rhs.offset, .flag = lhs.flag};
       }
 
       assert(lhs.label == NULL && rhs.label == NULL);

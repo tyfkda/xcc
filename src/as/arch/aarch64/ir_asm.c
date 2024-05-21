@@ -145,19 +145,59 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               }
             }
             break;
+          case LDR:
+          case STR:
+            if (inst->opr[1].type == INDIRECT && inst->opr[1].indirect.offset != NULL) {
+              Value value = calc_expr(label_table, inst->opr[1].indirect.offset);
+              if (value.label != NULL) {
+                static const int table[][2] = {
+                  { LF_GOT, UNRES_AARCH64_GOT },
+                  { LF_GOT | LF_LO12, UNRES_AARCH64_GOT_LO12 },
+                };
+                size_t i;
+                for (i = 0; i < ARRAY_SIZE(table); ++i) {
+                  if (table[i][0] == value.flag)
+                    break;
+                }
+                if (i >= ARRAY_SIZE(table)) {
+                  break;
+                }
+
+                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                info->kind = table[i][1];
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = address - start_address;
+                info->add = value.offset;
+                vec_push(unresolved, info);
+              }
+            }
+            break;
           case ADRP:
             if (inst->opr[1].type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr[1].direct.expr);
               if (value.label != NULL) {
-                if (value.flag == 0 || value.flag == LF_PAGE) {
-                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
-                  info->kind = value.flag == LF_PAGE ? UNRES_AARCH64_PAGE : UNRES_PCREL_HI;
-                  info->label = value.label;
-                  info->src_section = sec;
-                  info->offset = address - start_address;
-                  info->add = value.offset;
-                  vec_push(unresolved, info);
+                static const int table[][2] = {
+                  { 0, UNRES_PCREL_HI },
+                  { LF_PAGE, UNRES_AARCH64_PAGE },
+                  { LF_GOT, UNRES_AARCH64_GOT },
+                };
+                size_t i;
+                for (i = 0; i < ARRAY_SIZE(table); ++i) {
+                  if (table[i][0] == value.flag)
+                    break;
                 }
+                if (i >= ARRAY_SIZE(table)) {
+                  break;
+                }
+
+                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                info->kind = table[i][1];
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = address - start_address;
+                info->add = value.offset;
+                vec_push(unresolved, info);
               }
             }
             break;

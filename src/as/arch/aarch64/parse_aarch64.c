@@ -153,7 +153,13 @@ static bool parse_indirect_register(ParseInfo *info, Operand *operand) {
         offset = new_expr(EX_FIXNUM);
         offset->fixnum = imm;
       } else {
-        parse_error(info, "Offset expected");
+        parse_set_p(info, p);
+        offset = parse_got_label(info);
+        if (offset != NULL) {
+          p = info->p;
+        } else {
+          parse_error(info, "Offset expected");
+        }
       }
     }
     if (*p == ']') {
@@ -187,7 +193,7 @@ static bool parse_indirect_register(ParseInfo *info, Operand *operand) {
   operand->type = INDIRECT;
   operand->indirect.offset = offset;
   operand->indirect.prepost = prepost;
-  info->p = p;
+  parse_set_p(info, p);
   return true;
 }
 
