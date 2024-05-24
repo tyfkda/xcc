@@ -11,6 +11,11 @@
 #include "../version.h"
 #include "table.h"
 
+#ifdef _WIN32
+// Requires implementation of getline
+#include "getline.h"
+#endif
+
 int isalnum_(int c) {
   return isalnum(c) || c == '_';
 }
