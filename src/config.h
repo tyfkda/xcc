@@ -1,5 +1,21 @@
 #pragma once
 
+#ifdef _WIN32
+
+// 32-bit or 64-bit
+#if _WIN64
+#define __LP64__
+#else
+#define __ILP32__
+#endif
+
+#else // POSIX
+
+#define USE_ALLOCA
+
+#endif
+
+
 // Architecture
 #define XCC_ARCH_X64      1
 #define XCC_ARCH_AARCH64  2
@@ -44,8 +60,6 @@
 #  define NO_STD_LIB
 # endif
 #endif
-
-#define USE_ALLOCA
 
 #if defined(USE_ALLOCA)
 #include <alloca.h>

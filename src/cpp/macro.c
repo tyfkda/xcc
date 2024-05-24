@@ -1,7 +1,6 @@
 #include "../config.h"
 #include "macro.h"
 
-#include <alloca.h>
 #include <assert.h>
 #include <limits.h>  // INT_MAX
 #include <stdlib.h>  // malloc

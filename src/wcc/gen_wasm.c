@@ -1,7 +1,6 @@
 #include "../config.h"
 #include "wcc.h"
 
-#include <alloca.h>
 #include <assert.h>
 #include <limits.h>
 #include <stdio.h>
