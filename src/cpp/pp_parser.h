@@ -1,6 +1,5 @@
 #pragma once
 
-#include <stdint.h>  // intptr_t
 #include <stdio.h>  // FILE
 
 #include "lexer.h"  // TokenKind, Token

@@ -113,20 +113,20 @@ typedef struct {
   int phys_max;
   int phys_temporary;
   int active_count;
-  unsigned long using_bits;
-  unsigned long used_bits;
+  uint64_t using_bits;
+  uint64_t used_bits;
 } PhysicalRegisterSet;
 
 static void expire_old_intervals(PhysicalRegisterSet *p, int start) {
   int active_count = p->active_count;
-  unsigned long using_bits = p->using_bits;
+  uint64_t using_bits = p->using_bits;
   int j;
   for (j = 0; j < active_count; ++j) {
     LiveInterval *li = p->active[j];
     if (li->end > start)
       break;
     int phys = li->phys;
-    using_bits &= ~(1UL << phys);
+    using_bits &= ~(1ULL << phys);
   }
   remove_active(p->active, active_count, 0, j);
   p->active_count = active_count - j;
@@ -184,8 +184,8 @@ static void check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval
   }
 }
 
-static void occupy_regs(RegAlloc *ra, Vector *actives, unsigned long ioccupy,
-                        unsigned long foccupy) {
+static void occupy_regs(RegAlloc *ra, Vector *actives, uint64_t ioccupy,
+                        uint64_t foccupy) {
   for (int k = 0; k < actives->len; ++k) {
     LiveInterval *li = actives->data[k];
     VReg *vreg = ra->vregs->data[li->virt];
@@ -207,13 +207,13 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
 
   const RegAllocSettings *settings = ra->settings;
   int nip = 0;
-  unsigned long iargset = 0, fargset = 0;
+  uint64_t iargset = 0, fargset = 0;
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
       IR *ir = bb->irs->data[j];
       if (settings->detect_extra_occupied != NULL) {
-        unsigned long ioccupy = (*settings->detect_extra_occupied)(ra, ir);
+        uint64_t ioccupy = (*settings->detect_extra_occupied)(ra, ir);
         if (ioccupy != 0)
           occupy_regs(ra, actives, ioccupy, 0);
       }
@@ -238,19 +238,19 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
         ) {
           int n = ir->pusharg.index;
           // Assume same order on FP-register.
-          fargset |= 1UL << n;
+          fargset |= 1ULL << n;
         } else {
           int n = settings->reg_param_mapping[ir->pusharg.index];
           if (n >= 0)
-            iargset |= 1UL << n;
+            iargset |= 1ULL << n;
         }
       }
 
       // Call instruction breaks registers which contain in their live interval (start < nip < end).
       if (ir->kind == IR_CALL) {
         // Non-saved registers on calling convention.
-        const unsigned long ibroken = (1UL << settings->phys_temporary_count) - 1;
-        const unsigned long fbroken = (1UL << settings->fphys_temporary_count) - 1;
+        const uint64_t ibroken = (1ULL << settings->phys_temporary_count) - 1;
+        const uint64_t fbroken = (1ULL << settings->fphys_temporary_count) - 1;
         occupy_regs(ra, actives, ibroken, fbroken);
         iargset = fargset = 0;
       }
@@ -305,7 +305,7 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
     int regno = -1;
     VReg *vreg = ra->vregs->data[li->virt];
     int ip = vreg->reg_param_index;
-    unsigned long occupied = prsp->using_bits | li->occupied_reg_bit;
+    uint64_t occupied = prsp->using_bits | li->occupied_reg_bit;
     if (ip >= 0) {
       if (vreg->flag & VRF_FLONUM) {
         // Assume floating-pointer parameter registers are same order,
@@ -314,14 +314,14 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
         ip = ra->settings->reg_param_mapping[ip];
       }
 
-      if (ip >= 0 && !(occupied & (1UL << ip)))
+      if (ip >= 0 && !(occupied & (1ULL << ip)))
         regno = ip;
       else
         start_index = prsp->phys_temporary;
     }
     if (regno < 0) {
       for (int j = start_index; j < prsp->phys_max; ++j) {
-        if (!(occupied & (1UL << j))) {
+        if (!(occupied & (1ULL << j))) {
           regno = j;
           break;
         }
@@ -329,7 +329,7 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
     }
     if (regno >= 0) {
       li->phys = regno;
-      prsp->using_bits |= 1UL << regno;
+      prsp->using_bits |= 1ULL << regno;
 
       insert_active(prsp->active, prsp->active_count, li);
       ++prsp->active_count;

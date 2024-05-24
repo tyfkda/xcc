@@ -24,11 +24,11 @@ void make_code32(Inst *inst, Code *code, unsigned int *buf, int len) {
 }
 
 inline bool is_im6(int64_t x) {
-  return x <= ((1L << 5) - 1) && x >= -(1L << 5);
+  return x <= ((1LL << 5) - 1) && x >= -(1LL << 5);
 }
 
 inline bool is_im12(int64_t x) {
-  return x <= ((1L << 11) - 1) && x >= -(1L << 11);
+  return x <= ((1LL << 11) - 1) && x >= -(1LL << 11);
 }
 
 inline bool assemble_error(const ParseInfo *info, const char *message) {

@@ -4,9 +4,11 @@
 
 #include <stdbool.h>
 #include <stddef.h>  // size_t
-#include <stdint.h>  // intptr_t
 #include <stdio.h>  // FILE
 #include <sys/types.h>  // ssize_t
+#include <stdint.h>
+
+#include "../config.h"
 
 #define MIN(a, b)  ((a) < (b) ? (a) : (b))
 #define MAX(a, b)  ((a) > (b) ? (a) : (b))

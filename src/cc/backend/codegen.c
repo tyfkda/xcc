@@ -708,7 +708,7 @@ void map_virtual_to_physical_registers(RegAlloc *ra) {
 // Detect living registers for each instruction.
 void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
   int maxbit = ra->settings->phys_max + ra->settings->fphys_max;
-  unsigned long living_pregs = 0;
+  uint64_t living_pregs = 0;
   assert((int)sizeof(living_pregs) * CHAR_BIT >= maxbit);
   LiveInterval **livings = ALLOCA(sizeof(*livings) * maxbit);
   for (int i = 0; i < maxbit; ++i)
@@ -726,7 +726,7 @@ void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
     if (li->state != LI_NORMAL || VREGFOR(li, ra) == NULL)
       continue;
     int bitno = BITNO(li, ra);
-    living_pregs |= 1UL << bitno;
+    living_pregs |= 1ULL << bitno;
     livings[bitno] = li;
   }
 
@@ -739,7 +739,7 @@ void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
         LiveInterval *li = livings[k];
         if (li != NULL && nip == li->end) {
           assert(BITNO(li, ra) == k);
-          living_pregs &= ~(1UL << k);
+          living_pregs &= ~(1ULL << k);
           livings[k] = NULL;
         }
       }
@@ -762,7 +762,7 @@ void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
         if (nip == li->start) {
           assert(VREGFOR(li, ra) != NULL);
           int bitno = BITNO(li, ra);
-          living_pregs |= 1UL << bitno;
+          living_pregs |= 1ULL << bitno;
           livings[bitno] = li;
         }
       }

@@ -207,7 +207,7 @@ static void emit_defun(Function *func) {
   size_t frame_size = ALIGN(fnbe->frame_size, 16);
   bool fp_saved = false;  // Frame pointer saved?
   bool lr_saved = false;  // Link register saved?
-  unsigned long used_reg_bits = fnbe->ra->used_reg_bits;
+  uint64_t used_reg_bits = fnbe->ra->used_reg_bits;
   if (!no_stmt) {
     fp_saved = frame_size > 0 || fnbe->ra->flag & RAF_STACK_FRAME;
     lr_saved = (func->flag & FUNCF_HAS_FUNCALL) != 0;
@@ -217,7 +217,7 @@ static void emit_defun(Function *func) {
       STP(FP, LR, PRE_INDEX(SP, -16));
 
       // FP is saved, so omit from callee save.
-      used_reg_bits &= ~(1UL << GET_FPREG_INDEX());
+      used_reg_bits &= ~(1ULL << GET_FPREG_INDEX());
     }
 
     // Callee save.

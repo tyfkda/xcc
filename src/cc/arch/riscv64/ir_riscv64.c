@@ -14,7 +14,7 @@
 #include "table.h"
 #include "util.h"
 
-static Vector *push_caller_save_regs(unsigned long living);
+static Vector *push_caller_save_regs(uint64_t living);
 static void pop_caller_save_regs(Vector *saves);
 
 // Register allocator
@@ -54,11 +54,11 @@ static const int kCalleeSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19}
 #define CALLER_SAVE_FREG_COUNT  ((int)ARRAY_SIZE(kCallerSaveFRegs))
 static const int kCallerSaveFRegs[] = {20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 
-static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
+static uint64_t detect_extra_occupied(RegAlloc *ra, IR *ir) {
   UNUSED(ir);
-  unsigned long ioccupy = 0;
+  uint64_t ioccupy = 0;
   if (ra->flag & RAF_STACK_FRAME)
-    ioccupy |= 1UL << GET_FPREG_INDEX();
+    ioccupy |= 1ULL << GET_FPREG_INDEX();
   return ioccupy;
 }
 
@@ -76,7 +76,7 @@ const RegAllocSettings kArchRegAllocSettings = {
 //
 
 bool is_im12(int64_t x) {
-  return x <= ((1L << 11) - 1) && x >= -(1L << 11);
+  return x <= ((1LL << 11) - 1) && x >= -(1LL << 11);
 }
 
 static void ei_bofs(IR *ir) {
@@ -825,7 +825,7 @@ static void ei_asm(IR *ir) {
 
 //
 
-static int enum_callee_save_regs(unsigned long bit, int n, const int *indices, const char **regs,
+static int enum_callee_save_regs(uint64_t bit, int n, const int *indices, const char **regs,
                                  const char **saves) {
   int count = 0;
   for (int i = 0; i < n; ++i) {
@@ -838,7 +838,7 @@ static int enum_callee_save_regs(unsigned long bit, int n, const int *indices, c
 
 #define N  (CALLEE_SAVE_REG_COUNT + CALLEE_SAVE_FREG_COUNT)
 
-int push_callee_save_regs(unsigned long used, unsigned long fused) {
+int push_callee_save_regs(uint64_t used, uint64_t fused) {
   const char *saves[ALIGN(N, 2)];
   int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
   int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
@@ -856,7 +856,7 @@ int push_callee_save_regs(unsigned long used, unsigned long fused) {
   return total_aligned;
 }
 
-void pop_callee_save_regs(unsigned long used, unsigned long fused) {
+void pop_callee_save_regs(uint64_t used, uint64_t fused) {
   const char *saves[ALIGN(N, 2)];
   int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
   int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
@@ -877,7 +877,7 @@ void pop_callee_save_regs(unsigned long used, unsigned long fused) {
 int calculate_func_param_bottom(Function *func) {
   const char *saves[ALIGN(N, 2)];
   FuncBackend *fnbe = func->extra;
-  unsigned long used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
+  uint64_t used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
   int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
   int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
                                      &saves[count]);
@@ -891,19 +891,19 @@ inline bool is_freg(const char *reg) {
   return reg[0] == 'f' && reg[1] != 'p';
 }
 
-static Vector *push_caller_save_regs(unsigned long living) {
+static Vector *push_caller_save_regs(uint64_t living) {
   Vector *saves = new_vector();
 
   for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
     int ireg = kCallerSaveRegs[i];
-    if (living & (1UL << ireg)) {
+    if (living & (1ULL << ireg)) {
       vec_push(saves, kReg64s[ireg]);
     }
   }
 
   for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
     int freg = kCallerSaveFRegs[i];
-    if (living & (1UL << (freg + PHYSICAL_REG_MAX))) {
+    if (living & (1ULL << (freg + PHYSICAL_REG_MAX))) {
       // TODO: Detect register size.
       vec_push(saves, kFReg64s[freg]);
     }

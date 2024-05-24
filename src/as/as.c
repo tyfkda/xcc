@@ -2,7 +2,6 @@
 
 #include <assert.h>
 #include <ctype.h>
-#include <stdint.h>  // uintptr_t
 #include <stdio.h>
 #include <string.h>
 #include <strings.h>  // strncasecmp
@@ -68,7 +67,7 @@ static void drop_all(FILE *fp) {
   }
 }
 
-static void putnum(FILE *fp, unsigned long num, int bytes) {
+static void putnum(FILE *fp, size_t num, int bytes) {
   for (int i = 0; i < bytes; ++i) {
     fputc(num, fp);
     num >>= 8;

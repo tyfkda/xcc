@@ -317,7 +317,7 @@ const MemberInfo *search_from_anonymous(const Type *type, const Name *name, cons
     const MemberInfo *member = &sinfo->members[i];
     if (member->name != NULL) {
       if (equal_name(member->name, name)) {
-        vec_push(stack, (void*)(long)i);
+        vec_push(stack, (void*)(long long)i);
         return member;
       }
     } else if (member->type->kind == TY_STRUCT) {

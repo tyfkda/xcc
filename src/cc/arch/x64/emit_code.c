@@ -19,7 +19,7 @@
 #include "var.h"
 #include "x64.h"
 
-int count_callee_save_regs(unsigned long used, unsigned long fused);
+int count_callee_save_regs(uint64_t used, uint64_t fused);
 
 char *im(int64_t x) {
   return fmt("$%" PRId64, x);

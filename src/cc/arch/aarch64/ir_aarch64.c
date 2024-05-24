@@ -13,7 +13,7 @@
 #include "table.h"
 #include "util.h"
 
-static Vector *push_caller_save_regs(unsigned long living);
+static Vector *push_caller_save_regs(uint64_t living);
 static void pop_caller_save_regs(Vector *saves);
 
 // Register allocator
@@ -74,8 +74,8 @@ static const int kCalleeSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
 #define CALLER_SAVE_FREG_COUNT  ((int)ARRAY_SIZE(kCallerSaveFRegs))
 static const int kCallerSaveFRegs[] = {16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31};
 
-static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
-  unsigned long ioccupy = 0;
+static uint64_t detect_extra_occupied(RegAlloc *ra, IR *ir) {
+  uint64_t ioccupy = 0;
   switch (ir->kind) {
   case IR_CALL:
     // X16 and X17 are IP0 and IP1, intra-procedure-call temporary registers. These can be used by
@@ -83,12 +83,12 @@ static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
     // subroutine calls. They are corruptible by a function. Veneers are small pieces of code which
     // are automatically inserted by the linker, for example when the branch target is out of range
     // of the branch instruction.
-    ioccupy = 1UL << GET_X16_INDEX();
+    ioccupy = 1ULL << GET_X16_INDEX();
     break;
   default: break;
   }
   if (ra->flag & RAF_STACK_FRAME)
-    ioccupy |= 1UL << GET_FPREG_INDEX();
+    ioccupy |= 1ULL << GET_FPREG_INDEX();
   return ioccupy;
 }
 
@@ -106,15 +106,15 @@ const RegAllocSettings kArchRegAllocSettings = {
 //
 
 extern inline bool is_im9(intptr_t x) {
-  return x <= ((1L << 8) - 1) && x >= -(1L << 8);
+  return x <= ((1LL << 8) - 1) && x >= -(1LL << 8);
 }
 
 extern inline bool is_im13(intptr_t x) {
-  return x <= ((1L << 12) - 1) && x >= -(1L << 12);
+  return x <= ((1LL << 12) - 1) && x >= -(1LL << 12);
 }
 
 extern inline bool is_im48(intptr_t x) {
-  return x <= ((1L << 47) - 1) && x >= -(1L << 47);
+  return x <= ((1LL << 47) - 1) && x >= -(1LL << 47);
 }
 
 void mov_immediate(const char *dst, int64_t value, bool b64, bool is_unsigned) {
@@ -802,7 +802,7 @@ static void ei_asm(IR *ir) {
 
 //
 
-static int enum_callee_save_regs(unsigned long bit, int n, const int *indices, const char **regs,
+static int enum_callee_save_regs(uint64_t bit, int n, const int *indices, const char **regs,
                                  const char **saves) {
   int count = 0;
   for (int i = 0; i < n; ++i) {
@@ -816,7 +816,7 @@ static int enum_callee_save_regs(unsigned long bit, int n, const int *indices, c
 #define N  (CALLEE_SAVE_REG_COUNT > CALLEE_SAVE_FREG_COUNT ? CALLEE_SAVE_REG_COUNT \
                                                            : CALLEE_SAVE_FREG_COUNT)
 
-int push_callee_save_regs(unsigned long used, unsigned long fused) {
+int push_callee_save_regs(uint64_t used, uint64_t fused) {
   const char *saves[(N + 1) & ~1];
   int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
   for (int i = 0; i < count; i += 2) {
@@ -836,7 +836,7 @@ int push_callee_save_regs(unsigned long used, unsigned long fused) {
   return ALIGN(count, 2) + ALIGN(fcount, 2);
 }
 
-void pop_callee_save_regs(unsigned long used, unsigned long fused) {
+void pop_callee_save_regs(uint64_t used, uint64_t fused) {
   const char *saves[(N + 1) & ~1];
   int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
                                      saves);
@@ -858,7 +858,7 @@ void pop_callee_save_regs(unsigned long used, unsigned long fused) {
 int calculate_func_param_bottom(Function *func) {
   const char *saves[(N + 1) & ~1];
   FuncBackend *fnbe = func->extra;
-  unsigned long used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
+  uint64_t used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
   int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
   int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
                                      saves);
@@ -868,7 +868,7 @@ int calculate_func_param_bottom(Function *func) {
 }
 #undef N
 
-static Vector *push_caller_save_regs(unsigned long living) {
+static Vector *push_caller_save_regs(uint64_t living) {
   Vector *saves = new_vector();
 
   struct {
@@ -897,7 +897,7 @@ static Vector *push_caller_save_regs(unsigned long living) {
     int bitoffset = table[i].bitoffset;
     for (int j = 0; j < count; ++j) {
       int ireg = table[i].reg_indices[j];
-      if (living & (1UL << (ireg + bitoffset)))
+      if (living & (1ULL << (ireg + bitoffset)))
         vec_push(saves, reg_names[ireg]);
     }
     if ((saves->len & 1) != 0)

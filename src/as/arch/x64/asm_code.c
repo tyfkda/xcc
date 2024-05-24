@@ -135,7 +135,7 @@ static unsigned char *asm_mov_imr(Inst *inst, Code *code) {
 
 static unsigned char *asm_mov_ir(Inst *inst, Code *code) {
   if (inst->src.indirect.offset->kind == EX_FIXNUM) {
-    long offset = inst->src.indirect.offset->fixnum;
+    long long offset = inst->src.indirect.offset->fixnum;
     enum RegSize size = inst->dst.reg.size;
     if (inst->src.indirect.reg.no != RIP) {
       int sno = opr_regno(&inst->src.indirect.reg);
@@ -167,7 +167,7 @@ static unsigned char *asm_mov_ir(Inst *inst, Code *code) {
 
 static unsigned char *asm_mov_ri(Inst *inst, Code *code) {
   if (inst->dst.indirect.offset->kind == EX_FIXNUM) {
-    long offset = inst->dst.indirect.offset->fixnum;
+    long long offset = inst->dst.indirect.offset->fixnum;
     enum RegSize size = inst->src.reg.size;
     if (inst->dst.indirect.reg.no != RIP) {
       int sno = opr_regno(&inst->src.reg);
@@ -199,7 +199,7 @@ static unsigned char *asm_mov_ri(Inst *inst, Code *code) {
 
 static unsigned char *asm_mov_iir(Inst *inst, Code *code) {
   if (inst->src.indirect_with_index.offset->kind == EX_FIXNUM) {
-    long offset = inst->src.indirect_with_index.offset->fixnum;
+    long long offset = inst->src.indirect_with_index.offset->fixnum;
     assert(is_im32(offset));
     short offset_bit = offset == 0 ? 0x04 : is_im8(offset) ? 0x44 : 0x84;
     enum RegSize size = inst->dst.reg.size;
@@ -288,7 +288,7 @@ static unsigned char *asm_mov_sr(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_movbwlq_imi(Inst *inst, Code *code) {
-  long offset = inst->dst.indirect.offset->fixnum;
+  long long offset = inst->dst.indirect.offset->fixnum;
   unsigned char sno = 0;
   unsigned char dno = opr_regno(&inst->dst.indirect.reg);
   unsigned char op = (offset == 0 && (dno & 7) != RBP - RAX) ? 0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
@@ -311,7 +311,7 @@ static unsigned char *asm_movbwlq_imi(Inst *inst, Code *code) {
     p += 4;
   }
 
-  long value = inst->src.immediate;
+  long long value = inst->src.immediate;
   switch (inst->op) {
   case MOVB: *p++ = IM8(value); break;
   case MOVW: PUT_CODE(p, IM16(value)); p += 2; break;
@@ -341,7 +341,7 @@ static unsigned char *asm_movbwlq_imd(Inst *inst, Code *code) {
   PUT_CODE(p, IM32(dst));
   p += 4;
 
-  long value = inst->src.immediate;
+  long long value = inst->src.immediate;
   switch (inst->op) {
   case MOVB: *p++ = IM8(value); break;
   case MOVW: PUT_CODE(p, IM16(value)); p += 2; break;
@@ -441,7 +441,7 @@ static unsigned char *asm_movsd_xx(Inst *inst, Code *code) { return asm_movsds_x
 static unsigned char *asm_movss_xx(Inst *inst, Code *code) { return asm_movsds_xx(inst, code, true); }
 
 static unsigned char *asm_movsds_ix(Inst *inst, Code *code, bool single) {
-  long offset;
+  long long offset;
   if (inst->src.indirect.offset->kind == EX_FIXNUM &&
       (offset = inst->src.indirect.offset->fixnum, is_im32(offset))) {
     if (inst->src.indirect.reg.no != RIP) {
@@ -482,7 +482,7 @@ static unsigned char *asm_movsd_ix(Inst *inst, Code *code) { return asm_movsds_i
 static unsigned char *asm_movss_ix(Inst *inst, Code *code) { return asm_movsds_ix(inst, code, true); }
 
 static unsigned char *asm_movsds_xi(Inst *inst, Code *code, bool single) {
-  long offset;
+  long long offset;
   if (inst->dst.indirect.offset->kind == EX_FIXNUM &&
       (offset = inst->dst.indirect.offset->fixnum, is_im32(offset))) {
     if (inst->dst.indirect.reg.no != RIP) {
@@ -661,7 +661,7 @@ static unsigned char *asm_sqrtsd_xx(Inst *inst, Code *code) {
   return p;
 }
 
-static long signed_immediate(long value, enum RegSize size) {
+static long long signed_immediate(long long value, enum RegSize size) {
   switch (size) {
   case REG8:   return (int8_t)value;
   case REG16:  return (int16_t)value;
@@ -677,7 +677,7 @@ static unsigned char *asm_lea_ir(Inst *inst, Code *code) {
   unsigned char *p = code->buf;
   if (inst->src.indirect.reg.no != RIP) {
     if (inst->src.indirect.offset->kind == EX_FIXNUM) {
-      long offset = inst->src.indirect.offset->fixnum;
+      long long offset = inst->src.indirect.offset->fixnum;
       enum RegSize size = inst->dst.reg.size;
       short buf[] = {
         MAKE_REX_INDIRECT(
@@ -706,8 +706,8 @@ static unsigned char *asm_lea_iir(Inst *inst, Code *code) {
   Expr *scale_expr = inst->src.indirect_with_index.scale;
   if ((offset_expr == NULL || offset_expr->kind == EX_FIXNUM) &&
       (scale_expr == NULL || scale_expr->kind == EX_FIXNUM)) {
-    long offset = offset_expr != NULL ? offset_expr->fixnum : 0;
-    long scale = scale_expr != NULL ? scale_expr->fixnum : 1;
+    long long offset = offset_expr != NULL ? offset_expr->fixnum : 0;
+    long long scale = scale_expr != NULL ? scale_expr->fixnum : 1;
     if (is_im32(offset) && 1 <= scale && scale <= 8 && IS_POWER_OF_2(scale)) {
       int breg = opr_regno(&inst->src.indirect_with_index.base_reg);
       int ireg = opr_regno(&inst->src.indirect_with_index.index_reg);
@@ -746,7 +746,7 @@ static unsigned char *asm_add_rr(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_add_imr(Inst *inst, Code *code) {
-  long value = inst->src.immediate;
+  long long value = inst->src.immediate;
   if (is_im32(value)) {
     bool im8 = is_im8(value);
     enum RegSize size = inst->dst.reg.size;
@@ -777,7 +777,7 @@ static unsigned char *asm_add_imr(Inst *inst, Code *code) {
 
 static unsigned char *asm_add_ir(Inst *inst, Code *code) {
   if (inst->src.indirect.offset->kind == EX_FIXNUM && inst->src.indirect.reg.no != RIP) {
-    long offset = inst->src.indirect.offset->fixnum;
+    long long offset = inst->src.indirect.offset->fixnum;
     enum RegSize size = inst->dst.reg.size;
     unsigned char *p = code->buf;
     short buf[] = {
@@ -820,9 +820,9 @@ static unsigned char *asm_add_iir(Inst *inst, Code *code) {
 
 static unsigned char *asm_addq_imi(Inst *inst, Code *code) {
   if (inst->dst.indirect.offset->kind == EX_FIXNUM) {
-    long value = inst->src.immediate;
+    long long value = inst->src.immediate;
     if (is_im32(value)) {
-      long offset = inst->dst.indirect.offset->fixnum;
+      long long offset = inst->dst.indirect.offset->fixnum;
       unsigned char sno = 0;
       unsigned char dno = opr_regno(&inst->dst.indirect.reg);
       unsigned char op = (offset == 0 && (dno & 7) != RBP - RAX) ? 0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
@@ -864,7 +864,7 @@ static unsigned char *asm_sub_rr(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_sub_imr(Inst *inst, Code *code) {
-  long value = inst->src.immediate;
+  long long value = inst->src.immediate;
   if (is_im32(value)) {
     bool im8 = is_im8(value);
     enum RegSize size = inst->dst.reg.size;
@@ -895,7 +895,7 @@ static unsigned char *asm_sub_imr(Inst *inst, Code *code) {
 
 static unsigned char *asm_sub_ir(Inst *inst, Code *code) {
   if (inst->src.indirect.offset->kind == EX_FIXNUM && inst->src.indirect.reg.no != RIP) {
-    long offset = inst->src.indirect.offset->fixnum;
+    long long offset = inst->src.indirect.offset->fixnum;
     enum RegSize size = inst->dst.reg.size;
     unsigned char *p = code->buf;
     short buf[] = {
@@ -938,9 +938,9 @@ static unsigned char *asm_sub_iir(Inst *inst, Code *code) {
 
 static unsigned char *asm_subq_imi(Inst *inst, Code *code) {
   if (inst->dst.indirect.offset->kind == EX_FIXNUM) {
-    long value = inst->src.immediate;
+    long long value = inst->src.immediate;
     if (is_im32(value)) {
-      long offset = inst->dst.indirect.offset->fixnum;
+      long long offset = inst->dst.indirect.offset->fixnum;
       unsigned char sno = 0;
       unsigned char dno = opr_regno(&inst->dst.indirect.reg);
       unsigned char op = (offset == 0 && (dno & 7) != RBP - RAX) ? 0x28 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
@@ -1036,7 +1036,7 @@ static unsigned char *asm_inc_r(Inst *inst, Code *code) {
 static unsigned char *asm_incbwlq_i(Inst *inst, Code *code) {
   if (inst->src.indirect.reg.no != RIP) {
     enum RegSize size = inst->op + (REG8 - INCB);
-    long offset = inst->src.indirect.offset->fixnum;
+    long long offset = inst->src.indirect.offset->fixnum;
     unsigned char *p = code->buf;
     short buf[] = {
       MAKE_REX_INDIRECT(
@@ -1061,7 +1061,7 @@ static unsigned char *asm_dec_r(Inst *inst, Code *code) {
 static unsigned char *asm_decbwlq_i(Inst *inst, Code *code) {
   if (inst->src.indirect.reg.no != RIP) {
     enum RegSize size = inst->op + (REG8 - DECB);
-    long offset = inst->src.indirect.offset->fixnum;
+    long long offset = inst->src.indirect.offset->fixnum;
     unsigned char *p = code->buf;
     short buf[] = {
       MAKE_REX_INDIRECT(
@@ -1085,7 +1085,7 @@ static unsigned char *asm_and_rr(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_and_imr(Inst *inst, Code *code) {
-  long value = inst->src.immediate;
+  long long value = inst->src.immediate;
   enum RegSize size = inst->dst.reg.size;
   unsigned char *p = code->buf;
   if (is_im8(value) && (size != REG8 || opr_regno(&inst->dst.reg) != AL - AL)) {
@@ -1127,7 +1127,7 @@ static unsigned char *asm_or_rr(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_or_imr(Inst *inst, Code *code) {
-  long value = inst->src.immediate;
+  long long value = inst->src.immediate;
   enum RegSize size = inst->dst.reg.size;
   unsigned char *p = code->buf;
   if (is_im8(value) && (size != REG8 || opr_regno(&inst->dst.reg) != AL - AL)) {
@@ -1168,7 +1168,7 @@ static unsigned char *asm_xor_rr(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_xor_imr(Inst *inst, Code *code) {
-  long value = inst->src.immediate;
+  long long value = inst->src.immediate;
   enum RegSize size = inst->dst.reg.size;
   unsigned char *p = code->buf;
   if (is_im8(value) && (size != REG8 || opr_regno(&inst->dst.reg) != AL - AL)) {
@@ -1276,7 +1276,7 @@ static unsigned char *asm_cmp_rr(Inst *inst, Code *code) {
 
 static unsigned char *asm_cmp_imr(Inst *inst, Code *code) {
   enum RegSize size = inst->dst.reg.size;
-  long value = signed_immediate(inst->src.immediate, size);
+  long long value = signed_immediate(inst->src.immediate, size);
   if (is_im32(value) || size <= REG32) {
     bool im8 = is_im8(value);
     int d = opr_regno(&inst->dst.reg);
@@ -1352,7 +1352,7 @@ static unsigned char *asm_push_r(Inst *inst, Code *code) {
 
 static unsigned char *asm_push_im(Inst *inst, Code *code) {
   unsigned char *p = code->buf;
-  long value = inst->src.immediate;
+  long long value = inst->src.immediate;
   if (is_im8(value)) {
     *p++ = 0x6a;
     *p++ = IM8(value);
@@ -1396,7 +1396,7 @@ static unsigned char *asm_jmp_der(Inst *inst, Code *code) {
 static unsigned char *asm_jmp_dei(Inst *inst, Code *code) {
   Expr *offset_expr = inst->src.indirect.offset;
   if ((offset_expr == NULL || offset_expr->kind == EX_FIXNUM)) {
-    long offset = offset_expr != NULL ? offset_expr->fixnum : 0;
+    long long offset = offset_expr != NULL ? offset_expr->fixnum : 0;
     if (is_im32(offset)) {
       short offset_bit = offset == 0 ? 0x20 : is_im8(offset) ? 0x60 : 0xa0;
       short b = inst->src.indirect.reg.no;
@@ -1425,8 +1425,8 @@ static unsigned char *asm_jmp_deii(Inst *inst, Code *code) {
   Expr *scale_expr = inst->src.indirect_with_index.scale;
   if ((offset_expr == NULL || offset_expr->kind == EX_FIXNUM) &&
       (scale_expr == NULL || scale_expr->kind == EX_FIXNUM)) {
-    long offset = offset_expr != NULL ? offset_expr->fixnum : 0;
-    long scale = scale_expr != NULL ? scale_expr->fixnum : 1;
+    long long offset = offset_expr != NULL ? offset_expr->fixnum : 0;
+    long long scale = scale_expr != NULL ? scale_expr->fixnum : 1;
     if (is_im32(offset) && 1 <= scale && scale <= 8 && IS_POWER_OF_2(scale)) {
       short b = inst->src.indirect_with_index.base_reg.no;
       short scale_bit = kPow2Table[scale];
@@ -1481,7 +1481,7 @@ static unsigned char *asm_ret(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_int_im(Inst *inst, Code *code) {
-  long value = inst->src.immediate;
+  long long value = inst->src.immediate;
   MAKE_CODE(inst, code, 0xcd, IM8(value));
   return code->buf;
 }

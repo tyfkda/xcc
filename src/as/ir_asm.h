@@ -3,7 +3,7 @@
 #pragma once
 
 #include <stddef.h>  // size_t
-#include <stdint.h>  // uintptr_t
+#include <stdint.h>  // uintptr_t, intptr_t
 
 #include "asm_code.h"  // Code
 

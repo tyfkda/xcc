@@ -19,7 +19,7 @@ enum LiveIntervalState {
 };
 
 typedef struct LiveInterval {
-  unsigned long occupied_reg_bit;  // Represent occupied registers in bit.
+  uint64_t occupied_reg_bit;  // Represent occupied registers in bit.
   enum LiveIntervalState state;
   int start;
   int end;
@@ -28,7 +28,7 @@ typedef struct LiveInterval {
 } LiveInterval;
 
 typedef struct RegAllocSettings {
-  unsigned long (*detect_extra_occupied)(RegAlloc *ra, IR *ir);
+  uint64_t (*detect_extra_occupied)(RegAlloc *ra, IR *ir);
   const int *reg_param_mapping;
   int phys_max;              // Max physical register count.
   int phys_temporary_count;  // Temporary register count (= start index for saved registers)
@@ -45,8 +45,8 @@ typedef struct RegAlloc {
   LiveInterval *intervals;  // size=vregs->len
   LiveInterval **sorted_intervals;
 
-  unsigned long used_reg_bits;
-  unsigned long used_freg_bits;
+  uint64_t used_reg_bits;
+  uint64_t used_freg_bits;
   int flag;
 } RegAlloc;
 

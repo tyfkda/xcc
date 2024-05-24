@@ -13,7 +13,7 @@
 #include "util.h"
 #include "x64.h"
 
-static Vector *push_caller_save_regs(unsigned long living);
+static Vector *push_caller_save_regs(uint64_t living);
 static void pop_caller_save_regs(Vector *saves);
 
 int stackpos = 8;
@@ -57,27 +57,27 @@ const char *kFReg64s[PHYSICAL_FREG_MAX] = {
 #define CALLER_SAVE_FREG_COUNT  ((int)ARRAY_SIZE(kCallerSaveFRegs))
 static const int kCallerSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
 
-static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
-  unsigned long ioccupy = 0;
+static uint64_t detect_extra_occupied(RegAlloc *ra, IR *ir) {
+  uint64_t ioccupy = 0;
   switch (ir->kind) {
   case IR_MUL: case IR_DIV: case IR_MOD:
     if (!(ir->dst->flag & VRF_FLONUM))
-      ioccupy = (1UL << GET_DREG_INDEX()) | (1UL << GET_AREG_INDEX());
+      ioccupy = (1ULL << GET_DREG_INDEX()) | (1ULL << GET_AREG_INDEX());
     break;
   case IR_LSHIFT: case IR_RSHIFT:
     if (!(ir->opr2->flag & VRF_CONST))
-      ioccupy = 1UL << GET_CREG_INDEX();
+      ioccupy = 1ULL << GET_CREG_INDEX();
     break;
   case IR_CALL:
     if (ir->call.vaarg_start >= 0) {
       // Break %al if function is vaarg.
-      ioccupy = 1UL << GET_AREG_INDEX();
+      ioccupy = 1ULL << GET_AREG_INDEX();
     }
     break;
   default: break;
   }
   if (ra->flag & RAF_STACK_FRAME)
-    ioccupy |= 1UL << GET_BPREG_INDEX();
+    ioccupy |= 1ULL << GET_BPREG_INDEX();
   return ioccupy;
 }
 
@@ -519,7 +519,7 @@ static void ei_neg(IR *ir) {
         if (single)
           _LONG(hexnum(1U << 31));
         else
-          _QUAD(hexnum(1UL << 63));
+          _QUAD(hexnum(1ULL << 63));
         _TEXT();
       }
       break;
@@ -914,7 +914,7 @@ static void ei_asm(IR *ir) {
 
 //
 
-static int count_callee_save_regs(unsigned long used, unsigned long fused) {
+static int count_callee_save_regs(uint64_t used, uint64_t fused) {
   // Assume no callee save freg exists.
   UNUSED(fused);
 
@@ -927,7 +927,7 @@ static int count_callee_save_regs(unsigned long used, unsigned long fused) {
   return count;
 }
 
-int push_callee_save_regs(unsigned long used, unsigned long fused) {
+int push_callee_save_regs(uint64_t used, uint64_t fused) {
   // Assume no callee save freg exists.
   UNUSED(fused);
 
@@ -943,7 +943,7 @@ int push_callee_save_regs(unsigned long used, unsigned long fused) {
   return count;
 }
 
-void pop_callee_save_regs(unsigned long used, unsigned long fused) {
+void pop_callee_save_regs(uint64_t used, uint64_t fused) {
   // Assume no callee save freg exists.
   UNUSED(fused);
 
@@ -958,18 +958,18 @@ void pop_callee_save_regs(unsigned long used, unsigned long fused) {
 
 int calculate_func_param_bottom(Function *func) {
   FuncBackend *fnbe = func->extra;
-  unsigned long used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
+  uint64_t used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
   int callee_save_count = count_callee_save_regs(used, fused);
 
   return (callee_save_count * POINTER_SIZE) + (POINTER_SIZE * 2);  // Return address, saved base pointer.
 }
 
-static Vector *push_caller_save_regs(unsigned long living) {
+static Vector *push_caller_save_regs(uint64_t living) {
   Vector *saves = new_vector();
 
   for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
     int ireg = kCallerSaveRegs[i];
-    if (living & (1UL << ireg)) {
+    if (living & (1ULL << ireg)) {
       const char *reg = kReg64s[ireg];
       PUSH(reg);
       PUSH_STACK_POS();
@@ -981,7 +981,7 @@ static Vector *push_caller_save_regs(unsigned long living) {
     int fstart = saves->len;
     for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
       int ireg = kCallerSaveFRegs[i];
-      if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
+      if (living & (1ULL << (ireg + PHYSICAL_REG_MAX))) {
         // TODO: Detect register size.
         vec_push(saves, kFReg64s[ireg]);
       }

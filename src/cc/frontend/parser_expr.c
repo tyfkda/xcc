@@ -145,7 +145,7 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
     Expr *p = target;
     Token *tok = acctok;
     for (int i = 0; i < stack->len; ++i) {
-      int index = (int)(long)stack->data[i];
+      int index = (int)(long long)stack->data[i];
       const MemberInfo *minfo = &type->struct_.info->members[index];
       type = qualified_type(minfo->type, type->qualifier);
       const Name *member_name = NULL;

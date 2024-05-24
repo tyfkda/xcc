@@ -167,7 +167,7 @@ static void emit_defun(Function *func) {
   size_t frame_size = ALIGN(fnbe->frame_size, 16);
   bool fp_saved = false;  // Frame pointer saved?
   bool ra_saved = false;  // Return Address register saved?
-  unsigned long used_reg_bits = fnbe->ra->used_reg_bits;
+  uint64_t used_reg_bits = fnbe->ra->used_reg_bits;
   int vaarg_params_saved = 0;
   if (!no_stmt) {
     if (func->type->func.vaargs) {
@@ -187,7 +187,7 @@ static void emit_defun(Function *func) {
       SD(FP, IMMEDIATE_OFFSET0(SP));
 
       // FP is saved, so omit from callee save.
-      used_reg_bits &= ~(1UL << GET_FPREG_INDEX());
+      used_reg_bits &= ~(1ULL << GET_FPREG_INDEX());
     }
 
     // Callee save.

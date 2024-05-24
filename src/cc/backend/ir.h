@@ -150,7 +150,7 @@ typedef struct IR {
       int arg_count;
       int stack_args_size;
       int stack_aligned;
-      unsigned long living_pregs;
+      uint64_t living_pregs;
       Vector *caller_saves;  // <const char*>
     } precall;
     struct {
@@ -232,8 +232,8 @@ typedef struct BBContainer {
 BBContainer *new_func_blocks(void);
 void detect_from_bbs(BBContainer *bbcon);
 void analyze_reg_flow(BBContainer *bbcon);
-int push_callee_save_regs(unsigned long used, unsigned long fused);
-void pop_callee_save_regs(unsigned long used, unsigned long fused);
+int push_callee_save_regs(uint64_t used, uint64_t fused);
+void pop_callee_save_regs(uint64_t used, uint64_t fused);
 
 void emit_bb_irs(BBContainer *bbcon);
 

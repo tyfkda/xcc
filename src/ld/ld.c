@@ -276,7 +276,7 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       case R_RISCV_CALL:
         {
           int64_t offset = address - pc;
-          assert(offset < (1L << 19) && offset >= -(1L << 19));  // TODO
+          assert(offset < (1LL << 19) && offset >= -(1LL << 19));  // TODO
           *(uint32_t*)p = W_JAL(RA, offset);
         }
         break;
@@ -299,7 +299,7 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       case R_RISCV_PCREL_HI20:
         {
           int64_t offset = address - pc;
-          assert(offset < (1L << 31) && offset >= -(1L << 31));
+          assert(offset < (1LL << 31) && offset >= -(1LL << 31));
           // const uint32_t MASK20 = (1U << 20) - 1;
           const uint32_t MASK12 = (1U << 12) - 1;
           if ((offset & MASK12) >= (1U << 11))
@@ -319,7 +319,7 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
           uintptr_t hipc = elfobj->section_infos[shdr->sh_info].progbits.address + hirela->r_offset;
 
           int64_t offset = hiaddress - hipc;
-          assert(offset < (1L << 31) && offset >= -(1L << 31));
+          assert(offset < (1LL << 31) && offset >= -(1LL << 31));
           const uint32_t MASK20 = (1U << 20) - 1;
           const uint32_t MASK12 = (1U << 12) - 1;
           *(uint32_t*)p = (*(uint32_t*)p & MASK20) | (((uint32_t)offset & MASK12) << 20);
@@ -328,7 +328,7 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       case R_RISCV_RVC_JUMP:
         {
           int64_t offset = address - pc;
-          assert(offset < (1L << 11) && offset >= -(1L << 11));
+          assert(offset < (1LL << 11) && offset >= -(1LL << 11));
 
           uint16_t *q = (uint16_t*)p;
           assert((*q & 0xe003) == 0xa001);  // c.j
@@ -338,7 +338,7 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       case R_RISCV_JAL:
         {
           int64_t offset = address - pc;
-          assert(offset < (1L << 19) && offset >= -(1L << 19));
+          assert(offset < (1LL << 19) && offset >= -(1LL << 19));
 
           uint32_t *q = (uint32_t*)p;
           assert((*q & 0x0000007f) == 0x6f);  // jal
@@ -663,7 +663,7 @@ static void dump_map_elfobj(LinkEditor *ld, ElfObj *elfobj, File *file, ArConten
       break;
     default: assert(false); break;
     }
-    fprintf(fp, "%9lx: %.*s  (%s", address, NAMES(name), file->filename);
+    fprintf(fp, "%9llx: %.*s  (%s", (unsigned long long)address, NAMES(name), file->filename);
     if (content != NULL)
       fprintf(fp, ", %s", content->name);
     fprintf(fp, ")\n");
@@ -770,11 +770,11 @@ int main(int argc, char *argv[]) {
       }
 
       fprintf(mapfp, "### Symbols\n");
-      fprintf(mapfp, "%9lx:  (start address)\n", (long)LOAD_ADDRESS);
+      fprintf(mapfp, "%9llx:  (start address)\n", (unsigned long long)LOAD_ADDRESS);
       dump_map_file(ld, mapfp);
 
       fprintf(mapfp, "\n### Entry point\n");
-      fprintf(mapfp, "%9lx: %.*s\n", entry_address, NAMES(entry_name));
+      fprintf(mapfp, "%9llx: %.*s\n", (unsigned long long)entry_address, NAMES(entry_name));
 
       if (mapfp != stdout)
         fclose(mapfp);
