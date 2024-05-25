@@ -10,15 +10,20 @@
 
 enum RawOpcode {
   R_NOOP,
-  R_MOV,
+  R_MOV, R_MOVK,
   R_ADD, R_SUB,
   R_MUL, R_SDIV, R_UDIV,
+  R_MADD, R_MSUB,
   R_AND, R_ORR, R_EOR, R_EON,
   R_CMP, R_CMN,
+  R_LSL, R_LSR, R_ASR,
+  R_SXTB, R_SXTH, R_SXTW,
+  R_UXTB, R_UXTH, R_UXTW,
   R_LDRB, R_LDRH, R_LDR, R_LDRSB, R_LDRSH, R_LDRSW,
   R_STRB, R_STRH, R_STR,
   R_LDP, R_STP,
   R_ADRP,
+  R_CSET,
   R_B, R_BR,
   R_BEQ, R_BNE, R_BHS, R_BLO, R_BMI, R_BPL, R_BVS, R_BVC,
   R_BHI, R_BLS, R_BGE, R_BLT, R_BGT, R_BLE, R_BAL, R_BNV,
@@ -27,14 +32,19 @@ enum RawOpcode {
 };
 
 const char *kRawOpTable[] = {
-  "mov",
+  "mov", "movk",
   "add", "sub", "mul", "sdiv", "udiv",
+  "madd", "msub",
   "and", "orr", "eor", "eon",
   "cmp", "cmn",
+  "lsl", "lsr", "asr",
+  "sxtb", "sxth", "sxtw",
+  "uxtb", "uxth", "uxtw",
   "ldrb", "ldrh", "ldr", "ldrsb", "ldrsh", "ldrsw",
   "strb", "strh", "str",
   "ldp", "stp",
   "adrp",
+  "cset",
   "b", "br",
   "beq", "bne", "bhs", "blo", "bmi", "bpl", "bvs", "bvc",
   "bhi", "bls", "bge", "blt", "bgt", "ble", "bal", "bnv",
@@ -92,6 +102,11 @@ static const RegisterTable kRegisters64[] = {
   {"fp", FP},    {"lr", LR},    {"sp", SP},    {"xzr", XZR},
 };
 
+static const char kCondTable[][3] = {
+  "eq", "ne", "hs", "lo", "mi", "pl", "vs", "vc",
+  "hi", "ls", "ge", "lt", "gt", "le", "al", "nv",
+};
+
 inline bool is_reg32(enum RegType reg) {
   return reg >= W0 && reg <= W31;
 }
@@ -105,6 +120,8 @@ inline bool is_reg64(enum RegType reg) {
 #define IMM  (1 << 2)
 #define IND  (1 << 3)
 #define EXP  (1 << 4)
+#define CND  (1 << 5)
+#define SFT  (1 << 6)  // lsl #nn
 
 static enum RegType find_register(const char **pp, unsigned int flag) {
   const char *p = *pp;
@@ -125,6 +142,19 @@ static enum RegType find_register(const char **pp, unsigned int flag) {
     }
   }
   return NOREG;
+}
+
+static enum CondType find_cond(const char **pp) {
+  const char *p = *pp;
+  for (int i = 0; i < (int)ARRAY_SIZE(kCondTable); ++i) {
+    const char *name = kCondTable[i];
+    size_t n = strlen(name);
+    if (strncmp(p, name, n) == 0 && !is_label_chr(p[n])) {
+      *pp = p + n;
+      return i;
+    }
+  }
+  return NOCOND;
 }
 
 static bool parse_indirect_register(ParseInfo *info, Operand *operand) {
@@ -240,6 +270,28 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
     }
   }
 
+  if (opr_flag & CND) {
+    enum CondType cond = find_cond(&info->p);
+    if (cond != NOCOND) {
+      operand->type = COND;
+      operand->cond = cond;
+      return CND;
+    }
+  }
+
+  if (opr_flag & SFT) {
+    if (strncmp(p, "lsl #", 5) == 0) {
+      p += 5;
+      int64_t imm;
+      if (immediate(&p, &imm) && imm >= 0 && imm <= 48 && (imm & 15) == 0) {
+        info->p = p;
+        operand->type = IMMEDIATE;
+        operand->immediate = imm;
+        return SFT;
+      }
+    }
+  }
+
   if (opr_flag & EXP) {
     Expr *expr = parse_expr(info);
     if (expr != NULL) {
@@ -257,6 +309,9 @@ const ParseInstTable kParseInstTable[] = {
     &(ParseOpArray){MOV, {R32, R32}},
     &(ParseOpArray){MOV, {R64, R64}},
     &(ParseOpArray){MOV, {R32 | R64, IMM}},
+  } },
+  [R_MOVK] = { 1, (const ParseOpArray*[]){
+    &(ParseOpArray){MOVK, {R32 | R64, IMM, SFT}},
   } },
   [R_ADD] = { 6, (const ParseOpArray*[]){
     &(ParseOpArray){ADD_R, {R32, R32, R32}},
@@ -277,6 +332,8 @@ const ParseInstTable kParseInstTable[] = {
   [R_MUL] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){MUL, {R32, R32, R32}}, &(ParseOpArray){MUL, {R64, R64, R64}} } },
   [R_SDIV] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){SDIV, {R32, R32, R32}}, &(ParseOpArray){SDIV, {R64, R64, R64}} } },
   [R_UDIV] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){UDIV, {R32, R32, R32}}, &(ParseOpArray){UDIV, {R64, R64, R64}} } },
+  [R_MADD] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){MADD, {R32, R32, R32, R32}}, &(ParseOpArray){MADD, {R64, R64, R64, R64}} } },
+  [R_MSUB] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){MSUB, {R32, R32, R32, R32}}, &(ParseOpArray){MSUB, {R64, R64, R64, R64}} } },
   [R_AND] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){AND, {R32, R32, R32}}, &(ParseOpArray){AND, {R64, R64, R64}} } },
   [R_ORR] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){ORR, {R32, R32, R32}}, &(ParseOpArray){ORR, {R64, R64, R64}} } },
   [R_EOR] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){EOR, {R32, R32, R32}}, &(ParseOpArray){EOR, {R64, R64, R64}} } },
@@ -291,6 +348,30 @@ const ParseInstTable kParseInstTable[] = {
     &(ParseOpArray){CMN_R, {R64, R64}},
     &(ParseOpArray){CMN_I, {R32 | R64, IMM}},
   } },
+  [R_LSL] = { 4, (const ParseOpArray*[]){
+    &(ParseOpArray){LSL_R, {R32, R32, R32}},
+    &(ParseOpArray){LSL_I, {R32, R32, IMM}},
+    &(ParseOpArray){LSL_R, {R64, R64, R64}},
+    &(ParseOpArray){LSL_I, {R64, R64, IMM}},
+  } },
+  [R_LSR] = { 4, (const ParseOpArray*[]){
+    &(ParseOpArray){LSR_R, {R32, R32, R32}},
+    &(ParseOpArray){LSR_I, {R32, R32, IMM}},
+    &(ParseOpArray){LSR_R, {R64, R64, R64}},
+    &(ParseOpArray){LSR_I, {R64, R64, IMM}},
+  } },
+  [R_ASR] = { 4, (const ParseOpArray*[]){
+    &(ParseOpArray){ASR_R, {R32, R32, R32}},
+    &(ParseOpArray){ASR_I, {R32, R32, IMM}},
+    &(ParseOpArray){ASR_R, {R64, R64, R64}},
+    &(ParseOpArray){ASR_I, {R64, R64, IMM}},
+  } },
+  [R_SXTB] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){SXTB, {R32 | R64, R32}} } },
+  [R_SXTH] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){SXTH, {R32 | R64, R32}} } },
+  [R_SXTW] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){SXTW, {R64, R32}} } },
+  [R_UXTB] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){UXTB, {R32 | R64, R32}} } },
+  [R_UXTH] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){UXTH, {R32 | R64, R32}} } },
+  [R_UXTW] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){UXTW, {R64, R32}} } },
   [R_LDRB] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDRB, {R32 | R64, IND}} } },
   [R_LDRH] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDRH, {R32 | R64, IND}} } },
   [R_LDR] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDR, {R32 | R64, IND}} } },
@@ -302,6 +383,7 @@ const ParseInstTable kParseInstTable[] = {
   [R_LDP] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){LDP, {R32, R32, IND}}, &(ParseOpArray){LDP, {R64, R64, IND}} } },
   [R_STP] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){STP, {R32, R32, IND}}, &(ParseOpArray){STP, {R64, R64, IND}} } },
   [R_ADRP] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){ADRP, {R64, EXP}} } },
+  [R_CSET] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CSET, {R32 | R64, CND}} } },
   [R_B] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){B, {EXP}} } },
   [R_BR] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BR, {R64}} } },
   [R_BEQ] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BEQ, {EXP}} } },
