@@ -143,7 +143,7 @@ void elfobj_init(ElfObj *elfobj) {
 
 bool open_elf(const char *fn, ElfObj *elfobj) {
   FILE *fp;
-  if (!is_file(fn) || (fp = fopen(fn, "r")) == NULL) {
+  if (!is_file(fn) || (fp = fopen(fn, "rb")) == NULL) {
     fprintf(stderr, "cannot open: %s\n", fn);
   } else {
     if (read_elf(elfobj, fp, fn))
