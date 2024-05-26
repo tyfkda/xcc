@@ -18,7 +18,7 @@ static uint32_t read4be(FILE *fp) {
 
 Archive *load_archive(const char *filename) {
   FILE *fp;
-  if (!is_file(filename) || (fp = fopen(filename, "r")) == NULL)
+  if (!is_file(filename) || (fp = fopen(filename, "rb")) == NULL)
     return NULL;
 
   Archive *ar = malloc_or_die(sizeof(*ar));

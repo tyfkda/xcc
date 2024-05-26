@@ -1423,7 +1423,7 @@ bool read_wasm_obj(WasmLinker *linker, const char *filename) {
   char *ext = get_ext(filename);
   if (strcasecmp(ext, "o") == 0) {
     FILE *fp;
-    if (!is_file(filename) || (fp = fopen(filename, "r")) == NULL) {
+    if (!is_file(filename) || (fp = fopen(filename, "rb")) == NULL) {
       fprintf(stderr, "cannot open: %s\n", filename);
       return false;
     }
