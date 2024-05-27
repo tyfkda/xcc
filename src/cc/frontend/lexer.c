@@ -616,8 +616,8 @@ static void *convert_str_to_wstr(const char *src, size_t *plen) {
       break;
   }
 
-  wchar_t *wstr = malloc_or_die(len * sizeof(*wstr));
-  wchar_t *q = wstr;
+  int *wstr = malloc_or_die(len * sizeof(*wstr));
+  int *q = wstr;
   for (const char *p = src;; ) {
     int c;
     p = read_utf8_char(p, &c);

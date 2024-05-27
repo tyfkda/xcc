@@ -855,7 +855,7 @@ static Expr *parse_prim(void) {
       {TK_ULONGLIT, FX_LONG, true},
       {TK_ULLONGLIT, FX_LLONG, true},
 #ifndef __NO_WCHAR
-      {TK_WCHARLIT, FX_INT, true},  // TODO: Must match with target's wchar_t
+      {TK_WCHARLIT, FX_INT, true},  // Uses 32-bit wchar_t internally
 #endif
     };
     for (int i = 0; i < (int)ARRAY_SIZE(TABLE); ++i) {
