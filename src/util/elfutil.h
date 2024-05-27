@@ -5,10 +5,10 @@
 #include <stdint.h>  // ssize_t
 #include <stdio.h>  // FILE
 
-#ifdef __APPLE__
-#include "../../include/elf.h"
-#else
+#if defined(__linux__)
 #include <elf.h>
+#else
+#include "../../include/elf.h"
 #endif
 
 #include "table.h"
