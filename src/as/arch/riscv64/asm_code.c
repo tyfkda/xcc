@@ -42,12 +42,12 @@ extern inline bool is_rvc_reg(int reg);
 extern inline int to_rvc_reg(int reg);
 
 static unsigned char *asm_3r(Inst *inst, Code *code) {
-  assert(inst->opr1.type == REG);
-  assert(inst->opr2.type == REG);
-  assert(inst->opr3.type == REG);
-  int rd = inst->opr1.reg.no;
-  int rs1 = inst->opr2.reg.no;
-  int rs2 = inst->opr3.reg.no;
+  assert(inst->opr[0].type == REG);
+  assert(inst->opr[1].type == REG);
+  assert(inst->opr[2].type == REG);
+  int rd = inst->opr[0].reg.no;
+  int rs1 = inst->opr[1].reg.no;
+  int rs2 = inst->opr[2].reg.no;
   if (rd == rs1) {
     if (inst->op == ADD) {
       C_ADD(rd, rs2);
@@ -96,12 +96,12 @@ static unsigned char *asm_3r(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_2ri(Inst *inst, Code *code) {
-  assert(inst->opr1.type == REG);
-  assert(inst->opr2.type == REG);
-  assert(inst->opr3.type == IMMEDIATE);
-  int rd = inst->opr1.reg.no;
-  int rs = inst->opr2.reg.no;
-  int64_t imm =inst->opr3.immediate;
+  assert(inst->opr[0].type == REG);
+  assert(inst->opr[1].type == REG);
+  assert(inst->opr[2].type == IMMEDIATE);
+  int rd = inst->opr[0].reg.no;
+  int rs = inst->opr[1].reg.no;
+  int64_t imm =inst->opr[2].immediate;
   if (rd == rs) {
     if (is_im6(imm)) {
       switch (inst->op) {
@@ -176,10 +176,10 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_2r(Inst *inst, Code *code) {
-  assert(inst->opr1.type == REG);
-  assert(inst->opr2.type == REG);
-  int rd = inst->opr1.reg.no;
-  int rs = inst->opr2.reg.no;
+  assert(inst->opr[0].type == REG);
+  assert(inst->opr[1].type == REG);
+  int rd = inst->opr[0].reg.no;
+  int rs = inst->opr[1].reg.no;
   switch (inst->op) {
   case NEG:    P_NEG(rd, rs); break;
   case NOT:    P_NOT(rd, rs); break;
@@ -205,8 +205,8 @@ static unsigned char *asm_noop(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_mv(Inst *inst, Code *code) {
-  int rd = inst->opr1.reg.no;
-  int rs = inst->opr2.reg.no;
+  int rd = inst->opr[0].reg.no;
+  int rs = inst->opr[1].reg.no;
   if (rs != ZERO)
     C_MV(rd, rs);
   else
@@ -215,7 +215,7 @@ static unsigned char *asm_mv(Inst *inst, Code *code) {
 }
 
 static void li_sub(Inst *inst, Code *code, int64_t imm) {
-  int rd = inst->opr1.reg.no;
+  int rd = inst->opr[0].reg.no;
   if (is_im6(imm)) {
     C_LI(rd, imm);
   } else if (is_im12(imm)) {
@@ -251,23 +251,23 @@ static void li_sub(Inst *inst, Code *code, int64_t imm) {
 }
 
 static unsigned char *asm_li(Inst *inst, Code *code) {
-  li_sub(inst, code, inst->opr2.immediate);
+  li_sub(inst, code, inst->opr[1].immediate);
   return code->buf;
 }
 
 static unsigned char *asm_la(Inst *inst, Code *code) {
-  int rd = inst->opr1.reg.no;
+  int rd = inst->opr[0].reg.no;
   W_AUIPC(rd, 0);
   W_ADDI(rd, rd, 0);
   return code->buf;
 }
 
 static unsigned char *asm_ld(Inst *inst, Code *code) {
-  int rd = inst->opr1.reg.no;
-  Expr *offset = inst->opr2.indirect.offset;
+  int rd = inst->opr[0].reg.no;
+  Expr *offset = inst->opr[1].indirect.offset;
   if (offset == NULL || offset->kind == EX_FIXNUM) {
     int64_t ofs = offset != NULL ? offset->fixnum : 0;
-    int rs = inst->opr2.indirect.reg.no;
+    int rs = inst->opr[1].indirect.reg.no;
     switch (inst->op) {
     case LB:
       // TODO: Check offset range.
@@ -316,11 +316,11 @@ static unsigned char *asm_ld(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_sd(Inst *inst, Code *code) {
-  Expr *offset = inst->opr2.indirect.offset;
+  Expr *offset = inst->opr[1].indirect.offset;
   if (offset == NULL || offset->kind == EX_FIXNUM) {
     int64_t ofs = offset != NULL ? offset->fixnum : 0;
-    int rs2 = inst->opr1.reg.no;
-    int rs1 = inst->opr2.indirect.reg.no;
+    int rs2 = inst->opr[0].reg.no;
+    int rs1 = inst->opr[1].indirect.reg.no;
     switch (inst->op) {
     case SB:
       // TODO: Check offset range.
@@ -363,13 +363,13 @@ static unsigned char *asm_j(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_jr(Inst *inst, Code *code) {
-  int rs = inst->opr1.reg.no;
+  int rs = inst->opr[0].reg.no;
   C_JR(rs);
   return code->buf;
 }
 
 static unsigned char *asm_jalr(Inst *inst, Code *code) {
-  int rs = inst->opr1.reg.no;
+  int rs = inst->opr[0].reg.no;
   C_JALR(rs);
   return code->buf;
 }
@@ -382,8 +382,8 @@ static unsigned char *asm_jalr(Inst *inst, Code *code) {
 #define _BGEU  0x7
 
 static unsigned char *asm_bxx(Inst *inst, Code *code) {
-  int rs1 = inst->opr1.reg.no;
-  int rs2 = inst->opr2.reg.no;
+  int rs1 = inst->opr[0].reg.no;
+  int rs2 = inst->opr[1].reg.no;
   if (rs2 == ZERO && is_rvc_reg(rs1)) {
     switch (inst->op) {
     case BEQ:  C_BEQZ(rs1); return code->buf;
@@ -415,12 +415,12 @@ static unsigned char *asm_ecall(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_3fr(Inst *inst, Code *code) {
-  assert(inst->opr1.type == FREG);
-  assert(inst->opr2.type == FREG);
-  assert(inst->opr3.type == FREG);
-  int rd = inst->opr1.freg;
-  int rs1 = inst->opr2.freg;
-  int rs2 = inst->opr3.freg;
+  assert(inst->opr[0].type == FREG);
+  assert(inst->opr[1].type == FREG);
+  assert(inst->opr[2].type == FREG);
+  int rd = inst->opr[0].freg;
+  int rs1 = inst->opr[1].freg;
+  int rs2 = inst->opr[2].freg;
 
   switch (inst->op) {
   case FADD_D:    W_FADD_D(rd, rs1, rs2); break;
@@ -443,10 +443,10 @@ static unsigned char *asm_3fr(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_2fr(Inst *inst, Code *code) {
-  assert(inst->opr1.type == FREG);
-  assert(inst->opr2.type == FREG);
-  int rd = inst->opr1.freg;
-  int rs = inst->opr2.freg;
+  assert(inst->opr[0].type == FREG);
+  assert(inst->opr[1].type == FREG);
+  int rd = inst->opr[0].freg;
+  int rs = inst->opr[1].freg;
 
   switch (inst->op) {
   case FSQRT_D:   W_FSQRT_D(rd, rs); break;
@@ -463,12 +463,12 @@ static unsigned char *asm_2fr(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_fcmp(Inst *inst, Code *code) {
-  assert(inst->opr1.type == REG);
-  assert(inst->opr2.type == FREG);
-  assert(inst->opr3.type == FREG);
-  int rd = inst->opr1.freg;
-  int rs1 = inst->opr2.freg;
-  int rs2 = inst->opr3.freg;
+  assert(inst->opr[0].type == REG);
+  assert(inst->opr[1].type == FREG);
+  assert(inst->opr[2].type == FREG);
+  int rd = inst->opr[0].freg;
+  int rs1 = inst->opr[1].freg;
+  int rs2 = inst->opr[2].freg;
   switch (inst->op) {
   case FEQ_D:  W_FEQ_D(rd, rs1, rs2); break;
   case FLT_D:  W_FLT_D(rd, rs1, rs2); break;
@@ -482,11 +482,11 @@ static unsigned char *asm_fcmp(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_fld(Inst *inst, Code *code) {
-  int rd = inst->opr1.freg;
-  Expr *offset = inst->opr2.indirect.offset;
+  int rd = inst->opr[0].freg;
+  Expr *offset = inst->opr[1].indirect.offset;
   if (offset == NULL || offset->kind == EX_FIXNUM) {
     int64_t ofs = offset != NULL ? offset->fixnum : 0;
-    int rs = inst->opr2.indirect.reg.no;
+    int rs = inst->opr[1].indirect.reg.no;
     if (inst->op == FLD) {
       if (ofs >= 0 && ofs < (1 << 9) && (ofs & 7) == 0 && rs == SP) {
         C_FLDSP(rd, ofs);
@@ -509,11 +509,11 @@ static unsigned char *asm_fld(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_fsd(Inst *inst, Code *code) {
-  Expr *offset = inst->opr2.indirect.offset;
+  Expr *offset = inst->opr[1].indirect.offset;
   if (offset == NULL || offset->kind == EX_FIXNUM) {
     int64_t ofs = offset != NULL ? offset->fixnum : 0;
-    int rs2 = inst->opr1.freg;
-    int rs1 = inst->opr2.indirect.reg.no;
+    int rs2 = inst->opr[0].freg;
+    int rs1 = inst->opr[1].indirect.reg.no;
     if (inst->op == FLD) {
       if (ofs >= 0 && ofs < (1 << 9) && (ofs & 7) == 0 && rs1 == SP) {
         C_FSDSP(rs2, ofs);
@@ -536,10 +536,10 @@ static unsigned char *asm_fsd(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_fi(Inst *inst, Code *code) {
-  assert(inst->opr1.type == FREG);
-  assert(inst->opr2.type == REG);
-  int rd = inst->opr1.freg;
-  int rs = inst->opr2.reg.no;
+  assert(inst->opr[0].type == FREG);
+  assert(inst->opr[1].type == REG);
+  int rd = inst->opr[0].freg;
+  int rs = inst->opr[1].reg.no;
   switch (inst->op) {
   case FCVT_D_W:  W_FCVT_D_W(rd, rs); break;
   case FCVT_D_WU: W_FCVT_D_WU(rd, rs); break;
@@ -555,11 +555,11 @@ static unsigned char *asm_fi(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_if(Inst *inst, Code *code) {
-  assert(inst->opr1.type == REG);
-  assert(inst->opr2.type == FREG);
-  int rd = inst->opr1.reg.no;
-  int rs = inst->opr2.freg;
-  int rm = inst->opr3.type == ROUNDMODE ? inst->opr3.roundmode : 0;
+  assert(inst->opr[0].type == REG);
+  assert(inst->opr[1].type == FREG);
+  int rd = inst->opr[0].reg.no;
+  int rs = inst->opr[1].freg;
+  int rm = inst->opr[2].type == ROUNDMODE ? inst->opr[2].roundmode : 0;
   switch (inst->op) {
   case FMV_X_D:   W_FMV_X_D(rd, rs); break;
   case FMV_X_W:   W_FMV_X_W(rd, rs); break;
@@ -705,7 +705,7 @@ void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
   const AsmInstTable *pt = NULL;
   if (inst->op < (enum Opcode)ARRAY_SIZE(table) && table[inst->op] != NULL) {
     for (const AsmInstTable *p = table[inst->op]; p->func != NULL; ++p) {
-      if (inst->opr1.type == p->opr1_type && inst->opr2.type == p->opr2_type && inst->opr3.type == p->opr3_type) {
+      if (inst->opr[0].type == p->opr1_type && inst->opr[1].type == p->opr2_type && inst->opr[2].type == p->opr3_type) {
         pt = p;
         break;
       }
@@ -724,5 +724,5 @@ void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     }
   }
 
-  assemble_error(info, "Illegal opeand");
+  assemble_error(info, "Illegal operand");
 }

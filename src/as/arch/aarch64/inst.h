@@ -52,7 +52,5 @@ typedef struct {
 
 typedef struct Inst {
   enum Opcode op;
-  Operand opr1;
-  Operand opr2;
-  Operand opr3;
+  Operand opr[4];
 } Inst;

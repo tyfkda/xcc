@@ -347,21 +347,21 @@ static const int kOperandFlags[] = {
 
 void parse_inst(ParseInfo *info, Line *line) {
   Inst *inst  = &line->inst;
-  Operand *opr_table[] = {&inst->opr1, &inst->opr2, &inst->opr3};
-  for (int i = 0; i < (int)ARRAY_SIZE(opr_table); ++i)
-    opr_table[i]->type = NOOPERAND;
+  Operand *opr_table = inst->opr;
+  for (int i = 0; i < (int)ARRAY_SIZE(inst->opr); ++i)
+    opr_table[i].type = NOOPERAND;
 
   enum Opcode op = find_opcode(info);
   inst->op = op;
   if (op != NOOP) {
-    for (int i = 0; i < (int)ARRAY_SIZE(opr_table); ++i) {
+    for (int i = 0; i < (int)ARRAY_SIZE(inst->opr); ++i) {
       int flag = inst->op < (int)ARRAY_SIZE(kOperandFlags) ? kOperandFlags[inst->op] : 0;
       if (i < (flag & 3))
         flag = 0;
-      if (!parse_operand(info, opr_table[i], flag))
+      if (!parse_operand(info, &opr_table[i], flag))
         break;
       info->p = skip_whitespaces(info->p);
-      if (i == (int)ARRAY_SIZE(opr_table) - 1 || *info->p != ',')
+      if (i == (int)ARRAY_SIZE(inst->opr) - 1 || *info->p != ',')
         break;
       info->p = skip_whitespaces(info->p + 1);
     }
@@ -376,11 +376,11 @@ void parse_inst(ParseInfo *info, Line *line) {
       const Name *label = alloc_dummy_label();
       line->label = label;
     }
-    if (inst->opr3.type == NOOPERAND) {
+    if (inst->opr[2].type == NOOPERAND) {
       Expr *expr = new_expr(EX_LABEL);
       expr->label = line->label;
 
-      Operand *opr = &inst->opr3;
+      Operand *opr = &inst->opr[2];
       opr->type = DIRECT;
       opr->direct.expr = expr;
     }

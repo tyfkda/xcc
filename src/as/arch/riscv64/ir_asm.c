@@ -169,9 +169,9 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
           Inst *inst = ir->code.inst;
           switch (inst->op) {
           case LA:
-            assert(inst->opr3.type == DIRECT);
-            if (inst->opr2.type == DIRECT) {
-              Value value = calc_expr(label_table, inst->opr2.direct.expr);
+            assert(inst->opr[2].type == DIRECT);
+            if (inst->opr[1].type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr[1].direct.expr);
               if (value.label != NULL) {
                 uintptr_t offset = address - start_address;
                 UnresolvedInfo *info;
@@ -192,8 +192,8 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 vec_push(unresolved, info);
 
                 // hilabel points to AUIPC instruction, just above one.
-                assert(inst->opr3.direct.expr->kind == EX_LABEL);
-                const Name *hilabel = inst->opr3.direct.expr->label;
+                assert(inst->opr[2].direct.expr->kind == EX_LABEL);
+                const Name *hilabel = inst->opr[2].direct.expr->label;
                 info = calloc_or_die(sizeof(*info));
                 info->kind = UNRES_RISCV_PCREL_LO12_I;
                 info->label = hilabel;
@@ -214,9 +214,9 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
             }
             break;
           case J:
-            if (inst->opr1.type == DIRECT) {
+            if (inst->opr[0].type == DIRECT) {
               int64_t target_address = 0;
-              Value value = calc_expr(label_table, inst->opr1.direct.expr);
+              Value value = calc_expr(label_table, inst->opr[0].direct.expr);
               if (value.label != NULL) {
                 // Put rela even if the label is defined in the same object file.
                 UnresolvedInfo *info;
@@ -261,21 +261,21 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
             }
             break;
           case BEQ: case BNE: case BLT: case BGE: case BLTU: case BGEU:
-            if (inst->opr3.type == DIRECT) {
+            if (inst->opr[2].type == DIRECT) {
               bool comp = false;
               int64_t target_address = 0;
-              Value value = calc_expr(label_table, inst->opr3.direct.expr);
+              Value value = calc_expr(label_table, inst->opr[2].direct.expr);
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
                 if (label_info != NULL)
                   target_address = label_info->address + value.offset;
 
                 int64_t offset = target_address - VOIDP2INT(address);
-                comp = inst->opr2.reg.no == 0 && is_rvc_reg(inst->opr1.reg.no) &&
+                comp = inst->opr[1].reg.no == 0 && is_rvc_reg(inst->opr[0].reg.no) &&
                   (inst->op == BEQ || inst->op == BNE) &&
                   offset < (1 << 7) && offset >= -(1 << 7);
 
-                assert(inst->opr2.type == REG);
+                assert(inst->opr[1].type == REG);
                 // Put rela even if the label is defined in the same object file.
                 UnresolvedInfo *info;
                 info = calloc_or_die(sizeof(*info));
@@ -315,8 +315,8 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
             }
             break;
           case CALL:
-            if (inst->opr1.type == DIRECT) {
-              Value value = calc_expr(label_table, inst->opr1.direct.expr);
+            if (inst->opr[0].type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr[0].direct.expr);
               if (value.label != NULL) {
                 // Put rela even if the label is defined in the same object file.
                 UnresolvedInfo *info;

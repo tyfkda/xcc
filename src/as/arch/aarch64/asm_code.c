@@ -34,8 +34,8 @@ static unsigned char *asm_noop(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_mov(Inst *inst, Code *code) {
-  Operand *opr1 = &inst->opr1;
-  Operand *opr2 = &inst->opr2;
+  Operand *opr1 = &inst->opr[0];
+  Operand *opr2 = &inst->opr[1];
   uint32_t x = 0x52800000U | (opr1->reg.size == REG64 ? (1U << 31) : 0U) | (opr2->immediate << 5) | opr1->reg.no;
   MAKE_CODE32(inst, code, x);
   return code->buf;
@@ -51,16 +51,14 @@ static unsigned char *asm_ret(Inst *inst, Code *code) {
 typedef unsigned char *(*AsmInstFunc)(Inst *inst, Code *code);
 typedef struct {
   AsmInstFunc func;
-  enum OperandType opr1_type;
-  enum OperandType opr2_type;
-  enum OperandType opr3_type;
+  enum OperandType opr_types[4];
   int flag;
 } AsmInstTable;
 
 static const AsmInstTable *table[] = {
-  [NOOP] = (const AsmInstTable[]){ {asm_noop, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
-  [MOV] = (const AsmInstTable[]){ {asm_mov, REG, IMMEDIATE, NOOPERAND}, {NULL} },
-  [RET] = (const AsmInstTable[]){ {asm_ret, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
+  [NOOP] = (const AsmInstTable[]){ {asm_noop}, {NULL} },
+  [MOV] = (const AsmInstTable[]){ {asm_mov, {REG, IMMEDIATE}}, {NULL} },
+  [RET] = (const AsmInstTable[]){ {asm_ret}, {NULL} },
 };
 
 void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
@@ -70,7 +68,8 @@ void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
   const AsmInstTable *pt = NULL;
   if (inst->op < (enum Opcode)ARRAY_SIZE(table) && table[inst->op] != NULL) {
     for (const AsmInstTable *p = table[inst->op]; p->func != NULL; ++p) {
-      if (inst->opr1.type == p->opr1_type && inst->opr2.type == p->opr2_type && inst->opr3.type == p->opr3_type) {
+      if (inst->opr[0].type == p->opr_types[0] && inst->opr[1].type == p->opr_types[1] &&
+          inst->opr[2].type == p->opr_types[2] && inst->opr[3].type == p->opr_types[3]) {
         pt = p;
         break;
       }
@@ -89,5 +88,5 @@ void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
     }
   }
 
-  assemble_error(info, "Illegal opeand");
+  assemble_error(info, "Illegal operand");
 }

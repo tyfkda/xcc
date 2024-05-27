@@ -418,20 +418,20 @@ static bool parse_operand(ParseInfo *info, Operand *operand) {
 
 void parse_inst(ParseInfo *info, Line *line) {
   Inst *inst  = &line->inst;
-  Operand *opr_table[] = {&inst->src, &inst->dst};
-  for (int i = 0; i < (int)ARRAY_SIZE(opr_table); ++i)
-    opr_table[i]->type = NOOPERAND;
+  Operand *opr_table = inst->opr;
+  for (int i = 0; i < (int)ARRAY_SIZE(inst->opr); ++i)
+    opr_table[i].type = NOOPERAND;
 
   enum Opcode op = find_opcode(info);
   inst->op = op;
   if (op != NOOP) {
-    if (parse_operand(info, &inst->src)) {
+    for (int i = 0; i < (int)ARRAY_SIZE(inst->opr); ++i) {
+      if (!parse_operand(info, &opr_table[i]))
+        break;
       info->p = skip_whitespaces(info->p);
-      if (*info->p == ',') {
-        info->p = skip_whitespaces(info->p + 1);
-        parse_operand(info, &inst->dst);
-        info->p = skip_whitespaces(info->p);
-      }
+      if (i == (int)ARRAY_SIZE(inst->opr) - 1 || *info->p != ',')
+        break;
+      info->p = skip_whitespaces(info->p + 1);
     }
   }
 }

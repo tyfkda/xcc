@@ -153,10 +153,10 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
           Inst *inst = ir->code.inst;
           switch (inst->op) {
           case LEA:
-            if (inst->src.type == INDIRECT &&
-                inst->src.indirect.reg.no == RIP &&
-                inst->src.indirect.offset->kind != EX_FIXNUM) {
-              Value value = calc_expr(label_table, inst->src.indirect.offset);
+            if (inst->opr[0].type == INDIRECT &&
+                inst->opr[0].indirect.reg.no == RIP &&
+                inst->opr[0].indirect.offset->kind != EX_FIXNUM) {
+              Value value = calc_expr(label_table, inst->opr[0].indirect.offset);
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
                 if (label_info == NULL) {
@@ -193,8 +193,8 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
           case JE: case JNE: case JBE: case JA:
           case JS: case JNS: case JP:  case JNP:
           case JL: case JGE: case JLE: case JG:
-            if (inst->src.type == DIRECT) {
-              Value value = calc_expr(label_table, inst->src.direct.expr);
+            if (inst->opr[0].type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr[0].direct.expr);
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
                 if (label_info == NULL) {
@@ -232,8 +232,8 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
             }
             break;
           case CALL:
-            if (inst->src.type == DIRECT) {
-              Value value = calc_expr(label_table, inst->src.direct.expr);
+            if (inst->opr[0].type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr[0].direct.expr);
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
                 if (label_info == NULL) {
