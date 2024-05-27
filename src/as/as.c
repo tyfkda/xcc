@@ -6,7 +6,7 @@
 #include <string.h>
 #include <strings.h>  // strncasecmp
 #include <sys/stat.h>
-#include <unistd.h>
+#include <unistd.h> // isatty
 
 #include "asm_code.h"
 #include "elfutil.h"
@@ -129,7 +129,7 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
         continue;
       }
       sym = symtab_add(symtabs[bind], name);
-      int type;
+      int type = 0;
       switch (info->kind) {
       case LK_NONE:    type = STT_NOTYPE; break;
       case LK_FUNC:    type = STT_FUNC; break;
