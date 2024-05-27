@@ -77,6 +77,18 @@ Compile C to WebAssembly/WASI binary.
   * node.js
   * `llvm-ar`
 
+Install NodeJS dependencies:
+```sh
+npm install
+```
+
+##### MinGW-w64 (Windows)
+
+Install dependencies:
+```sh
+pacman -S llvm mingw64/mingw-w64-x86_64-nodejs
+```
+
 #### Build
 
 ```sh
