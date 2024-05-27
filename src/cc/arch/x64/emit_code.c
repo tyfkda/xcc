@@ -139,10 +139,12 @@ static void move_params_to_assigned(Function *func) {
       int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * POINTER_SIZE;
       MOV(kRegParam64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
     }
+#ifndef __NO_FLONUM
     for (int i = fparam_count; i < MAX_FREG_ARGS; ++i) {
       int offset = (i - MAX_FREG_ARGS) * POINTER_SIZE;
       MOVSD(kFRegParam64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
     }
+#endif
   }
 }
 
