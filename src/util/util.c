@@ -156,15 +156,30 @@ ssize_t getline_cont(char **lineptr, size_t *capa, FILE *stream, int *plineno) {
 }
 
 bool is_fullpath(const char *filename) {
-  if (*filename != '/')
-    return false;
-  for (const char *p = filename;;) {
-    p = strstr(p, "/..");
-    if (p == NULL)
-      return true;
-    if (p[3] == '/' || p[3] == '\0')
-      return false;
-    p += 3;
+  return platform_is_fullpath(filename);
+}
+
+const char* find_slash(const char *path) {
+  const char *p_forward = strchr(path, '/');
+  const char *p_backward = strchr(path, '\\');
+  if (p_forward != NULL && p_backward != NULL) {
+    return p_forward < p_backward ? p_forward : p_backward;
+  } else if (p_forward != NULL) {
+    return p_forward;
+  } else {
+    return p_backward;
+  }
+}
+
+const char* find_slash_reverse(const char *path) {
+  const char *p_forward = strrchr(path, '/');
+  const char *p_backward = strrchr(path, '\\');
+  if (p_forward != NULL && p_backward != NULL) {
+    return p_forward < p_backward ? p_forward : p_backward;
+  } else if (p_forward != NULL) {
+    return p_forward;
+  } else {
+    return p_backward;
   }
 }
 
@@ -181,19 +196,27 @@ char *join_paths(const char *paths[]) {
 
   const char *p;
   for (const char **pp = paths; (p = *pp++) != NULL; ) {
-    if (*p == '/') {  // Root.
+    if (platform_is_rootpath(p)) {  // Root.
       sb_init(&sb);
       parent_count = 0;
       top = ROOTDIR;
+#ifdef _WIN32
+      if (*(p+1) != 0 && *(p+2) != 0) {
+        // Handle DRIVE:
+        sb_append(&sb, p, p+2);
+        ++p;
+        ++p;
+      }
+#endif
     }
 
     for (bool end = false; !end;) {
-      while (*p == '/')
+      while (*p == '/' || *p == '\\')
         ++p;
       if (*p == '\0')
         break;
 
-      const char *q = strchr(p, '/');
+      const char *q = find_slash(p);
       if (q == NULL) {  // Last.
         q = p + strlen(p);
         end = true;
@@ -225,14 +248,18 @@ char *join_paths(const char *paths[]) {
     sb_prepend(&sb, "..", NULL);
   switch (top) {
   case CURDIR:   sb_prepend(&sb, ".", NULL); break;
+#ifdef _WIN32
+  case ROOTDIR: // No need to prepend root slash
+#else
   case ROOTDIR:  sb_prepend(&sb, sb.elems->len > 0 ? "" : "/", NULL); break;
+#endif
   case OTHER: break;
   }
   return sb_join(&sb, "/");
 }
 
 char *get_ext(const char *filename) {
-  const char *last_slash = strrchr(filename, '/');
+  const char *last_slash = find_slash_reverse(filename);
   if (last_slash == NULL)
     last_slash = filename;
   char *dot = strrchr(last_slash, '.');
@@ -240,7 +267,7 @@ char *get_ext(const char *filename) {
 }
 
 char *change_ext(const char *path, const char *ext) {
-  const char *p = strrchr(path, '/');
+  const char *p = find_slash_reverse(path);
   if (p == NULL)
     p = path;
 

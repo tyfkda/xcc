@@ -9,7 +9,6 @@
 #include <string.h>  // strdup
 #include <strings.h>  // strcasecmp
 #include <sys/stat.h>
-#include <unistd.h>  // getcwd
 
 #include "fe_misc.h"
 #include "lexer.h"
@@ -114,7 +113,7 @@ static void preprocess_and_compile(FILE *ppout, const char *filename, Vector *to
 
 int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vector *ld_cmd,
                     const char *import_module_name) {
-  FILE *ppout = tmpfile();
+  FILE *ppout = platform_mktempfile();
   if (ppout == NULL)
     error("cannot open temporary file");
 
@@ -159,14 +158,12 @@ int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vec
   FILE *ofp;
   const char *outfn = NULL;
   if (out_type >= OutExecutable) {
-    char template[] = "/tmp/xcc-XXXXXX.o";
-    int obj_fd = mkstemps(template, 2);
-    if (obj_fd == -1) {
+    char* tmpfn = NULL;
+    ofp = platform_mktempfile2(".o", &tmpfn, "wb");
+    if (ofp == NULL) {
       perror("Failed to open output file");
       exit(1);
     }
-    char *tmpfn = strdup(template);
-    ofp = fdopen(obj_fd, "wb");
     outfn = tmpfn;
     vec_push(&remove_on_exit, tmpfn);
   } else {
@@ -503,7 +500,7 @@ static int do_compile(Options *opts) {
 int main(int argc, char *argv[]) {
   const char *root = dirname(strdup(argv[0]));
   if (!is_fullpath(root)) {
-    char *cwd = getcwd(NULL, 0);
+    char *cwd = platform_getcwd(NULL, 0);
     root = JOIN_PATHS(cwd, root);
   }
 

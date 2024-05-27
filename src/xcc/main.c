@@ -1,4 +1,5 @@
 #include "../config.h"
+#include "../util/platform.h"
 
 #include <assert.h>
 #include <fcntl.h>  // open
@@ -11,32 +12,25 @@
 #include <strings.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 #include "util.h"
 
+// POSIX fork
+#ifndef _WIN32
+#include <unistd.h>
 static pid_t fork1(void) {
   pid_t pid = fork();
   if (pid < 0)
     error("fork failed");
   return pid;
 }
-
-static int wait_process(pid_t pid) {
-  int ec = -1;
-  if (waitpid(pid, &ec, 0) < 0)
-    error("wait failed");
-  return ec;
-}
-
-static pid_t wait_child(int *result) {
-  *result = -1;
-  return waitpid(0, result, 0);
-}
+#endif
 
 // command > ofd
 static pid_t exec_with_ofd(char **command, int ofd) {
+#ifdef _WIN32
+  pid_t pid = platform_spawnvp(command[0], (const char* const*)command, -1, ofd, -1);
+#else
   pid_t pid = fork1();
   if (pid == 0) {
     if (ofd >= 0 && ofd != STDOUT_FILENO) {
@@ -50,11 +44,18 @@ static pid_t exec_with_ofd(char **command, int ofd) {
       exit(1);
     }
   }
+#endif
   return pid;
 }
 
 // | command > ofd
 static pid_t pipe_exec(char **command, int ofd, int fd[2]) {
+#ifdef _WIN32
+  if (_pipe(fd, 256, O_BINARY) == -1) {
+    error("pipe failed");
+  }
+  pid_t pid = platform_spawnvp(command[0], (const char* const*)command, fd[0], ofd, -1);
+#else
   if (pipe(fd) < 0)
     error("pipe failed");
 
@@ -77,6 +78,7 @@ static pid_t pipe_exec(char **command, int ofd, int fd[2]) {
       exit(1);
     }
   }
+#endif
   return pid;
 }
 
@@ -91,11 +93,13 @@ static void remove_tmp_files(void) {
 
 static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
   int ofd2 = ofd;
-  int cc_fd[2];
+  int cc_fd[2] = { -1, -1 };
   pid_t cc_pid = -1;
+  pid_t pids[2]; // maximum of two processes
   int running = 0;
   if (cc1_cmd != NULL) {
     cc_pid = pipe_exec((char**)cc1_cmd->data, ofd, cc_fd);
+    pids[running] = cc_pid;
     ofd2 = cc_fd[1];
     ++running;
   }
@@ -103,12 +107,13 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
   // When src is NULL, no input file is given and cpp read from stdin.
   cpp_cmd->data[cpp_cmd->len - 2] = (void *)src;
   pid_t cpp_pid = exec_with_ofd((char**)cpp_cmd->data, ofd2);
+  pids[running] = cpp_pid;
   ++running;
 
   int res = 0;
   for (; running > 0; --running) {
     int r = 0;
-    pid_t done = wait_child(&r);  // cpp or cc1
+    pid_t done = platform_wait_process_any(pids, running, &r);  // cpp or cc1
     if (done > 0) {
       res |= r;
       if (done == cpp_pid) {
@@ -116,7 +121,7 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
         if (cc_pid != -1) {
           if (r != 0) {
             // Illegal: cpp exit with failure.
-            kill(cc_pid, SIGKILL);
+            platform_kill(cc_pid);
             break;
           }
           close(cc_fd[0]);
@@ -126,7 +131,7 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
         cc_pid = -1;
         if (cpp_pid != -1) {
           // Illegal: cc dies earlier than cpp.
-          kill(cpp_pid, SIGKILL);
+          platform_kill(cpp_pid);
           break;
         }
       }
@@ -161,23 +166,25 @@ enum OutType {
 static int compile_csource(const char *source_fn, enum OutType out_type, const char *ofn, int ofd,
                            Vector *cpp_cmd, Vector *cc1_cmd, Vector *as_cmd, Vector *ld_cmd) {
   const char *objfn = NULL;
-  int obj_fd = -1;
+  FILE *ofp = NULL;
   if (out_type > OutAssembly) {
     if (ofn != NULL && out_type < OutExecutable) {
       objfn = ofn;
     } else {
-      char template[] = "/tmp/xcc-XXXXXX.o";
-      obj_fd = mkstemps(template, 2);
-      if (obj_fd == -1) {
+      char* tmpfn = NULL;
+      ofp = platform_mktempfile2(".o", &tmpfn, "wb");
+      if (ofp == NULL) {
         perror("Failed to open output file");
         exit(1);
       }
-      objfn = strdup(template);
-      vec_push(&remove_on_exit, objfn);
+      objfn = tmpfn;
+      vec_push(&remove_on_exit, tmpfn);
     }
   }
 
-  int as_fd[2];
+  int ec = -1;
+
+  int as_fd[2] = { -1, -1 };
   pid_t as_pid = -1;
 
   if (out_type > OutAssembly) {
@@ -192,17 +199,20 @@ static int compile_csource(const char *source_fn, enum OutType out_type, const c
     vec_push(ld_cmd, objfn);
 
   if (res != 0 && as_pid != -1) {
-    kill(as_pid, SIGKILL);
+    platform_kill(as_pid);
     remove(ofn);
   }
   if (as_pid != -1) {
     close(as_fd[0]);
     close(as_fd[1]);
     as_pid = -1;
-    res |= wait_process(as_pid);
+    if (!platform_wait_process(as_pid, &ec)) {
+      error("wait failed");
+    }
+    res |= ec;
   }
-  if (obj_fd != -1) {
-    close(obj_fd);
+  if (ofp != NULL) {
+    fclose(ofp);
   }
   return res;
 }
@@ -229,7 +239,7 @@ static int compile_asm(const char *source_fn, enum OutType out_type, const char 
 
   int res = 0;
   pid_t as_pid = exec_with_ofd((char**)as_cmd->data, ofd);
-  waitpid(as_pid, &res, 0);
+  platform_wait_process(as_pid, &res);
 
   vec_pop(as_cmd);
   vec_pop(as_cmd);
@@ -537,7 +547,7 @@ static int do_compile(Options *opts) {
   if (res == 0 && opts->out_type >= OutExecutable) {
     vec_push(opts->ld_cmd, NULL);
     pid_t ld_pid = exec_with_ofd((char**)opts->ld_cmd->data, -1);
-    waitpid(ld_pid, &res, 0);
+    platform_wait_process(ld_pid, &res);
   }
 
   return res == 0 ? 0 : 1;

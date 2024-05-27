@@ -12,6 +12,7 @@ CFLAGS:=-ansi -std=c11 -Wall -Wextra -Werror \
 	-Wno-empty-body
 CFLAGS+=-I$(CC1_FE_DIR) -I$(UTIL_DIR)
 CFLAGS+=-D_POSIX_C_SOURCE=200809L  # for getline
+CFLAGS+=-D_DEFAULT_SOURCE # mkstemps
 
 PREFIX:=
 XCC:=../$(PREFIX)xcc
@@ -109,8 +110,8 @@ test-link:
 endif
 
 INITIALIZER_SRCS:=initializer_test.c $(CC1_FE_DIR)/parser.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/lexer.c \
-	$(CC1_FE_DIR)/initializer.c $(CC1_FE_DIR)/fe_misc.c $(CC1_FE_DIR)/var.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c \
-	$(DEBUG_DIR)/dump_expr.c
+	$(CC1_FE_DIR)/initializer.c $(CC1_FE_DIR)/fe_misc.c $(CC1_FE_DIR)/var.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(UTIL_DIR)/util.c \
+	$(UTIL_DIR)/platform.c $(UTIL_DIR)/table.c $(DEBUG_DIR)/dump_expr.c
 initializer_test:	$(INITIALIZER_SRCS)
 	$(CC) -o$@ -DNO_MAIN_DUMP_EXPR $(CFLAGS) $^
 
@@ -118,13 +119,13 @@ TABLE_SRCS:=table_test.c $(UTIL_DIR)/table.c
 table_test:	$(TABLE_SRCS)
 	$(CC) -o$@ $(CFLAGS) $^
 
-UTIL_SRCS:=util_test.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+UTIL_SRCS:=util_test.c $(UTIL_DIR)/util.c $(UTIL_DIR)/platform.c $(UTIL_DIR)/table.c
 util_test:	$(UTIL_SRCS)
 	$(CC) -o$@ $(CFLAGS) $^
 
 PARSER_SRCS:=parser_test.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/parser.c \
 	$(CC1_FE_DIR)/initializer.c $(CC1_FE_DIR)/fe_misc.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/platform.c $(UTIL_DIR)/table.c
 parser_test:	$(PARSER_SRCS)
 	$(CC) -o$@ $(CFLAGS) $^
 
@@ -138,7 +139,7 @@ dvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
 fvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
 	$(XCC) -o$@ -Werror -DUSE_SINGLE $(FVAL_SRCS)
 
-TYPE_SRCS:=print_type_test.c $(CC1_FE_DIR)/type.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+TYPE_SRCS:=print_type_test.c $(CC1_FE_DIR)/type.c $(UTIL_DIR)/util.c $(UTIL_DIR)/platform.c $(UTIL_DIR)/table.c
 print_type_test:	$(TYPE_SRCS)
 	$(CC) -o $@ $(CFLAGS) $^
 

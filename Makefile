@@ -68,6 +68,12 @@ else
 LIBS:=$(LIB_DIR)/crt0.a $(LIB_DIR)/libc.a
 endif
 
+# Win32: link necessary platform libraries
+PLATFORM_LIBS:=
+ifeq ($(OS),Windows_NT)
+PLATFORM_LIBS:=-lshlwapi
+endif
+
 ifneq ("$(TARGET)","")
 # Self hosting
 PARENT_DEPS:=$(HOST)xcc $(HOST)cc1 $(HOST)cpp $(HOST)as $(HOST)ld $(LIBS)
@@ -79,17 +85,17 @@ endif
 EXES:=xcc cc1 cpp as ld
 
 xcc_SRCS:=$(wildcard $(XCC_DIR)/*.c) \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/platform.c $(UTIL_DIR)/table.c
 cc1_SRCS:=$(wildcard $(CC1_FE_DIR)/*.c) $(wildcard $(CC1_BE_DIR)/*.c) $(wildcard $(CC1_DIR)/*.c) \
 	$(wildcard $(CC1_ARCH_DIR)/*.c) \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/platform.c $(UTIL_DIR)/table.c
 cpp_SRCS:=$(wildcard $(CPP_DIR)/*.c) \
-	$(CC1_DIR)/lexer.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(CC1_DIR)/lexer.c $(UTIL_DIR)/util.c $(UTIL_DIR)/platform.c $(UTIL_DIR)/table.c
 as_SRCS:=$(wildcard $(AS_DIR)/*.c) \
 	$(wildcard $(AS_ARCH_DIR)/*.c) \
-	$(UTIL_DIR)/gen_section.c $(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
+	$(UTIL_DIR)/gen_section.c $(UTIL_DIR)/util.c $(UTIL_DIR)/platform.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 ld_SRCS:=$(wildcard $(LD_DIR)/*.c) $(UTIL_DIR)/archive.c \
-	$(UTIL_DIR)/gen_section.c $(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
+	$(UTIL_DIR)/gen_section.c $(UTIL_DIR)/util.c $(UTIL_DIR)/platform.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 
 src_as_CFLAGS:=-I$(AS_DIR) -I$(AS_ARCH_DIR)
 src_as_arch_$(ARCHTYPE)_CFLAGS:=-I$(AS_DIR) -I$(AS_ARCH_DIR)
@@ -113,7 +119,7 @@ exes:	$(foreach D, $(EXES), $(addprefix $(TARGET),$(D)))
 define DEFINE_EXE_TARGET
 $(1)_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $($(1)_SRCS:.c=.o)))
 $(TARGET)$(1):	$(PARENT_DEPS) $$($(1)_OBJS)
-	$(CC) -o $$@ $$($(1)_OBJS) $(LDFLAGS)
+	$(CC) -o $$@ $$($(1)_OBJS) $(LDFLAGS) $(PLATFORM_LIBS)
 endef
 $(foreach D, $(EXES), $(eval $(call DEFINE_EXE_TARGET,$(D))))
 
@@ -217,12 +223,12 @@ endif
 WCC_SRCS:=$(wildcard $(WCC_DIR)/*.c) \
 	$(wildcard $(CC1_FE_DIR)/*.c) $(UTIL_DIR)/archive.c \
 	$(CPP_DIR)/preprocessor.c $(CPP_DIR)/pp_parser.c $(CPP_DIR)/macro.c \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/platform.c $(UTIL_DIR)/table.c
 WCC_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCC_SRCS:.c=.o)))
 WCC_LIBS:=$(WCC_LIB_DIR)/wcrt0.a $(WCC_LIB_DIR)/wlibc.a
 
 wcc: $(WCC_OBJS)
-	$(CC) -o $@ $(WCC_OBJS) $(LDFLAGS)
+	$(CC) -o $@ $(WCC_OBJS) $(LDFLAGS) $(PLATFORM_LIBS)
 	$(MAKE) wcc-libs
 
 .PHONY: wcc-libs
@@ -232,11 +238,11 @@ wcc-libs:
 WCCLD_SRCS:=$(DEBUG_DIR)/wcc-ld.c $(WCC_DIR)/wasm_linker.c \
 	$(WCC_DIR)/wcc_util.c $(WCC_DIR)/emit_wasm.c $(WCC_DIR)/traverse.c $(WCC_DIR)/traverse_setjmp.c \
 	$(wildcard $(CC1_FE_DIR)/*.c) \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c $(UTIL_DIR)/archive.c
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/platform.c $(UTIL_DIR)/table.c $(UTIL_DIR)/archive.c
 WCCLD_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCCLD_SRCS:.c=.o)))
 
 wcc-ld: $(WCCLD_OBJS)
-	$(CC) -o $@ $(WCCLD_OBJS) $(LDFLAGS)
+	$(CC) -o $@ $(WCCLD_OBJS) $(LDFLAGS) $(PLATFORM_LIBS)
 
 -include $(WCC_OBJ_DIR)/*.d
 
@@ -320,7 +326,7 @@ DEBUG_CFLAGS:=$(subst -MMD,,$(CFLAGS))
 
 dump_expr_SRCS:=$(DEBUG_DIR)/dump_expr.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \
 	$(CC1_FE_DIR)/fe_misc.c $(CC1_FE_DIR)/initializer.c $(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c \
-	$(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c $(UTIL_DIR)/util.c $(UTIL_DIR)/platform.c $(UTIL_DIR)/table.c
 
 dump_ir_SRCS:=$(DEBUG_DIR)/dump_ir.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \
 	$(CC1_FE_DIR)/fe_misc.c $(CC1_FE_DIR)/initializer.c $(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c \
@@ -329,11 +335,11 @@ dump_ir_SRCS:=$(DEBUG_DIR)/dump_ir.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/p
 	$(CC1_BE_DIR)/optimize.c $(CC1_BE_DIR)/regalloc.c $(CC1_BE_DIR)/emit_util.c \
 	$(CC1_DIR)/builtin.c \
 	$(CC1_ARCH_DIR)/emit_code.c $(CC1_ARCH_DIR)/ir_$(ARCHTYPE).c \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/platform.c $(UTIL_DIR)/table.c
 
 dump_type_SRCS:=$(DEBUG_DIR)/dump_type.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \
 	$(CC1_FE_DIR)/fe_misc.c $(CC1_FE_DIR)/initializer.c $(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c \
-	$(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c $(UTIL_DIR)/util.c $(UTIL_DIR)/platform.c $(UTIL_DIR)/table.c
 
 define DEFINE_DEBUG_TARGET
 $(1)_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $($(1)_SRCS:.c=.o)))

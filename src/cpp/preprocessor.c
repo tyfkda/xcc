@@ -8,7 +8,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "lexer.h"
 #include "macro.h"
@@ -44,8 +43,9 @@ static PreprocessFile *curpf;
 #define OUTPUT_PPLINE(...)  do { fprintf(pp_ofp, __VA_ARGS__); ++curpf->out_lineno; } while (0)
 
 static char *cat_path_cwd(const char *dir, const char *path) {
-  char *cwd = getcwd(NULL, 0);
-  return JOIN_PATHS(cwd, dir, path);
+  char *cwd = platform_getcwd(NULL, 0);
+  // Enforce forward slashes, so we never generate backslashes in the C code
+  return platform_pathslashes(JOIN_PATHS(cwd, dir, path));
 }
 
 static char *fullpath(const char *filename) {
@@ -200,6 +200,7 @@ static char *preprocess_one_line(const char *line, Stream *stream, size_t *psize
   process_line(line, stream);
   pp_ofp = bak_fp;
   curpf->out_lineno = bak_lineno;
+  flush_memstream(memfp, &expanded, psize);
   fclose(memfp);
   return expanded;
 }
@@ -215,7 +216,7 @@ static const Name *key_line;
 static bool registered_pragma_once(const char *filename) {
   for (int i = 0, len = pragma_once_files.len; i < len; ++i) {
     const char *fn = pragma_once_files.data[i];
-    if (strcmp(fn, filename) == 0)
+    if (platform_cmp_path(fn, filename))
       return true;
   }
   return false;
@@ -236,7 +237,7 @@ static FILE *search_sysinc(const char *prevdir, const char *path, char **pfn) {
     Vector *v = &sys_inc_paths[ord];
     for (int idx = 0; idx < v->len; ++idx) {
       if (prevdir != NULL) {  // Searching previous directory.
-        if (strcmp(fullpath(v->data[idx]), prevdir) == 0)
+        if (platform_cmp_path(fullpath(v->data[idx]), prevdir))
           prevdir = NULL;
         continue;
       }
