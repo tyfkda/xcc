@@ -1,7 +1,7 @@
 #include "../config.h"
 #include "wasm_linker.h"
 
-#include <ar.h>
+#include "../ar/ar.h"
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>

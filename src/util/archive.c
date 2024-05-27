@@ -5,7 +5,7 @@
 #include <string.h>
 
 // https://sourceware.org/git/?p=binutils-gdb.git;a=blob;f=include/aout/ar.h;h=471a859fc57c7d8207193718610980f6bf2f83b3;hb=2cb5c79dad39dd438fb0f7372ac04cf5aa2a7db7
-#include <ar.h>
+#include "../ar/ar.h"
 
 #include "util.h"
 

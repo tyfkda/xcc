@@ -1,6 +1,6 @@
 #include "../config.h"
 
-#include <ar.h>
+#include "../ar/ar.h"
 #include <assert.h>
 #include <fcntl.h>
 #include <stdbool.h>
