@@ -49,42 +49,31 @@ static unsigned char *asm_ret(Inst *inst, Code *code) {
 ////////////////////////////////////////////////
 
 typedef unsigned char *(*AsmInstFunc)(Inst *inst, Code *code);
-typedef struct {
-  AsmInstFunc func;
-  enum OperandType opr_types[4];
-  int flag;
-} AsmInstTable;
 
-static const AsmInstTable *table[] = {
-  [NOOP] = (const AsmInstTable[]){ {asm_noop}, {NULL} },
-  [MOV] = (const AsmInstTable[]){ {asm_mov, {REG, IMMEDIATE}}, {NULL} },
-  [RET] = (const AsmInstTable[]){ {asm_ret}, {NULL} },
+static const AsmInstFunc table[] = {
+  [NOOP] = asm_noop,
+  [MOV] = asm_mov,
+  [RET] = asm_ret,
 };
 
 void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
   code->flag = 0;
   code->len = 0;
 
-  const AsmInstTable *pt = NULL;
+  const AsmInstFunc *func = NULL;
   if (inst->op < (enum Opcode)ARRAY_SIZE(table) && table[inst->op] != NULL) {
-    for (const AsmInstTable *p = table[inst->op]; p->func != NULL; ++p) {
-      if (inst->opr[0].type == p->opr_types[0] && inst->opr[1].type == p->opr_types[1] &&
-          inst->opr[2].type == p->opr_types[2] && inst->opr[3].type == p->opr_types[3]) {
-        pt = p;
-        break;
-      }
-    }
-  }
+    func = &table[inst->op];
 
-  if (pt != NULL) {
-    unsigned char *p = (*pt->func)(inst, code);
-    if (p != NULL) {
-      if (p > code->buf) {
-        code->inst = inst;
-        code->len = p - code->buf;
-        assert((size_t)code->len <= sizeof(code->buf));
+    if (func != NULL) {
+      unsigned char *p = (*func)(inst, code);
+      if (p != NULL) {
+        if (p > code->buf) {
+          code->inst = inst;
+          code->len = p - code->buf;
+          assert((size_t)code->len <= sizeof(code->buf));
+        }
+        return;
       }
-      return;
     }
   }
 

@@ -130,7 +130,7 @@ static bool make_jmp_long(IR *ir) {
   // Change to long offset, and recalculate.
   ir->code.flag |= INST_LONG_OFFSET;
   ir->code.len = 0;
-  if (inst->op == JMP)
+  if (inst->op == JMP_D)
     MAKE_CODE(inst, &ir->code, 0xe9, IM32(-1));
   else
     MAKE_CODE(inst, &ir->code, 0x0f, 0x80 + (inst->op - JO), IM32(-1));
@@ -152,8 +152,8 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
         {
           Inst *inst = ir->code.inst;
           switch (inst->op) {
-          case LEA:
-            if (inst->opr[0].type == INDIRECT &&
+          case LEA_IR:
+            if (/*inst->opr[0].type == INDIRECT &&*/
                 inst->opr[0].indirect.reg.no == RIP &&
                 inst->opr[0].indirect.offset->kind != EX_FIXNUM) {
               Value value = calc_expr(label_table, inst->opr[0].indirect.offset);
@@ -188,7 +188,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               put_value(ir->code.buf + 3, offset, sizeof(int32_t));
             }
             break;
-          case JMP:
+          case JMP_D:
           case JO: case JNO: case JB:  case JAE:
           case JE: case JNE: case JBE: case JA:
           case JS: case JNS: case JP:  case JNP:
@@ -226,12 +226,12 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 if (!is_im32(offset))
                   error("Jump offset too far (over 32bit)");
 
-                int d = inst->op == JMP ? 1 : 2;
+                int d = inst->op == JMP_D ? 1 : 2;
                 put_value(ir->code.buf + d, offset, sizeof(int32_t));
               }
             }
             break;
-          case CALL:
+          case CALL_D:
             if (inst->opr[0].type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr[0].direct.expr);
               if (value.label != NULL) {

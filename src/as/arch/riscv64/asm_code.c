@@ -579,148 +579,83 @@ static unsigned char *asm_if(Inst *inst, Code *code) {
 ////////////////////////////////////////////////
 
 typedef unsigned char *(*AsmInstFunc)(Inst *inst, Code *code);
-typedef struct {
-  AsmInstFunc func;
-  enum OperandType opr1_type;
-  enum OperandType opr2_type;
-  enum OperandType opr3_type;
-  int flag;
-} AsmInstTable;
 
-static const AsmInstTable table_3r[] ={
-    {asm_3r, REG, REG, REG},
-    {NULL} };
+static const AsmInstFunc table[] = {
+  [NOOP] = asm_noop,
+  [MV] = asm_mv,
+  [LI] = asm_li,
+  [LA] = asm_la,
+  [ADD] = asm_3r, [ADDW] = asm_3r,
+  [ADDI] = asm_2ri, [ADDIW] = asm_2ri,
+  [SUB] = asm_3r, [SUBW] = asm_3r,
+  [MUL] = asm_3r, [MULW] = asm_3r,
+  [DIV] = asm_3r, [DIVU] = asm_3r, [DIVW] = asm_3r, [DIVUW] = asm_3r,
+  [REM] = asm_3r, [REMU] = asm_3r, [REMW] = asm_3r, [REMUW] = asm_3r,
+  [AND] = asm_3r, [ANDI] = asm_2ri,
+  [OR] = asm_3r, [ORI] = asm_2ri,
+  [XOR] = asm_3r, [XORI] = asm_2ri,
+  [NEG] = asm_2r,
+  [NOT] = asm_2r,
+  [SEXT_B] = asm_2r, [SEXT_H] = asm_2r, [SEXT_W] = asm_2r,
+  [ZEXT_B] = asm_2r, [ZEXT_H] = asm_2r, [ZEXT_W] = asm_2r,
+  [SLL] = asm_3r, [SLLI] = asm_2ri, [SLLIW] = asm_2ri,
+  [SRL] = asm_3r, [SRLI] = asm_2ri, [SRLIW] = asm_2ri,
+  [SRA] = asm_3r, [SRAI] = asm_2ri,
+  [LB] = asm_ld, [LH] = asm_ld, [LW] = asm_ld, [LD] = asm_ld,
+  [LBU] = asm_ld, [LHU] = asm_ld, [LWU] = asm_ld,
+  [SB] = asm_sd, [SH] = asm_sd, [SW] = asm_sd, [SD] = asm_sd,
+  [SLT] = asm_3r, [SLTI] = asm_2ri, [SLTU] = asm_3r, [SLTIU] = asm_2ri,
+  [SEQZ] = asm_2r, [SNEZ] = asm_2r, [SLTZ] = asm_2r, [SGTZ] = asm_2r,
+  [J] = asm_j,
+  [JR] = asm_jr,
+  [JALR] = asm_jalr,
+  [BEQ] = asm_bxx, [BNE] = asm_bxx, [BLT] = asm_bxx, [BGE] = asm_bxx,
+  [BLTU] = asm_bxx, [BGEU] = asm_bxx,
+  [CALL] = asm_call_d,
+  [RET] = asm_ret,
+  [ECALL] = asm_ecall,
 
-static const AsmInstTable table_2ri[] ={
-    {asm_2ri, REG, REG, IMMEDIATE},
-    {NULL} };
+  [FADD_D] = asm_3fr, [FSUB_D] = asm_3fr, [FMUL_D] = asm_3fr, [FDIV_D] = asm_3fr,
+  [FADD_S] = asm_3fr, [FSUB_S] = asm_3fr, [FMUL_S] = asm_3fr, [FDIV_S] = asm_3fr,
+  [FSQRT_D] = asm_2fr, [FSQRT_S] = asm_2fr,
+  [FSGNJ_D] = asm_3fr, [FSGNJN_D] = asm_3fr, [FSGNJX_D] = asm_3fr,
+  [FSGNJ_S] = asm_3fr, [FSGNJN_S] = asm_3fr, [FSGNJX_S] = asm_3fr,
+  [FMV_D] = asm_2fr, [FNEG_D] = asm_2fr,
+  [FMV_S] = asm_2fr, [FNEG_S] = asm_2fr,
+  [FMV_X_D] = asm_if, [FMV_X_W] = asm_if,
+  [FEQ_D] = asm_fcmp, [FLT_D] = asm_fcmp, [FLE_D] = asm_fcmp,
+  [FEQ_S] = asm_fcmp, [FLT_S] = asm_fcmp, [FLE_S] = asm_fcmp,
+  [FLD] = asm_fld, [FLW] = asm_fld, [FSD] = asm_fsd, [FSW] = asm_fsd,
 
-static const AsmInstTable table_2r[] ={
-    {asm_2r, REG, REG, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_ld[] ={
-    {asm_ld, REG, INDIRECT, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_sd[] ={
-    {asm_sd, REG, INDIRECT, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_bxx[] ={
-    {asm_bxx, REG, REG, DIRECT},
-    {NULL} };
-
-static const AsmInstTable table_3fr[] ={
-    {asm_3fr, FREG, FREG, FREG},
-    {NULL} };
-
-static const AsmInstTable table_2fr[] ={
-    {asm_2fr, FREG, FREG, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_fcmp[] ={
-    {asm_fcmp, REG, FREG, FREG},
-    {NULL} };
-
-static const AsmInstTable table_fld[] ={
-    {asm_fld, FREG, INDIRECT, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_fsd[] ={
-    {asm_fsd, FREG, INDIRECT, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_fi[] ={
-    {asm_fi, FREG, REG, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_if[] ={
-    {asm_if, REG, FREG, NOOPERAND},
-    {asm_if, REG, FREG, ROUNDMODE},
-    {NULL} };
-
-static const AsmInstTable *table[] = {
-  [NOOP] = (const AsmInstTable[]){ {asm_noop, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
-  [MV] = (const AsmInstTable[]){ {asm_mv, REG, REG, NOOPERAND}, {NULL} },
-  [LI] = (const AsmInstTable[]){ {asm_li, REG, IMMEDIATE, NOOPERAND}, {NULL} },
-  [LA] = (const AsmInstTable[]){ {asm_la, REG, DIRECT, DIRECT}, {NULL} },
-  [ADD] = table_3r, [ADDW] = table_3r,
-  [ADDI] = table_2ri, [ADDIW] = table_2ri,
-  [SUB] = table_3r, [SUBW] = table_3r,
-  [MUL] = table_3r, [MULW] = table_3r,
-  [DIV] = table_3r, [DIVU] = table_3r, [DIVW] = table_3r, [DIVUW] = table_3r,
-  [REM] = table_3r, [REMU] = table_3r, [REMW] = table_3r, [REMUW] = table_3r,
-  [AND] = table_3r, [ANDI] = table_2ri,
-  [OR] = table_3r, [ORI] = table_2ri,
-  [XOR] = table_3r, [XORI] = table_2ri,
-  [NEG] = table_2r,
-  [NOT] = table_2r,
-  [SEXT_B] = table_2r, [SEXT_H] = table_2r, [SEXT_W] = table_2r,
-  [ZEXT_B] = table_2r, [ZEXT_H] = table_2r, [ZEXT_W] = table_2r,
-  [SLL] = table_3r, [SLLI] = table_2ri, [SLLIW] = table_2ri,
-  [SRL] = table_3r, [SRLI] = table_2ri, [SRLIW] = table_2ri,
-  [SRA] = table_3r, [SRAI] = table_2ri,
-  [LB] = table_ld, [LH] = table_ld, [LW] = table_ld, [LD] = table_ld,
-  [LBU] = table_ld, [LHU] = table_ld, [LWU] = table_ld,
-  [SB] = table_sd, [SH] = table_sd, [SW] = table_sd, [SD] = table_sd,
-  [SLT] = table_3r, [SLTI] = table_2ri, [SLTU] = table_3r, [SLTIU] = table_2ri,
-  [SEQZ] = table_2r, [SNEZ] = table_2r, [SLTZ] = table_2r, [SGTZ] = table_2r,
-  [J] = (const AsmInstTable[]){ {asm_j, DIRECT, NOOPERAND, NOOPERAND}, {NULL} },
-  [JR] = (const AsmInstTable[]){ {asm_jr, REG, NOOPERAND, NOOPERAND}, {NULL} },
-  [JALR] = (const AsmInstTable[]){ {asm_jalr, REG, NOOPERAND, NOOPERAND}, {NULL} },
-  [BEQ] = table_bxx, [BNE] = table_bxx, [BLT] = table_bxx, [BGE] = table_bxx,
-  [BLTU] = table_bxx, [BGEU] = table_bxx,
-  [CALL] = (const AsmInstTable[]){ {asm_call_d, DIRECT, NOOPERAND, NOOPERAND}, {NULL} },
-  [RET] = (const AsmInstTable[]){ {asm_ret, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
-  [ECALL] = (const AsmInstTable[]){ {asm_ecall, NOOPERAND, NOOPERAND, NOOPERAND}, {NULL} },
-
-  [FADD_D] = table_3fr, [FSUB_D] = table_3fr, [FMUL_D] = table_3fr, [FDIV_D] = table_3fr,
-  [FADD_S] = table_3fr, [FSUB_S] = table_3fr, [FMUL_S] = table_3fr, [FDIV_S] = table_3fr,
-  [FSQRT_D] = table_2fr, [FSQRT_S] = table_2fr,
-  [FSGNJ_D] = table_3fr, [FSGNJN_D] = table_3fr, [FSGNJX_D] = table_3fr,
-  [FSGNJ_S] = table_3fr, [FSGNJN_S] = table_3fr, [FSGNJX_S] = table_3fr,
-  [FMV_D] = table_2fr, [FNEG_D] = table_2fr,
-  [FMV_S] = table_2fr, [FNEG_S] = table_2fr,
-  [FMV_X_D] = table_if, [FMV_X_W] = table_if,
-  [FEQ_D] = table_fcmp, [FLT_D] = table_fcmp, [FLE_D] = table_fcmp,
-  [FEQ_S] = table_fcmp, [FLT_S] = table_fcmp, [FLE_S] = table_fcmp,
-  [FLD] = table_fld, [FLW] = table_fld, [FSD] = table_fsd, [FSW] = table_fsd,
-
-  [FCVT_D_W] = table_fi, [FCVT_D_WU] = table_fi,
-  [FCVT_D_L] = table_fi, [FCVT_D_LU] = table_fi,
-  [FCVT_W_D] = table_if, [FCVT_WU_D] = table_if,
-  [FCVT_L_D] = table_if, [FCVT_LU_D] = table_if,
-  [FCVT_S_W] = table_fi, [FCVT_S_WU] = table_fi,
-  [FCVT_S_L] = table_fi, [FCVT_S_LU] = table_fi,
-  [FCVT_W_S] = table_if, [FCVT_WU_S] = table_if,
-  [FCVT_L_S] = table_if, [FCVT_LU_S] = table_if,
-  [FCVT_D_S] = table_2fr, [FCVT_S_D] = table_2fr,
+  [FCVT_D_W] = asm_fi, [FCVT_D_WU] = asm_fi,
+  [FCVT_D_L] = asm_fi, [FCVT_D_LU] = asm_fi,
+  [FCVT_W_D] = asm_if, [FCVT_WU_D] = asm_if,
+  [FCVT_L_D] = asm_if, [FCVT_LU_D] = asm_if,
+  [FCVT_S_W] = asm_fi, [FCVT_S_WU] = asm_fi,
+  [FCVT_S_L] = asm_fi, [FCVT_S_LU] = asm_fi,
+  [FCVT_W_S] = asm_if, [FCVT_WU_S] = asm_if,
+  [FCVT_L_S] = asm_if, [FCVT_LU_S] = asm_if,
+  [FCVT_D_S] = asm_2fr, [FCVT_S_D] = asm_2fr,
 };
 
 void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
   code->flag = 0;
   code->len = 0;
 
-  const AsmInstTable *pt = NULL;
+  const AsmInstFunc *func = NULL;
   if (inst->op < (enum Opcode)ARRAY_SIZE(table) && table[inst->op] != NULL) {
-    for (const AsmInstTable *p = table[inst->op]; p->func != NULL; ++p) {
-      if (inst->opr[0].type == p->opr1_type && inst->opr[1].type == p->opr2_type && inst->opr[2].type == p->opr3_type) {
-        pt = p;
-        break;
-      }
-    }
-  }
+    func = &table[inst->op];
 
-  if (pt != NULL) {
-    unsigned char *p = (*pt->func)(inst, code);
-    if (p != NULL) {
-      if (p > code->buf) {
-        code->inst = inst;
-        code->len = p - code->buf;
-        assert((size_t)code->len <= sizeof(code->buf));
+    if (func != NULL) {
+      unsigned char *p = (*func)(inst, code);
+      if (p != NULL) {
+        if (p > code->buf) {
+          code->inst = inst;
+          code->len = p - code->buf;
+          assert((size_t)code->len <= sizeof(code->buf));
+        }
+        return;
       }
-      return;
     }
   }
 

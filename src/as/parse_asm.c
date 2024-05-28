@@ -8,6 +8,10 @@
 #include <string.h>
 #include <strings.h>
 
+#if __STDC_NO_VLA__
+#include <alloca.h>
+#endif
+
 #include "gen_section.h"
 #include "ir_asm.h"
 #include "table.h"
@@ -508,6 +512,119 @@ static void check_line_end(ParseInfo *info) {
   p = skip_whitespaces(p);
   if (*p != '\0' && !(*p == '/' && p[1] == '/')) {
     parse_error(info, "Syntax error");
+  }
+}
+
+#define R_NOOP  0
+
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+static const Name *alloc_dummy_label(void) {
+  // TODO: Ensure label is unique.
+  static int label_no;
+  ++label_no;
+  char buf[2 + sizeof(int) * 3 + 1];
+  snprintf(buf, sizeof(buf), "._%d", label_no);
+  return alloc_name(buf, NULL, true);
+}
+#endif
+
+static /*enum RawOpcode*/int find_raw_opcode(ParseInfo *info) {
+  const char *p = info->p;
+  const char *start = p;
+
+  while (isalnum(*p) || *p == '.')
+    ++p;
+  if (*p == '\0' || isspace(*p)) {
+    size_t n = p - start;
+    for (int i = 0; ; ++i) {
+      const char *name = kRawOpTable[i];
+      if (name == NULL)
+        break;
+      size_t len = strlen(name);
+      if (n == len && strncasecmp(start, name, n) == 0) {
+        info->p = skip_whitespaces(p);
+        return i + 1;
+      }
+    }
+  }
+  return R_NOOP;
+}
+
+void parse_inst(ParseInfo *info, Line *line) {
+  Inst *inst  = &line->inst;
+  Operand *opr_table = inst->opr;
+  for (int i = 0; i < (int)ARRAY_SIZE(inst->opr); ++i)
+    opr_table[i].type = NOOPERAND;
+
+  /*enum RawOpcode*/int op = find_raw_opcode(info);
+  if (op != R_NOOP) {
+    const ParseInstTable *pt = &kParseInstTable[op];
+    int n = pt->count;
+#if __STDC_NO_VLA__
+    const ParseOpArray **candidates = alloca(n * sizeof(*candidates));
+    assert(candidates != NULL);
+#else
+    const ParseOpArray *candidates[n];
+#endif
+    memcpy(candidates, pt->array, n * sizeof(*candidates));
+    for (int i = 0; i < (int)ARRAY_SIZE(inst->opr); ++i) {
+      unsigned int opr_flags = 0;
+      for (int j = 0; j < n; ++j)
+        opr_flags |= candidates[j]->opr_flags[i];
+      if (opr_flags == 0)
+        break;
+
+      if (i > 0) {
+        if (*info->p != ',')
+          return;  // Error
+        info->p = skip_whitespaces(info->p + 1);
+      }
+
+      Operand *opr = &opr_table[i];
+      unsigned int result = parse_operand(info, opr_flags, opr);
+      if (result == 0) {
+        if (candidates[0]->opr_flags[i] != 0)
+          return;  // Error
+        break;
+      }
+
+      for (int j = 0; j < n; ++j) {
+        if ((candidates[j]->opr_flags[i] & result) == 0) {
+          memmove(&candidates[j], &candidates[j + 1], (n - j - 1) * sizeof(*candidates));
+          --n;
+          --j;
+        }
+      }
+
+      info->p = skip_whitespaces(info->p);
+    }
+
+    if (n > 0) {
+      inst->op = candidates[0]->op;
+
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+      // Tweak for instruction.
+      switch (inst->op) {
+      case LA:
+        // Store corresponding label to opr3.
+        if (line->label == NULL) {
+          // Generate unique label.
+          const Name *label = alloc_dummy_label();
+          line->label = label;
+        }
+        if (inst->opr[2].type == NOOPERAND) {
+          Expr *expr = new_expr(EX_LABEL);
+          expr->label = line->label;
+
+          Operand *opr = &inst->opr[2];
+          opr->type = DIRECT;
+          opr->direct.expr = expr;
+        }
+        break;
+      default: break;
+      }
+#endif
+    }
   }
 }
 

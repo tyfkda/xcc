@@ -293,9 +293,9 @@ static unsigned char *asm_movbwlq_imi(Inst *inst, Code *code) {
   unsigned char dno = opr_regno(&inst->opr[1].indirect.reg);
   unsigned char op = (offset == 0 && (dno & 7) != RBP - RAX) ? 0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
   short buf[] = {
-    inst->op == MOVW ? 0x66 : -1,
-    (inst->op == MOVQ || dno >= 8) ? 0x40 | (inst->op == MOVQ ? 0x08 : 0) | ((dno & 8) >> 3) | ((sno & 8) >> 1) : -1,
-    0xc6 | (inst->op == MOVB ? 0 : 1),
+    inst->op == MOVW_IMI ? 0x66 : -1,
+    (inst->op == MOVQ_IMI || dno >= 8) ? 0x40 | (inst->op == MOVQ_IMI ? 0x08 : 0) | ((dno & 8) >> 3) | ((sno & 8) >> 1) : -1,
+    0xc6 | (inst->op == MOVB_IMI ? 0 : 1),
     op | (dno & 7) | ((sno & 7) << 3),
     (dno & 7) == RSP - RAX ? 0x24 : -1,
   };
@@ -313,9 +313,9 @@ static unsigned char *asm_movbwlq_imi(Inst *inst, Code *code) {
 
   long value = inst->opr[0].immediate;
   switch (inst->op) {
-  case MOVB: *p++ = IM8(value); break;
-  case MOVW: PUT_CODE(p, IM16(value)); p += 2; break;
-  case MOVL: case MOVQ:
+  case MOVB_IMI: *p++ = IM8(value); break;
+  case MOVW_IMI: PUT_CODE(p, IM16(value)); p += 2; break;
+  case MOVL_IMI: case MOVQ_IMI:
     PUT_CODE(p, IM32(value));
     p += 4;
     break;
@@ -330,9 +330,9 @@ static unsigned char *asm_movbwlq_imd(Inst *inst, Code *code) {
   assert(is_im32(dst));
 
   short buf[] = {
-    inst->op == MOVW ? 0x66 : -1,
-    inst->op == MOVQ ? 0x48 : -1,
-    0xc6 | (inst->op == MOVB ? 0 : 1),
+    inst->op == MOVW_IMD ? 0x66 : -1,
+    inst->op == MOVQ_IMD ? 0x48 : -1,
+    0xc6 | (inst->op == MOVB_IMD ? 0 : 1),
     0x04, 0x25,
   };
 
@@ -343,9 +343,9 @@ static unsigned char *asm_movbwlq_imd(Inst *inst, Code *code) {
 
   long value = inst->opr[0].immediate;
   switch (inst->op) {
-  case MOVB: *p++ = IM8(value); break;
-  case MOVW: PUT_CODE(p, IM16(value)); p += 2; break;
-  case MOVL: case MOVQ:
+  case MOVB_IMD: *p++ = IM8(value); break;
+  case MOVW_IMD: PUT_CODE(p, IM16(value)); p += 2; break;
+  case MOVL_IMD: case MOVQ_IMD:
     PUT_CODE(p, IM32(value));
     p += 4;
     break;
@@ -1493,219 +1493,132 @@ static unsigned char *asm_syscall(Inst *inst, Code *code) {
 
 ////////////////////////////////////////////////
 
-enum {
-  NO_SAME_REG_SIZE = 1 << 0,
-  SRC_CL_ONLY = 1 << 1,
-  SRC_REG8_ONLY = 1 << 2,
-  SRC_REG64_ONLY = 1 << 3,
-  DST_REG64_ONLY = 1 << 4,
-};
-
 typedef unsigned char *(*AsmInstFunc)(Inst *inst, Code *code);
-typedef struct {
-  AsmInstFunc func;
-  enum OperandType src_type;
-  enum OperandType dst_type;
-  int flag;
-} AsmInstTable;
 
-static const AsmInstTable table_movbwlq[] ={
-    {asm_movbwlq_imi, IMMEDIATE, INDIRECT},
-    {asm_movbwlq_imd, IMMEDIATE, DIRECT},
-    {NULL} };
+static const AsmInstFunc table[] = {
+  [NOOP] = asm_noop,
+  [MOV_RR] = asm_mov_rr,
+  [MOV_IMR] = asm_mov_imr,
+  [MOV_IR] = asm_mov_ir,
+  [MOV_RI] = asm_mov_ri,
+  [MOV_IIR] = asm_mov_iir,
+  [MOV_DR] = asm_mov_dr,
+  [MOV_RD] = asm_mov_rd,
+  [MOV_SR] = asm_mov_sr,
+  [MOVB_IMI] = asm_movbwlq_imi,
+  [MOVW_IMI] = asm_movbwlq_imi,
+  [MOVL_IMI] = asm_movbwlq_imi,
+  [MOVQ_IMI] = asm_movbwlq_imi,
+  [MOVB_IMD] = asm_movbwlq_imd,
+  [MOVW_IMD] = asm_movbwlq_imd,
+  [MOVL_IMD] = asm_movbwlq_imd,
+  [MOVQ_IMD] = asm_movbwlq_imd,
+  [MOVSX] = asm_movszx_rr,  [MOVZX] = asm_movszx_rr,
+  [LEA_IR] = asm_lea_ir,
+  [LEA_IIR] = asm_lea_iir,
+  [ADD_RR] = asm_add_rr,
+  [ADD_IMR] = asm_add_imr,
+  [ADD_IR] = asm_add_ir,
+  [ADD_IIR] = asm_add_iir,
+  [ADDQ] = asm_addq_imi,
+  [SUB_RR] = asm_sub_rr,
+  [SUB_IMR] = asm_sub_imr,
+  [SUB_IR] = asm_sub_ir,
+  [SUB_IIR] = asm_sub_iir,
+  [SUBQ] = asm_subq_imi,
+  [MUL] = asm_mul_r,
+  [DIV] = asm_div_r,
+  [IDIV] = asm_idiv_r,
+  [NEG] = asm_neg_r,
+  [NOT] = asm_not_r,
+  [INC] = asm_inc_r,
+  [INCB] = asm_incbwlq_i,  [INCW] = asm_incbwlq_i,  [INCL] = asm_incbwlq_i,  [INCQ] = asm_incbwlq_i,
+  [DEC] = asm_dec_r,
+  [DECB] = asm_decbwlq_i,  [DECW] = asm_decbwlq_i,  [DECL] = asm_decbwlq_i,  [DECQ] = asm_decbwlq_i,
+  [AND_RR] = asm_and_rr,
+  [AND_IMR] = asm_and_imr,
+  [OR_RR] = asm_or_rr,
+  [OR_IMR] = asm_or_imr,
+  [XOR_RR] = asm_xor_rr,
+  [XOR_IMR] = asm_xor_imr,
+  [SHL_RR] = asm_shl_rr,
+  [SHL_IMR] = asm_shl_imr,
+  [SHR_RR] = asm_shr_rr,
+  [SHR_IMR] = asm_shr_imr,
+  [SAR_RR] = asm_sar_rr,
+  [SAR_IMR] = asm_sar_imr,
+  [CMP_RR] = asm_cmp_rr,
+  [CMP_IMR] = asm_cmp_imr,
+  [TEST] = asm_test_rr,
+  [CWTL] = asm_cwtl,
+  [CLTD] = asm_cltd,
+  [CQTO] = asm_cqto,
+  [SETO] = asm_set_r,  [SETNO] = asm_set_r,  [SETB] = asm_set_r,  [SETAE] = asm_set_r,
+  [SETE] = asm_set_r,  [SETNE] = asm_set_r,  [SETBE] = asm_set_r,  [SETA] = asm_set_r,
+  [SETS] = asm_set_r,  [SETNS] = asm_set_r,  [SETP] = asm_set_r,  [SETNP] = asm_set_r,
+  [SETL] = asm_set_r,  [SETGE] = asm_set_r,  [SETLE] = asm_set_r,  [SETG] = asm_set_r,
+  [JMP_D] = asm_jmp_d,
+  [JMP_DER] = asm_jmp_der,
+  [JMP_DEI] = asm_jmp_dei,
+  [JMP_DEII] = asm_jmp_deii,
+  [JO] = asm_jxx_d,  [JNO] = asm_jxx_d,  [JB] = asm_jxx_d,  [JAE] = asm_jxx_d,
+  [JE] = asm_jxx_d,  [JNE] = asm_jxx_d,  [JBE] = asm_jxx_d,  [JA] = asm_jxx_d,
+  [JS] = asm_jxx_d,  [JNS] = asm_jxx_d,  [JP] = asm_jxx_d,  [JNP] = asm_jxx_d,
+  [JL] = asm_jxx_d,  [JGE] = asm_jxx_d,  [JLE] = asm_jxx_d,  [JG] = asm_jxx_d,
+  [CALL_D] = asm_call_d,
+  [CALL_DER] = asm_call_der,
+  [RET] = asm_ret,
+  [PUSH_R] = asm_push_r,
+  [PUSH_IM] = asm_push_im,
+  [POP] = asm_pop_r,
+  [INT] = asm_int_im,
+  [SYSCALL] = asm_syscall,
 
-static const AsmInstTable table_movszx[] ={
-    {asm_movszx_rr, REG, REG, NO_SAME_REG_SIZE},
-    {NULL} };
-
-static const AsmInstTable table_incbwlq[] ={
-    {asm_incbwlq_i, INDIRECT, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_decbwlq[] ={
-    {asm_decbwlq_i, INDIRECT, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable table_set[] ={
-    {asm_set_r, REG, NOOPERAND, SRC_REG8_ONLY},
-    {NULL} };
-
-static const AsmInstTable table_jxx[] ={
-    {asm_jxx_d, DIRECT, NOOPERAND},
-    {NULL} };
-
-static const AsmInstTable *table[] = {
-  [NOOP] = (const AsmInstTable[]){ {asm_noop, NOOPERAND, NOOPERAND}, {NULL} },
-  [MOV] = (const AsmInstTable[]){
-    {asm_mov_rr, REG, REG},
-    {asm_mov_imr, IMMEDIATE, REG},
-    {asm_mov_ir, INDIRECT, REG},
-    {asm_mov_ri, REG, INDIRECT},
-    {asm_mov_iir, INDIRECT_WITH_INDEX, REG},
-    {asm_mov_dr, DIRECT, REG},
-    {asm_mov_rd, REG, DIRECT},
-    {asm_mov_sr, SEGMENT_OFFSET, REG},
-    {NULL} },
-  [MOVB] = table_movbwlq,  [MOVW] = table_movbwlq,  [MOVL] = table_movbwlq,  [MOVQ] = table_movbwlq,
-  [MOVSX] = table_movszx,  [MOVZX] = table_movszx,
-  [LEA] = (const AsmInstTable[]){
-    {asm_lea_ir, INDIRECT, REG, DST_REG64_ONLY},
-    {asm_lea_iir, INDIRECT_WITH_INDEX, REG, DST_REG64_ONLY},
-    {NULL} },
-  [ADD] = (const AsmInstTable[]){
-    {asm_add_rr, REG, REG},
-    {asm_add_imr, IMMEDIATE, REG},
-    {asm_add_ir, INDIRECT, REG},
-    {asm_add_iir, INDIRECT_WITH_INDEX, REG},
-    {NULL} },
-  [ADDQ] = (const AsmInstTable[]){ {asm_addq_imi, IMMEDIATE, INDIRECT}, {NULL} },
-  [SUB] = (const AsmInstTable[]){
-    {asm_sub_rr, REG, REG},
-    {asm_sub_imr, IMMEDIATE, REG},
-    {asm_sub_ir, INDIRECT, REG},
-    {asm_sub_iir, INDIRECT_WITH_INDEX, REG},
-    {NULL} },
-  [SUBQ] = (const AsmInstTable[]){ {asm_subq_imi, IMMEDIATE, INDIRECT}, {NULL} },
-  [MUL] = (const AsmInstTable[]){ {asm_mul_r, REG, NOOPERAND}, {NULL} },
-  [DIV] = (const AsmInstTable[]){ {asm_div_r, REG, NOOPERAND}, {NULL} },
-  [IDIV] = (const AsmInstTable[]){ {asm_idiv_r, REG, NOOPERAND}, {NULL} },
-  [NEG] = (const AsmInstTable[]){ {asm_neg_r, REG, NOOPERAND}, {NULL} },
-  [NOT] = (const AsmInstTable[]){ {asm_not_r, REG, NOOPERAND}, {NULL} },
-  [INC] = (const AsmInstTable[]){ {asm_inc_r, REG, NOOPERAND}, {NULL} },
-  [INCB] = table_incbwlq,  [INCW] = table_incbwlq,  [INCL] = table_incbwlq,  [INCQ] = table_incbwlq,
-  [DEC] = (const AsmInstTable[]){ {asm_dec_r, REG, NOOPERAND}, {NULL} },
-  [DECB] = table_decbwlq,  [DECW] = table_decbwlq,  [DECL] = table_decbwlq,  [DECQ] = table_decbwlq,
-  [AND] = (const AsmInstTable[]){
-    {asm_and_rr, REG, REG},
-    {asm_and_imr, IMMEDIATE, REG},
-    {NULL} },
-  [OR] = (const AsmInstTable[]){
-    {asm_or_rr, REG, REG},
-    {asm_or_imr, IMMEDIATE, REG},
-    {NULL} },
-  [XOR] = (const AsmInstTable[]){
-    {asm_xor_rr, REG, REG},
-    {asm_xor_imr, IMMEDIATE, REG},
-    {NULL} },
-  [SHL] = (const AsmInstTable[]){
-    {asm_shl_rr, REG, REG, NO_SAME_REG_SIZE | SRC_CL_ONLY},
-    {asm_shl_imr, IMMEDIATE, REG},
-    {NULL} },
-  [SHR] = (const AsmInstTable[]){
-    {asm_shr_rr, REG, REG, NO_SAME_REG_SIZE | SRC_CL_ONLY},
-    {asm_shr_imr, IMMEDIATE, REG},
-    {NULL} },
-  [SAR] = (const AsmInstTable[]){
-    {asm_sar_rr, REG, REG, NO_SAME_REG_SIZE | SRC_CL_ONLY},
-    {asm_sar_imr, IMMEDIATE, REG},
-    {NULL} },
-  [CMP] = (const AsmInstTable[]){
-    {asm_cmp_rr, REG, REG},
-    {asm_cmp_imr, IMMEDIATE, REG},
-    {NULL} },
-  [TEST] = (const AsmInstTable[]){
-    {asm_test_rr, REG, REG},
-    {NULL} },
-  [CWTL] = (const AsmInstTable[]){ {asm_cwtl, NOOPERAND, NOOPERAND}, {NULL} },
-  [CLTD] = (const AsmInstTable[]){ {asm_cltd, NOOPERAND, NOOPERAND}, {NULL} },
-  [CQTO] = (const AsmInstTable[]){ {asm_cqto, NOOPERAND, NOOPERAND}, {NULL} },
-  [SETO] = table_set,  [SETNO] = table_set,  [SETB] = table_set,  [SETAE] = table_set,
-  [SETE] = table_set,  [SETNE] = table_set,  [SETBE] = table_set,  [SETA] = table_set,
-  [SETS] = table_set,  [SETNS] = table_set,  [SETP] = table_set,  [SETNP] = table_set,
-  [SETL] = table_set,  [SETGE] = table_set,  [SETLE] = table_set,  [SETG] = table_set,
-  [JMP] = (const AsmInstTable[]){
-    {asm_jmp_d, DIRECT, NOOPERAND},
-    {asm_jmp_der, DEREF_REG, NOOPERAND},
-    {asm_jmp_dei, DEREF_INDIRECT, NOOPERAND},
-    {asm_jmp_deii, DEREF_INDIRECT_WITH_INDEX, NOOPERAND},
-    {NULL} },
-  [JO] = table_jxx,  [JNO] = table_jxx,  [JB] = table_jxx,  [JAE] = table_jxx,
-  [JE] = table_jxx,  [JNE] = table_jxx,  [JBE] = table_jxx,  [JA] = table_jxx,
-  [JS] = table_jxx,  [JNS] = table_jxx,  [JP] = table_jxx,  [JNP] = table_jxx,
-  [JL] = table_jxx,  [JGE] = table_jxx,  [JLE] = table_jxx,  [JG] = table_jxx,
-  [CALL] = (const AsmInstTable[]){
-    {asm_call_d, DIRECT, NOOPERAND},
-    {asm_call_der, DEREF_REG, NOOPERAND},
-    {NULL} },
-  [RET] = (const AsmInstTable[]){ {asm_ret, NOOPERAND, NOOPERAND}, {NULL} },
-  [PUSH] = (const AsmInstTable[]){
-    {asm_push_r, REG, NOOPERAND, SRC_REG64_ONLY},
-    {asm_push_im, IMMEDIATE, NOOPERAND},
-    {NULL} },
-  [POP] = (const AsmInstTable[]){ {asm_pop_r, REG, NOOPERAND, SRC_REG64_ONLY}, {NULL} },
-  [INT] = (const AsmInstTable[]){ {asm_int_im, IMMEDIATE, NOOPERAND}, {NULL} },
-  [SYSCALL] = (const AsmInstTable[]){ {asm_syscall, NOOPERAND, NOOPERAND}, {NULL} },
-  [MOVSD] = (const AsmInstTable[]){
-    {asm_movsd_xx, REG_XMM, REG_XMM},
-    {asm_movsd_ix, INDIRECT, REG_XMM},
-    {asm_movsd_xi, REG_XMM, INDIRECT},
-    {NULL} },
-  [MOVSS] = (const AsmInstTable[]){
-    {asm_movss_xx, REG_XMM, REG_XMM},
-    {asm_movss_ix, INDIRECT, REG_XMM},
-    {asm_movss_xi, REG_XMM, INDIRECT},
-    {NULL} },
-  [ADDSD] = (const AsmInstTable[]){ {asm_addsd_xx, REG_XMM, REG_XMM}, {NULL} },
-  [ADDSS] = (const AsmInstTable[]){ {asm_addss_xx, REG_XMM, REG_XMM}, {NULL} },
-  [SUBSD] = (const AsmInstTable[]){ {asm_subsd_xx, REG_XMM, REG_XMM}, {NULL} },
-  [SUBSS] = (const AsmInstTable[]){ {asm_subss_xx, REG_XMM, REG_XMM}, {NULL} },
-  [MULSD] = (const AsmInstTable[]){ {asm_mulsd_xx, REG_XMM, REG_XMM}, {NULL} },
-  [MULSS] = (const AsmInstTable[]){ {asm_mulss_xx, REG_XMM, REG_XMM}, {NULL} },
-  [DIVSD] = (const AsmInstTable[]){ {asm_divsd_xx, REG_XMM, REG_XMM}, {NULL} },
-  [DIVSS] = (const AsmInstTable[]){ {asm_divss_xx, REG_XMM, REG_XMM}, {NULL} },
-  [XORPD] = (const AsmInstTable[]){ {asm_xorpd_xx, REG_XMM, REG_XMM}, {NULL} },
-  [XORPS] = (const AsmInstTable[]){ {asm_xorps_xx, REG_XMM, REG_XMM}, {NULL} },
-  [UCOMISD] = (const AsmInstTable[]){ {asm_ucomisd_xx, REG_XMM, REG_XMM}, {NULL} },
-  [UCOMISS] = (const AsmInstTable[]){ {asm_ucomiss_xx, REG_XMM, REG_XMM}, {NULL} },
-  [CVTSI2SD] = (const AsmInstTable[]){ {asm_cvtsi2sd_rx, REG, REG_XMM}, {NULL} },
-  [CVTSI2SS] = (const AsmInstTable[]){ {asm_cvtsi2ss_rx, REG, REG_XMM}, {NULL} },
-  [CVTTSD2SI] = (const AsmInstTable[]){ {asm_cvttsd2si_xr, REG_XMM, REG}, {NULL} },
-  [CVTTSS2SI] = (const AsmInstTable[]){ {asm_cvttss2si_xr, REG_XMM, REG}, {NULL} },
-  [CVTSD2SS] = (const AsmInstTable[]){ {asm_cvtsd2ss_xx, REG_XMM, REG_XMM}, {NULL} },
-  [CVTSS2SD] = (const AsmInstTable[]){ {asm_cvtss2sd_xx, REG_XMM, REG_XMM}, {NULL} },
-  [SQRTSD] = (const AsmInstTable[]){ {asm_sqrtsd_xx, REG_XMM, REG_XMM}, {NULL} },
+  [MOVSD_XX] = asm_movsd_xx,
+  [MOVSD_IX] = asm_movsd_ix,
+  [MOVSD_XI] = asm_movsd_xi,
+  [MOVSS_XX] = asm_movss_xx,
+  [MOVSS_IX] = asm_movss_ix,
+  [MOVSS_XI] = asm_movss_xi,
+  [ADDSD] = asm_addsd_xx,
+  [ADDSS] = asm_addss_xx,
+  [SUBSD] = asm_subsd_xx,
+  [SUBSS] = asm_subss_xx,
+  [MULSD] = asm_mulsd_xx,
+  [MULSS] = asm_mulss_xx,
+  [DIVSD] = asm_divsd_xx,
+  [DIVSS] = asm_divss_xx,
+  [XORPD] = asm_xorpd_xx,
+  [XORPS] = asm_xorps_xx,
+  [UCOMISD] = asm_ucomisd_xx,
+  [UCOMISS] = asm_ucomiss_xx,
+  [CVTSI2SD] = asm_cvtsi2sd_rx,
+  [CVTSI2SS] = asm_cvtsi2ss_rx,
+  [CVTTSD2SI] = asm_cvttsd2si_xr,
+  [CVTTSS2SI] = asm_cvttss2si_xr,
+  [CVTSD2SS] = asm_cvtsd2ss_xx,
+  [CVTSS2SD] = asm_cvtss2sd_xx,
+  [SQRTSD] = asm_sqrtsd_xx,
 };
 
 void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
   code->flag = 0;
   code->len = 0;
 
-  const AsmInstTable *pt = NULL;
-  if (inst->op < (enum Opcode)ARRAY_SIZE(table) && table[inst->op] != NULL) {
-    for (const AsmInstTable *p = table[inst->op]; p->func != NULL; ++p) {
-      if (inst->opr[0].type == p->src_type && inst->opr[1].type == p->dst_type) {
-        pt = p;
-        break;
-      }
-    }
-  }
+  const AsmInstFunc *func = NULL;
+  if (inst->op < (enum Opcode)ARRAY_SIZE(table)) {
+    func = &table[inst->op];
 
-  if (pt != NULL) {
-    if (pt->src_type == REG && pt->dst_type == REG &&
-        inst->opr[0].reg.size != inst->opr[1].reg.size &&
-        !(pt->flag & NO_SAME_REG_SIZE)) {
-      assemble_error(info, "Different source and destination register size");
-      return;
-    }
-    if ((pt->flag & SRC_CL_ONLY) && opr_regno(&inst->opr[0].reg) != CL - AL) {
-      assemble_error(info, "`%cl` expected");
-      return;
-    }
-    if (((pt->flag & SRC_REG8_ONLY) && inst->opr[0].reg.size != REG8) ||
-        ((pt->flag & SRC_REG64_ONLY) && inst->opr[0].reg.size != REG64) ||
-        ((pt->flag & DST_REG64_ONLY) && inst->opr[1].reg.size != REG64)) {
-      assemble_error(info, "Illegal operand");
-      return;
-    }
-
-    unsigned char *p = (*pt->func)(inst, code);
-    if (p != NULL) {
-      if (p > code->buf) {
-        code->inst = inst;
-        code->len = p - code->buf;
-        assert((size_t)code->len <= sizeof(code->buf));
+    if (func != NULL) {
+      unsigned char *p = (*func)(inst, code);
+      if (p != NULL) {
+        if (p > code->buf) {
+          code->inst = inst;
+          code->len = p - code->buf;
+          assert((size_t)code->len <= sizeof(code->buf));
+        }
+        return;
       }
-      return;
     }
   }
 

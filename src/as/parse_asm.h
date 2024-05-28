@@ -89,7 +89,21 @@ Line *parse_line(ParseInfo *info);
 void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_irs,
                       Table *label_table);
 void parse_error(const ParseInfo *info, const char *message);
-void parse_inst(ParseInfo *info, Line *line);
+
+typedef struct {
+  enum Opcode op;
+  int opr_flags[4 + 1];
+} ParseOpArray;
+
+typedef struct {
+  int count;
+  const ParseOpArray **array;
+} ParseInstTable;
+
+extern const char *kRawOpTable[];
+extern const ParseInstTable kParseInstTable[];
+
+unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *operand);
 
 bool immediate(const char **pp, int64_t *value);
 const Name *unquote_label(const char *p, const char *q);
