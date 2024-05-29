@@ -858,7 +858,7 @@ void traverse_ast(Vector *decls) {
         info->non_prim.address = address;
         size_t size = type_size(varinfo->type);
         address += size;
-        VERBOSE("%04x: %.*s  (size=0x%lx)\n", info->non_prim.address, NAMES(varinfo->name), size);
+        VERBOSE("%04x: %.*s  (size=0x%zx)\n", info->non_prim.address, NAMES(varinfo->name), size);
       }
     }
   }

@@ -224,6 +224,7 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
     int order = 0, suborder = 0;
     bool sign = false;
     bool leftalign = false;
+    bool sizez = false;
     int nlong = 0;
     c = fmt[++i];
 
@@ -265,16 +266,23 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
         nlong = 2;
         c = fmt[++i];
       }
+    } else if (c == 'z') {
+      sizez = true;
+      c = fmt[++i];
     }
 
     switch (c) {
     case 'd':
       {
         long long x;
-        switch (nlong) {
-        case 0:  x = va_arg(ap, int); break;
-        case 1:  x = va_arg(ap, long); break;
-        default: x = va_arg(ap, long long); break;  // case 2:
+        if (sizez) {
+          x = va_arg(ap, ssize_t);
+        } else {
+          switch (nlong) {
+          case 0:  x = va_arg(ap, int); break;
+          case 1:  x = va_arg(ap, long); break;
+          default: x = va_arg(ap, long long); break;  // case 2:
+          }
         }
         bool negative = x < 0;
         unsigned long long ux = negative ? -x : x;
@@ -287,10 +295,14 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
     case 'u':
       {
         unsigned long long x;
-        switch (nlong) {
-        case 0:  x = va_arg(ap, unsigned int); break;
-        case 1:  x = va_arg(ap, unsigned long); break;
-        default: x = va_arg(ap, unsigned long long); break;  // case 2:
+        if (sizez) {
+          x = va_arg(ap, size_t);
+        } else {
+          switch (nlong) {
+          case 0:  x = va_arg(ap, unsigned int); break;
+          case 1:  x = va_arg(ap, unsigned long); break;
+          default: x = va_arg(ap, unsigned long long); break;  // case 2:
+          }
         }
         char *p = snprintullong2(bufend, x, 10, kHexDigits);
         if (sign)
@@ -298,40 +310,18 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
         o += snprintstr(fp, p, order, suborder, leftalign, padding);
       }
       break;
-    case 'z':
-      {
-        switch (fmt[i + 1]) {
-        case 'u':
-          {
-            ++i;
-            size_t x = va_arg(ap, size_t);
-            o += snprintullong(fp, x, 10, kHexDigits, order, padding);
-          }
-          break;
-        case 'd':
-          {
-            ++i;
-            ssize_t x = va_arg(ap, ssize_t);
-            bool negative = x < 0;
-            size_t ux = negative ? -x : x;
-            if (negative || order > 0 || sign)
-              o += sprintsign(fp, negative, sign, &order);
-            char *p = snprintullong2(bufend, ux, 10, kHexDigits);
-            o += snprintstr(fp, p, order, suborder, leftalign, padding);
-          }
-          break;
-        default: break;  // TODO: error
-        }
-      }
-      break;
     case 'x': case 'X':
       {
         const char *digits = c == 'x' ? kHexDigits : kUpperHexDigits;
         unsigned long long x;
-        switch (nlong) {
-        case 0:  x = va_arg(ap, unsigned int); break;
-        case 1:  x = va_arg(ap, unsigned long); break;
-        default: x = va_arg(ap, unsigned long long); break;  // case 2:
+        if (sizez) {
+          x = va_arg(ap, size_t);
+        } else {
+          switch (nlong) {
+          case 0:  x = va_arg(ap, unsigned int); break;
+          case 1:  x = va_arg(ap, unsigned long); break;
+          default: x = va_arg(ap, unsigned long long); break;  // case 2:
+          }
         }
         o += snprintullong(fp, x, 16, digits, order, padding);
       }
