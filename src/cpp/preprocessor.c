@@ -649,17 +649,17 @@ static const char *process_directive(PreprocessFile *ppf, const char *line) {
 
   const char *next;
   if ((next = keyword(directive, "ifdef")) != NULL) {
-    vec_push(ppf->condstack, (void*)cond_value(ppf->enable, ppf->satisfy));
+    vec_push(ppf->condstack, INT2VOIDP(cond_value(ppf->enable, ppf->satisfy)));
     bool defined = handle_ifdef(&next);
     ppf->satisfy = defined ? Satisfied : NotSatisfied;
     ppf->enable = ppf->enable && ppf->satisfy == Satisfied;
   } else if ((next = keyword(directive, "ifndef")) != NULL) {
-    vec_push(ppf->condstack, (void*)cond_value(ppf->enable, ppf->satisfy));
+    vec_push(ppf->condstack, INT2VOIDP(cond_value(ppf->enable, ppf->satisfy)));
     bool defined = handle_ifdef(&next);
     ppf->satisfy = defined ? NotSatisfied : Satisfied;
     ppf->enable = ppf->enable && ppf->satisfy == Satisfied;
   } else if ((next = keyword(directive, "if")) != NULL) {
-    vec_push(ppf->condstack, (void*)cond_value(ppf->enable, ppf->satisfy));
+    vec_push(ppf->condstack, INT2VOIDP(cond_value(ppf->enable, ppf->satisfy)));
     bool cond = handle_if(&next, &ppf->stream);
     ppf->satisfy = cond ? Satisfied : NotSatisfied;
     ppf->enable = ppf->enable && ppf->satisfy == Satisfied;
