@@ -4,7 +4,10 @@
 
 #ifndef __NO_FLONUM
 #undef isinf
-int isinf(double x) {
+
+extern inline int isinf(double x);
+
+int __isinf(double x) {
   union { double d; int64_t q; } u;
   u.d = x;
   return (u.q & NAN_MASK) == EXPO_MASK;

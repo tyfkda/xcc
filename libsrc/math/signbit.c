@@ -4,7 +4,7 @@
 
 #ifndef __NO_FLONUM
 #undef signbit
-int signbit(double x) {
+int __signbit(double x) {
   return ((*(uint64_t*)&x) >> (EXPO_POS + EXPO_BIT));
 }
 #endif
