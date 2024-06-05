@@ -47,14 +47,20 @@ enum CondType {
   HI, LS, GE, LT, GT, LE, AL, NV,
 };
 
+enum ExtendType {
+  NOEXTEND,
+  E_SXTW, E_UXTW, E_LSL, E_SXTX,
+};
+
 enum OperandType {
   NOOPERAND,
   REG,        // reg
   IMMEDIATE,  // 1234
   DIRECT,     // foobar + 345
-  INDIRECT,   // indirect:   [reg,#12]
-              // pre-index:  [reg,#34]!
-              // post-index: [reg],#34
+  INDIRECT,   // indirect:   [reg,#nn]
+              // pre-index:  [reg,#nn]!
+              // post-index: [reg],#nn
+  REGISTER_OFFSET,  // [reg,reg,#nn]
   COND,
 };
 
@@ -71,6 +77,12 @@ typedef struct {
       Reg reg;
       int prepost;  // 0=none, 1=pre, 2=post
     } indirect;
+    struct {
+      Expr *scale;
+      Reg base_reg;
+      Reg index_reg;
+      enum ExtendType extend;
+    } register_offset;
     enum CondType cond;
   };
 } Operand;

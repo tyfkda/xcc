@@ -206,46 +206,68 @@ static unsigned char *asm_ldrstr(Inst *inst, Code *code) {
   Operand *opr1 = &inst->opr[0];
   uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
   Operand *opr2 = &inst->opr[1];
-  assert(opr2->indirect.reg.size == REG64);
-  // assert(opr2->indirect.offset == NULL || opr2->indirect.offset->kind == EX_FIXNUM);
-  Expr *offset_expr = opr2->indirect.offset;
-  int64_t offset = offset_expr != NULL && offset_expr->kind == EX_FIXNUM ? offset_expr->fixnum : 0;
-  assert(offset < (1 << (6 + 3)) && offset >= -(1 << (6 + 3)));
-  uint32_t base = opr2->indirect.reg.no;
-  uint32_t prepost = kPrePost[opr2->indirect.prepost];
-  switch (inst->op) {
-  case LDRB: case LDRH: case LDR:
-  case LDRSB: case LDRSH:
-    {
-      uint32_t b = inst->op - LDRB, s = 0;
-      if (b >= 3) {
-        b -= 3;
-        s = 1;
+  if (opr2->type == INDIRECT) {
+    assert(opr2->indirect.reg.size == REG64);
+    // assert(opr2->indirect.offset == NULL || opr2->indirect.offset->kind == EX_FIXNUM);
+    Expr *offset_expr = opr2->indirect.offset;
+    int64_t offset = offset_expr != NULL && offset_expr->kind == EX_FIXNUM ? offset_expr->fixnum : 0;
+    assert(offset < (1 << (6 + 3)) && offset >= -(1 << (6 + 3)));
+    uint32_t base = opr2->indirect.reg.no;
+    uint32_t prepost = kPrePost[opr2->indirect.prepost];
+    switch (inst->op) {
+    case LDRB: case LDRH: case LDR:
+    case LDRSB: case LDRSH:
+      {
+        uint32_t b = inst->op - LDRB, s = 0;
+        if (b >= 3) {
+          b -= 3;
+          s = 1;
+        }
+        b |= sz;
+        if (opr2->indirect.prepost == 0) {
+          if (offset >= 0)
+            W_LDR_UIMM(b, s, opr1->reg.no, offset >> (2 + sz), base);
+          else
+            W_LDUR(b, s, opr1->reg.no, offset, base);
+        } else {
+          W_LDR(b, s, opr1->reg.no, offset, base, prepost);
+        }
       }
-      b |= sz;
+      break;
+    case STRB: case STRH: case STR:
       if (opr2->indirect.prepost == 0) {
         if (offset >= 0)
-          W_LDR_UIMM(b, s, opr1->reg.no, offset >> (2 + sz), base);
+          W_STR_UIMM((inst->op - STRB) | sz, opr1->reg.no, 0, base);
         else
-          W_LDUR(b, s, opr1->reg.no, offset, base);
+          W_STUR((inst->op - STRB) | sz, opr1->reg.no, offset, base);
       } else {
-        W_LDR(b, s, opr1->reg.no, offset, base, prepost);
+        W_STR((inst->op - STRB) | sz, opr1->reg.no, offset, base, prepost);
       }
+      break;
+    default: assert(false); break;
     }
-    break;
-  case STRB: case STRH: case STR:
-    if (opr2->indirect.prepost == 0) {
-      if (offset >= 0)
-        W_STR_UIMM((inst->op - STRB) | sz, opr1->reg.no, 0, base);
-      else
-        W_STUR((inst->op - STRB) | sz, opr1->reg.no, offset, base);
-    } else {
-      W_STR((inst->op - STRB) | sz, opr1->reg.no, offset, base, prepost);
+    return code->buf;
+  } else {
+    assert(opr2->type == REGISTER_OFFSET);
+    assert(opr2->register_offset.scale == NULL || opr2->register_offset.scale->kind == EX_FIXNUM);
+
+    static const uint32_t opts[] = {3, 6, 2, 3, 3};
+    uint32_t opt = opts[opr2->register_offset.extend];
+    uint32_t s = opr2->register_offset.extend > 0 ? 1 : 0;
+
+    switch (inst->op) {
+    case LDR:    W_LDR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, sz2, s, opt); break;
+    // case LDRB:   W_LDRB_R(opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opr2->register_offset.extend); break;
+    // case LDRSB:  W_LDRSB_R(opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opr2->register_offset.extend); break;
+    // case LDRH:   W_LDRH_R(opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opr2->register_offset.extend); break;
+    // case LDRSH:  W_LDRSH_R(opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opr2->register_offset.extend); break;
+    case STR:    W_STR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opt); break;
+    // case STRB:   W_STRB_R(opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opr2->register_offset.extend); break;
+    // case STRH:   W_STRH_R(opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opr2->register_offset.extend); break;
+    default: assert(false); break;
     }
-    break;
-  default: assert(false); break;
+    return code->buf;
   }
-  return code->buf;
 }
 
 static unsigned char *asm_ldpstp(Inst *inst, Code *code) {

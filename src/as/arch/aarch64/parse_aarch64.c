@@ -119,9 +119,10 @@ inline bool is_reg64(enum RegType reg) {
 #define R64  (1 << 1)
 #define IMM  (1 << 2)
 #define IND  (1 << 3)
-#define EXP  (1 << 4)
-#define CND  (1 << 5)
-#define SFT  (1 << 6)  // lsl #nn
+#define ROI  (1 << 4)  // Register Offset Indirect
+#define EXP  (1 << 5)
+#define CND  (1 << 6)
+#define SFT  (1 << 7)  // lsl #nn
 
 static enum RegType find_register(const char **pp, unsigned int flag) {
   const char *p = *pp;
@@ -157,12 +158,14 @@ static enum CondType find_cond(const char **pp) {
   return NOCOND;
 }
 
-static bool parse_indirect_register(ParseInfo *info, Operand *operand) {
+static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
   const char *p = skip_whitespaces(info->p);
+  enum RegType reg2 = NOREG;
+  enum ExtendType extend = NOEXTEND;
   enum RegType reg = find_register(&p, R64);
   if (reg == NOREG) {
     parse_error(info, "Base register expected");
-    return false;
+    return 0;
   }
   if (is_reg64(reg)) {
     operand->indirect.reg.size = REG64;
@@ -171,9 +174,9 @@ static bool parse_indirect_register(ParseInfo *info, Operand *operand) {
     parse_error(info, "Base register expected");
   }
 
-  p = skip_whitespaces(p);
-  Expr *offset = NULL;
+  Expr *offset = NULL, *scale = NULL;
   int prepost = 0;
+  p = skip_whitespaces(p);
   if (*p == ',') {
     p = skip_whitespaces(p + 1);
     if (*p == '#') {
@@ -191,18 +194,54 @@ static bool parse_indirect_register(ParseInfo *info, Operand *operand) {
           parse_error(info, "Offset expected");
         }
       }
+    } else {
+      reg2 = find_register(&p, R32 | R64);
+      if (reg2 == NOREG)
+        return 0;  // Error
+
+      p = skip_whitespaces(p);
+      if (*p == ',') {
+        p = skip_whitespaces(p + 1);
+        static const char kExtendTable[][5] = { "sxtw", "uxtw", "lsl", "sxtx" };
+        for (int i = 0; i < (int)ARRAY_SIZE(kExtendTable); ++i) {
+          const char *name = kExtendTable[i];
+          size_t n = strlen(name);
+          if (strncmp(p, name, n) == 0 && isspace(p[n])) {
+            extend = i + 1;
+            p = skip_whitespaces(p + n + 1);
+
+            if (*p == '#') {
+              p = p + 1;
+              int64_t imm;
+              if (immediate(&p, &imm)) {
+                scale = new_expr(EX_FIXNUM);
+                scale->fixnum = imm;
+              } else {
+                // parse_error(info, "Offset expected");
+                return 0;  // Error
+              }
+            }
+            break;
+          }
+        }
+      }
     }
-    if (*p == ']') {
-      if (*++p == '!') {
+
+    p = skip_whitespaces(p);
+  }
+
+  if (*p != ']')
+    // parse_error(info, "`]' expected");
+    return 0;  // Error
+
+  p = skip_whitespaces(p + 1);
+  if (reg2 == NOREG) {
+    if (offset != NULL) {
+      if (*p == '!') {
         prepost = 1;
         ++p;
       }
-    } else {
-      parse_error(info, "`]' expected");
-    }
-  } else if (*p == ']') {
-    p = skip_whitespaces(p + 1);
-    if (*p == ',') {
+    } else if (*p == ',') {
       const char *q = skip_whitespaces(p + 1);
       if (*q == '#') {
         p = q + 1;
@@ -212,19 +251,33 @@ static bool parse_indirect_register(ParseInfo *info, Operand *operand) {
           offset->fixnum = imm;
           prepost = 2;
         } else {
-          parse_error(info, "Offset expected");
+          // parse_error(info, "Offset expected");
+          return 0;  // Error
         }
       }
     }
-  } else {
-    parse_error(info, "`,` or `]' expected");
-  }
 
-  operand->type = INDIRECT;
-  operand->indirect.offset = offset;
-  operand->indirect.prepost = prepost;
-  parse_set_p(info, p);
-  return true;
+    operand->type = INDIRECT;
+    operand->indirect.offset = offset;
+    operand->indirect.prepost = prepost;
+    parse_set_p(info, p);
+    return IND;
+  } else {
+    operand->type = REGISTER_OFFSET;
+    operand->register_offset.base_reg.size = REG64;
+    operand->register_offset.base_reg.no = reg - X0;
+    if (is_reg64(reg2)) {
+      operand->register_offset.index_reg.size = REG64;
+      operand->register_offset.index_reg.no = reg2 - X0;
+    } else {
+      operand->register_offset.index_reg.size = REG32;
+      operand->register_offset.index_reg.no = reg2 - W0;
+    }
+    operand->register_offset.extend = extend;
+    operand->register_offset.scale = scale;
+    parse_set_p(info, p);
+    return ROI;
+  }
 }
 
 unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *operand) {
@@ -242,8 +295,7 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
   if (opr_flag & IND) {
     if (*p == '[') {
       info->p = p + 1;
-      if (parse_indirect_register(info, operand))
-        return IND;
+      return parse_indirect_register(info, operand);
     }
   }
 
@@ -372,14 +424,14 @@ const ParseInstTable kParseInstTable[] = {
   [R_UXTB] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){UXTB, {R32 | R64, R32}} } },
   [R_UXTH] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){UXTH, {R32 | R64, R32}} } },
   [R_UXTW] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){UXTW, {R64, R32}} } },
-  [R_LDRB] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDRB, {R32 | R64, IND}} } },
-  [R_LDRH] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDRH, {R32 | R64, IND}} } },
-  [R_LDR] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDR, {R32 | R64, IND}} } },
-  [R_LDRSB] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDRSB, {R32 | R64, IND}} } },
-  [R_LDRSH] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDRSH, {R32 | R64, IND}} } },
-  [R_STRB] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){STRB, {R32, IND}} } },
-  [R_STRH] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){STRH, {R32, IND}} } },
-  [R_STR] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){STR, {R32 | R64, IND}} } },
+  [R_LDRB] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDRB, {R32 | R64, IND | ROI}} } },
+  [R_LDRH] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDRH, {R32 | R64, IND | ROI}} } },
+  [R_LDR] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDR, {R32 | R64, IND | ROI}} } },
+  [R_LDRSB] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDRSB, {R32 | R64, IND | ROI}} } },
+  [R_LDRSH] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){LDRSH, {R32 | R64, IND | ROI}} } },
+  [R_STRB] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){STRB, {R32, IND | ROI}} } },
+  [R_STRH] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){STRH, {R32, IND | ROI}} } },
+  [R_STR] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){STR, {R32 | R64, IND | ROI}} } },
   [R_LDP] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){LDP, {R32, R32, IND}}, &(ParseOpArray){LDP, {R64, R64, IND}} } },
   [R_STP] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){STP, {R32, R32, IND}}, &(ParseOpArray){STP, {R64, R64, IND}} } },
   [R_ADRP] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){ADRP, {R64, EXP}} } },
