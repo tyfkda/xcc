@@ -48,9 +48,12 @@ static unsigned char *asm_mov(Inst *inst, Code *code) {
     {
       assert(opr1->reg.size == opr2->reg.size);
       uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
-      P_MOV(sz, opr1->reg.no, opr2->reg.no);
-      return code->buf;
+      if (opr1->reg.sp || opr2->reg.sp)
+        P_MOV_SP(sz, opr1->reg.no, opr2->reg.no);
+      else
+        P_MOV(sz, opr1->reg.no, opr2->reg.no);
     }
+    return code->buf;
   case IMMEDIATE:
     {
       uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;

@@ -61,6 +61,7 @@
 #define W_RET(rn)                                  MAKE_CODE32(inst, code, 0xd65f0000U | ((rn) << 5))
 
 #define P_MOV(sz, rd, rs)                          W_ORR_S(sz, rd, ZERO, rs, 0)
+#define P_MOV_SP(sz, rd, rs)                       W_ADD_I(sz, rd, rs, 0)
 #define P_MUL(sz, rd, rn, rm)                      W_MADD(sz, rd, rn, rm, ZERO)
 #define P_CMP(sz, rm, rn)                          W_SUBS_S(sz, ZERO, rm, rn, 0)
 #define P_CMP_I(sz, rd, imm)                       W_SUBS_I(sz, ZERO, rd, imm)

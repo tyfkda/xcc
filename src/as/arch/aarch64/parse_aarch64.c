@@ -58,11 +58,12 @@ enum RegType {
 
   // 32bit
    W0,  W1,  W2,  W3,  W4,  W5,  W6,  W7,  W8,  W9, W10, W11, W12, W13, W14, W15,
-  W16, W17, W18, W19, W20, W21, W22, W23, W24, W25, W26, W27, W28, W29, W30, W31,
+  W16, W17, W18, W19, W20, W21, W22, W23, W24, W25, W26, W27, W28, W29, W30, WZR,
 
   // 64bit
    X0,  X1,  X2,  X3,  X4,  X5,  X6,  X7,  X8,  X9, X10, X11, X12, X13, X14, X15,
-  X16, X17, X18, X19, X20, X21, X22, X23, X24, X25, X26, X27, X28, X29, X30, X31,
+  X16, X17, X18, X19, X20, X21, X22, X23, X24, X25, X26, X27, X28, X29, X30, XZR,
+  SP,
 };
 
 typedef struct {
@@ -72,9 +73,6 @@ typedef struct {
 
 #define FP   X29
 #define LR   X30
-#define SP   X31
-#define XZR  X31
-#define WZR  W31
 
 static const RegisterTable kRegisters32[] = {
   {"w0", W0},    {"w1", W1},    {"w2", W2},    {"w3", W3},
@@ -84,9 +82,7 @@ static const RegisterTable kRegisters32[] = {
   {"w16", W16},  {"w17", W17},  {"w18", W18},  {"w19", W19},
   {"w20", W20},  {"w21", W21},  {"w22", W22},  {"w23", W23},
   {"w24", W24},  {"w25", W25},  {"w26", W26},  {"w27", W27},
-  {"w28", W28},  {"w29", W29},  {"w30", W30},  {"w31", W31},
-  // Alias
-  {"wzr", WZR},
+  {"w28", W28},  {"w29", W29},  {"w30", W30},  {"wzr", WZR},
 };
 
 static const RegisterTable kRegisters64[] = {
@@ -97,9 +93,11 @@ static const RegisterTable kRegisters64[] = {
   {"x16", X16},  {"x17", X17},  {"x18", X18},  {"x19", X19},
   {"x20", X20},  {"x21", X21},  {"x22", X22},  {"x23", X23},
   {"x24", X24},  {"x25", X25},  {"x26", X26},  {"x27", X27},
-  {"x28", X28},  {"x29", X29},  {"x30", X30},  {"x31", X31},
+  {"x28", X28},  {"x29", X29},  {"x30", X30},  {"xzr", XZR},
   // Alias
-  {"fp", FP},    {"lr", LR},    {"sp", SP},    {"xzr", XZR},
+  {"fp", FP},    {"lr", LR},
+  // Stack pointer
+  {"sp", SP},
 };
 
 static const char kCondTable[][3] = {
@@ -108,7 +106,7 @@ static const char kCondTable[][3] = {
 };
 
 inline bool is_reg32(enum RegType reg) {
-  return reg >= W0 && reg <= W31;
+  return reg >= W0 && reg <= WZR;
 }
 
 inline bool is_reg64(enum RegType reg) {
@@ -117,12 +115,14 @@ inline bool is_reg64(enum RegType reg) {
 
 #define R32  (1 << 0)
 #define R64  (1 << 1)
-#define IMM  (1 << 2)
-#define IND  (1 << 3)
-#define ROI  (1 << 4)  // Register Offset Indirect
-#define EXP  (1 << 5)
-#define CND  (1 << 6)
-#define SFT  (1 << 7)  // lsl #nn
+#define RSP  (1 << 2)
+#define RZR  (1 << 3)
+#define IMM  (1 << 4)
+#define IND  (1 << 5)
+#define ROI  (1 << 6)  // Register Offset Indirect
+#define EXP  (1 << 7)
+#define CND  (1 << 8)
+#define SFT  (1 << 9)  // lsl #nn
 
 static enum RegType find_register(const char **pp, unsigned int flag) {
   const char *p = *pp;
@@ -167,7 +167,10 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
     parse_error(info, "Base register expected");
     return 0;
   }
-  if (is_reg64(reg)) {
+  if (reg == SP) {
+    operand->indirect.reg.size = REG64;
+    operand->indirect.reg.no = 31;
+  } else if (is_reg64(reg) && reg != XZR) {
     operand->indirect.reg.size = REG64;
     operand->indirect.reg.no = reg - X0;
   } else {
@@ -304,12 +307,19 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
     if (reg != NOREG) {
       enum RegSize size;
       int no;
-      if (is_reg32(reg)) {
+      unsigned int result;
+      if (reg == SP) {
+        size = REG64;
+        no = 31;
+        result = RSP;
+      } else if (is_reg32(reg)) {
         size = REG32;
         no = reg - W0;
+        result = R32;
       } else if (is_reg64(reg)) {
         size = REG64;
         no = reg - X0;
+        result = R64;
       } else {
         assert(false);
         return 0;
@@ -318,7 +328,8 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
       operand->type = REG;
       operand->reg.size = size;
       operand->reg.no = no;
-      return size == REG32 ? R32 : R64;
+      operand->reg.sp = reg == SP;
+      return result;
     }
   }
 
@@ -359,7 +370,7 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
 const ParseInstTable kParseInstTable[] = {
   [R_MOV] = { 3, (const ParseOpArray*[]){
     &(ParseOpArray){MOV, {R32, R32}},
-    &(ParseOpArray){MOV, {R64, R64}},
+    &(ParseOpArray){MOV, {R64 | RSP, R64 | RSP}},
     &(ParseOpArray){MOV, {R32 | R64, IMM}},
   } },
   [R_MOVK] = { 1, (const ParseOpArray*[]){
@@ -370,16 +381,16 @@ const ParseInstTable kParseInstTable[] = {
     &(ParseOpArray){ADD_I, {R32, R32, IMM}},
     &(ParseOpArray){ADD_I, {R32, R32, EXP}},
     &(ParseOpArray){ADD_R, {R64, R64, R64}},
-    &(ParseOpArray){ADD_I, {R64, R64, IMM}},
-    &(ParseOpArray){ADD_I, {R64, R64, EXP}},
+    &(ParseOpArray){ADD_I, {R64 | RSP, R64 | RSP, IMM}},
+    &(ParseOpArray){ADD_I, {R64 | RSP, R64 | RSP, EXP}},
   } },
   [R_SUB] = { 6, (const ParseOpArray*[]){
     &(ParseOpArray){SUB_R, {R32, R32, R32}},
     &(ParseOpArray){SUB_I, {R32, R32, IMM}},
     &(ParseOpArray){SUB_I, {R32, R32, EXP}},
     &(ParseOpArray){SUB_R, {R64, R64, R64}},
-    &(ParseOpArray){SUB_I, {R64, R64, IMM}},
-    &(ParseOpArray){SUB_I, {R64, R64, EXP}},
+    &(ParseOpArray){SUB_I, {R64 | RSP, R64 | RSP, IMM}},
+    &(ParseOpArray){SUB_I, {R64 | RSP, R64 | RSP, EXP}},
   } },
   [R_MUL] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){MUL, {R32, R32, R32}}, &(ParseOpArray){MUL, {R64, R64, R64}} } },
   [R_SDIV] = { 2, (const ParseOpArray*[]){ &(ParseOpArray){SDIV, {R32, R32, R32}}, &(ParseOpArray){SDIV, {R64, R64, R64}} } },

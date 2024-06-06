@@ -38,7 +38,8 @@ enum RegSize {
 
 typedef struct {
   char size;  // RegSize
-  char no;  // 0~31
+  char no;    // 0~31
+  char sp;
 } Reg;
 
 enum CondType {
