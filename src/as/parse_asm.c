@@ -237,7 +237,13 @@ static Token *new_token(enum TokenKind kind) {
 static Token *read_flonum(ParseInfo *info, int base) {
   const char *start = info->p;
   char *next;
+#ifdef __XCC
+  // long double in XCC is same as double, and if the target platform uses
+  // system library, it makes discrepancy.
+  Flonum val = strtod(start, &next);
+#else
   Flonum val = strtold(start, &next);
+#endif
   Token *tok = new_token(TK_FLONUM);
   tok->flonum = val;
   info->p = next;

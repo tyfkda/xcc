@@ -414,7 +414,13 @@ static const char *skip_whitespace_or_comment(const char *p) {
 static Token *read_flonum(const char **pp, int base) {
   const char *start = *pp;
   char *next;
+#ifdef __XCC
+  // long double in XCC is same as double, and if the target platform uses
+  // system library, it makes discrepancy.
+  Flonum val = strtod(start, &next);
+#else
   Flonum val = strtold(start, &next);
+#endif
   enum TokenKind tk = TK_DOUBLELIT;
   switch (tolower(*next)) {
   case 'f':

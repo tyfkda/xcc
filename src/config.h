@@ -37,10 +37,17 @@
 
 //
 
-#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-# define USE_SYS_AS
-# define USE_SYS_LD
-# if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+// Apple
+#  define USE_SYS_AS
+#  define USE_SYS_LD
+
+#else
+// Posix
+
+# if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+#  define USE_SYS_AS
+#  define USE_SYS_LD
 #  define NO_STD_LIB
 # endif
 #endif

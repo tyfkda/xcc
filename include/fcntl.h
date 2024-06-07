@@ -19,7 +19,12 @@
 #define S_IWOTH         (0002)
 #define S_IXOTH         (0001)
 
+#ifdef __APPLE__
+#define AT_FDCWD  -2
+#else
 #define AT_FDCWD  -100
+#endif
+
 #define AT_SYMLINK_NOFOLLOW  0x100
 #define AT_SYMLINK_FOLLOW    0x400
 #define AT_EACCESS           0x200

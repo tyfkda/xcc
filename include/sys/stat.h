@@ -125,3 +125,15 @@ int stat(const char *pathname, struct stat *buf);
 int fstat(int fd, struct stat *buf);
 int lstat(const char *pathname, struct stat *buf);
 int fstatat(int fd, const char *pathname, struct stat *buf, int flag);
+
+#if defined(__APPLE__)
+// Patch for Rosetta2/x64
+int stat64(const char *pathname, struct stat *buf);
+int fstat64(int fd, struct stat *buf);
+int lstat64(const char *pathname, struct stat *buf);
+int fstatat64(int fd, const char *pathname, struct stat *buf, int flag);
+#define stat(pathname, buf)   stat64(pathname, buf)
+#define fstat(pathname, buf)  fstat64(pathname, buf)
+#define lstat(pathname, buf)  lstat64(pathname, buf)
+#define fstatat(fd, p, b, f)  fstatat64(fd, p, b, f)
+#endif
