@@ -29,6 +29,15 @@ enum Opcode {
   BHI, BLS, BGE, BLT, BGT, BLE, BAL, BNV,
   BL, BLR,
   RET,
+
+  F_LDR, F_STR,
+  F_LDP, F_STP,
+  FMOV,
+  FADD, FSUB, FMUL, FDIV,
+  FCMP, FNEG,
+  FSQRT,
+  SCVTF, UCVTF,
+  FCVT, FCVTZS, FCVTZU,
 };
 
 enum RegSize {
@@ -63,6 +72,7 @@ enum OperandType {
               // post-index: [reg],#nn
   REGISTER_OFFSET,  // [reg,reg,#nn]
   COND,
+  FREG,       // freg
 };
 
 typedef struct {

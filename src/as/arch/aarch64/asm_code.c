@@ -349,6 +349,122 @@ static unsigned char *asm_ret(Inst *inst, Code *code) {
   return code->buf;
 }
 
+
+// FP instructions.
+
+static unsigned char *asm_f_ldrstr(Inst *inst, Code *code) {
+  Operand *opr1 = &inst->opr[0];
+  Operand *opr2 = &inst->opr[1];
+  uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
+  if (opr2->type == INDIRECT) {
+    assert(opr2->indirect.reg.size == REG64);
+    // assert(opr2->indirect.offset == NULL || opr2->indirect.offset->kind == EX_FIXNUM);
+    Expr *offset_expr = opr2->indirect.offset;
+    int64_t offset = offset_expr != NULL && offset_expr->kind == EX_FIXNUM ? offset_expr->fixnum : 0;
+    assert(offset < (1 << (6 + 3)) && offset >= -(1 << (6 + 3)));
+    uint32_t base = opr2->indirect.reg.no;
+    uint32_t prepost = kPrePost[opr2->indirect.prepost];
+
+    switch (inst->op) {
+    case F_LDR:
+      {
+        uint32_t s = 0;
+        if (opr2->indirect.prepost == 0) {
+          if (offset >= 0)
+            F_LDR_UIMM(sz, s, opr1->reg.no, offset >> (2 + sz), base);
+          else
+            F_LDUR(sz, s, opr1->reg.no, offset, base);
+        } else {
+          F_LDR(sz, s, opr1->reg.no, offset, base, prepost);
+        }
+      }
+      break;
+    case F_STR:
+      if (opr2->indirect.prepost == 0) {
+        if (offset >= 0)
+          F_STR_UIMM((inst->op - STRB) | sz, opr1->reg.no, 0, base);
+        else
+          F_STUR((inst->op - STRB) | sz, opr1->reg.no, offset, base);
+      } else {
+        F_STR((inst->op - STRB) | sz, opr1->reg.no, offset, base, prepost);
+      }
+      break;
+    default: assert(false); break;
+    }
+    return code->buf;
+  } else {
+    assert(opr2->type == REGISTER_OFFSET);
+    assert(opr2->register_offset.scale == NULL || opr2->register_offset.scale->kind == EX_FIXNUM);
+
+    static const uint32_t opts[] = {3, 6, 2, 3, 3};
+    uint32_t opt = opts[opr2->register_offset.extend];
+    uint32_t s = opr2->register_offset.extend > 0 ? 1 : 0;
+
+    switch (inst->op) {
+    case LDR:    W_LDR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, sz2, s, opt); break;
+    case STR:    W_STR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opt); break;
+    default: assert(false); break;
+    }
+    return code->buf;
+  }
+}
+
+static unsigned char *asm_f_ldpstp(Inst *inst, Code *code) {
+  Operand *opr1 = &inst->opr[0];
+  Operand *opr2 = &inst->opr[1];
+  uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
+  Operand *opr3 = &inst->opr[2];
+  assert(opr3->indirect.reg.size == REG64);
+  assert(opr3->indirect.offset->kind == EX_FIXNUM);
+  int64_t offset = opr3->indirect.offset->fixnum;
+  assert(offset < (1 << (6 + 3)) && offset >= -(1 << (6 + 3)));
+  uint32_t base = opr3->indirect.reg.no;
+  uint32_t prepost = kPrePost[opr3->indirect.prepost];
+  switch (inst->op) {
+  case F_LDP:  F_LDP(sz, opr1->reg.no, opr2->reg.no, base, offset, prepost); break;
+  case F_STP:  F_STP(sz, opr1->reg.no, opr2->reg.no, base, offset, prepost); break;
+  default: assert(false); break;
+  }
+  return code->buf;
+}
+
+static unsigned char *asm_f_3r(Inst *inst, Code *code) {
+  Operand *opr1 = &inst->opr[0];
+  Operand *opr2 = &inst->opr[1];
+  Operand *opr3 = &inst->opr[2];
+  uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
+
+  switch (inst->op) {
+  case FADD:  FADD(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no); break;
+  case FSUB:  FSUB(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no); break;
+  case FMUL:  FMUL(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no); break;
+  case FDIV:  FDIV(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no); break;
+  default: assert(false); break;
+  }
+  return code->buf;
+}
+
+static unsigned char *asm_f_2r(Inst *inst, Code *code) {
+  Operand *opr1 = &inst->opr[0];
+  Operand *opr2 = &inst->opr[1];
+  uint32_t dsz = opr1->reg.size == REG64 ? 1 : 0;
+  uint32_t ssz = opr2->reg.size == REG64 ? 1 : 0;
+
+  switch (inst->op) {
+  case FMOV:    FMOV(dsz, opr1->reg.no, opr2->reg.no); break;
+  case FCMP:    FCMP(dsz, opr1->reg.no, opr2->reg.no); break;
+  case FNEG:    FNEG(dsz, opr1->reg.no, opr2->reg.no); break;
+  case FSQRT:   FSQRT(dsz, opr1->reg.no, opr2->reg.no); break;
+  case SCVTF:   SCVTF(ssz, opr1->reg.no, dsz, opr2->reg.no); break;
+  case UCVTF:   UCVTF(ssz, opr1->reg.no, dsz, opr2->reg.no); break;
+  case FCVT:    FCVT(dsz, opr1->reg.no, opr2->reg.no); break;
+  case FCVTZS:  FCVTZS(dsz, opr1->reg.no, ssz, opr2->reg.no); break;
+  case FCVTZU:  FCVTZU(dsz, opr1->reg.no, ssz, opr2->reg.no); break;
+  default: assert(false); break;
+  }
+  return code->buf;
+}
+
 ////////////////////////////////////////////////
 
 typedef unsigned char *(*AsmInstFunc)(Inst *inst, Code *code);
@@ -384,6 +500,17 @@ static const AsmInstFunc table[] = {
   [BL] = asm_bl,
   [BLR] = asm_blr,
   [RET] = asm_ret,
+
+  [F_LDR] = asm_f_ldrstr,
+  [F_STR] = asm_f_ldrstr,
+  [F_LDP] = asm_f_ldpstp,
+  [F_STP] = asm_f_ldpstp,
+  [FMOV] = asm_f_2r,
+  [FADD] = asm_f_3r, [FSUB] = asm_f_3r, [FMUL] = asm_f_3r, [FDIV] = asm_f_3r,
+  [FCMP] = asm_f_2r, [FNEG] = asm_f_2r,
+  [FSQRT] = asm_f_2r,
+  [SCVTF] = asm_f_2r, [UCVTF] = asm_f_2r,
+  [FCVT] = asm_f_2r, [FCVTZS] = asm_f_2r, [FCVTZU] = asm_f_2r,
 };
 
 void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
