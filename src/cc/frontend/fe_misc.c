@@ -516,8 +516,7 @@ Expr *promote_to_int(Expr *expr) {
   enum FixnumKind kind = expr->type->fixnum.kind;
   if (kind >= FX_INT && kind <= FX_LLONG)
     return expr;
-  Type *type = get_fixnum_type(FX_INT, expr->type->fixnum.is_unsigned, expr->type->qualifier);
-  return make_cast(type, expr->token, expr, false);
+  return make_cast(&tyInt, expr->token, expr, false);
 }
 
 Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {

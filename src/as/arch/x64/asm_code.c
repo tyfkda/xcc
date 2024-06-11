@@ -560,14 +560,13 @@ static unsigned char *asm_mulss_xx(Inst *inst, Code *code) { return assemble_bop
 static unsigned char *asm_divsd_xx(Inst *inst, Code *code) { return assemble_bop_sd(inst, code, false, 0x5e); }
 static unsigned char *asm_divss_xx(Inst *inst, Code *code) { return assemble_bop_sd(inst, code, true, 0x5e); }
 
-static unsigned char *asm_xorpd_xx(Inst *inst, Code *code) {
-  bool single = inst->op == XORPS;
+static unsigned char *assemble_xorpd_xx(Inst *inst, Code *code, bool single) {
   unsigned char *p = code->buf;
   if (inst->opr[0].type == REG_XMM && inst->opr[1].type == REG_XMM) {
     unsigned char sno = inst->opr[0].regxmm - XMM0;
     unsigned char dno = inst->opr[1].regxmm - XMM0;
     short buf[] = {
-      single ? 0x66 : -1,
+      single ? -1 : 0x66,
       sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
       0x0f,
       0x57,
@@ -578,7 +577,8 @@ static unsigned char *asm_xorpd_xx(Inst *inst, Code *code) {
 
   return p;
 }
-#define asm_xorps_xx  asm_xorpd_xx
+static unsigned char *asm_xorpd_xx(Inst *inst, Code *code) { return assemble_xorpd_xx(inst, code, false); }
+static unsigned char *asm_xorps_xx(Inst *inst, Code *code) { return assemble_xorpd_xx(inst, code, true); }
 
 static unsigned char *assemble_ucomisd(Inst *inst, Code *code, unsigned char opc, bool single) {
   unsigned char *p = code->buf;
@@ -757,14 +757,14 @@ static unsigned char *asm_add_rr(Inst *inst, Code *code) {
 static unsigned char *asm_add_imr(Inst *inst, Code *code) {
   long value = inst->opr[0].immediate;
   if (is_im32(value)) {
-    bool im8 = is_im8(value);
     enum RegSize size = inst->opr[1].reg.size;
+    bool im8 = is_im8(value) || size == REG8;
     int d = opr_regno(&inst->opr[1].reg);
     unsigned char *p = code->buf;
-    if (d == RAX - RAX && (size == REG8 || !is_im8(value)))
+    if (d == RAX - RAX && (size == REG8 || !im8))
       p = put_rex0(p, size, 0, d, im8 ? 0x04 : 0x05);
     else
-      p = put_rex1(p, size, 0xc0, d, im8 ? 0x83 : 0x81);
+      p = put_rex1(p, size, 0xc0, d, size == REG8 ? 0x80 : im8 ? 0x83 : 0x81);
 
     if (im8) {
       *p++ = IM8(value);
@@ -875,14 +875,14 @@ static unsigned char *asm_sub_rr(Inst *inst, Code *code) {
 static unsigned char *asm_sub_imr(Inst *inst, Code *code) {
   long value = inst->opr[0].immediate;
   if (is_im32(value)) {
-    bool im8 = is_im8(value);
     enum RegSize size = inst->opr[1].reg.size;
+    bool im8 = is_im8(value) || size == REG8;
     int d = opr_regno(&inst->opr[1].reg);
     unsigned char *p = code->buf;
-    if (d == RAX - RAX && (size == REG8 || !is_im8(value)))
+    if (d == RAX - RAX && (size == REG8 || !im8))
       p = put_rex0(p, size, 0, d, im8 ? 0x2c : 0x2d);
     else
-      p = put_rex1(p, size, 0xe8, d, im8 ? 0x83 : 0x81);
+      p = put_rex1(p, size, 0xe8, d, size == REG8 ? 0x80 : im8 ? 0x83 : 0x81);
 
     if (im8) {
       *p++ = IM8(value);
@@ -1037,8 +1037,9 @@ static unsigned char *asm_not_r(Inst *inst, Code *code) {
 
 static unsigned char *asm_inc_r(Inst *inst, Code *code) {
   unsigned char *p = code->buf;
-  p = put_rex1(p, inst->opr[0].reg.size,
-               0xc0, opr_regno(&inst->opr[0].reg), 0xff);
+  Reg *reg = &inst->opr[0].reg;
+  p = put_rex1(p, reg->size,
+               0xc0, opr_regno(reg), reg->size == REG8 ? 0xfe : 0xff);
   return p;
 }
 
@@ -1062,8 +1063,9 @@ static unsigned char *asm_incbwlq_i(Inst *inst, Code *code) {
 
 static unsigned char *asm_dec_r(Inst *inst, Code *code) {
   unsigned char *p = code->buf;
-  p = put_rex1(p, inst->opr[0].reg.size,
-               0xc8, opr_regno(&inst->opr[0].reg), 0xff);
+  Reg *reg = &inst->opr[0].reg;
+  p = put_rex1(p, reg->size,
+               0xc8, opr_regno(reg), reg->size == REG8 ? 0xfe : 0xff);
   return p;
 }
 
@@ -1100,7 +1102,7 @@ static unsigned char *asm_and_imr(Inst *inst, Code *code) {
   if (is_im8(value) && (size != REG8 || opr_regno(&inst->opr[1].reg) != AL - AL)) {
     p = put_rex1(p, size,
                  0xe0, opr_regno(&inst->opr[1].reg),
-                 0x83);
+                 size == REG8 ? 0x80 : 0x83);
     *p++ = IM8(value);
     return p;
   } else if (size <= REG32 || is_im32(value)) {
@@ -1142,7 +1144,7 @@ static unsigned char *asm_or_imr(Inst *inst, Code *code) {
   if (is_im8(value) && (size != REG8 || opr_regno(&inst->opr[1].reg) != AL - AL)) {
     p = put_rex1(p, size,
                  0xc8, opr_regno(&inst->opr[1].reg),
-                 0x83);
+                 size == REG8 ? 0x80 : 0x83);
     *p++ = IM8(value);
     return p;
   } else if (size <= REG32 || is_im32(value)) {
@@ -1183,7 +1185,7 @@ static unsigned char *asm_xor_imr(Inst *inst, Code *code) {
   if (is_im8(value) && (size != REG8 || opr_regno(&inst->opr[1].reg) != AL - AL)) {
     p = put_rex1(p, size,
                  0xf0, opr_regno(&inst->opr[1].reg),
-                 0x83);
+                 size == REG8 ? 0x80 : 0x83);
     *p++ = IM8(value);
     return p;
   } else if (size <= REG32 || is_im32(value)) {

@@ -1195,6 +1195,7 @@ static Expr *parse_shift(void) {
         !is_fixnum(rhs->type->kind))
       parse_error(PE_FATAL, tok, "Cannot use `%.*s' except numbers.", (int)(tok->end - tok->begin), tok->begin);
 
+    lhs = promote_to_int(lhs);
     if (is_const(lhs) && is_const(rhs)) {
       Type *type = lhs->type;
       if (type->fixnum.kind < FX_INT)
@@ -1212,7 +1213,6 @@ static Expr *parse_shift(void) {
       value = wrap_value(value, type_size(type), type->fixnum.is_unsigned);
       expr = new_expr_fixlit(type, tok, value);
     } else {
-      lhs = promote_to_int(lhs);
       expr = new_expr_bop(kind, lhs->type, tok, lhs, rhs);
     }
   }
