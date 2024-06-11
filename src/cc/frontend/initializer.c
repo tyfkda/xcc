@@ -556,8 +556,11 @@ static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
         break;
       }
 
-      if (!is_global_scope(scope) && !(varinfo->storage & VS_STATIC))
-        parse_error(PE_FATAL, value->token, "Allowed global reference only");
+      if (!is_global_scope(scope) && !(varinfo->storage & VS_STATIC) &&
+          get_callee_type(value->type) == NULL) {
+        parse_error(PE_NOFATAL, value->token, "Allowed global reference only");
+        return NULL;
+      }
       *isconst = value->type->kind == TY_ARRAY || value->type->kind == TY_FUNC ||
                  (value->type->kind == TY_PTR && value->type->pa.ptrof->kind == TY_FUNC);
     }
@@ -586,8 +589,10 @@ static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
     break;
   case EX_MEMBER:
     value->member.target = check_global_initializer_fixnum(value->member.target, isconst);
-    if (value->token->kind != TK_DOT)
-      parse_error(PE_FATAL, value->token, "Allowed global reference only");
+    if (value->token->kind != TK_DOT) {
+      parse_error(PE_NOFATAL, value->token, "Allowed global reference only");
+      return NULL;
+    }
     *isconst = value->type->kind == TY_ARRAY;
     break;
   default:
