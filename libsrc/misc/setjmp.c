@@ -37,19 +37,19 @@ int setjmp(jmp_buf env) {
 #define SAVE_FREGS  // Empty
 #else
 #define SAVE_FREGS \
-        "stp d8, d9, [x0, 112]\n" \
-        "stp d10, d11, [x0, 128]\n" \
-        "stp d12, d13, [x0, 144]\n" \
-        "stp d14, d15, [x0, 160]\n"
+        "stp d8, d9, [x0, #112]\n" \
+        "stp d10, d11, [x0, #128]\n" \
+        "stp d12, d13, [x0, #144]\n" \
+        "stp d14, d15, [x0, #160]\n"
 #endif
   __asm("stp fp, lr, [x0]\n"
         "mov x9, sp\n"
-        "stp x9, x19, [x0, 16]\n"
-        "stp x20, x21, [x0, 32]\n"
-        "stp x22, x23, [x0, 48]\n"
-        "stp x24, x25, [x0, 64]\n"
-        "stp x26, x27, [x0, 80]\n"
-        "stp x28, x29, [x0, 96]\n"
+        "stp x9, x19, [x0, #16]\n"
+        "stp x20, x21, [x0, #32]\n"
+        "stp x22, x23, [x0, #48]\n"
+        "stp x24, x25, [x0, #64]\n"
+        "stp x26, x27, [x0, #80]\n"
+        "stp x28, x29, [x0, #96]\n"
         SAVE_FREGS
         "mov w0, wzr");
 }

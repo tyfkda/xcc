@@ -29,6 +29,7 @@ enum RawOpcode {
   R_BHI, R_BLS, R_BGE, R_BLT, R_BGT, R_BLE, R_BAL, R_BNV,
   R_BL, R_BLR,
   R_RET,
+  R_SVC,
 
   R_FMOV,
   R_FADD, R_FSUB, R_FMUL, R_FDIV,
@@ -57,6 +58,7 @@ const char *kRawOpTable[] = {
   "bhi", "bls", "bge", "blt", "bgt", "ble", "bal", "bnv",
   "bl", "blr",
   "ret",
+  "svc",
 
   "fmov",
   "fadd", "fsub", "fmul", "fdiv",
@@ -548,6 +550,7 @@ const ParseInstTable kParseInstTable[] = {
   [R_BL] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BL, {EXP}} } },
   [R_BLR] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BLR, {R64}} } },
   [R_RET] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){RET} } },
+  [R_SVC] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){SVC, {IMM}} } },
 
   [R_FMOV] = { 2, (const ParseOpArray*[]){
     &(ParseOpArray){FMOV, {F32, F32}},

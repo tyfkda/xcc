@@ -29,6 +29,7 @@ enum Opcode {
   BHI, BLS, BGE, BLT, BGT, BLE, BAL, BNV,
   BL, BLR,
   RET,
+  SVC,
 
   F_LDR, F_STR,
   F_LDP, F_STP,

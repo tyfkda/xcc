@@ -4,7 +4,7 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
-char **environ;
+extern char **environ;
 
 #if defined(__linux__)
 

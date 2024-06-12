@@ -363,6 +363,11 @@ static unsigned char *asm_ret(Inst *inst, Code *code) {
   return code->buf;
 }
 
+static unsigned char *asm_svc(Inst *inst, Code *code) {
+  Operand *opr1 = &inst->opr[0];
+  W_SVC(opr1->immediate);
+  return code->buf;
+}
 
 // FP instructions.
 
@@ -514,6 +519,7 @@ static const AsmInstFunc table[] = {
   [BL] = asm_bl,
   [BLR] = asm_blr,
   [RET] = asm_ret,
+  [SVC] = asm_svc,
 
   [F_LDR] = asm_f_ldrstr,
   [F_STR] = asm_f_ldrstr,

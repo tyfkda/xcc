@@ -61,6 +61,7 @@
 #define W_BL(offset)                               MAKE_CODE32(inst, code, 0x94000000U | ((offset) & ((1U << 26) - 1)))
 #define W_BLR(rn)                                  MAKE_CODE32(inst, code, 0xd63f0000U | ((rn) << 5))
 #define W_RET(rn)                                  MAKE_CODE32(inst, code, 0xd65f0000U | ((rn) << 5))
+#define W_SVC(imm)                                 MAKE_CODE32(inst, code, 0xd4000001U | ((imm) << 5))
 
 #define P_MOV(sz, rd, rs)                          W_ORR_S(sz, rd, ZERO, rs, 0)
 #define P_MOV_SP(sz, rd, rs)                       W_ADD_I(sz, rd, rs, 0)
