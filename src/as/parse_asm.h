@@ -64,10 +64,18 @@ enum ExprKind {
 typedef long double Flonum;
 #endif
 
+#define LF_PAGE     (1 << 0)
+#define LF_PAGEOFF  (1 << 1)
+#define LF_LO12     (1 << 2)
+#define LF_GOT      (1 << 3)
+
 typedef struct Expr {
   enum ExprKind kind;
   union {
-    const Name *label;
+    struct {
+      const Name *name;
+      int flag;
+    } label;
     int64_t fixnum;
     struct {
       struct Expr *lhs;
@@ -86,6 +94,7 @@ extern int current_section;  // enum SectionType
 extern bool err;
 
 Line *parse_line(ParseInfo *info);
+void parse_set_p(ParseInfo *info, const char *p);
 void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_irs,
                       Table *label_table);
 void parse_error(const ParseInfo *info, const char *message);
@@ -110,9 +119,14 @@ const Name *unquote_label(const char *p, const char *q);
 Expr *parse_expr(ParseInfo *info);
 Expr *new_expr(enum ExprKind kind);
 
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+Expr *parse_got_label(ParseInfo *info);
+#endif
+
 typedef struct {
   const Name *label;
   int64_t offset;
+  int flag;
 } Value;
 
 Value calc_expr(Table *label_table, const Expr *expr);

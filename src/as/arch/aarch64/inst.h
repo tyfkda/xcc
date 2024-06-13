@@ -8,8 +8,37 @@ typedef struct Expr Expr;
 
 enum Opcode {
   NOOP,
-  MOV,
+  MOV, MOVK,
+  ADD_R, ADD_I, SUB_R, SUB_I,
+  MUL, SDIV, UDIV,
+  MADD, MSUB,
+  AND, ORR, EOR, EON,
+  CMP_R, CMP_I, CMN_R, CMN_I,
+  LSL_R, LSL_I,
+  LSR_R, LSR_I,
+  ASR_R, ASR_I,
+  SXTB, SXTH, SXTW,
+  UXTB, UXTH, UXTW,
+  LDRB, LDRH, LDR, LDRSB, LDRSH, LDRSW,
+  STRB, STRH, STR,
+  LDP, STP,
+  ADRP,
+  CSET,
+  B, BR,
+  BEQ, BNE, BHS, BLO, BMI, BPL, BVS, BVC,
+  BHI, BLS, BGE, BLT, BGT, BLE, BAL, BNV,
+  BL, BLR,
   RET,
+  SVC,
+
+  F_LDR, F_STR,
+  F_LDP, F_STP,
+  FMOV,
+  FADD, FSUB, FMUL, FDIV,
+  FCMP, FNEG,
+  FSQRT,
+  SCVTF, UCVTF,
+  FCVT, FCVTZS, FCVTZU,
 };
 
 enum RegSize {
@@ -19,13 +48,32 @@ enum RegSize {
 
 typedef struct {
   char size;  // RegSize
-  char no;  // 0~31
+  char no;    // 0~31
+  char sp;
 } Reg;
+
+enum CondType {
+  NOCOND = -1,
+  EQ, NE, HS, LO, MI, PL, VS, VC,
+  HI, LS, GE, LT, GT, LE, AL, NV,
+};
+
+enum ExtendType {
+  NOEXTEND,
+  E_SXTW, E_UXTW, E_LSL, E_SXTX,
+};
 
 enum OperandType {
   NOOPERAND,
   REG,        // reg
   IMMEDIATE,  // 1234
+  DIRECT,     // foobar + 345
+  INDIRECT,   // indirect:   [reg,#nn]
+              // pre-index:  [reg,#nn]!
+              // post-index: [reg],#nn
+  REGISTER_OFFSET,  // [reg,reg,#nn]
+  COND,
+  FREG,       // freg
 };
 
 typedef struct {
@@ -33,6 +81,21 @@ typedef struct {
   union {
     Reg reg;
     int64_t immediate;
+    struct {
+      Expr *expr;
+    } direct;
+    struct {
+      Expr *offset;
+      Reg reg;
+      int prepost;  // 0=none, 1=pre, 2=post
+    } indirect;
+    struct {
+      Expr *scale;
+      Reg base_reg;
+      Reg index_reg;
+      enum ExtendType extend;
+    } register_offset;
+    enum CondType cond;
   };
 } Operand;
 

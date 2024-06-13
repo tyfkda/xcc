@@ -22,6 +22,14 @@
 #define LOAD_ADDRESS    START_ADDRESS
 #define DATA_ALIGN      (0x1000)
 
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+// MachoArm64RelocationType
+#define ARM64_RELOC_PAGE21               3
+#define ARM64_RELOC_PAGEOFF12            4
+#define ARM64_RELOC_GOT_LOAD_PAGE21      5
+#define ARM64_RELOC_GOT_LOAD_PAGEOFF12   6
+#endif
+
 static void parse_file(FILE *fp, const char *filename, Vector **section_irs, Table *label_table) {
   ParseInfo info;
   info.filename = filename;
@@ -238,6 +246,8 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
       {
 #if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
         const int type = R_RISCV_64;
+#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+        const int type = R_AARCH64_ABS64;
 #else  // #elif XCC_TARGET_ARCH == XCC_ARCH_X64
         const int type = R_X86_64_64;
 #endif
@@ -268,24 +278,77 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
         rela->r_addend = u->add;
       }
       break;
-    case UNRES_RISCV_CALL:
+
+    case UNRES_CALL:
       {
         int symidx = symtab_find(&symtab, u->label);
         assert(symidx >= 0);
 
         rela->r_offset = u->offset;
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
         rela->r_info = ELF64_R_INFO(symidx, R_RISCV_CALL);
+#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+        rela->r_info = ELF64_R_INFO(symidx, R_AARCH64_CALL26);
+#else
+        assert(false);
+#endif
         rela->r_addend = u->add;
       }
       break;
-    case UNRES_RISCV_PCREL_HI20:
-    case UNRES_RISCV_PCREL_LO12_I:
+
+    case UNRES_AARCH64_PAGE:
+    case UNRES_AARCH64_PAGEOFF:
+      {
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+        int symidx = symtab_find(&symtab, u->label);
+        assert(symidx >= 0);
+
+        rela->r_offset = u->offset;
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_AARCH64_PAGE ? ARM64_RELOC_PAGE21 : ARM64_RELOC_PAGEOFF12);
+#else
+        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_AARCH64_PAGE ? R_AARCH64_ADR_PREL_PG_HI21 : R_AARCH64_ADD_ABS_LO12_NC);
+#endif
+        rela->r_addend = u->add;
+#else
+        assert(false);
+#endif
+      }
+      break;
+    case UNRES_AARCH64_GOT:
+    case UNRES_AARCH64_GOT_LO12:
+      {
+        LabelInfo *label = table_get(label_table, u->label);
+        int type = u->kind == UNRES_AARCH64_GOT ? R_AARCH64_ADR_GOT_PAGE : R_AARCH64_LD64_GOT_LO12_NC;
+        if (label == NULL || label->flag & (LF_GLOBAL | LF_REFERRED)) {
+          int symidx = symtab_find(&symtab, u->label);
+          assert(symidx >= 0);
+
+          rela->r_offset = u->offset;
+          rela->r_info = ELF64_R_INFO(symidx, type);
+          rela->r_addend = u->add;
+        } else {
+          rela->r_offset = u->offset;
+          rela->r_info = ELF64_R_INFO(label->section + 1, type);
+          rela->r_addend = u->add + (label->address - section_start_addresses[label->section]);
+        }
+      }
+      break;
+
+    case UNRES_PCREL_HI:
+    case UNRES_PCREL_LO:
       {
         int symidx = symtab_find(&symtab, u->label);
         assert(symidx >= 0);
 
         rela->r_offset = u->offset;
-        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_RISCV_PCREL_HI20 ? R_RISCV_PCREL_HI20 : R_RISCV_PCREL_LO12_I);
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? R_RISCV_PCREL_HI20 : R_RISCV_PCREL_LO12_I);
+#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? R_AARCH64_ADR_PREL_PG_HI21 : R_AARCH64_ADD_ABS_LO12_NC);
+#else
+        assert(false);
+#endif
         rela->r_addend = u->add;
       }
       break;

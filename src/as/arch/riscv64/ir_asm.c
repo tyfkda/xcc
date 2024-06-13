@@ -176,7 +176,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 uintptr_t offset = address - start_address;
                 UnresolvedInfo *info;
                 info = calloc_or_die(sizeof(*info));
-                info->kind = UNRES_RISCV_PCREL_HI20;
+                info->kind = UNRES_PCREL_HI;
                 info->label = value.label;
                 info->src_section = sec;
                 info->offset = offset;
@@ -193,9 +193,9 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
 
                 // hilabel points to AUIPC instruction, just above one.
                 assert(inst->opr[2].direct.expr->kind == EX_LABEL);
-                const Name *hilabel = inst->opr[2].direct.expr->label;
+                const Name *hilabel = inst->opr[2].direct.expr->label.name;
                 info = calloc_or_die(sizeof(*info));
-                info->kind = UNRES_RISCV_PCREL_LO12_I;
+                info->kind = UNRES_PCREL_LO;
                 info->label = hilabel;
                 info->src_section = sec;
                 info->offset = offset + 4;
@@ -321,7 +321,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 // Put rela even if the label is defined in the same object file.
                 UnresolvedInfo *info;
                 info = calloc_or_die(sizeof(*info));
-                info->kind = UNRES_RISCV_CALL;
+                info->kind = UNRES_CALL;
                 info->label = value.label;
                 info->src_section = sec;
                 info->offset = address - start_address;

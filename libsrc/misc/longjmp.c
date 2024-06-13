@@ -41,23 +41,23 @@ void longjmp(jmp_buf env, int result) {
 #define RESTORE_FREGS  // Empty
 #else
 #define RESTORE_FREGS \
-        "ldp d8, d9, [x0, 112]\n" \
-        "ldp d10, d11, [x0, 128]\n" \
-        "ldp d12, d13, [x0, 144]\n" \
-        "ldp d14, d15, [x0, 160]\n"
+        "ldp d8, d9, [x0, #112]\n" \
+        "ldp d10, d11, [x0, #128]\n" \
+        "ldp d12, d13, [x0, #144]\n" \
+        "ldp d14, d15, [x0, #160]\n"
 #endif
   __asm("ldp fp, lr, [x0]\n"
-        "ldp x9, x19, [x0, 16]\n"
-        "ldp x20, x21, [x0, 32]\n"
-        "ldp x22, x23, [x0, 48]\n"
-        "ldp x24, x25, [x0, 64]\n"
-        "ldp x26, x27, [x0, 80]\n"
-        "ldp x28, x29, [x0, 96]\n"
+        "ldp x9, x19, [x0, #16]\n"
+        "ldp x20, x21, [x0, #32]\n"
+        "ldp x22, x23, [x0, #48]\n"
+        "ldp x24, x25, [x0, #64]\n"
+        "ldp x26, x27, [x0, #80]\n"
+        "ldp x28, x29, [x0, #96]\n"
         RESTORE_FREGS
         "mov sp, x9\n"
         "mov w0, w1\n"  // Result value.
         "cmp w0, wzr\n"
-        "b.ne .longjmp_0\n"
+        "bne .longjmp_0\n"
         "mov w0, #1\n"
         ".longjmp_0:");
 }

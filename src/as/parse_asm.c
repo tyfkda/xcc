@@ -90,6 +90,30 @@ static enum DirectiveType find_directive(const char *p, size_t n) {
   return NODIRECTIVE;
 }
 
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+static int find_aarch_label_flag(const char **pp) {
+  static struct {
+    const char *name;
+    int flag;
+  } const kPrefixes[] = {
+    {":lo12:", LF_LO12},
+    {":got:", LF_GOT},
+    {":got_lo12:", LF_GOT | LF_LO12},
+  };
+
+  const char *p = *pp;
+  for (size_t i = 0; i < ARRAY_SIZE(kPrefixes); ++i) {
+    const char *name = kPrefixes[i].name;
+    size_t n = strlen(name);
+    if (strncasecmp(p, name, n) == 0) {
+      *pp = p + n;
+      return kPrefixes[i].flag;
+    }
+  }
+  return 0;
+}
+#endif
+
 bool immediate(const char **pp, int64_t *value) {
   const char *p = *pp;
   bool negative = false;
@@ -223,7 +247,10 @@ enum TokenKind {
 typedef struct Token {
   enum TokenKind kind;
   union {
-    const Name *label;
+    struct {
+      const Name *name;
+      int flag;
+    } label;
     int64_t fixnum;
 #ifndef __NO_FLONUM
     Flonum flonum;
@@ -268,6 +295,29 @@ static Token *read_flonum(ParseInfo *info, int base) {
 }
 #endif
 
+static int parse_label_postfix(ParseInfo *info) {
+  UNUSED(info);
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+  static struct {
+    const char *name;
+    int flag;
+  } const kPostfixes[] = {
+    {"@page", LF_PAGE},
+    {"@pageoff", LF_PAGEOFF},
+  };
+  const char *p = info->p;
+  for (size_t i = 0; i < ARRAY_SIZE(kPostfixes); ++i) {
+    const char *name = kPostfixes[i].name;
+    size_t n = strlen(name);
+    if (strncasecmp(p, name, n) == 0 && !is_label_chr(p[n])) {
+      info->p = p + n;
+      return kPostfixes[i].flag;
+    }
+  }
+#endif
+  return 0;
+}
+
 static const Token *fetch_token(ParseInfo *info) {
   static const Token kTokEOF = {.kind = TK_EOF};
   const char *start = skip_whitespaces(info->p);
@@ -308,7 +358,8 @@ static const Token *fetch_token(ParseInfo *info) {
       const Name *label = parse_label(info);
       if (label != NULL) {
         Token *token = new_token(TK_LABEL);
-        token->label = label;
+        token->label.name = label;
+        token->label.flag = parse_label_postfix(info);
         return token;
       }
     }
@@ -337,12 +388,20 @@ static const Token *fetch_token(ParseInfo *info) {
   default: break;
   }
 
+  int flag = 0;
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+  flag = find_aarch_label_flag(&p);
+  if (flag != 0)
+    c = *p;
+#endif
   if (is_label_first_chr(c)) {
+    const char *label = p;
     while (c = *++p, is_label_chr(c))
       ;
     Token *token = new_token(TK_LABEL);
-    token->label = alloc_name(start, p, false);
+    token->label.name = alloc_name(label, p, false);
     info->p = p;
+    token->label.flag = parse_label_postfix(info) | flag;
     return token;
   }
 
@@ -369,12 +428,31 @@ Expr *new_expr(enum ExprKind kind) {
   return expr;
 }
 
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+Expr *parse_got_label(ParseInfo *info) {
+  const char *p = info->p;
+  int flag = find_aarch_label_flag(&p);
+  if (flag != 0) {
+    parse_set_p(info, p);
+    const Token *tok;
+    if ((tok = match(info, TK_LABEL)) != NULL) {
+      Expr *offset = new_expr(EX_LABEL);
+      offset->label.name = tok->label.name;
+      offset->label.flag = flag;
+      return offset;
+    }
+  }
+  return NULL;
+}
+#endif
+
 static Expr *prim(ParseInfo *info) {
   Expr *expr = NULL;
   const Token *tok;
   if ((tok = match(info, TK_LABEL)) != NULL) {
     expr = new_expr(EX_LABEL);
-    expr->label = tok->label;
+    expr->label.name = tok->label.name;
+    expr->label.flag = tok->label.flag;
   } else if ((tok = match(info, TK_FIXNUM)) != NULL) {
     expr = new_expr(EX_FIXNUM);
     expr->fixnum = tok->fixnum;
@@ -614,7 +692,7 @@ void parse_inst(ParseInfo *info, Line *line) {
         }
         if (inst->opr[2].type == NOOPERAND) {
           Expr *expr = new_expr(EX_LABEL);
-          expr->label = line->label;
+          expr->label.name = line->label;
 
           Operand *opr = &inst->opr[2];
           opr->type = DIRECT;
@@ -663,6 +741,11 @@ Line *parse_line(ParseInfo *info) {
     }
   }
   return line;
+}
+
+void parse_set_p(ParseInfo *info, const char *p) {
+  info->p = p;
+  info->prefetched = NULL;
 }
 
 static char unescape_char(ParseInfo *info) {
@@ -934,7 +1017,7 @@ Value calc_expr(Table *label_table, const Expr *expr) {
   assert(expr != NULL);
   switch (expr->kind) {
   case EX_LABEL:
-    return (Value){.label = expr->label, .offset = 0};
+    return (Value){.label = expr->label.name, .offset = 0, .flag = expr->label.flag};
   case EX_FIXNUM:
     return (Value){.label = NULL, .offset = expr->fixnum};
   case EX_ADD:
@@ -958,14 +1041,14 @@ Value calc_expr(Table *label_table, const Expr *expr) {
           error("Illegal expression");
         }
         // offset + label
-        return (Value){.label = rhs.label, .offset = lhs.offset + rhs.offset};
+        return (Value){.label = rhs.label, .offset = lhs.offset + rhs.offset, .flag = rhs.flag};
       }
       if (lhs.label != NULL) {
         if (expr->kind != EX_ADD) {
           error("Illegal expression");
         }
         // label + offset
-        return (Value){.label = lhs.label, .offset = lhs.offset + rhs.offset};
+        return (Value){.label = lhs.label, .offset = lhs.offset + rhs.offset, .flag = lhs.flag};
       }
 
       assert(lhs.label == NULL && rhs.label == NULL);

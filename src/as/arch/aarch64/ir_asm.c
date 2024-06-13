@@ -3,6 +3,7 @@
 
 #include <assert.h>
 
+#include "aarch64_code.h"
 #include "gen_section.h"
 #include "parse_asm.h"
 #include "table.h"
@@ -114,10 +115,180 @@ bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
 }
 
 bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved) {
-  UNUSED(section_irs);
-  UNUSED(label_table);
-  UNUSED(unresolved);
-  return true;
+  assert(unresolved != NULL);
+  vec_clear(unresolved);
+  bool size_upgraded = false;
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    Vector *irs = section_irs[sec];
+    uintptr_t start_address = irs->len > 0 ? ((IR*)irs->data[0])->address : 0;
+    for (int i = 0, len = irs->len; i < len; ++i) {
+      IR *ir = irs->data[i];
+      uintptr_t address = ir->address;
+      switch (ir->kind) {
+      case IR_CODE:
+        {
+          Inst *inst = ir->code.inst;
+          switch (inst->op) {
+          case ADD_I:
+            if (inst->opr[2].type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr[2].direct.expr);
+              if (value.label != NULL) {
+                if (value.flag == LF_PAGEOFF || value.flag == LF_LO12) {
+                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                  info->kind = value.flag == LF_PAGEOFF ? UNRES_AARCH64_PAGEOFF : UNRES_PCREL_LO;
+                  info->label = value.label;
+                  info->src_section = sec;
+                  info->offset = address - start_address;
+                  info->add = value.offset;
+                  vec_push(unresolved, info);
+                }
+              }
+            }
+            break;
+          case LDR:
+          case STR:
+            if (inst->opr[1].type == INDIRECT && inst->opr[1].indirect.offset != NULL) {
+              Value value = calc_expr(label_table, inst->opr[1].indirect.offset);
+              if (value.label != NULL) {
+                static const int table[][2] = {
+                  { LF_GOT, UNRES_AARCH64_GOT },
+                  { LF_GOT | LF_LO12, UNRES_AARCH64_GOT_LO12 },
+                };
+                size_t i;
+                for (i = 0; i < ARRAY_SIZE(table); ++i) {
+                  if (table[i][0] == value.flag)
+                    break;
+                }
+                if (i >= ARRAY_SIZE(table)) {
+                  break;
+                }
+
+                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                info->kind = table[i][1];
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = address - start_address;
+                info->add = value.offset;
+                vec_push(unresolved, info);
+              }
+            }
+            break;
+          case ADRP:
+            if (inst->opr[1].type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr[1].direct.expr);
+              if (value.label != NULL) {
+                static const int table[][2] = {
+                  { 0, UNRES_PCREL_HI },
+                  { LF_PAGE, UNRES_AARCH64_PAGE },
+                  { LF_GOT, UNRES_AARCH64_GOT },
+                };
+                size_t i;
+                for (i = 0; i < ARRAY_SIZE(table); ++i) {
+                  if (table[i][0] == value.flag)
+                    break;
+                }
+                if (i >= ARRAY_SIZE(table)) {
+                  break;
+                }
+
+                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                info->kind = table[i][1];
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = address - start_address;
+                info->add = value.offset;
+                vec_push(unresolved, info);
+              }
+            }
+            break;
+          case B:
+          case BEQ: case BNE: case BHS: case BLO:
+          case BMI: case BPL: case BVS: case BVC:
+          case BHI: case BLS: case BGE: case BLT:
+          case BGT: case BLE: case BAL: case BNV:
+            if (inst->opr[0].type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr[0].direct.expr);
+              if (value.label != NULL) {
+                LabelInfo *label_info = table_get(label_table, value.label);
+                if (label_info == NULL) {
+                  /*UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                  info->kind = UNRES_EXTERN;
+                  info->label = value.label;
+                  info->src_section = sec;
+                  info->offset = address - start_address;
+                  info->add = value.offset - 4;
+                  vec_push(unresolved, info);
+                  break;*/
+                  assert(false);
+                } else {
+                  value.offset += label_info->address;
+                }
+              }
+
+              intptr_t offset = value.offset - VOIDP2INT(address);
+              if (inst->op == B) {
+                if (offset >= (1L << 27) || offset < -(1L << 27) || (offset & 3) != 0)
+                  error("Jump offset too far (over 32bit)");
+
+                Code *code = &ir->code;
+                uint32_t *buf = (uint32_t*)code->buf;
+                *buf = (*buf & 0xfc000000) | ((offset >> 2) & ((1U << 26) - 1));
+              } else {
+                if (offset >= (1L << 20) || offset < -(1L << 20) || (offset & 3) != 0)
+                  error("Jump offset too far (over 32bit)");
+
+                Code *code = &ir->code;
+                uint32_t *buf = (uint32_t*)code->buf;
+                *buf = (*buf & 0xff00001f) | ((offset & ((1U << 21) - 1)) << (5 - 2));
+              }
+            }
+            break;
+
+          case BL:
+            if (inst->opr[0].type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr[0].direct.expr);
+              if (value.label != NULL) {
+                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                info->kind = UNRES_CALL;
+                info->label = value.label;
+                info->src_section = sec;
+                info->offset = address - start_address;
+                info->add = value.offset;
+                vec_push(unresolved, info);
+              }
+            }
+            break;
+          default:
+            break;
+          }
+        }
+        break;
+      case IR_EXPR_BYTE:
+      case IR_EXPR_SHORT:
+      case IR_EXPR_LONG:
+      case IR_EXPR_QUAD:
+        {
+          Value value = calc_expr(label_table, ir->expr);
+          assert(value.label != NULL);
+          UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+          info->kind = UNRES_ABS64;  // TODO:
+          info->label = value.label;
+          info->src_section = sec;
+          info->offset = address - start_address;
+          info->add = value.offset;
+          vec_push(unresolved, info);
+        }
+        break;
+      case IR_LABEL:
+      case IR_DATA:
+      case IR_BSS:
+      case IR_ALIGN:
+        break;
+      }
+    }
+  }
+
+  return !size_upgraded;
 }
 
 void emit_irs(Vector **section_irs) {

@@ -51,7 +51,7 @@ int isinf(double x);
 int signbit(double x);
 double copysign(double x, double f);
 
-#if defined(__APPLE__) || defined(__GNUC__) || defined(__riscv)
+#if defined(__APPLE__) || defined(__GNUC__) || defined(__aarch64__) || defined(__riscv)
 // isfinite, isinf and isnan is defined by macro and not included in lib file,
 // so it will be link error.
 #include <stdint.h>

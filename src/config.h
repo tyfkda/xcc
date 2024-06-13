@@ -46,7 +46,6 @@
 // Posix
 
 # if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-#  define USE_SYS_AS
 #  define USE_SYS_LD
 #  define NO_STD_LIB
 # endif

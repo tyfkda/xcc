@@ -1,7 +1,7 @@
 #include "stdlib.h"
 #include "string.h"
 
-char **environ;
+extern char **environ;
 
 char *getenv(const char *varname) {
   if (environ != NULL) {
