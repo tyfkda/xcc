@@ -57,7 +57,7 @@
     "clone": "~2.1.2",
     "commander": "~12.0.0",
     "eslint": "~8.57.0",
-    "gulp": "~4.0.2",
+    "gulp": "~5.0.0",
     "gulp-cssnano": "~2.1.3",
     "gulp-ejs": "~5.1.0",
     "gulp-eslint": "~6.0.0",
