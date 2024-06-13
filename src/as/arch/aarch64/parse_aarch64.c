@@ -438,19 +438,21 @@ const ParseInstTable kParseInstTable[] = {
   [R_MOVK] = { 1, (const ParseOpArray*[]){
     &(ParseOpArray){MOVK, {R32 | R64, IMM, SFT}},
   } },
-  [R_ADD] = { 6, (const ParseOpArray*[]){
+  [R_ADD] = { 7, (const ParseOpArray*[]){
     &(ParseOpArray){ADD_R, {R32, R32, R32}},
     &(ParseOpArray){ADD_I, {R32, R32, IMM}},
     &(ParseOpArray){ADD_I, {R32, R32, EXP}},
     &(ParseOpArray){ADD_R, {R64, R64, R64}},
+    &(ParseOpArray){ADD_R, {R64 | RSP, R64 | RSP, R64}},
     &(ParseOpArray){ADD_I, {R64 | RSP, R64 | RSP, IMM}},
     &(ParseOpArray){ADD_I, {R64 | RSP, R64 | RSP, EXP}},
   } },
-  [R_SUB] = { 6, (const ParseOpArray*[]){
+  [R_SUB] = { 7, (const ParseOpArray*[]){
     &(ParseOpArray){SUB_R, {R32, R32, R32}},
     &(ParseOpArray){SUB_I, {R32, R32, IMM}},
     &(ParseOpArray){SUB_I, {R32, R32, EXP}},
     &(ParseOpArray){SUB_R, {R64, R64, R64}},
+    &(ParseOpArray){SUB_R, {R64 | RSP, R64 | RSP, R64}},
     &(ParseOpArray){SUB_I, {R64 | RSP, R64 | RSP, IMM}},
     &(ParseOpArray){SUB_I, {R64 | RSP, R64 | RSP, EXP}},
   } },

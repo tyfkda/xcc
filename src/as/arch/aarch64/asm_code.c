@@ -88,8 +88,22 @@ static unsigned char *asm_3r(Inst *inst, Code *code) {
   uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
 
   switch (inst->op) {
-  case ADD_R:  W_ADD_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, 0); break;
-  case SUB_R:  W_SUB_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, 0); break;
+  case ADD_R:
+    if (!opr1->reg.sp && !opr2->reg.sp) {
+      W_ADD_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, 0);
+    } else {
+      const uint32_t option = 3;  // LSL 0
+      W_ADD_E(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, option, 0);
+    }
+    break;
+  case SUB_R:
+    if (!opr1->reg.sp && !opr2->reg.sp) {
+      W_SUB_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, 0);
+    } else {
+      const uint32_t option = 3;  // LSL 0
+      W_SUB_E(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, option, 0);
+    }
+    break;
   case MUL:  P_MUL(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no); break;
   case SDIV: W_SDIV(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no); break;
   case UDIV: W_UDIV(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no); break;
