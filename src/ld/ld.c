@@ -299,6 +299,11 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
         }
         break;
 
+      case R_AARCH64_ADR_GOT_PAGE:
+      case R_AARCH64_LD64_GOT_LO12_NC:
+        assert(!"TODO: Implement");
+        break;
+
       case R_RISCV_CALL:
         {
           int64_t offset = address - pc;

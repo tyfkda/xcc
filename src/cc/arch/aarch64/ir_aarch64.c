@@ -144,12 +144,17 @@ void mov_immediate(const char *dst, int64_t value, bool b64, bool is_unsigned) {
 }
 
 static bool is_got(const Name *name) {
-#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+#if defined(USE_SYS_LD)
+# if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
   // TODO: How to detect the label is GOT?
   return name->bytes >= 5 && strncmp(name->chars, "__std", 5) == 0;  // __stdinp, etc.
-#else
+# else
   // TODO: How to detect the label is GOT?
   return name->bytes >= 3 && strncmp(name->chars, "std", 3) == 0;  // stdin, etc.
+# endif
+#else
+   UNUSED(name);
+   return false;
 #endif
 }
 
