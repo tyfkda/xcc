@@ -2,99 +2,6 @@
 #include "elfutil.h"
 
 #ifndef ELF_NOT_SUPPORTED
-
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>  // realloc
-#include <string.h>  // memcpy
-
-#include "util.h"
-
-void strtab_init(Strtab *strtab) {
-  table_init(&strtab->offsets);
-  strtab->size = 0;
-}
-
-size_t strtab_add(Strtab *strtab, const Name *name) {
-  void *result;
-  if (!table_try_get(&strtab->offsets, name, &result)) {
-    size_t offset = strtab->size;
-    table_put(&strtab->offsets, name, (void*)offset);
-    strtab->size += name->bytes + 1;
-    return offset;
-  } else {
-    return (size_t)result;
-  }
-}
-
-void *strtab_dump(Strtab *strtab) {
-  void *buf = malloc_or_die(strtab->size);
-  unsigned char *p = buf;
-  const Name *name;
-  void *value;
-  for (int it = 0; (it = table_iterate(&strtab->offsets, it, &name, &value)) != -1; ) {
-    uintptr_t offset = VOIDP2UINT(value);
-    memcpy(p + offset, name->chars, name->bytes);
-    p[offset + name->bytes] = '\0';
-  }
-  return buf;
-}
-
-//
-
-void symtab_init(Symtab *symtab) {
-  strtab_init(&symtab->strtab);
-  table_init(&symtab->indices);
-  symtab->buf = NULL;
-  symtab->count = 0;
-}
-
-int symtab_find(Symtab *symtab, const Name *name) {
-  intptr_t index;
-  if (table_try_get(&symtab->indices, name, (void**)&index))
-    return index;
-  return -1;
-}
-
-Elf64_Sym *symtab_add(Symtab *symtab, const Name *name) {
-  uint32_t offset = strtab_add(&symtab->strtab, name);
-  if (name->bytes > 0) {
-    int index = symtab_find(symtab, name);
-    if (index >= 0)
-      return &symtab->buf[index];
-  }
-
-  int old_count = symtab->count;
-  int new_count = old_count + 1;
-  symtab->buf = realloc_or_die(symtab->buf, sizeof(*symtab->buf) * new_count);
-  symtab->count = new_count;
-  Elf64_Sym *sym = &symtab->buf[old_count];
-  memset(sym, 0x00, sizeof(*sym));
-  sym->st_name = offset;
-  table_put(&symtab->indices, name, INT2VOIDP(old_count));
-  return sym;
-}
-
-void symtab_concat(Symtab *dest, Symtab *src) {
-  int n = src->count;
-  const Name **names = alloca(sizeof(*names) * n);
-  const Name *name;
-  intptr_t index;
-  for (int it = 0; (it = table_iterate(&src->indices, it, &name, (void**)&index)) != -1; ) {
-    assert(index < n);
-    names[index] = name;
-  }
-  for (int i = 0; i < n; ++i) {
-    const Name *name = names[i];
-    Elf64_Sym *p = symtab_add(dest, name);
-    Elf64_Word st_name_bak = p->st_name;
-    memcpy(p, &src->buf[i], sizeof(*p));
-    p->st_name = st_name_bak;
-  }
-}
-
-//
-
 void out_elf_header(FILE *fp, uintptr_t entry, int phnum, int shnum, int flags) {
   Elf64_Ehdr ehdr = {
     .e_ident     = { ELFMAG0, ELFMAG1, ELFMAG2 ,ELFMAG3,
@@ -137,9 +44,4 @@ void out_program_header(FILE *fp, int sec, uintptr_t offset, uintptr_t vaddr, si
 
   fwrite(&phdr, sizeof(Elf64_Phdr), 1, fp);
 }
-
-#else
-// Avoid: error: ISO C requires a translation unit to contain at least one declaration
-// [-Werror,-Wempty-translation-unit]
-typedef int make_iso_compilers_happy;
 #endif  // !ELF_NOT_SUPPORTED
