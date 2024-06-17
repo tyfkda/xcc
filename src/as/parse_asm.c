@@ -1014,14 +1014,33 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         parse_error(info, ".section: section name expected");
         return;
       }
+#if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
       if (equal_name(name, alloc_name(".rodata", NULL, false))) {
         current_section = SEC_RODATA;
-      } else {
-        parse_error(info, "Unknown section name");
+        break;
+      }
+#else
+      const char *p = skip_whitespaces(info->p);
+      if (*p != ',') {
+        parse_error(info, "`,' expected");
         return;
       }
+      info->p = skip_whitespaces(p + 1);
+      const Name *name2 = parse_section_name(info);
+      if (name2 == NULL) {
+        parse_error(info, ".section: section name expected");
+        return;
+      }
+      if (equal_name(name, alloc_name("__DATA", NULL, false))) {
+        if (equal_name(name2, alloc_name("__const", NULL, false))) {
+          current_section = SEC_RODATA;
+          break;
+        }
+      }
+#endif
+      parse_error(info, "Unknown section name");
+      return;
     }
-    break;
 
   case DT_EXTERN:
     break;
