@@ -42,12 +42,14 @@ static const char *kDirectiveTable[] = {
 #endif
 };
 
-static LabelInfo *new_label(int section, uintptr_t address) {
-  LabelInfo *info = malloc_or_die(sizeof(*info));
+static LabelInfo *new_label(int section) {
+  LabelInfo *info = calloc_or_die(sizeof(*info));
   info->section = section;
   info->flag = 0;
-  info->address = address;
+  info->address = 0;
   info->kind = LK_NONE;
+  info->size = 0;
+  info->align = 0;
   return info;
 }
 
@@ -63,7 +65,7 @@ LabelInfo *add_label_table(Table *label_table, const Name *label, int section, b
       info->section = section;
     }
   } else {
-    info = new_label(section, 0);
+    info = new_label(section);
     table_put(label_table, label, info);
   }
   if (define)
@@ -829,19 +831,29 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
       if (*info->p != ',')
         parse_error(info, ".comm: `,' expected");
       info->p = skip_whitespaces(info->p + 1);
-      int64_t count;
-      if (!immediate(&info->p, &count)) {
-        parse_error(info, ".comm: count expected");
+      int64_t size;
+      if (!immediate(&info->p, &size) || size <= 0) {
+        parse_error(info, ".comm: size expected");
         return;
       }
 
       int64_t align = 0;
       if (*info->p == ',') {
         info->p = skip_whitespaces(info->p + 1);
-        if (!immediate(&info->p, &align) || align < 1) {
+        if (!immediate(&info->p, &align) ||
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+            align < 0
+#else
+            align < 1
+#endif
+        ) {
           parse_error(info, ".comm: optional alignment expected");
           return;
         }
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+        // p2align on macOS.
+        align = 1 << align;
+#endif
       }
 
       enum SectionType sec = SEC_BSS;
@@ -849,10 +861,13 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
       if (align > 1)
         vec_push(irs, new_ir_align(align));
       vec_push(irs, new_ir_label(label));
-      vec_push(irs, new_ir_bss(count));
+      vec_push(irs, new_ir_bss(size));
 
-      if (!add_label_table(label_table, label, sec, true, false))
+      LabelInfo *info = add_label_table(label_table, label, sec, true, false);
+      if (info == NULL)
         return;
+      info->size = size;
+      info->align = align;
     }
     break;
 
