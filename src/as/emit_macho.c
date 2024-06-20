@@ -66,7 +66,7 @@ struct nlist_64 *symtab_add(Symtab *symtab, const Name *name) {
 
 //
 
-static int construct_symtab(Symtab *symtab, Table *label_table) {
+static int construct_symtab(Symtab *symtab, Table *label_table, const int section_indices[]) {
   symtab_init(symtab);
 
   // NUL
@@ -93,7 +93,7 @@ static int construct_symtab(Symtab *symtab, Table *label_table) {
       sym->n_value = info->size;
     } else if (sect) {
       type |= N_SECT;
-      sym->n_sect = info->section + 1;  // TODO
+      sym->n_sect = section_indices[info->section];
       sym->n_value = (info->flag & LF_DEFINED) ? info->address - section_start_addresses[0] : 0;
     }
     sym->n_type = type;
@@ -122,6 +122,20 @@ UNUSED(label_table);
     UnresolvedInfo *u = unresolved->data[i];
     struct relocation_info *rela = &rela_bufs[u->src_section][rela_counts[u->src_section]++];
     switch (u->kind) {
+    case UNRES_ABS64:
+      {
+        int symidx = symtab_find(symtab, u->label);
+        assert(symidx >= 0);
+
+        rela->r_address = u->offset;
+        rela->r_symbolnum = symidx;
+        rela->r_pcrel = 0;
+        rela->r_length = 3;
+        rela->r_extern = 1;
+        rela->r_type = ARM64_RELOC_UNSIGNED;
+      }
+      break;
+
     case UNRES_CALL:
       {
         int symidx = symtab_find(symtab, u->label);
@@ -177,14 +191,16 @@ int emit_macho_obj(const char *ofn, Table *label_table, Vector *unresolved) {
   };
 
   assert(ARRAY_SIZE(table) == SEC_BSS);
+  int section_indices[SEC_BSS];
   for (int i = 0; i < SEC_BSS; ++i) {
+    section_indices[i] = section_count + 1;
     if (*table[i].psize > 0)
       ++section_count;
   }
 
   // Construct symtab and strtab.
   Symtab symtab;
-  construct_symtab(&symtab, label_table);
+  construct_symtab(&symtab, label_table, section_indices);
 
   // Construct relas.
   int rela_counts[SECTION_COUNT];
@@ -205,9 +221,12 @@ int emit_macho_obj(const char *ofn, Table *label_table, Vector *unresolved) {
   uint32_t size_of_cmds = sizeof(struct segment_command_64) + sizeof(struct section_64) * section_count + sizeof(struct build_version_command) + sizeof(struct symtab_command);
   uint64_t text_start_addr = 0;
   uint64_t text_start_off = sizeof(struct mach_header_64) + size_of_cmds;
-  uint64_t rodata_start_addr = text_start_addr + codesz;
-  uint64_t rodata_start_off = text_start_off + codesz;
-  uint64_t reloc_off_p = rodata_start_off + rodatasz;
+  uint64_t rodata_start_addr = ALIGN(text_start_addr + codesz, section_aligns[SEC_RODATA]);
+  uint64_t rodata_start_off = ALIGN(text_start_off + codesz, section_aligns[SEC_RODATA]);
+  uint64_t data_start_addr = ALIGN(rodata_start_addr + rodatasz, section_aligns[SEC_DATA]);
+  uint64_t data_start_off = ALIGN(rodata_start_off + rodatasz, section_aligns[SEC_DATA]);
+  uint64_t reloc_start_off = ALIGN(data_start_off + datasz, 8);
+  uint64_t reloc_off_p = reloc_start_off;
   for (int i = 0; i < SEC_BSS; ++i) {
     if (rela_counts[i] > 0) {
       *table[i].poff = reloc_off_p;
@@ -233,14 +252,20 @@ int emit_macho_obj(const char *ofn, Table *label_table, Vector *unresolved) {
     .sizeofcmds = size_of_cmds,
     .flags = MH_SUBSECTIONS_VIA_SYMBOLS,
   };
+  uint64_t vmsize = 0;
+  for (int i = 0; i < (int)ARRAY_SIZE(table); ++i) {
+    size_t size = *table[i].psize;
+    if (size > 0)
+      vmsize = ALIGN(vmsize, section_aligns[i]) + size;
+  }
   struct segment_command_64 segmentcmd = {
     .cmd = LC_SEGMENT_64,
     .cmdsize = sizeof(segmentcmd) + sizeof(struct section_64) * section_count,
     .segname = "",
     .vmaddr = 0,
-    .vmsize = codesz + rodatasz,
+    .vmsize = vmsize,
     .fileoff = text_start_off,
-    .filesize = codesz + rodatasz,
+    .filesize = vmsize,
     .maxprot = 7,   // rwx
     .initprot = 7,  // rwx
     .nsects = section_count,
@@ -293,16 +318,33 @@ int emit_macho_obj(const char *ofn, Table *label_table, Vector *unresolved) {
     };
     fwrite(&section, sizeof(section), 1, ofp);
   }
+  if (datasz > 0) {
+    struct section_64 section = {
+      .sectname = "__data",
+      .segname = "__DATA",
+      .addr = data_start_addr,
+      .size = datasz,
+      .offset = data_start_off,
+      .align = most_significant_bit(section_aligns[SEC_DATA]),
+      .reloff = data_reloc_off,
+      .nreloc = rela_counts[SEC_DATA],
+      .flags = 0,
+    };
+    fwrite(&section, sizeof(section), 1, ofp);
+  }
   fwrite(&buildversioncmd, sizeof(buildversioncmd), 1, ofp);
   fwrite(&symtabcmd, sizeof(symtabcmd), 1, ofp);
 
   output_section(ofp, SEC_CODE);
   if (rodatasz > 0) {
+    put_padding(ofp, rodata_start_off);
     output_section(ofp, SEC_RODATA);
   }
   if (datasz > 0) {
+    put_padding(ofp, data_start_off);
     output_section(ofp, SEC_DATA);
   }
+  put_padding(ofp, reloc_start_off);
   for (int i = 0; i < SEC_BSS; ++i) {
     if (rela_counts[i] > 0)
       fwrite(rela_bufs[i], sizeof(*rela_bufs[i]), rela_counts[i], ofp);
