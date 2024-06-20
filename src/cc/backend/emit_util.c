@@ -135,14 +135,16 @@ void emit_align_p2(int align) {
 
 void emit_bss(const char *label, size_t size, size_t align) {
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-  fprintf(emit_fp, "\t.zerofill __DATA,__bss,%s,%zu,%d\n", label, size,
-          most_significant_bit(align));
+  // p2align on macOS.
+  assert(IS_POWER_OF_2(align));
+  align = most_significant_bit(align);
 #else
-  if (align <= 1)
+  if (align <= 1) {
     emit_asm2(".comm", label, num(size));
-  else
-    fprintf(emit_fp, "\t.comm %s, %zu, %zu\n", label, size, align);
+    return;
+  }
 #endif
+  fprintf(emit_fp, "\t.comm %s, %zu, %zu\n", label, size, align);
 }
 
 void init_emit(FILE *fp) {
