@@ -73,7 +73,7 @@ static unsigned char *asm_movk(Inst *inst, Code *code) {
   Operand *opr1 = &inst->opr[0];
   Operand *opr2 = &inst->opr[1];
   Operand *opr3 = &inst->opr[2];
-  assert(opr3->type == IMMEDIATE && (opr3->immediate & 15) == 0);
+  assert(opr3->type == SHIFT && (opr3->immediate & 15) == 0);
   uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
   W_MOVK(sz, opr1->reg.no, opr2->immediate, opr3->immediate >> 4);
   return code->buf;
@@ -89,19 +89,41 @@ static unsigned char *asm_3r(Inst *inst, Code *code) {
 
   switch (inst->op) {
   case ADD_R:
-    if (!opr1->reg.sp && !opr2->reg.sp) {
-      W_ADD_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, 0);
+    if (inst->opr[3].type == NOOPERAND) {
+      if (!opr1->reg.sp && !opr2->reg.sp) {
+        W_ADD_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, 0, 0);
+      } else {
+        const uint32_t option = 3;  // LSL 0
+        W_ADD_E(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, option, 0);
+      }
     } else {
-      const uint32_t option = 3;  // LSL 0
-      W_ADD_E(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, option, 0);
+      Operand *ext = &inst->opr[3];
+      assert(ext->type == EXTEND);
+      // TODO: Range check for imm.
+      int option = ext->extend.option;
+      if (option < 8)  // extend
+        W_ADD_E(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, option, ext->extend.imm);
+      else
+        W_ADD_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, option & 3, ext->extend.imm);
     }
     break;
   case SUB_R:
-    if (!opr1->reg.sp && !opr2->reg.sp) {
-      W_SUB_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, 0);
+    if (inst->opr[3].type == NOOPERAND) {
+      if (!opr1->reg.sp && !opr2->reg.sp) {
+        W_SUB_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, 0, 0);
+      } else {
+        const uint32_t option = 3;  // LSL 0
+        W_SUB_E(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, option, 0);
+      }
     } else {
-      const uint32_t option = 3;  // LSL 0
-      W_SUB_E(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, option, 0);
+      Operand *ext = &inst->opr[3];
+      assert(ext->type == EXTEND);
+      // TODO: Range check for imm.
+      int option = ext->extend.option;
+      if (option < 8)  // extend
+        W_SUB_E(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, option, ext->extend.imm);
+      else
+        W_SUB_S(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no, option & 3, ext->extend.imm);
     }
     break;
   case MUL:  P_MUL(sz, opr1->reg.no, opr2->reg.no, opr3->reg.no); break;

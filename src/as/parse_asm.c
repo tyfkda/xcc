@@ -653,18 +653,18 @@ void parse_inst(ParseInfo *info, Line *line) {
         break;
 
       if (i > 0) {
-        if (*info->p != ',')
+        if (*info->p != ',') {
+          if (candidates[0]->opr_flags[i] == 0)
+            break;
           return;  // Error
+        }
         info->p = skip_whitespaces(info->p + 1);
       }
 
       Operand *opr = &opr_table[i];
       unsigned int result = parse_operand(info, opr_flags, opr);
-      if (result == 0) {
-        if (candidates[0]->opr_flags[i] != 0)
-          return;  // Error
-        break;
-      }
+      if (result == 0)
+        return;  // Error
 
       for (int j = 0; j < n; ++j) {
         if ((candidates[j]->opr_flags[i] & result) == 0) {

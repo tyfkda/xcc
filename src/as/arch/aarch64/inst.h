@@ -58,11 +58,6 @@ enum CondType {
   HI, LS, GE, LT, GT, LE, AL, NV,
 };
 
-enum ExtendType {
-  NOEXTEND,
-  E_SXTW, E_UXTW, E_LSL, E_SXTX,
-};
-
 enum OperandType {
   NOOPERAND,
   REG,        // reg
@@ -73,6 +68,8 @@ enum OperandType {
               // post-index: [reg],#nn
   REGISTER_OFFSET,  // [reg,reg,#nn]
   COND,
+  SHIFT,
+  EXTEND,
   FREG,       // freg
 };
 
@@ -93,9 +90,13 @@ typedef struct {
       Expr *scale;
       Reg base_reg;
       Reg index_reg;
-      enum ExtendType extend;
+      int extend;  // 0=no, 1=sxtw, 2=uxtw, 3=lsl, 4=sxtx
     } register_offset;
     enum CondType cond;
+    struct {
+      int option;
+      int imm;
+    } extend;
   };
 } Operand;
 

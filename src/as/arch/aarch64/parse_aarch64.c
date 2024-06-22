@@ -179,6 +179,7 @@ inline bool is_freg64(enum RegType reg) {
 #define EXP  (1 << 9)
 #define CND  (1 << 10)
 #define SFT  (1 << 11)  // lsl #nn
+#define EXT  (1 << 12)  // UXTB, UXTH, UXTW, UXTX, SXTB, SXTH, SXTW, SXTX, LSL, LSR, ASR
 
 static enum RegType find_register(const char **pp, unsigned int flag) {
   const char *p = *pp;
@@ -217,7 +218,7 @@ static enum CondType find_cond(const char **pp) {
 static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
   const char *p = skip_whitespaces(info->p);
   enum RegType reg2 = NOREG;
-  enum ExtendType extend = NOEXTEND;
+  int extend = 0;
   enum RegType reg = find_register(&p, R64);
   if (reg == NOREG) {
     parse_error(info, "Base register expected");
@@ -339,6 +340,46 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
   }
 }
 
+static bool parse_extend(ParseInfo *info, Operand *operand) {
+  static const char table[][5] = {
+    "uxtb",
+    "uxth",
+    "uxtw",
+    "uxtx",
+    "sxtb",
+    "sxth",
+    "sxtw",
+    "sxtx",
+    "lsl",
+    "lsr",
+    "asr",
+  };
+
+  const char *p = info->p;
+  for (int i = 0; i < (int)ARRAY_SIZE(table); ++i) {
+    const char *ex = table[i];
+    size_t n = strlen(ex);
+    if (strncmp(p, ex, n) == 0 && !is_label_chr(p[n])) {
+      p += n;
+      operand->type = EXTEND;
+      operand->extend.option = i;
+      operand->extend.imm = 0;
+      int64_t imm = 0;
+      if (isspace(*p) && (p = skip_whitespaces(p), *p == '#')) {
+        ++p;
+        if (!immediate(&p, &imm))
+          parse_error(info, "immediate value expected");
+      } else if (i >= 8) {
+        parse_error(info, "immediate value for shift expected");
+      }
+      operand->extend.imm = imm;
+      info->p = p;
+      return true;
+    }
+  }
+  return false;
+}
+
 unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *operand) {
   const char *p = info->p;
   if (opr_flag & IMM) {
@@ -412,10 +453,17 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
       int64_t imm;
       if (immediate(&p, &imm) && imm >= 0 && imm <= 48 && (imm & 15) == 0) {
         info->p = p;
-        operand->type = IMMEDIATE;
+        operand->type = SHIFT;
         operand->immediate = imm;
         return SFT;
       }
+    }
+  }
+
+  if (opr_flag & EXT) {
+    info->p = p;
+    if (parse_extend(info, operand)) {
+      return EXT;
     }
   }
 
@@ -440,20 +488,24 @@ const ParseInstTable kParseInstTable[] = {
   [R_MOVK] = { 1, (const ParseOpArray*[]){
     &(ParseOpArray){MOVK, {R32 | R64, IMM, SFT}},
   } },
-  [R_ADD] = { 7, (const ParseOpArray*[]){
+  [R_ADD] = { 9, (const ParseOpArray*[]){
     &(ParseOpArray){ADD_R, {R32, R32, R32}},
+    &(ParseOpArray){ADD_R, {R32, R32, R32, EXT}},
     &(ParseOpArray){ADD_I, {R32, R32, IMM}},
     &(ParseOpArray){ADD_I, {R32, R32, EXP}},
     &(ParseOpArray){ADD_R, {R64, R64, R64}},
+    &(ParseOpArray){ADD_R, {R64, R64, R64, EXT}},
     &(ParseOpArray){ADD_R, {R64 | RSP, R64 | RSP, R64}},
     &(ParseOpArray){ADD_I, {R64 | RSP, R64 | RSP, IMM}},
     &(ParseOpArray){ADD_I, {R64 | RSP, R64 | RSP, EXP}},
   } },
-  [R_SUB] = { 7, (const ParseOpArray*[]){
+  [R_SUB] = { 9, (const ParseOpArray*[]){
     &(ParseOpArray){SUB_R, {R32, R32, R32}},
+    &(ParseOpArray){SUB_R, {R32, R32, R32, EXT}},
     &(ParseOpArray){SUB_I, {R32, R32, IMM}},
     &(ParseOpArray){SUB_I, {R32, R32, EXP}},
     &(ParseOpArray){SUB_R, {R64, R64, R64}},
+    &(ParseOpArray){SUB_R, {R64, R64, R64, EXT}},
     &(ParseOpArray){SUB_R, {R64 | RSP, R64 | RSP, R64}},
     &(ParseOpArray){SUB_I, {R64 | RSP, R64 | RSP, IMM}},
     &(ParseOpArray){SUB_I, {R64 | RSP, R64 | RSP, EXP}},

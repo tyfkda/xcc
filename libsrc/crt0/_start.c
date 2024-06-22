@@ -41,9 +41,10 @@ void _start(void) {
         "lea 8(%rsi, %rdi, 8), %rdx\n"
         "jmp start2");
 #elif defined(__aarch64__)
-  __asm("mov x0, x1\n"
-        "mov x1, x2\n"
-        "mov x2, x3\n"
+  __asm("ldr x0, [sp]\n"
+        "add x1, sp, #8\n"
+        "add x2, x1, #8\n"
+        "add x2, x2, x0, lsl #3\n"
         "b start2");
 #elif defined(__riscv)
   __asm("lw a0, 0(sp)\n"  // argc
