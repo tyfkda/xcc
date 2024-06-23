@@ -133,9 +133,9 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
             if (inst->opr[2].type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr[2].direct.expr);
               if (value.label != NULL) {
-                if (value.flag == LF_PAGEOFF || value.flag == LF_LO12) {
+                if (value.flag == LF_PAGEOFF) {
                   UnresolvedInfo *info = malloc_or_die(sizeof(*info));
-                  info->kind = value.flag == LF_PAGEOFF ? UNRES_AARCH64_PAGEOFF : UNRES_PCREL_LO;
+                  info->kind = UNRES_PCREL_LO;
                   info->label = value.label;
                   info->src_section = sec;
                   info->offset = address - start_address;
@@ -151,8 +151,8 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               Value value = calc_expr(label_table, inst->opr[1].indirect.offset);
               if (value.label != NULL) {
                 static const int table[][2] = {
-                  { LF_GOT, UNRES_AARCH64_GOT },
-                  { LF_GOT | LF_LO12, UNRES_AARCH64_GOT_LO12 },
+                  { LF_GOT, UNRES_GOT_HI },
+                  { LF_GOT | LF_PAGEOFF, UNRES_GOT_LO },
                 };
                 size_t i;
                 for (i = 0; i < ARRAY_SIZE(table); ++i) {
@@ -179,8 +179,8 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               if (value.label != NULL) {
                 static const int table[][2] = {
                   { 0, UNRES_PCREL_HI },
-                  { LF_PAGE, UNRES_AARCH64_PAGE },
-                  { LF_GOT, UNRES_AARCH64_GOT },
+                  { LF_PAGE, UNRES_PCREL_HI },
+                  { LF_GOT, UNRES_GOT_HI },
                 };
                 size_t i;
                 for (i = 0; i < ARRAY_SIZE(table); ++i) {

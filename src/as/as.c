@@ -296,30 +296,11 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
       }
       break;
 
-    case UNRES_AARCH64_PAGE:
-    case UNRES_AARCH64_PAGEOFF:
-      {
-#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-        int symidx = symtab_find(&symtab, u->label);
-        assert(symidx >= 0);
-
-        rela->r_offset = u->offset;
-#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_AARCH64_PAGE ? ARM64_RELOC_PAGE21 : ARM64_RELOC_PAGEOFF12);
-#else
-        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_AARCH64_PAGE ? R_AARCH64_ADR_PREL_PG_HI21 : R_AARCH64_ADD_ABS_LO12_NC);
-#endif
-        rela->r_addend = u->add;
-#else
-        assert(false);
-#endif
-      }
-      break;
-    case UNRES_AARCH64_GOT:
-    case UNRES_AARCH64_GOT_LO12:
+    case UNRES_GOT_HI:
+    case UNRES_GOT_LO:
       {
         LabelInfo *label = table_get(label_table, u->label);
-        int type = u->kind == UNRES_AARCH64_GOT ? R_AARCH64_ADR_GOT_PAGE : R_AARCH64_LD64_GOT_LO12_NC;
+        int type = u->kind == UNRES_GOT_HI ? R_AARCH64_ADR_GOT_PAGE : R_AARCH64_LD64_GOT_LO12_NC;
         if (label == NULL || label->flag & (LF_GLOBAL | LF_REFERRED)) {
           int symidx = symtab_find(&symtab, u->label);
           assert(symidx >= 0);
@@ -342,12 +323,21 @@ static int output_obj(const char *ofn, Table *label_table, Vector *unresolved) {
         assert(symidx >= 0);
 
         rela->r_offset = u->offset;
-#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
-        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? R_RISCV_PCREL_HI20 : R_RISCV_PCREL_LO12_I);
-#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? R_AARCH64_ADR_PREL_PG_HI21 : R_AARCH64_ADD_ABS_LO12_NC);
-#else
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+# if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? ARM64_RELOC_PAGE21 : ARM64_RELOC_PAGEOFF12);
+# else
         assert(false);
+# endif
+#else
+
+# if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? R_RISCV_PCREL_HI20 : R_RISCV_PCREL_LO12_I);
+# elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? R_AARCH64_ADR_PREL_PG_HI21 : R_AARCH64_ADD_ABS_LO12_NC);
+# else
+        assert(false);
+# endif
 #endif
         rela->r_addend = u->add;
       }

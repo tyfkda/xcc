@@ -96,9 +96,9 @@ static int find_aarch_label_flag(const char **pp) {
     const char *name;
     int flag;
   } const kPrefixes[] = {
-    {":lo12:", LF_LO12},
+    {":lo12:", LF_PAGEOFF},
     {":got:", LF_GOT},
-    {":got_lo12:", LF_GOT | LF_LO12},
+    {":got_lo12:", LF_GOT | LF_PAGEOFF},
   };
 
   const char *p = *pp;

@@ -66,8 +66,7 @@ typedef long double Flonum;
 
 #define LF_PAGE     (1 << 0)
 #define LF_PAGEOFF  (1 << 1)
-#define LF_LO12     (1 << 2)
-#define LF_GOT      (1 << 3)
+#define LF_GOT      (1 << 2)
 
 typedef struct Expr {
   enum ExprKind kind;
