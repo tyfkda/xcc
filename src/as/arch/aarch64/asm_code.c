@@ -248,8 +248,8 @@ static unsigned char *asm_ldrstr(Inst *inst, Code *code) {
   if (opr2->type == INDIRECT) {
     assert(opr2->indirect.reg.size == REG64);
     // assert(opr2->indirect.offset == NULL || opr2->indirect.offset->kind == EX_FIXNUM);
-    Expr *offset_expr = opr2->indirect.offset;
-    int64_t offset = offset_expr != NULL && offset_expr->kind == EX_FIXNUM ? offset_expr->fixnum : 0;
+    ExprWithFlag *offset_expr = &opr2->indirect.offset;
+    int64_t offset = offset_expr->expr != NULL && offset_expr->expr->kind == EX_FIXNUM ? offset_expr->expr->fixnum : 0;
     assert(offset < (1 << (6 + 3)) && offset >= -(1 << (6 + 3)));
     uint32_t base = opr2->indirect.reg.no;
     uint32_t prepost = kPrePost[opr2->indirect.prepost];
@@ -316,8 +316,8 @@ static unsigned char *asm_ldpstp(Inst *inst, Code *code) {
   uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
   Operand *opr3 = &inst->opr[2];
   assert(opr3->indirect.reg.size == REG64);
-  assert(opr3->indirect.offset == NULL || opr3->indirect.offset->kind == EX_FIXNUM);
-  int64_t offset = opr3->indirect.offset != NULL ? opr3->indirect.offset->fixnum : 0;
+  assert(opr3->indirect.offset.expr == NULL || opr3->indirect.offset.expr->kind == EX_FIXNUM);
+  int64_t offset = opr3->indirect.offset.expr != NULL ? opr3->indirect.offset.expr->fixnum : 0;
   assert(offset < (1 << (6 + 3)) && offset >= -(1 << (6 + 3)));
   uint32_t base = opr3->indirect.reg.no;
   uint32_t prepost = kPrePost[opr3->indirect.prepost];
@@ -400,8 +400,8 @@ static unsigned char *asm_f_ldrstr(Inst *inst, Code *code) {
   if (opr2->type == INDIRECT) {
     assert(opr2->indirect.reg.size == REG64);
     // assert(opr2->indirect.offset == NULL || opr2->indirect.offset->kind == EX_FIXNUM);
-    Expr *offset_expr = opr2->indirect.offset;
-    int64_t offset = offset_expr != NULL && offset_expr->kind == EX_FIXNUM ? offset_expr->fixnum : 0;
+    ExprWithFlag *offset_expr = &opr2->indirect.offset;
+    int64_t offset = offset_expr->expr != NULL && offset_expr->expr->kind == EX_FIXNUM ? offset_expr->expr->fixnum : 0;
     assert(offset < (1 << (6 + 3)) && offset >= -(1 << (6 + 3)));
     uint32_t base = opr2->indirect.reg.no;
     uint32_t prepost = kPrePost[opr2->indirect.prepost];
@@ -456,8 +456,8 @@ static unsigned char *asm_f_ldpstp(Inst *inst, Code *code) {
   uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
   Operand *opr3 = &inst->opr[2];
   assert(opr3->indirect.reg.size == REG64);
-  assert(opr3->indirect.offset->kind == EX_FIXNUM);
-  int64_t offset = opr3->indirect.offset->fixnum;
+  assert(opr3->indirect.offset.expr->kind == EX_FIXNUM);
+  int64_t offset = opr3->indirect.offset.expr->fixnum;
   assert(offset < (1 << (6 + 3)) && offset >= -(1 << (6 + 3)));
   uint32_t base = opr3->indirect.reg.no;
   uint32_t prepost = kPrePost[opr3->indirect.prepost];

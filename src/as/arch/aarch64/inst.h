@@ -73,16 +73,25 @@ enum OperandType {
   FREG,       // freg
 };
 
+#define LF_PAGE     (1 << 0)
+#define LF_PAGEOFF  (1 << 1)
+#define LF_GOT      (1 << 2)
+
+typedef struct {
+  Expr *expr;
+  int flag;
+} ExprWithFlag;
+
 typedef struct {
   enum OperandType type;
   union {
     Reg reg;
     int64_t immediate;
     struct {
-      Expr *expr;
+      ExprWithFlag expr;
     } direct;
     struct {
-      Expr *offset;
+      ExprWithFlag offset;
       Reg reg;
       int prepost;  // 0=none, 1=pre, 2=post
     } indirect;

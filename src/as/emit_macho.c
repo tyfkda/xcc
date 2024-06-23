@@ -150,6 +150,23 @@ UNUSED(label_table);
       }
       break;
 
+    case UNRES_GOT_HI:
+    case UNRES_GOT_LO:
+      {
+        LabelInfo *label = table_get(label_table, u->label);
+        assert(label != NULL);
+        int symidx = symtab_find(symtab, u->label);
+        assert(symidx >= 0);
+
+        rela->r_address = u->offset + u->add;
+        rela->r_symbolnum = symidx;
+        rela->r_pcrel = u->kind == UNRES_GOT_HI ? 1 : 0;
+        rela->r_length = 2;
+        rela->r_extern = 1;
+        rela->r_type = u->kind == UNRES_GOT_HI ? ARM64_RELOC_GOT_LOAD_PAGE21 : ARM64_RELOC_GOT_LOAD_PAGEOFF12;
+      }
+      break;
+
     case UNRES_PCREL_HI:
     case UNRES_PCREL_LO:
       {
@@ -169,6 +186,19 @@ UNUSED(label_table);
       }
       break;
     default: assert(false); break;
+    }
+  }
+
+  // Reverse the order of relas.
+  for (int i = 0; i < SECTION_COUNT; ++i) {
+    int n = rela_counts[i], mid = n >> 1;
+    struct relocation_info *buf = rela_bufs[i];
+    for (int j = 0; j < mid; ++j) {
+      struct relocation_info *p = &buf[j];
+      struct relocation_info *q = &buf[n - j - 1];
+      struct relocation_info tmp = *p;
+      *p = *q;
+      *q = tmp;
     }
   }
 }
