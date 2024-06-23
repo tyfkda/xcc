@@ -263,7 +263,7 @@ static enum RegType find_register(const char **pp) {
   for (int i = 0; i < (int)ARRAY_SIZE(kRegisters); ++i) {
     const char *name = kRegisters[i].name;
     size_t n = strlen(name);
-    if (strncmp(p, name, n) == 0 && !is_label_chr(p[n])) {
+    if (strncasecmp(p, name, n) == 0 && !is_label_chr(p[n])) {
       *pp = p + n;
       return kRegisters[i].reg;
     }
@@ -276,7 +276,7 @@ static enum FRegType find_fregister(const char **pp) {
   for (int i = 0; i < (int)ARRAY_SIZE(kFRegisters); ++i) {
     const char *name = kFRegisters[i].name;
     size_t n = strlen(name);
-    if (strncmp(p, name, n) == 0 && !is_label_chr(p[n])) {
+    if (strncasecmp(p, name, n) == 0 && !is_label_chr(p[n])) {
       *pp = p + n;
       return kFRegisters[i].reg;
     }
@@ -289,7 +289,7 @@ static enum RoundMode find_round_mode(const char **pp) {
   for (int i = 0; i < (int)ARRAY_SIZE(kRoundModes); ++i) {
     const char *name = kRoundModes[i].name;
     size_t n = strlen(name);
-    if (strncmp(p, name, n) == 0 && !is_label_chr(p[n])) {
+    if (strncasecmp(p, name, n) == 0 && !is_label_chr(p[n])) {
       *pp = p + n;
       return kRoundModes[i].mode;
     }

@@ -193,7 +193,7 @@ static enum RegType find_register(const char **pp, unsigned int flag) {
     for (int j = 0, n = kRegistersCount[i]; j < n; ++j) {
       const char *name = regs[j].name;
       size_t n = strlen(name);
-      if (strncmp(p, name, n) == 0 && !is_label_chr(p[n])) {
+      if (strncasecmp(p, name, n) == 0 && !is_label_chr(p[n])) {
         *pp = p + n;
         return regs[j].reg;
       }
@@ -207,7 +207,7 @@ static enum CondType find_cond(const char **pp) {
   for (int i = 0; i < (int)ARRAY_SIZE(kCondTable); ++i) {
     const char *name = kCondTable[i];
     size_t n = strlen(name);
-    if (strncmp(p, name, n) == 0 && !is_label_chr(p[n])) {
+    if (strncasecmp(p, name, n) == 0 && !is_label_chr(p[n])) {
       *pp = p + n;
       return i;
     }
@@ -266,7 +266,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
         for (int i = 0; i < (int)ARRAY_SIZE(kExtendTable); ++i) {
           const char *name = kExtendTable[i];
           size_t n = strlen(name);
-          if (strncmp(p, name, n) == 0 && isspace(p[n])) {
+          if (strncasecmp(p, name, n) == 0 && isspace(p[n])) {
             extend = i + 1;
             p = skip_whitespaces(p + n + 1);
 
@@ -359,7 +359,7 @@ static bool parse_extend(ParseInfo *info, Operand *operand) {
   for (int i = 0; i < (int)ARRAY_SIZE(table); ++i) {
     const char *ex = table[i];
     size_t n = strlen(ex);
-    if (strncmp(p, ex, n) == 0 && !is_label_chr(p[n])) {
+    if (strncasecmp(p, ex, n) == 0 && !is_label_chr(p[n])) {
       p += n;
       operand->type = EXTEND;
       operand->extend.option = i;
@@ -448,7 +448,7 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
   }
 
   if (opr_flag & SFT) {
-    if (strncmp(p, "lsl #", 5) == 0) {
+    if (strncasecmp(p, "lsl #", 5) == 0) {
       p += 5;
       int64_t imm;
       if (immediate(&p, &imm) && imm >= 0 && imm <= 48 && (imm & 15) == 0) {
