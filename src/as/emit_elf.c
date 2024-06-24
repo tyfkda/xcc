@@ -63,6 +63,7 @@ static int construct_symtab(Symtab *symtab, Table *label_table) {
     sym = symtab_add(symtabs[bind], name);
     int type;
     switch (info->kind) {
+    default: assert(false);  // Fallthrough to suppress warning.
     case LK_NONE:    type = STT_NOTYPE; break;
     case LK_FUNC:    type = STT_FUNC; break;
     case LK_OBJECT:  type = STT_OBJECT; break;
