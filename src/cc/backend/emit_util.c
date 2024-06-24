@@ -263,3 +263,12 @@ void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
     _BSS(label, size, align);
   }
 }
+
+bool is_fall_path_only(BBContainer *bbcon, int i) {
+  if (i == 0)
+    return true;
+  BB *bb = bbcon->bbs->data[i], *pbb;
+  int len;
+  return bb->from_bbs->len == 1 && bb->from_bbs->data[0] == (pbb = bbcon->bbs->data[i - 1]) &&
+         (len = pbb->irs->len) > 0 && ((IR*)pbb->irs->data[len - 1])->kind != IR_TJMP;
+}

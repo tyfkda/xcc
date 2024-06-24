@@ -1052,7 +1052,10 @@ void emit_bb_irs(BBContainer *bbcon) {
     }
 #endif
 
-    EMIT_LABEL(fmt_name(bb->label));
+    if (is_fall_path_only(bbcon, i))
+      emit_comment(NULL);
+    else
+      EMIT_LABEL(fmt_name(bb->label));
     for (int j = 0; j < bb->irs->len; ++j) {
       IR *ir = bb->irs->data[j];
       assert(ir->kind < (int)ARRAY_SIZE(table));

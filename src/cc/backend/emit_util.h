@@ -6,6 +6,7 @@
 #include <stdint.h>  // int64_t
 #include <stdio.h>
 
+typedef struct BBContainer BBContainer;
 typedef struct FuncBackend FuncBackend;
 typedef struct Initializer Initializer;
 typedef struct VarInfo VarInfo;
@@ -73,3 +74,4 @@ bool function_not_returned(FuncBackend *fnbe);
 #endif
 
 void emit_varinfo(const VarInfo *varinfo, const Initializer *init);
+bool is_fall_path_only(BBContainer *bbcon, int i);
