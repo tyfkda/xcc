@@ -18,11 +18,16 @@
 #include "table.h"
 #include "util.h"
 
+#if defined(__XCC)
 // MachoArm64RelocationType
+#define ARM64_RELOC_UNSIGNED             0
+#define ARM64_RELOC_BRANCH26             2
 #define ARM64_RELOC_PAGE21               3
 #define ARM64_RELOC_PAGEOFF12            4
 #define ARM64_RELOC_GOT_LOAD_PAGE21      5
 #define ARM64_RELOC_GOT_LOAD_PAGEOFF12   6
+#define ARM64_RELOC_ADDEND               10
+#endif
 
 typedef struct {
   Strtab strtab;
@@ -104,12 +109,11 @@ static int construct_symtab(Symtab *symtab, Table *label_table, const int sectio
 
 static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_table,
                             int rela_counts[], struct relocation_info *rela_bufs[]) {
-UNUSED(label_table);
   memset(rela_counts, 0x00, sizeof(*rela_counts) * SECTION_COUNT);
   for (int i = 0; i < unresolved->len; ++i) {
     UnresolvedInfo *u = unresolved->data[i];
     assert(u->src_section >= 0 && u->src_section < SECTION_COUNT);
-    ++rela_counts[u->src_section];
+    rela_counts[u->src_section] += u->add != 0 ? 2 : 1;  // TODO
   }
 
   for (int i = 0; i < SECTION_COUNT; ++i) {
@@ -141,7 +145,8 @@ UNUSED(label_table);
         int symidx = symtab_find(symtab, u->label);
         assert(symidx >= 0);
 
-        rela->r_address = u->offset + u->add;
+        assert(u->add == 0);
+        rela->r_address = u->offset;
         rela->r_symbolnum = symidx;
         rela->r_pcrel = 1;
         rela->r_length = 2;
@@ -158,7 +163,8 @@ UNUSED(label_table);
         int symidx = symtab_find(symtab, u->label);
         assert(symidx >= 0);
 
-        rela->r_address = u->offset + u->add;
+        assert(u->add == 0);
+        rela->r_address = u->offset;
         rela->r_symbolnum = symidx;
         rela->r_pcrel = u->kind == UNRES_GOT_HI ? 1 : 0;
         rela->r_length = 2;
@@ -174,12 +180,23 @@ UNUSED(label_table);
         int symidx = symtab_find(symtab, u->label);
         assert(symidx >= 0);
 
-        rela->r_address = u->offset + u->add;
+        rela->r_address = u->offset;
         rela->r_symbolnum = symidx;
         rela->r_pcrel = u->kind == UNRES_PCREL_HI ? 1 : 0;
         rela->r_length = 2;
         rela->r_extern = 1;
         rela->r_type = u->kind == UNRES_PCREL_HI ? ARM64_RELOC_PAGE21 : ARM64_RELOC_PAGEOFF12;
+
+        if (u->add != 0) {
+          struct relocation_info *rela2 = &rela_bufs[u->src_section][rela_counts[u->src_section]++];
+
+          rela2->r_address = u->offset;
+          rela2->r_symbolnum = u->add;
+          rela2->r_pcrel = 0;
+          rela2->r_length = 2;
+          rela2->r_extern = 0;
+          rela2->r_type = ARM64_RELOC_ADDEND;
+        }
 #else
         assert(false);
 #endif
