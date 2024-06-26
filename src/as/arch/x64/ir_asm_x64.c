@@ -214,7 +214,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
       case IR_EXPR_LONG:
       case IR_EXPR_QUAD:
         {
-          Value value = calc_expr(label_table, ir->expr);
+          Value value = calc_expr(label_table, ir->expr.expr);
           assert(value.label != NULL);
           UnresolvedInfo *info = malloc_or_die(sizeof(*info));
           info->kind = UNRES_ABS64;  // TODO:

@@ -66,7 +66,10 @@ typedef struct {
     const Name *label;
     Code code;
     Data data;
-    const Expr *expr;
+    struct {
+      const Expr *expr;
+      int64_t addend;  // Calculated in `resolve_relative_address`
+    } expr;
     size_t bss;
     int align;
     int section;
