@@ -7,6 +7,11 @@
 
 #include "asm_code.h"  // Code
 
+#define BYTE_SIZE   (1)
+#define SHORT_SIZE  (2)
+#define LONG_SIZE   (4)
+#define QUAD_SIZE   (8)
+
 typedef struct Expr Expr;
 typedef struct Name Name;
 typedef struct Table Table;

@@ -2,60 +2,13 @@
 #include "ir_asm.h"
 
 #include <assert.h>
+#include <stdint.h>
 
-#include "aarch64_code.h"
 #include "gen_section.h"
+#include "inst.h"
 #include "parse_asm.h"
 #include "table.h"
 #include "util.h"
-
-#define BYTE_SIZE   (1)
-#define SHORT_SIZE  (2)
-#define LONG_SIZE   (4)
-#define QUAD_SIZE   (8)
-
-IR *new_ir_label(const Name *label) {
-  IR *ir = malloc_or_die(sizeof(*ir));
-  ir->kind = IR_LABEL;
-  ir->label = label;
-  return ir;
-}
-
-IR *new_ir_code(const Code *code) {
-  IR *ir = malloc_or_die(sizeof(*ir));
-  ir->kind = IR_CODE;
-  ir->code = *code;
-  return ir;
-}
-
-IR *new_ir_data(const void *data, size_t size) {
-  IR *ir = malloc_or_die(sizeof(*ir));
-  ir->kind = IR_DATA;
-  ir->data.len = size;
-  ir->data.buf = (unsigned char*)data;
-  return ir;
-}
-
-IR *new_ir_bss(size_t size) {
-  IR *ir = malloc_or_die(sizeof(*ir));
-  ir->kind = IR_BSS;
-  ir->bss = size;
-  return ir;
-}
-
-IR *new_ir_align(int align) {
-  IR *ir = malloc_or_die(sizeof(*ir));
-  ir->kind = IR_ALIGN;
-  ir->align = align;
-  return ir;
-}
-
-IR *new_ir_expr(enum IrKind kind, const Expr *expr) {
-  IR *ir = malloc_or_die(sizeof(*ir));
-  ir->kind = kind;
-  ir->expr = expr;
-  return ir;
-}
 
 bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table) {
   bool settle = true;
@@ -114,6 +67,28 @@ bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
   return settle;
 }
 
+static void put_value(unsigned char *p, intptr_t value, int size) {
+  for (int i = 0; i < size; ++i) {
+    *p++ = value;
+    value >>= 8;
+  }
+}
+
+static bool make_jmp_long(IR *ir) {
+  if (ir->code.flag & INST_LONG_OFFSET)
+    return false;
+
+  Inst *inst = ir->code.inst;
+  // Change to long offset, and recalculate.
+  ir->code.flag |= INST_LONG_OFFSET;
+  ir->code.len = 0;
+  if (inst->op == JMP_D)
+    MAKE_CODE(inst, &ir->code, 0xe9, IM32(-1));
+  else
+    MAKE_CODE(inst, &ir->code, 0x0f, 0x80 + (inst->op - JO), IM32(-1));
+  return true;
+}
+
 bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved) {
   assert(unresolved != NULL);
   vec_clear(unresolved);
@@ -129,133 +104,104 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
         {
           Inst *inst = ir->code.inst;
           switch (inst->op) {
-          case ADD_I:
-            if (inst->opr[2].type == DIRECT) {
-              Value value = calc_expr(label_table, inst->opr[2].direct.expr);
+          case LEA_IR:
+            if (/*inst->opr[0].type == INDIRECT &&*/
+                inst->opr[0].indirect.reg.no == RIP &&
+                inst->opr[0].indirect.offset->kind != EX_FIXNUM) {
+              Value value = calc_expr(label_table, inst->opr[0].indirect.offset);
               if (value.label != NULL) {
-                if (value.flag == LF_PAGEOFF) {
+                LabelInfo *label_info = table_get(label_table, value.label);
+                if (label_info == NULL) {
                   UnresolvedInfo *info = malloc_or_die(sizeof(*info));
-                  info->kind = UNRES_PCREL_LO;
+                  info->kind = UNRES_EXTERN_PC32;
                   info->label = value.label;
                   info->src_section = sec;
-                  info->offset = address - start_address;
-                  info->add = value.offset;
+                  info->offset = address + 3 - start_address;
+                  info->add = value.offset - 4;
                   vec_push(unresolved, info);
-                }
-              }
-            }
-            break;
-          case LDR:
-          case STR:
-            if (inst->opr[1].type == INDIRECT && inst->opr[1].indirect.offset != NULL) {
-              Value value = calc_expr(label_table, inst->opr[1].indirect.offset);
-              if (value.label != NULL) {
-                static const int table[][2] = {
-                  { LF_GOT, UNRES_GOT_HI },
-                  { LF_GOT | LF_PAGEOFF, UNRES_GOT_LO },
-                };
-                size_t i;
-                for (i = 0; i < ARRAY_SIZE(table); ++i) {
-                  if (table[i][0] == value.flag)
-                    break;
-                }
-                if (i >= ARRAY_SIZE(table)) {
                   break;
                 }
+                if (label_info->section != sec) {
+                  Vector *irs2 = section_irs[label_info->section];
+                  uintptr_t dst_start_address = irs2->len > 0 ? ((IR *)irs2->data[0])->address : 0;
 
-                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
-                info->kind = table[i][1];
-                info->label = value.label;
-                info->src_section = sec;
-                info->offset = address - start_address;
-                info->add = value.offset;
-                vec_push(unresolved, info);
-              }
-            }
-            break;
-          case ADRP:
-            if (inst->opr[1].type == DIRECT) {
-              Value value = calc_expr(label_table, inst->opr[1].direct.expr);
-              if (value.label != NULL) {
-                static const int table[][2] = {
-                  { 0, UNRES_PCREL_HI },
-                  { LF_PAGE, UNRES_PCREL_HI },
-                  { LF_GOT, UNRES_GOT_HI },
-                };
-                size_t i;
-                for (i = 0; i < ARRAY_SIZE(table); ++i) {
-                  if (table[i][0] == value.flag)
-                    break;
-                }
-                if (i >= ARRAY_SIZE(table)) {
+                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                  info->kind = UNRES_OTHER_SECTION;
+                  info->label = value.label;
+                  info->src_section = sec;
+                  info->offset = address + 3 - start_address;
+                  info->add = label_info->address + value.offset - dst_start_address - 4;
+                  vec_push(unresolved, info);
                   break;
                 }
-
-                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
-                info->kind = table[i][1];
-                info->label = value.label;
-                info->src_section = sec;
-                info->offset = address - start_address;
-                info->add = value.offset;
-                vec_push(unresolved, info);
+                value.offset += label_info->address;
               }
+              intptr_t offset = value.offset - (VOIDP2INT(address) + ir->code.len);
+              put_value(ir->code.buf + 3, offset, sizeof(int32_t));
             }
             break;
-          case B:
-          case BEQ: case BNE: case BHS: case BLO:
-          case BMI: case BPL: case BVS: case BVC:
-          case BHI: case BLS: case BGE: case BLT:
-          case BGT: case BLE: case BAL: case BNV:
+          case JMP_D:
+          case JO: case JNO: case JB:  case JAE:
+          case JE: case JNE: case JBE: case JA:
+          case JS: case JNS: case JP:  case JNP:
+          case JL: case JGE: case JLE: case JG:
             if (inst->opr[0].type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr[0].direct.expr);
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
                 if (label_info == NULL) {
-                  /*UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                  // Make unresolved label jmp to long.
+                  size_upgraded |= make_jmp_long(ir);
+
+                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
                   info->kind = UNRES_EXTERN;
                   info->label = value.label;
                   info->src_section = sec;
-                  info->offset = address - start_address;
+                  info->offset = address + 1 - start_address;
                   info->add = value.offset - 4;
                   vec_push(unresolved, info);
-                  break;*/
-                  assert(false);
+                  break;
                 } else {
                   value.offset += label_info->address;
                 }
               }
 
-              intptr_t offset = value.offset - VOIDP2INT(address);
-              if (inst->op == B) {
-                if (offset >= (1L << 27) || offset < -(1L << 27) || (offset & 3) != 0)
-                  error("Jump offset too far (over 32bit)");
-
-                Code *code = &ir->code;
-                uint32_t *buf = (uint32_t*)code->buf;
-                *buf = (*buf & 0xfc000000) | ((offset >> 2) & ((1U << 26) - 1));
+              intptr_t offset = value.offset - (VOIDP2INT(address) + ir->code.len);
+              bool long_offset = ir->code.flag & INST_LONG_OFFSET;
+              if (!long_offset) {
+                if (!is_im8(offset)) {
+                  size_upgraded |= make_jmp_long(ir);
+                } else {
+                  put_value(ir->code.buf + 1, offset, sizeof(int8_t));
+                }
               } else {
-                if (offset >= (1L << 20) || offset < -(1L << 20) || (offset & 3) != 0)
+                if (!is_im32(offset))
                   error("Jump offset too far (over 32bit)");
 
-                Code *code = &ir->code;
-                uint32_t *buf = (uint32_t*)code->buf;
-                *buf = (*buf & 0xff00001f) | ((offset & ((1U << 21) - 1)) << (5 - 2));
+                int d = inst->op == JMP_D ? 1 : 2;
+                put_value(ir->code.buf + d, offset, sizeof(int32_t));
               }
             }
             break;
-
-          case BL:
+          case CALL_D:
             if (inst->opr[0].type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr[0].direct.expr);
               if (value.label != NULL) {
-                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
-                info->kind = UNRES_CALL;
-                info->label = value.label;
-                info->src_section = sec;
-                info->offset = address - start_address;
-                info->add = value.offset;
-                vec_push(unresolved, info);
+                LabelInfo *label_info = table_get(label_table, value.label);
+                if (label_info == NULL) {
+                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                  info->kind = UNRES_EXTERN;
+                  info->label = value.label;
+                  info->src_section = sec;
+                  info->offset = address + 1 - start_address;
+                  info->add = value.offset - 4;
+                  vec_push(unresolved, info);
+                  break;
+                }
+                value.offset += label_info->address;
               }
+              intptr_t offset = value.offset - (VOIDP2INT(address) + ir->code.len);
+              put_value(ir->code.buf + 1, offset, sizeof(int32_t));
             }
             break;
           default:

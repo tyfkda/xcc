@@ -11,54 +11,6 @@
 #include "table.h"
 #include "util.h"
 
-#define BYTE_SIZE   (1)
-#define SHORT_SIZE  (2)
-#define LONG_SIZE   (4)
-#define QUAD_SIZE   (8)
-
-IR *new_ir_label(const Name *label) {
-  IR *ir = malloc_or_die(sizeof(*ir));
-  ir->kind = IR_LABEL;
-  ir->label = label;
-  return ir;
-}
-
-IR *new_ir_code(const Code *code) {
-  IR *ir = malloc_or_die(sizeof(*ir));
-  ir->kind = IR_CODE;
-  ir->code = *code;
-  return ir;
-}
-
-IR *new_ir_data(const void *data, size_t size) {
-  IR *ir = malloc_or_die(sizeof(*ir));
-  ir->kind = IR_DATA;
-  ir->data.len = size;
-  ir->data.buf = (unsigned char*)data;
-  return ir;
-}
-
-IR *new_ir_bss(size_t size) {
-  IR *ir = malloc_or_die(sizeof(*ir));
-  ir->kind = IR_BSS;
-  ir->bss = size;
-  return ir;
-}
-
-IR *new_ir_align(int align) {
-  IR *ir = malloc_or_die(sizeof(*ir));
-  ir->kind = IR_ALIGN;
-  ir->align = align;
-  return ir;
-}
-
-IR *new_ir_expr(enum IrKind kind, const Expr *expr) {
-  IR *ir = malloc_or_die(sizeof(*ir));
-  ir->kind = kind;
-  ir->expr = expr;
-  return ir;
-}
-
 bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table) {
   bool settle = true;
   uintptr_t address = start_address;
