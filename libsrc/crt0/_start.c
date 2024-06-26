@@ -4,8 +4,6 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
-extern char **environ;
-
 #if defined(__linux__)
 
 #include "stdio.h"  // fflush
@@ -28,7 +26,10 @@ static void _atexit_proc(void) {
 
 static void start2(int argc, char *argv[], char *env[]) {
   extern int main(int, char**, char **);
+#ifndef __APPLE__
+  extern char **environ;
   environ = env;
+#endif
   atexit(_atexit_proc);
   int ec = main(argc, argv, env);
   exit(ec);
