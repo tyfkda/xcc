@@ -266,6 +266,11 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         rela->r_addend = u->add;
       }
       break;
+
+    case UNRES_X64_GOT_LOAD:
+      assert(!"TODO");
+      break;
+
     case UNRES_RISCV_JAL:
     case UNRES_RISCV_RVC_JUMP:
       {

@@ -104,11 +104,29 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
         {
           Inst *inst = ir->code.inst;
           switch (inst->op) {
+          case MOV_IR:
+            if (inst->opr[0].indirect.reg.no == RIP) {
+              Value value = calc_expr(label_table, inst->opr[0].indirect.offset.expr);
+              if (value.label != NULL) {
+                LabelInfo *label_info = table_get(label_table, value.label);
+                if (label_info == NULL) {
+                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                  info->kind = UNRES_X64_GOT_LOAD;
+                  info->label = value.label;
+                  info->src_section = sec;
+                  info->offset = address + 3 - start_address;
+                  info->add = value.offset - 4;
+                  vec_push(unresolved, info);
+                  break;
+                }
+              }
+            }
+            break;
           case LEA_IR:
             if (/*inst->opr[0].type == INDIRECT &&*/
                 inst->opr[0].indirect.reg.no == RIP &&
-                inst->opr[0].indirect.offset->kind != EX_FIXNUM) {
-              Value value = calc_expr(label_table, inst->opr[0].indirect.offset);
+                inst->opr[0].indirect.offset.expr->kind != EX_FIXNUM) {
+              Value value = calc_expr(label_table, inst->opr[0].indirect.offset.expr);
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
                 if (label_info == NULL) {
@@ -119,6 +137,9 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   info->offset = address + 3 - start_address;
                   info->add = value.offset - 4;
                   vec_push(unresolved, info);
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+                  put_value(ir->code.buf + 3, value.offset, sizeof(int32_t));
+#endif
                   break;
                 }
                 if (label_info->section != sec) {
@@ -132,6 +153,9 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   info->offset = address + 3 - start_address;
                   info->add = label_info->address + value.offset - dst_start_address - 4;
                   vec_push(unresolved, info);
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+                  put_value(ir->code.buf + 3, value.offset, sizeof(int32_t));
+#endif
                   break;
                 }
                 value.offset += label_info->address;
@@ -222,6 +246,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
           info->src_section = sec;
           info->offset = address - start_address;
           info->add = value.offset;
+          ir->expr.addend = value.offset;
           vec_push(unresolved, info);
         }
         break;
@@ -262,9 +287,13 @@ void emit_irs(Vector **section_irs) {
       case IR_EXPR_LONG:
       case IR_EXPR_QUAD:
         {
-          int64_t zero = 0;
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+          int64_t value = ir->expr.addend;
+#else
+          int64_t value = 0;
+#endif
           int size = 1 << (ir->kind - IR_EXPR_BYTE);
-          add_section_data(sec, &zero, size);  // TODO: Target endian
+          add_section_data(sec, &value, size);  // TODO: Target endian
         }
         break;
       }

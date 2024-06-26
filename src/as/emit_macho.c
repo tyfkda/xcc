@@ -29,6 +29,18 @@
 #define ARM64_RELOC_ADDEND               10
 #endif
 
+enum reloc_type_x86_64 {
+	X86_64_RELOC_UNSIGNED,		// for absolute addresses
+	X86_64_RELOC_SIGNED,		// for signed 32-bit displacement
+	X86_64_RELOC_BRANCH,		// a CALL/JMP instruction with 32-bit displacement
+	X86_64_RELOC_GOT_LOAD,		// a MOVQ load of a GOT entry
+	X86_64_RELOC_GOT,			// other GOT references
+	X86_64_RELOC_SUBTRACTOR,	// must be followed by a X86_64_RELOC_UNSIGNED
+	X86_64_RELOC_SIGNED_1,		// for signed 32-bit displacement with a -1 addend
+	X86_64_RELOC_SIGNED_2,		// for signed 32-bit displacement with a -2 addend
+	X86_64_RELOC_SIGNED_4,		// for signed 32-bit displacement with a -4 addend
+};
+
 typedef struct {
   Strtab strtab;
   Table indices;
@@ -126,6 +138,22 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
     UnresolvedInfo *u = unresolved->data[i];
     struct relocation_info *rela = &rela_bufs[u->src_section][rela_counts[u->src_section]++];
     switch (u->kind) {
+    case UNRES_EXTERN:
+    case UNRES_EXTERN_PC32:
+    case UNRES_OTHER_SECTION:
+      {
+        int symidx = symtab_find(symtab, u->label);
+        assert(symidx >= 0);
+
+        // assert(u->add == 0);
+        rela->r_address = u->offset;
+        rela->r_symbolnum = symidx;
+        rela->r_pcrel = 1;
+        rela->r_length = 2;
+        rela->r_extern = 1;
+        rela->r_type = u->kind == UNRES_OTHER_SECTION ? X86_64_RELOC_SIGNED : X86_64_RELOC_BRANCH;
+      }
+      break;
     case UNRES_ABS64:
       {
         int symidx = symtab_find(symtab, u->label);
@@ -202,6 +230,22 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
 #endif
       }
       break;
+
+    case UNRES_X64_GOT_LOAD:
+      {
+        int symidx = symtab_find(symtab, u->label);
+        assert(symidx >= 0);
+
+        // assert(u->add == 0);
+        rela->r_address = u->offset;
+        rela->r_symbolnum = symidx;
+        rela->r_pcrel = 1;
+        rela->r_length = 2;
+        rela->r_extern = 1;
+        rela->r_type = X86_64_RELOC_GOT_LOAD;
+      }
+      break;
+
     default: assert(false); break;
     }
   }

@@ -134,10 +134,10 @@ static unsigned char *asm_mov_imr(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_mov_ir(Inst *inst, Code *code) {
-  if (inst->opr[0].indirect.offset->kind == EX_FIXNUM) {
-    long offset = inst->opr[0].indirect.offset->fixnum;
-    enum RegSize size = inst->opr[1].reg.size;
-    if (inst->opr[0].indirect.reg.no != RIP) {
+  if (inst->opr[0].indirect.reg.no != RIP) {
+    if (inst->opr[0].indirect.offset.expr->kind == EX_FIXNUM) {
+      long offset = inst->opr[0].indirect.offset.expr->fixnum;
+      enum RegSize size = inst->opr[1].reg.size;
       int sno = opr_regno(&inst->opr[0].indirect.reg);
       int dno = opr_regno(&inst->opr[1].reg);
       bool ofszero = offset == 0 && ((sno & 7) != RBP - RAX);
@@ -161,13 +161,20 @@ static unsigned char *asm_mov_ir(Inst *inst, Code *code) {
       }
       return p;
     }
+  } else {
+    if (inst->opr[0].indirect.offset.expr->kind != EX_FIXNUM) {
+      int pre = !inst->opr[1].reg.x ? 0x48 : 0x4c;
+      int d = inst->opr[1].reg.no;
+      MAKE_CODE(inst, code, pre, 0x8b, 0x05 | (d << 3), IM32(0));
+      return code->buf;
+    }
   }
   return NULL;
 }
 
 static unsigned char *asm_mov_ri(Inst *inst, Code *code) {
-  if (inst->opr[1].indirect.offset->kind == EX_FIXNUM) {
-    long offset = inst->opr[1].indirect.offset->fixnum;
+  if (inst->opr[1].indirect.offset.expr->kind == EX_FIXNUM) {
+    long offset = inst->opr[1].indirect.offset.expr->fixnum;
     enum RegSize size = inst->opr[0].reg.size;
     if (inst->opr[1].indirect.reg.no != RIP) {
       int sno = opr_regno(&inst->opr[0].reg);
@@ -288,7 +295,7 @@ static unsigned char *asm_mov_sr(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_movbwlq_imi(Inst *inst, Code *code) {
-  long offset = inst->opr[1].indirect.offset->fixnum;
+  long offset = inst->opr[1].indirect.offset.expr->fixnum;
   unsigned char sno = 0;
   unsigned char dno = opr_regno(&inst->opr[1].indirect.reg);
   unsigned char op = (offset == 0 && (dno & 7) != RBP - RAX) ? 0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
@@ -442,8 +449,8 @@ static unsigned char *asm_movss_xx(Inst *inst, Code *code) { return asm_movsds_x
 
 static unsigned char *asm_movsds_ix(Inst *inst, Code *code, bool single) {
   long offset;
-  if (inst->opr[0].indirect.offset->kind == EX_FIXNUM &&
-      (offset = inst->opr[0].indirect.offset->fixnum, is_im32(offset))) {
+  if (inst->opr[0].indirect.offset.expr->kind == EX_FIXNUM &&
+      (offset = inst->opr[0].indirect.offset.expr->fixnum, is_im32(offset))) {
     if (inst->opr[0].indirect.reg.no != RIP) {
       unsigned char prefix = single ? 0xf3 : 0xf2;
       unsigned char sno = opr_regno(&inst->opr[0].indirect.reg);
@@ -483,8 +490,8 @@ static unsigned char *asm_movss_ix(Inst *inst, Code *code) { return asm_movsds_i
 
 static unsigned char *asm_movsds_xi(Inst *inst, Code *code, bool single) {
   long offset;
-  if (inst->opr[1].indirect.offset->kind == EX_FIXNUM &&
-      (offset = inst->opr[1].indirect.offset->fixnum, is_im32(offset))) {
+  if (inst->opr[1].indirect.offset.expr->kind == EX_FIXNUM &&
+      (offset = inst->opr[1].indirect.offset.expr->fixnum, is_im32(offset))) {
     if (inst->opr[1].indirect.reg.no != RIP) {
       unsigned char prefix = single ? 0xf3 : 0xf2;
       unsigned char sno = inst->opr[0].regxmm - XMM0;
@@ -673,11 +680,11 @@ static long signed_immediate(long value, enum RegSize size) {
 }
 
 static unsigned char *asm_lea_ir(Inst *inst, Code *code) {
-  assert(inst->opr[0].indirect.offset != NULL);
+  assert(inst->opr[0].indirect.offset.expr != NULL);
   unsigned char *p = code->buf;
   if (inst->opr[0].indirect.reg.no != RIP) {
-    if (inst->opr[0].indirect.offset->kind == EX_FIXNUM) {
-      long offset = inst->opr[0].indirect.offset->fixnum;
+    if (inst->opr[0].indirect.offset.expr->kind == EX_FIXNUM) {
+      long offset = inst->opr[0].indirect.offset.expr->fixnum;
       enum RegSize size = inst->opr[1].reg.size;
       short buf[] = {
         MAKE_REX_INDIRECT(
@@ -691,7 +698,7 @@ static unsigned char *asm_lea_ir(Inst *inst, Code *code) {
       return p;
     }
   } else {
-    if (inst->opr[0].indirect.offset->kind != EX_FIXNUM) {
+    if (inst->opr[0].indirect.offset.expr->kind != EX_FIXNUM) {
       int pre = !inst->opr[1].reg.x ? 0x48 : 0x4c;
       int d = inst->opr[1].reg.no;
       MAKE_CODE(inst, code, pre, 0x8d, 0x05 | (d << 3), IM32(0));
@@ -776,8 +783,8 @@ static unsigned char *asm_add_imr(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_add_ir(Inst *inst, Code *code) {
-  if (inst->opr[0].indirect.offset->kind == EX_FIXNUM && inst->opr[0].indirect.reg.no != RIP) {
-    long offset = inst->opr[0].indirect.offset->fixnum;
+  if (inst->opr[0].indirect.offset.expr->kind == EX_FIXNUM && inst->opr[0].indirect.reg.no != RIP) {
+    long offset = inst->opr[0].indirect.offset.expr->fixnum;
     enum RegSize size = inst->opr[1].reg.size;
     unsigned char *p = code->buf;
     short buf[] = {
@@ -819,10 +826,10 @@ static unsigned char *asm_add_iir(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_addq_imi(Inst *inst, Code *code) {
-  if (inst->opr[1].indirect.offset->kind == EX_FIXNUM) {
+  if (inst->opr[1].indirect.offset.expr->kind == EX_FIXNUM) {
     long value = inst->opr[0].immediate;
     if (is_im32(value)) {
-      long offset = inst->opr[1].indirect.offset->fixnum;
+      long offset = inst->opr[1].indirect.offset.expr->fixnum;
       unsigned char sno = 0;
       unsigned char dno = opr_regno(&inst->opr[1].indirect.reg);
       unsigned char op = (offset == 0 && (dno & 7) != RBP - RAX) ? 0x00 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
@@ -894,8 +901,8 @@ static unsigned char *asm_sub_imr(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_sub_ir(Inst *inst, Code *code) {
-  if (inst->opr[0].indirect.offset->kind == EX_FIXNUM && inst->opr[0].indirect.reg.no != RIP) {
-    long offset = inst->opr[0].indirect.offset->fixnum;
+  if (inst->opr[0].indirect.offset.expr->kind == EX_FIXNUM && inst->opr[0].indirect.reg.no != RIP) {
+    long offset = inst->opr[0].indirect.offset.expr->fixnum;
     enum RegSize size = inst->opr[1].reg.size;
     unsigned char *p = code->buf;
     short buf[] = {
@@ -937,10 +944,10 @@ static unsigned char *asm_sub_iir(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_subq_imi(Inst *inst, Code *code) {
-  if (inst->opr[1].indirect.offset->kind == EX_FIXNUM) {
+  if (inst->opr[1].indirect.offset.expr->kind == EX_FIXNUM) {
     long value = inst->opr[0].immediate;
     if (is_im32(value)) {
-      long offset = inst->opr[1].indirect.offset->fixnum;
+      long offset = inst->opr[1].indirect.offset.expr->fixnum;
       unsigned char sno = 0;
       unsigned char dno = opr_regno(&inst->opr[1].indirect.reg);
       unsigned char op = (offset == 0 && (dno & 7) != RBP - RAX) ? 0x28 : is_im8(offset) ? (unsigned char)0x40 : (unsigned char)0x80;
@@ -1036,7 +1043,7 @@ static unsigned char *asm_inc_r(Inst *inst, Code *code) {
 static unsigned char *asm_incbwlq_i(Inst *inst, Code *code) {
   if (inst->opr[0].indirect.reg.no != RIP) {
     enum RegSize size = inst->op + (REG8 - INCB);
-    long offset = inst->opr[0].indirect.offset->fixnum;
+    long offset = inst->opr[0].indirect.offset.expr->fixnum;
     unsigned char *p = code->buf;
     short buf[] = {
       MAKE_REX_INDIRECT(
@@ -1061,7 +1068,7 @@ static unsigned char *asm_dec_r(Inst *inst, Code *code) {
 static unsigned char *asm_decbwlq_i(Inst *inst, Code *code) {
   if (inst->opr[0].indirect.reg.no != RIP) {
     enum RegSize size = inst->op + (REG8 - DECB);
-    long offset = inst->opr[0].indirect.offset->fixnum;
+    long offset = inst->opr[0].indirect.offset.expr->fixnum;
     unsigned char *p = code->buf;
     short buf[] = {
       MAKE_REX_INDIRECT(
@@ -1394,7 +1401,7 @@ static unsigned char *asm_jmp_der(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_jmp_dei(Inst *inst, Code *code) {
-  Expr *offset_expr = inst->opr[0].indirect.offset;
+  Expr *offset_expr = inst->opr[0].indirect.offset.expr;
   if ((offset_expr == NULL || offset_expr->kind == EX_FIXNUM)) {
     long offset = offset_expr != NULL ? offset_expr->fixnum : 0;
     if (is_im32(offset)) {

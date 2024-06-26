@@ -250,7 +250,44 @@ static unsigned int parse_direct_register(ParseInfo *info, Operand *operand) {
   return (R8 << (size - REG8)) | (reg == CL ? R8CL : 0);
 }
 
-static unsigned int parse_indirect_register(ParseInfo *info, Expr *offset, Operand *operand) {
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+static int parse_label_postfix(ParseInfo *info) {
+  static struct {
+    const char *name;
+    int flag;
+  } const kPostfixes[] = {
+    {"@gotpcrel", LF_GOTPCREL},
+  };
+  const char *p = info->p;
+  for (size_t i = 0; i < ARRAY_SIZE(kPostfixes); ++i) {
+    const char *name = kPostfixes[i].name;
+    size_t n = strlen(name);
+    if (strncasecmp(p, name, n) == 0 && !is_label_chr(p[n])) {
+      info->p = p + n;
+      return kPostfixes[i].flag;
+    }
+  }
+  return 0;
+}
+#endif
+
+static ExprWithFlag parse_expr_with_flag(ParseInfo *info) {
+  // expr = label + nn
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+  // expr@page
+  // expr@pageoff
+  // expr@gotpage
+  // expr@gotpageoff
+  Expr *expr = parse_expr(info);
+  int flag = parse_label_postfix(info);
+#else
+  int flag = 0;
+  Expr *expr = parse_expr(info);
+#endif
+  return (ExprWithFlag){expr, flag};
+}
+
+static unsigned int parse_indirect_register(ParseInfo *info, ExprWithFlag *offset, Operand *operand) {
   enum RegType index_reg = NOREG;
   Expr *scale = NULL;
   // Already read "(%".
@@ -285,14 +322,14 @@ static unsigned int parse_indirect_register(ParseInfo *info, Expr *offset, Opera
     operand->indirect.reg.size = REG64;
     operand->indirect.reg.no = base_reg != RIP ? no & 7 : RIP;
     operand->indirect.reg.x = (no & 8) >> 3;
-    operand->indirect.offset = offset;
+    operand->indirect.offset = *offset;
     return IND;
   } else {
     if (!is_reg64(index_reg))
       parse_error(info, "Register expected");
 
     operand->type = INDIRECT_WITH_INDEX;
-    operand->indirect_with_index.offset = offset;
+    operand->indirect_with_index.offset = offset->expr;
     operand->indirect_with_index.scale = scale;
     char base_no = base_reg - RAX;
     operand->indirect_with_index.base_reg.size = REG64;
@@ -362,7 +399,8 @@ static unsigned int parse_deref_indirect(ParseInfo *info, Operand *operand) {
 
   if (index_reg == NOREG) {
     operand->type = DEREF_INDIRECT;
-    operand->indirect.offset = offset;
+    operand->indirect.offset.expr = offset;
+    operand->indirect.offset.flag = 0;
     char reg_no = base_reg - RAX;
     operand->indirect.reg.size = REG64;
     operand->indirect.reg.no = reg_no & 7;
@@ -420,13 +458,13 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
     }
   }
 
-  Expr *expr = parse_expr(info);
+  ExprWithFlag expr_with_flag = parse_expr_with_flag(info);
   info->p = skip_whitespaces(info->p);
   if (*info->p != '(') {
-    if (expr != NULL) {
-      if (expr->kind == EX_LABEL || expr->kind == EX_FIXNUM) {
+    if (expr_with_flag.expr != NULL) {
+      if (expr_with_flag.expr->kind == EX_LABEL || expr_with_flag.expr->kind == EX_FIXNUM) {
         operand->type = DIRECT;
-        operand->direct.expr = expr;
+        operand->direct.expr = expr_with_flag.expr;
         return EXP;
       }
       parse_error(info, "direct number not implemented");
@@ -434,12 +472,13 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
   } else {
     if (info->p[1] == '%') {
       info->p += 2;
-      if (expr == NULL) {
-        expr = malloc_or_die(sizeof(*expr));
+      if (expr_with_flag.expr == NULL) {
+        Expr *expr = calloc_or_die(sizeof(*expr));
         expr->kind = EX_FIXNUM;
         expr->fixnum = 0;
+        expr_with_flag.expr = expr;
       }
-      return parse_indirect_register(info, expr, operand);
+      return parse_indirect_register(info, &expr_with_flag, operand);
     }
   }
 
