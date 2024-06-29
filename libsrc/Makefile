@@ -8,9 +8,9 @@ LIBS:=$(LIB_DIR)/crt0.a $(LIB_DIR)/libc.a
 UNAME:=$(shell uname)
 ifeq ("$(UNAME)", "Darwin")
 CFLAGS:=-I$(INC_DIR) -Wall -Wextra -Werror \
-	-Wno-incompatible-library-redeclaration
+	-Wno-incompatible-library-redeclaration -no-pie
 else
-CFLAGS:=-I$(INC_DIR) -Wall -Wextra -Werror
+CFLAGS:=-I$(INC_DIR) -Wall -Wextra -Werror -no-pie
 endif
 
 ifneq ("$(HOST_CC_PREFIX)", "")

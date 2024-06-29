@@ -457,6 +457,9 @@ static void parse_options(int argc, char *argv[], Options *opts) {
         vec_push(opts->linker_options, argv[optind - 1]);
       }
       break;
+    case OPT_NO_PIE:
+      vec_push(opts->ld_cmd, argv[optind - 1]);
+      break;
 
     case 'O':
     case 'g':
@@ -464,7 +467,6 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     case OPT_STD:
     case OPT_PEDANTIC:
     case OPT_MMD:
-    case OPT_NO_PIE:
       // Silently ignored.
       vec_push(opts->linker_options, argv[optind - 1]);
       break;

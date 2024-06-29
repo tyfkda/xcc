@@ -730,6 +730,8 @@ int main(int argc, char *argv[]) {
     OPT_HELP = 128,
     OPT_VERSION,
     OPT_OUTMAP,
+
+    OPT_NO_PIE,
   };
 
   static const struct option options[] = {
@@ -737,6 +739,8 @@ int main(int argc, char *argv[]) {
     {"e", required_argument},  // Entry name
     {"Map", required_argument, OPT_OUTMAP},  // Output map file
     {"-version", no_argument, 'V'},
+
+    {"no-pie", no_argument, OPT_NO_PIE},
     {NULL},
   };
   int opt;
@@ -753,6 +757,9 @@ int main(int argc, char *argv[]) {
       break;
     case OPT_OUTMAP:
       outmapfn = optarg;
+      break;
+    case OPT_NO_PIE:
+      // Silently ignored.
       break;
     default:
       fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
