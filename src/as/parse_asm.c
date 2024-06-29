@@ -42,12 +42,14 @@ static const char *kDirectiveTable[] = {
 #endif
 };
 
-static LabelInfo *new_label(int section, uintptr_t address) {
-  LabelInfo *info = malloc_or_die(sizeof(*info));
+static LabelInfo *new_label(int section) {
+  LabelInfo *info = calloc_or_die(sizeof(*info));
   info->section = section;
   info->flag = 0;
-  info->address = address;
+  info->address = 0;
   info->kind = LK_NONE;
+  info->size = 0;
+  info->align = 0;
   return info;
 }
 
@@ -63,7 +65,7 @@ LabelInfo *add_label_table(Table *label_table, const Name *label, int section, b
       info->section = section;
     }
   } else {
-    info = new_label(section, 0);
+    info = new_label(section);
     table_put(label_table, label, info);
   }
   if (define)
@@ -89,30 +91,6 @@ static enum DirectiveType find_directive(const char *p, size_t n) {
   }
   return NODIRECTIVE;
 }
-
-#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-static int find_aarch_label_flag(const char **pp) {
-  static struct {
-    const char *name;
-    int flag;
-  } const kPrefixes[] = {
-    {":lo12:", LF_PAGEOFF},
-    {":got:", LF_GOT},
-    {":got_lo12:", LF_GOT | LF_PAGEOFF},
-  };
-
-  const char *p = *pp;
-  for (size_t i = 0; i < ARRAY_SIZE(kPrefixes); ++i) {
-    const char *name = kPrefixes[i].name;
-    size_t n = strlen(name);
-    if (strncasecmp(p, name, n) == 0) {
-      *pp = p + n;
-      return kPrefixes[i].flag;
-    }
-  }
-  return 0;
-}
-#endif
 
 bool immediate(const char **pp, int64_t *value) {
   const char *p = *pp;
@@ -249,7 +227,6 @@ typedef struct Token {
   union {
     struct {
       const Name *name;
-      int flag;
     } label;
     int64_t fixnum;
 #ifndef __NO_FLONUM
@@ -295,29 +272,6 @@ static Token *read_flonum(ParseInfo *info, int base) {
 }
 #endif
 
-static int parse_label_postfix(ParseInfo *info) {
-  UNUSED(info);
-#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-  static struct {
-    const char *name;
-    int flag;
-  } const kPostfixes[] = {
-    {"@page", LF_PAGE},
-    {"@pageoff", LF_PAGEOFF},
-  };
-  const char *p = info->p;
-  for (size_t i = 0; i < ARRAY_SIZE(kPostfixes); ++i) {
-    const char *name = kPostfixes[i].name;
-    size_t n = strlen(name);
-    if (strncasecmp(p, name, n) == 0 && !is_label_chr(p[n])) {
-      info->p = p + n;
-      return kPostfixes[i].flag;
-    }
-  }
-#endif
-  return 0;
-}
-
 static const Token *fetch_token(ParseInfo *info) {
   static const Token kTokEOF = {.kind = TK_EOF};
   const char *start = skip_whitespaces(info->p);
@@ -359,7 +313,6 @@ static const Token *fetch_token(ParseInfo *info) {
       if (label != NULL) {
         Token *token = new_token(TK_LABEL);
         token->label.name = label;
-        token->label.flag = parse_label_postfix(info);
         return token;
       }
     }
@@ -388,12 +341,6 @@ static const Token *fetch_token(ParseInfo *info) {
   default: break;
   }
 
-  int flag = 0;
-#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-  flag = find_aarch_label_flag(&p);
-  if (flag != 0)
-    c = *p;
-#endif
   if (is_label_first_chr(c)) {
     const char *label = p;
     while (c = *++p, is_label_chr(c))
@@ -401,7 +348,6 @@ static const Token *fetch_token(ParseInfo *info) {
     Token *token = new_token(TK_LABEL);
     token->label.name = alloc_name(label, p, false);
     info->p = p;
-    token->label.flag = parse_label_postfix(info) | flag;
     return token;
   }
 
@@ -428,31 +374,12 @@ Expr *new_expr(enum ExprKind kind) {
   return expr;
 }
 
-#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-Expr *parse_got_label(ParseInfo *info) {
-  const char *p = info->p;
-  int flag = find_aarch_label_flag(&p);
-  if (flag != 0) {
-    parse_set_p(info, p);
-    const Token *tok;
-    if ((tok = match(info, TK_LABEL)) != NULL) {
-      Expr *offset = new_expr(EX_LABEL);
-      offset->label.name = tok->label.name;
-      offset->label.flag = flag;
-      return offset;
-    }
-  }
-  return NULL;
-}
-#endif
-
 static Expr *prim(ParseInfo *info) {
   Expr *expr = NULL;
   const Token *tok;
   if ((tok = match(info, TK_LABEL)) != NULL) {
     expr = new_expr(EX_LABEL);
     expr->label.name = tok->label.name;
-    expr->label.flag = tok->label.flag;
   } else if ((tok = match(info, TK_FIXNUM)) != NULL) {
     expr = new_expr(EX_FIXNUM);
     expr->fixnum = tok->fixnum;
@@ -829,19 +756,29 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
       if (*info->p != ',')
         parse_error(info, ".comm: `,' expected");
       info->p = skip_whitespaces(info->p + 1);
-      int64_t count;
-      if (!immediate(&info->p, &count)) {
-        parse_error(info, ".comm: count expected");
+      int64_t size;
+      if (!immediate(&info->p, &size) || size <= 0) {
+        parse_error(info, ".comm: size expected");
         return;
       }
 
       int64_t align = 0;
       if (*info->p == ',') {
         info->p = skip_whitespaces(info->p + 1);
-        if (!immediate(&info->p, &align) || align < 1) {
+        if (!immediate(&info->p, &align) ||
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+            align < 0
+#else
+            align < 1
+#endif
+        ) {
           parse_error(info, ".comm: optional alignment expected");
           return;
         }
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+        // p2align on macOS.
+        align = 1 << align;
+#endif
       }
 
       enum SectionType sec = SEC_BSS;
@@ -849,10 +786,13 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
       if (align > 1)
         vec_push(irs, new_ir_align(align));
       vec_push(irs, new_ir_label(label));
-      vec_push(irs, new_ir_bss(count));
+      vec_push(irs, new_ir_bss(size));
 
-      if (!add_label_table(label_table, label, sec, true, false))
+      LabelInfo *info = add_label_table(label_table, label, sec, true, false);
+      if (info == NULL)
         return;
+      info->size = size;
+      info->align = align;
     }
     break;
 
@@ -999,14 +939,33 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         parse_error(info, ".section: section name expected");
         return;
       }
+#if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
       if (equal_name(name, alloc_name(".rodata", NULL, false))) {
         current_section = SEC_RODATA;
-      } else {
-        parse_error(info, "Unknown section name");
+        break;
+      }
+#else
+      const char *p = skip_whitespaces(info->p);
+      if (*p != ',') {
+        parse_error(info, "`,' expected");
         return;
       }
+      info->p = skip_whitespaces(p + 1);
+      const Name *name2 = parse_section_name(info);
+      if (name2 == NULL) {
+        parse_error(info, ".section: section name expected");
+        return;
+      }
+      if (equal_name(name, alloc_name("__DATA", NULL, false))) {
+        if (equal_name(name2, alloc_name("__const", NULL, false))) {
+          current_section = SEC_RODATA;
+          break;
+        }
+      }
+#endif
+      parse_error(info, "Unknown section name");
+      return;
     }
-    break;
 
   case DT_EXTERN:
     break;
@@ -1017,7 +976,7 @@ Value calc_expr(Table *label_table, const Expr *expr) {
   assert(expr != NULL);
   switch (expr->kind) {
   case EX_LABEL:
-    return (Value){.label = expr->label.name, .offset = 0, .flag = expr->label.flag};
+    return (Value){.label = expr->label.name, .offset = 0};
   case EX_FIXNUM:
     return (Value){.label = NULL, .offset = expr->fixnum};
   case EX_ADD:
@@ -1041,14 +1000,14 @@ Value calc_expr(Table *label_table, const Expr *expr) {
           error("Illegal expression");
         }
         // offset + label
-        return (Value){.label = rhs.label, .offset = lhs.offset + rhs.offset, .flag = rhs.flag};
+        return (Value){.label = rhs.label, .offset = lhs.offset + rhs.offset};
       }
       if (lhs.label != NULL) {
         if (expr->kind != EX_ADD) {
           error("Illegal expression");
         }
         // label + offset
-        return (Value){.label = lhs.label, .offset = lhs.offset + rhs.offset, .flag = lhs.flag};
+        return (Value){.label = lhs.label, .offset = lhs.offset + rhs.offset};
       }
 
       assert(lhs.label == NULL && rhs.label == NULL);

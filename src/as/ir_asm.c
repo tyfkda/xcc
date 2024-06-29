@@ -42,6 +42,7 @@ IR *new_ir_align(int align) {
 IR *new_ir_expr(enum IrKind kind, const Expr *expr) {
   IR *ir = calloc_or_die(sizeof(*ir));
   ir->kind = kind;
-  ir->expr = expr;
+  ir->expr.expr = expr;
+  ir->expr.addend = 0;
   return ir;
 }

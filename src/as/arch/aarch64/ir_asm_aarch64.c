@@ -83,11 +83,12 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
           switch (inst->op) {
           case ADD_I:
             if (inst->opr[2].type == DIRECT) {
-              Value value = calc_expr(label_table, inst->opr[2].direct.expr);
+              ExprWithFlag *expr = &inst->opr[2].direct.expr;
+              Value value = calc_expr(label_table, expr->expr);
               if (value.label != NULL) {
-                if (value.flag == LF_PAGEOFF) {
+                if (expr->flag == LF_PAGEOFF || expr->flag == (LF_GOT | LF_PAGEOFF)) {
                   UnresolvedInfo *info = malloc_or_die(sizeof(*info));
-                  info->kind = UNRES_PCREL_LO;
+                  info->kind = expr->flag == LF_PAGEOFF ? UNRES_PCREL_LO : UNRES_GOT_LO;
                   info->label = value.label;
                   info->src_section = sec;
                   info->offset = address - start_address;
@@ -99,8 +100,9 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
             break;
           case LDR:
           case STR:
-            if (inst->opr[1].type == INDIRECT && inst->opr[1].indirect.offset != NULL) {
-              Value value = calc_expr(label_table, inst->opr[1].indirect.offset);
+            if (inst->opr[1].type == INDIRECT && inst->opr[1].indirect.offset.expr != NULL) {
+              ExprWithFlag *offset = &inst->opr[1].indirect.offset;
+              Value value = calc_expr(label_table, offset->expr);
               if (value.label != NULL) {
                 static const int table[][2] = {
                   { LF_GOT, UNRES_GOT_HI },
@@ -108,7 +110,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 };
                 size_t i;
                 for (i = 0; i < ARRAY_SIZE(table); ++i) {
-                  if (table[i][0] == value.flag)
+                  if (table[i][0] == offset->flag)
                     break;
                 }
                 if (i >= ARRAY_SIZE(table)) {
@@ -127,16 +129,17 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
             break;
           case ADRP:
             if (inst->opr[1].type == DIRECT) {
-              Value value = calc_expr(label_table, inst->opr[1].direct.expr);
+              ExprWithFlag *expr = &inst->opr[1].direct.expr;
+              Value value = calc_expr(label_table, expr->expr);
               if (value.label != NULL) {
                 static const int table[][2] = {
                   { 0, UNRES_PCREL_HI },
                   { LF_PAGE, UNRES_PCREL_HI },
-                  { LF_GOT, UNRES_GOT_HI },
+                  { LF_GOT | LF_PAGE, UNRES_GOT_HI },
                 };
                 size_t i;
                 for (i = 0; i < ARRAY_SIZE(table); ++i) {
-                  if (table[i][0] == value.flag)
+                  if (table[i][0] == expr->flag)
                     break;
                 }
                 if (i >= ARRAY_SIZE(table)) {
@@ -159,7 +162,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
           case BHI: case BLS: case BGE: case BLT:
           case BGT: case BLE: case BAL: case BNV:
             if (inst->opr[0].type == DIRECT) {
-              Value value = calc_expr(label_table, inst->opr[0].direct.expr);
+              Value value = calc_expr(label_table, inst->opr[0].direct.expr.expr);
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
                 if (label_info == NULL) {
@@ -198,7 +201,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
 
           case BL:
             if (inst->opr[0].type == DIRECT) {
-              Value value = calc_expr(label_table, inst->opr[0].direct.expr);
+              Value value = calc_expr(label_table, inst->opr[0].direct.expr.expr);
               if (value.label != NULL) {
                 UnresolvedInfo *info = malloc_or_die(sizeof(*info));
                 info->kind = UNRES_CALL;
@@ -220,7 +223,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
       case IR_EXPR_LONG:
       case IR_EXPR_QUAD:
         {
-          Value value = calc_expr(label_table, ir->expr);
+          Value value = calc_expr(label_table, ir->expr.expr);
           assert(value.label != NULL);
           UnresolvedInfo *info = malloc_or_die(sizeof(*info));
           info->kind = UNRES_ABS64;  // TODO:
@@ -228,6 +231,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
           info->src_section = sec;
           info->offset = address - start_address;
           info->add = value.offset;
+          ir->expr.addend = value.offset;
           vec_push(unresolved, info);
         }
         break;
@@ -268,9 +272,13 @@ void emit_irs(Vector **section_irs) {
       case IR_EXPR_LONG:
       case IR_EXPR_QUAD:
         {
-          int64_t zero = 0;
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+          int64_t value = ir->expr.addend;
+#else
+          int64_t value = 0;
+#endif
           int size = 1 << (ir->kind - IR_EXPR_BYTE);
-          add_section_data(sec, &zero, size);  // TODO: Target endian
+          add_section_data(sec, &value, size);  // TODO: Target endian
         }
         break;
       }

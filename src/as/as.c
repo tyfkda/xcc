@@ -139,8 +139,14 @@ int main(int argc, char *argv[]) {
 
   fix_section_size(LOAD_ADDRESS);
 
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+  extern int emit_macho_obj(const char *ofn, Table *label_table, Vector *unresolved);
+  #define EMIT_OBJ  emit_macho_obj
+#else
   extern int emit_elf_obj(const char *ofn, Table *label_table, Vector *unresolved);
-  int result = emit_elf_obj(ofn, &label_table, unresolved);
+  #define EMIT_OBJ  emit_elf_obj
+#endif
+  int result = EMIT_OBJ(ofn, &label_table, unresolved);
   if (result != 0) {
     if (ofn == NULL && !isatty(STDIN_FILENO))
       drop_all(stdin);

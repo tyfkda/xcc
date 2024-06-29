@@ -64,16 +64,11 @@ enum ExprKind {
 typedef long double Flonum;
 #endif
 
-#define LF_PAGE     (1 << 0)
-#define LF_PAGEOFF  (1 << 1)
-#define LF_GOT      (1 << 2)
-
 typedef struct Expr {
   enum ExprKind kind;
   union {
     struct {
       const Name *name;
-      int flag;
     } label;
     int64_t fixnum;
     struct {
@@ -118,14 +113,9 @@ const Name *unquote_label(const char *p, const char *q);
 Expr *parse_expr(ParseInfo *info);
 Expr *new_expr(enum ExprKind kind);
 
-#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-Expr *parse_got_label(ParseInfo *info);
-#endif
-
 typedef struct {
   const Name *label;
   int64_t offset;
-  int flag;
 } Value;
 
 Value calc_expr(Table *label_table, const Expr *expr);
@@ -148,6 +138,8 @@ typedef struct {
   int flag;
   uintptr_t address;
   enum LabelKind kind;
+  int size;
+  int align;
 } LabelInfo;
 
 LabelInfo *add_label_table(Table *label_table, const Name *label, int section, bool define, bool global);

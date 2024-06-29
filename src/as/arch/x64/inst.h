@@ -125,6 +125,14 @@ enum OperandType {
   SEGMENT_OFFSET,
 };
 
+
+#define LF_GOTPCREL  (1 << 0)
+
+typedef struct {
+  Expr *expr;
+  int flag;
+} ExprWithFlag;
+
 typedef struct {
   enum OperandType type;
   union {
@@ -134,7 +142,7 @@ typedef struct {
       Expr *expr;
     } direct;
     struct {
-      Expr *offset;
+      ExprWithFlag offset;
       Reg reg;
     } indirect;
     struct {

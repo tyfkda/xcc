@@ -1,10 +1,12 @@
 #include "../config.h"
 
+#if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
 #include <assert.h>
 #include <stdint.h>  // uintptr_t
 #include <stdio.h>
 #include <string.h>
 
+#include "as_util.h"
 #include "elfutil.h"
 #include "gen_section.h"
 #include "ir_asm.h"
@@ -12,13 +14,65 @@
 #include "table.h"
 #include "util.h"
 
-#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-// MachoArm64RelocationType
-#define ARM64_RELOC_PAGE21               3
-#define ARM64_RELOC_PAGEOFF12            4
-#define ARM64_RELOC_GOT_LOAD_PAGE21      5
-#define ARM64_RELOC_GOT_LOAD_PAGEOFF12   6
-#endif
+typedef struct {
+  Strtab strtab;
+  Table indices;
+  Elf64_Sym *buf;
+  int count;
+} Symtab;
+
+void symtab_init(Symtab *symtab) {
+  strtab_init(&symtab->strtab);
+  table_init(&symtab->indices);
+  symtab->buf = NULL;
+  symtab->count = 0;
+}
+
+int symtab_find(Symtab *symtab, const Name *name) {
+  intptr_t index;
+  if (table_try_get(&symtab->indices, name, (void**)&index))
+    return index;
+  return -1;
+}
+
+Elf64_Sym *symtab_add(Symtab *symtab, const Name *name) {
+  uint32_t offset = strtab_add(&symtab->strtab, name);
+  if (name->bytes > 0) {
+    int index = symtab_find(symtab, name);
+    if (index >= 0)
+      return &symtab->buf[index];
+  }
+
+  int old_count = symtab->count;
+  int new_count = old_count + 1;
+  symtab->buf = realloc_or_die(symtab->buf, sizeof(*symtab->buf) * new_count);
+  symtab->count = new_count;
+  Elf64_Sym *sym = &symtab->buf[old_count];
+  memset(sym, 0x00, sizeof(*sym));
+  sym->st_name = offset;
+  table_put(&symtab->indices, name, INT2VOIDP(old_count));
+  return sym;
+}
+
+void symtab_concat(Symtab *dest, Symtab *src) {
+  int n = src->count;
+  const Name **names = alloca(sizeof(*names) * n);
+  const Name *name;
+  intptr_t index;
+  for (int it = 0; (it = table_iterate(&src->indices, it, &name, (void**)&index)) != -1; ) {
+    assert(index < n);
+    names[index] = name;
+  }
+  for (int i = 0; i < n; ++i) {
+    const Name *name = names[i];
+    Elf64_Sym *p = symtab_add(dest, name);
+    Elf64_Word st_name_bak = p->st_name;
+    memcpy(p, &src->buf[i], sizeof(*p));
+    p->st_name = st_name_bak;
+  }
+}
+
+//
 
 static void putnum(FILE *fp, unsigned long num, int bytes) {
   for (int i = 0; i < bytes; ++i) {
@@ -202,25 +256,21 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         assert(symidx >= 0);
 
         rela->r_offset = u->offset;
-#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-# if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? ARM64_RELOC_PAGE21 : ARM64_RELOC_PAGEOFF12);
-# else
-        assert(false);
-# endif
-#else
-
-# if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
         rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? R_RISCV_PCREL_HI20 : R_RISCV_PCREL_LO12_I);
-# elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
         rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? R_AARCH64_ADR_PREL_PG_HI21 : R_AARCH64_ADD_ABS_LO12_NC);
-# else
+#else
         assert(false);
-# endif
 #endif
         rela->r_addend = u->add;
       }
       break;
+
+    case UNRES_X64_GOT_LOAD:
+      assert(!"TODO");
+      break;
+
     case UNRES_RISCV_JAL:
     case UNRES_RISCV_RVC_JUMP:
       {
@@ -489,3 +539,4 @@ int emit_elf_obj(const char *ofn, Table *label_table, Vector *unresolved) {
 
   return 0;
 }
+#endif

@@ -28,6 +28,8 @@ enum UnresolvedKind {
   UNRES_GOT_HI,
   UNRES_GOT_LO,
 
+  UNRES_X64_GOT_LOAD,
+
   UNRES_RISCV_BRANCH,
   UNRES_RISCV_JAL,
   UNRES_RISCV_RVC_BRANCH,
@@ -66,7 +68,10 @@ typedef struct {
     const Name *label;
     Code code;
     Data data;
-    const Expr *expr;
+    struct {
+      const Expr *expr;
+      int64_t addend;  // Calculated in `resolve_relative_address`
+    } expr;
     size_t bss;
     int align;
     int section;
