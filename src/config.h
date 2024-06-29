@@ -75,12 +75,22 @@
 
 #define TARGET_CHAR_BIT  8
 
-#if defined(__ILP32__)
-#define POINTER_SIZE  4  /*sizeof(void*)*/
-#elif defined(__LP64__)
-#define POINTER_SIZE  8  /*sizeof(void*)*/
+// Programming model.
+#define XCC_PROGRAMMING_MODEL_ILP32  1
+#define XCC_PROGRAMMING_MODEL_LP64   2
+
+#if XCC_TARGET_ARCH == XCC_ARCH_WASM
+#define XCC_TARGET_PROGRAMMING_MODEL  XCC_PROGRAMMING_MODEL_ILP32
 #else
-// ?
+#define XCC_TARGET_PROGRAMMING_MODEL  XCC_PROGRAMMING_MODEL_LP64
+#endif
+
+#if XCC_TARGET_PROGRAMMING_MODEL == XCC_PROGRAMMING_MODEL_ILP32
+#define TARGET_POINTER_SIZE  4  /*sizeof(void*)*/
+#elif XCC_TARGET_PROGRAMMING_MODEL == XCC_PROGRAMMING_MODEL_LP64
+#define TARGET_POINTER_SIZE  8  /*sizeof(void*)*/
+#else
+#error "Unsupported programming model"
 #endif
 
 // Elf

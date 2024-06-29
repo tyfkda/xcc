@@ -584,17 +584,19 @@ int main(int argc, char *argv[]) {
   vec_push(cpp_cmd, "-D__linux__");
 #endif
 
-  vec_push(cpp_cmd, "-D__SIZEOF_POINTER__=" S(POINTER_SIZE));
-#if defined(__ILP32__)
+  vec_push(cpp_cmd, "-D__SIZEOF_POINTER__=" S(TARGET_POINTER_SIZE));
+#if XCC_TARGET_PROGRAMMING_MODEL == XCC_PROGRAMMING_MODEL_ILP32
   vec_push(cpp_cmd, "-D__SIZEOF_INT__=4");
   vec_push(cpp_cmd, "-D__SIZEOF_LONG__=4");
   vec_push(cpp_cmd, "-D__SIZEOF_LONG_LONG__=8");
   vec_push(cpp_cmd, "-D__SIZEOF_SIZE_T__=4");
-#elif defined(__LP64__)
+#elif XCC_TARGET_PROGRAMMING_MODEL == XCC_PROGRAMMING_MODEL_LP64
   vec_push(cpp_cmd, "-D__SIZEOF_INT__=4");
   vec_push(cpp_cmd, "-D__SIZEOF_LONG__=8");
   vec_push(cpp_cmd, "-D__SIZEOF_LONG_LONG__=8");
   vec_push(cpp_cmd, "-D__SIZEOF_SIZE_T__=8");
+#else
+# error "Unsupported programming model"
 #endif
 
 #undef S2

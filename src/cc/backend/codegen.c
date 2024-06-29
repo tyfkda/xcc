@@ -783,7 +783,7 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
 #if VAARG_FP_AS_GP
     // Register parameters are put below stack frame, so not added to frame_size.
 #else
-    frame_size = (MAX_REG_ARGS + MAX_FREG_ARGS) * POINTER_SIZE;
+    frame_size = (MAX_REG_ARGS + MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
 #endif
   }
 
@@ -805,13 +805,13 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
         if (is_stack_param(varinfo->type)) {
           FrameInfo *fi = varinfo->local.frameinfo;
           fi->offset = param_offset = ALIGN(param_offset, align_size(varinfo->type));
-          param_offset += ALIGN(type_size(varinfo->type), POINTER_SIZE);
+          param_offset += ALIGN(type_size(varinfo->type), TARGET_POINTER_SIZE);
           require_stack_frame = true;
           continue;
         } else if (varinfo->local.vreg->flag & VRF_STACK_PARAM) {
           FrameInfo *fi = varinfo->local.frameinfo;
-          fi->offset = param_offset = ALIGN(param_offset, POINTER_SIZE);
-          param_offset += POINTER_SIZE;
+          fi->offset = param_offset = ALIGN(param_offset, TARGET_POINTER_SIZE);
+          param_offset += TARGET_POINTER_SIZE;
           require_stack_frame = true;
           continue;
         }

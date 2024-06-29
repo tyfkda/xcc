@@ -24,12 +24,18 @@ static void init_compiler(FILE *ofp) {
   init_global();
   init_emit(ofp);
 
-  // set_fixnum_size(FX_CHAR,  1, 1);
-  // set_fixnum_size(FX_SHORT, 2, 2);
-  // set_fixnum_size(FX_INT,   4, 4);
-  // set_fixnum_size(FX_LONG,  8, 8);
-  // set_fixnum_size(FX_LLONG, 8, 8);
-  // set_fixnum_size(FX_ENUM,  4, 4);
+#if XCC_TARGET_PROGRAMMING_MODEL == XCC_PROGRAMMING_MODEL_LP64
+  // Default
+#elif XCC_TARGET_PROGRAMMING_MODEL == XCC_PROGRAMMING_MODEL_ILP32
+  set_fixnum_size(FX_CHAR,  1, 1);
+  set_fixnum_size(FX_SHORT, 2, 2);
+  set_fixnum_size(FX_INT,   4, 4);
+  set_fixnum_size(FX_LONG,  4, 4);
+  set_fixnum_size(FX_LLONG, 8, 8);
+  set_fixnum_size(FX_ENUM,  4, 4);
+#else
+# error "Unsupported programming model"
+#endif
 
   install_builtins();
 }

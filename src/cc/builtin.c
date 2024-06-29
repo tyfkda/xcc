@@ -105,11 +105,11 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     } else {
       if (is_flonum(t)) {
         if (fn >= MAX_FREG_ARGS)
-          size = align = POINTER_SIZE;
+          size = align = TARGET_POINTER_SIZE;
         ++fn;
       } else {
         if (gn >= MAX_REG_ARGS)
-          size = align = POINTER_SIZE;
+          size = align = TARGET_POINTER_SIZE;
         ++gn;
       }
     }
@@ -165,7 +165,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
 
   int offset = 0;
   if (gn >= MAX_REG_ARGS) {
-    offset = (gn - MAX_REG_ARGS) * POINTER_SIZE;
+    offset = (gn - MAX_REG_ARGS) * TARGET_POINTER_SIZE;
   } else {
     // Check whether register arguments saved on stack has padding.
     RegParamInfo iparams[MAX_REG_ARGS];
@@ -177,8 +177,8 @@ static VReg *gen_builtin_va_start(Expr *expr) {
 
     int n = MAX_REG_ARGS - iparam_count;
     if (n > 0) {
-      int size_org = n * POINTER_SIZE;
-      int size = ALIGN(n, 2) * POINTER_SIZE;
+      int size_org = n * TARGET_POINTER_SIZE;
+      int size = ALIGN(n, 2) * TARGET_POINTER_SIZE;
       offset = size - size_org;
     }
   }
@@ -234,17 +234,17 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     }
   }
 
-  // ap->gp_offset = gn * POINTER_SIZE
+  // ap->gp_offset = gn * TARGET_POINTER_SIZE
   VReg *ap = gen_expr(args->data[0]);
   VReg *gp_offset = ap;
-  new_ir_store(gp_offset, new_const_vreg(MIN(gn, MAX_REG_ARGS) * POINTER_SIZE, to_vsize(&tyInt)), 0);
+  new_ir_store(gp_offset, new_const_vreg(MIN(gn, MAX_REG_ARGS) * TARGET_POINTER_SIZE, to_vsize(&tyInt)), 0);
 
-  // ap->fp_offset = (MAX_REG_ARGS + fn) * POINTER_SIZE
+  // ap->fp_offset = (MAX_REG_ARGS + fn) * TARGET_POINTER_SIZE
   VReg *fp_offset = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt), to_vsize(&tySize)),
                                ap->vsize, IRF_UNSIGNED);
-  new_ir_store(fp_offset, new_const_vreg((MAX_REG_ARGS + MIN(fn, MAX_FREG_ARGS)) * POINTER_SIZE, to_vsize(&tySize)), 0);
+  new_ir_store(fp_offset, new_const_vreg((MAX_REG_ARGS + MIN(fn, MAX_FREG_ARGS)) * TARGET_POINTER_SIZE, to_vsize(&tySize)), 0);
 
-  // ap->overflow_arg_area = 2 * POINTER_SIZE
+  // ap->overflow_arg_area = 2 * TARGET_POINTER_SIZE
   {
     enum VRegSize vsize = to_vsize(&tyVoidPtr);
     VReg *overflow_arg_area = new_ir_bop(
@@ -255,13 +255,13 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     VReg *p = new_ir_bofs(fi);
     int gs = MAX(gn - MAX_REG_ARGS, 0), fs = MAX(fn - MAX_FREG_ARGS, 0);
     if (gs > 0 || fs > 0) {
-      p = new_ir_bop(IR_ADD, p, new_const_vreg((gs + fs) * POINTER_SIZE, vsize), vsize,
+      p = new_ir_bop(IR_ADD, p, new_const_vreg((gs + fs) * TARGET_POINTER_SIZE, vsize), vsize,
                      IRF_UNSIGNED);
     }
     new_ir_store(overflow_arg_area, p, 0);
   }
 
-  // ap->reg_save_area = -(MAX_REG_ARGS + MAX_FREG_ARGS) * POINTER_SIZE
+  // ap->reg_save_area = -(MAX_REG_ARGS + MAX_FREG_ARGS) * TARGET_POINTER_SIZE
   {
     enum VRegSize vsize = to_vsize(&tyVoidPtr);
     VReg *reg_save_area = new_ir_bop(
@@ -269,7 +269,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
         new_const_vreg(type_size(&tyInt) + type_size(&tyInt) + type_size(&tyVoidPtr), vsize),
         vsize, IRF_UNSIGNED);
     FrameInfo *fi = malloc_or_die(sizeof(*fi));
-    fi->offset = -(MAX_REG_ARGS + MAX_FREG_ARGS) * POINTER_SIZE;
+    fi->offset = -(MAX_REG_ARGS + MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
     VReg *p = new_ir_bofs(fi);
     new_ir_store(reg_save_area, p, 0);
   }

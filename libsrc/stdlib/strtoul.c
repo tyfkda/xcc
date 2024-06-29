@@ -1,5 +1,4 @@
 #include "stdlib.h"
-#include "limits.h"  // CHAR_BIT
 
 extern unsigned long long _strtoull_sub(const char *p, char **pp, int base, unsigned long long max);
 

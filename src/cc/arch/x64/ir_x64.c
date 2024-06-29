@@ -961,7 +961,7 @@ int calculate_func_param_bottom(Function *func) {
   unsigned long used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
   int callee_save_count = count_callee_save_regs(used, fused);
 
-  return (callee_save_count * POINTER_SIZE) + (POINTER_SIZE * 2);  // Return address, saved base pointer.
+  return (callee_save_count * TARGET_POINTER_SIZE) + (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
 }
 
 static Vector *push_caller_save_regs(unsigned long living) {
@@ -988,11 +988,11 @@ static Vector *push_caller_save_regs(unsigned long living) {
     }
     int n = saves->len - fstart;
     if (n > 0) {
-      int ofs = n * POINTER_SIZE;
+      int ofs = n * TARGET_POINTER_SIZE;
       SUB(IM(ofs), RSP);
       stackpos += ofs;
       for (int i = 0; i < n; ++i) {
-        ofs -= POINTER_SIZE;
+        ofs -= TARGET_POINTER_SIZE;
         MOVSD(saves->data[i + fstart], OFFSET_INDIRECT(ofs, RSP, NULL, 1));
       }
     }
@@ -1009,7 +1009,7 @@ static void pop_caller_save_regs(Vector *saves) {
     if (strncmp(reg, "%xmm", 4) != 0)
       break;
     MOVSD(OFFSET_INDIRECT(ofs, RSP, NULL, 1), reg);
-    ofs += POINTER_SIZE;
+    ofs += TARGET_POINTER_SIZE;
   }
   if (ofs > 0) {
     ADD(IM(ofs), RSP);

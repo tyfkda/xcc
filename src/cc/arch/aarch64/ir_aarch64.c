@@ -864,7 +864,7 @@ int calculate_func_param_bottom(Function *func) {
                                      saves);
   int callee_save_count = ALIGN(count, 2) + ALIGN(fcount, 2);
 
-  return (callee_save_count * POINTER_SIZE) + (POINTER_SIZE * 2);  // Return address, saved base pointer.
+  return (callee_save_count * TARGET_POINTER_SIZE) + (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
 }
 #undef N
 

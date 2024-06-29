@@ -244,7 +244,7 @@ static StructInfo *parse_struct(bool is_union) {
         if (bit->fixnum < 0) {
           parse_error(PE_NOFATAL, NULL, "illegal bit width");
           bit = NULL;
-        } else if (bit->fixnum > (Fixnum)(type_size(type) * CHAR_BIT)) {  // TODO: target CHAR_BIT
+        } else if (bit->fixnum > (Fixnum)(type_size(type) * TARGET_CHAR_BIT)) {
           parse_error(PE_NOFATAL, NULL, "bit width exceeds");
           bit = NULL;
         } else if (bit->fixnum == 0 && ident != NULL) {

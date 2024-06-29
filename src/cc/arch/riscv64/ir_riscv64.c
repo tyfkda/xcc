@@ -846,12 +846,12 @@ int push_callee_save_regs(unsigned long used, unsigned long fused) {
   int total = count + fcount;
   int total_aligned = ALIGN(total, 2);
   if (total_aligned > 0)
-    ADDI(SP, SP, IM(-POINTER_SIZE * total_aligned));
+    ADDI(SP, SP, IM(-TARGET_POINTER_SIZE * total_aligned));
   for (int i = 0; i < count; ++i) {
-    SD(saves[i], IMMEDIATE_OFFSET((total - 1 - i) * POINTER_SIZE, SP));
+    SD(saves[i], IMMEDIATE_OFFSET((total - 1 - i) * TARGET_POINTER_SIZE, SP));
   }
   for (int i = 0; i < fcount; ++i) {
-    FSD(saves[i + count], IMMEDIATE_OFFSET((total - 1 - count - i) * POINTER_SIZE, SP));
+    FSD(saves[i + count], IMMEDIATE_OFFSET((total - 1 - count - i) * TARGET_POINTER_SIZE, SP));
   }
   return total_aligned;
 }
@@ -866,12 +866,12 @@ void pop_callee_save_regs(unsigned long used, unsigned long fused) {
     return;
 
   for (int i = fcount; i-- > 0; ) {
-    FLD(saves[i + count], IMMEDIATE_OFFSET((total - 1 - count - i) * POINTER_SIZE, SP));
+    FLD(saves[i + count], IMMEDIATE_OFFSET((total - 1 - count - i) * TARGET_POINTER_SIZE, SP));
   }
   for (int i = count; i-- > 0; ) {
-    LD(saves[i], IMMEDIATE_OFFSET((total - 1 - i) * POINTER_SIZE, SP));
+    LD(saves[i], IMMEDIATE_OFFSET((total - 1 - i) * TARGET_POINTER_SIZE, SP));
   }
-  ADDI(SP, SP, IM(POINTER_SIZE * ALIGN(total, 2)));
+  ADDI(SP, SP, IM(TARGET_POINTER_SIZE * ALIGN(total, 2)));
 }
 
 int calculate_func_param_bottom(Function *func) {
@@ -883,7 +883,7 @@ int calculate_func_param_bottom(Function *func) {
                                      &saves[count]);
   int total = count + fcount;
 
-  return (ALIGN(total, 2) * POINTER_SIZE) + (POINTER_SIZE * 2);  // Return address, saved base pointer.
+  return (ALIGN(total, 2) * TARGET_POINTER_SIZE) + (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
 }
 #undef N
 
@@ -912,9 +912,9 @@ static Vector *push_caller_save_regs(unsigned long living) {
   for (int i = 0, n = saves->len; i < n; ++i) {
     const char *reg = saves->data[i];
     if (is_freg(reg))
-      FSD(reg, IMMEDIATE_OFFSET((n - 1 - i) * POINTER_SIZE, SP));
+      FSD(reg, IMMEDIATE_OFFSET((n - 1 - i) * TARGET_POINTER_SIZE, SP));
     else
-      SD(reg, IMMEDIATE_OFFSET((n - 1 - i) * POINTER_SIZE, SP));
+      SD(reg, IMMEDIATE_OFFSET((n - 1 - i) * TARGET_POINTER_SIZE, SP));
   }
 
   return saves;
@@ -924,9 +924,9 @@ static void pop_caller_save_regs(Vector *saves) {
   for (int n = saves->len, i = n; i-- > 0; ) {
     const char *reg = saves->data[i];
     if (is_freg(reg))
-      FLD(saves->data[i], IMMEDIATE_OFFSET((n - 1 - i) * POINTER_SIZE, SP));
+      FLD(saves->data[i], IMMEDIATE_OFFSET((n - 1 - i) * TARGET_POINTER_SIZE, SP));
     else
-      LD(saves->data[i], IMMEDIATE_OFFSET((n - 1 - i) * POINTER_SIZE, SP));
+      LD(saves->data[i], IMMEDIATE_OFFSET((n - 1 - i) * TARGET_POINTER_SIZE, SP));
   }
 }
 

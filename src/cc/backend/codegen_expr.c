@@ -514,7 +514,7 @@ static VReg *gen_funcall(Expr *expr) {
       if (p->stack_arg || (p->is_flo ? freg_index >= MAX_FREG_ARGS : ireg_index >= MAX_REG_ARGS)) {
         offset = ALIGN(offset, align_size(arg->type));
         p->offset = offset;
-        offset += ALIGN(p->size, POINTER_SIZE);
+        offset += ALIGN(p->size, TARGET_POINTER_SIZE);
         ++stack_arg_count;
       } else {
         if (p->is_flo) {
