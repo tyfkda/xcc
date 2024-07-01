@@ -292,17 +292,24 @@ static unsigned char *asm_ldrstr(Inst *inst, Code *code) {
 
     static const uint32_t opts[] = {3, 6, 2, 3, 3};
     uint32_t opt = opts[opr2->register_offset.extend];
-    uint32_t s = opr2->register_offset.extend > 0 ? 1 : 0;
 
     switch (inst->op) {
-    case LDR:    W_LDR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, sz2, s, opt); break;
-    // case LDRB:   W_LDRB_R(opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opr2->register_offset.extend); break;
-    // case LDRSB:  W_LDRSB_R(opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opr2->register_offset.extend); break;
-    // case LDRH:   W_LDRH_R(opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opr2->register_offset.extend); break;
-    // case LDRSH:  W_LDRSH_R(opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opr2->register_offset.extend); break;
-    case STR:    W_STR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opt); break;
-    // case STRB:   W_STRB_R(opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opr2->register_offset.extend); break;
-    // case STRH:   W_STRH_R(opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opr2->register_offset.extend); break;
+    case LDRB: case LDRH: case LDR:
+    case LDRSB: case LDRSH:
+      {
+        uint32_t b = inst->op - LDRB, s = 0;
+        if (b >= 3) {
+          b -= 3;
+          s = 1;
+        }
+        b |= sz;
+
+        W_LDR_R(b, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, s, opt);
+      }
+      break;
+    case STRB: case STRH: case STR:
+      W_STR_R((inst->op - STRB) | sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opt);
+      break;
     default: assert(false); break;
     }
     return code->buf;
@@ -442,7 +449,7 @@ static unsigned char *asm_f_ldrstr(Inst *inst, Code *code) {
     uint32_t s = opr2->register_offset.extend > 0 ? 1 : 0;
 
     switch (inst->op) {
-    case LDR:    W_LDR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, sz2, s, opt); break;
+    case LDR:    W_LDR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, s, opt); break;
     case STR:    W_STR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opt); break;
     default: assert(false); break;
     }
