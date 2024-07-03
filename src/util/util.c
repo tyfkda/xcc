@@ -107,7 +107,7 @@ ssize_t getline_chomp(char **lineptr, size_t *n, FILE *stream) {
     // Chomp CR(\r), LF(\n), CR+LF
     if (line[len - 1] == '\n')
       line[--len] = '\0';
-    if (line[len - 1] == '\r')
+    if (len > 0 && line[len - 1] == '\r')
       line[--len] = '\0';
   }
   return len;
