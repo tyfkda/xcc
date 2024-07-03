@@ -276,7 +276,7 @@ static unsigned char *asm_ldrstr(Inst *inst, Code *code) {
     case STRB: case STRH: case STR:
       if (opr2->indirect.prepost == 0) {
         if (offset >= 0)
-          W_STR_UIMM((inst->op - STRB) | sz, opr1->reg.no, 0, base);
+          W_STR_UIMM((inst->op - STRB) | sz, opr1->reg.no, offset >> (2 + sz), base);
         else
           W_STUR((inst->op - STRB) | sz, opr1->reg.no, offset, base);
       } else {
@@ -304,11 +304,37 @@ static unsigned char *asm_ldrstr(Inst *inst, Code *code) {
         }
         b |= sz;
 
-        W_LDR_R(b, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, s, opt);
+        uint32_t s2 = 0;
+        Expr *scale = opr2->register_offset.scale;
+        if (scale != NULL) {
+          assert(scale->kind == EX_FIXNUM);
+          int64_t n = scale->fixnum;
+          if (!(n == 0 || n == b)) {
+            // TODO: Error message.
+            return NULL;
+          }
+          s2 = n == b;
+        }
+        W_LDR_R(b, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, s, s2, opt);
       }
       break;
     case STRB: case STRH: case STR:
-      W_STR_R((inst->op - STRB) | sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opt);
+      {
+        uint32_t b = (inst->op - STRB) | sz;
+
+        uint32_t s2 = 0;
+        Expr *scale = opr2->register_offset.scale;
+        if (scale != NULL) {
+          assert(scale->kind == EX_FIXNUM);
+          int64_t n = scale->fixnum;
+          if (!(n == 0 || n == b)) {
+            // TODO: Error message.
+            return NULL;
+          }
+          s2 = n == b;
+        }
+        W_STR_R(b, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, s2, opt);
+      }
       break;
     default: assert(false); break;
     }
@@ -449,8 +475,8 @@ static unsigned char *asm_f_ldrstr(Inst *inst, Code *code) {
     uint32_t s = opr2->register_offset.extend > 0 ? 1 : 0;
 
     switch (inst->op) {
-    case LDR:    W_LDR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, s, opt); break;
-    case STR:    W_STR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, opt); break;
+    case LDR:    W_LDR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, 0, s, opt); break;
+    case STR:    W_STR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, s, opt); break;
     default: assert(false); break;
     }
     return code->buf;

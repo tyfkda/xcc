@@ -331,11 +331,10 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
         for (int i = 0; i < (int)ARRAY_SIZE(kExtendTable); ++i) {
           const char *name = kExtendTable[i];
           size_t n = strlen(name);
-          if (strncasecmp(p, name, n) == 0 && isspace(p[n])) {
+          if (strncasecmp(p, name, n) == 0 && !is_label_chr(p[n])) {
             extend = i + 1;
-            p = skip_whitespaces(p + n + 1);
-
-            if (*p == '#') {
+            p += n;
+            if (isspace(*p) && (p = skip_whitespaces(p + 1), *p == '#')) {
               p = p + 1;
               int64_t imm;
               if (immediate(&p, &imm)) {

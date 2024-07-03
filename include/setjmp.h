@@ -18,6 +18,9 @@ typedef uintptr_t jmp_buf[208 / 8];
 int setjmp(jmp_buf env);
 void longjmp(jmp_buf env, int result) __attribute__((noreturn));
 
+#define _setjmp   setjmp
+#define _longjmp  longjmp
+
 #ifdef __WASM
 #define setjmp(env)           __builtin_setjmp(env)
 #define longjmp(env, result)  __builtin_longjmp(env, result)

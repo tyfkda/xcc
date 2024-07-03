@@ -8,9 +8,14 @@ LIBS:=$(LIB_DIR)/crt0.a $(LIB_DIR)/libc.a
 UNAME:=$(shell uname)
 ifeq ("$(UNAME)", "Darwin")
 CFLAGS:=-I$(INC_DIR) -Wall -Wextra -Werror \
-	-Wno-incompatible-library-redeclaration -no-pie
+	-Wno-incompatible-library-redeclaration
 else
-CFLAGS:=-I$(INC_DIR) -Wall -Wextra -Werror -no-pie
+CFLAGS:=-I$(INC_DIR) -Wall -Wextra -Werror
+endif
+
+UNAME:=$(shell uname)
+ifneq ("$(UNAME)", "Darwin")
+  CFLAGS+=-no-pie
 endif
 
 ifneq ("$(HOST_CC_PREFIX)", "")
@@ -79,7 +84,7 @@ printf_SRCS:=$(wildcard stdio/*.c)
 file_SRCS:=$(wildcard stdio/*.c)
 stdlib_SRCS:=$(wildcard stdlib/*.c)
 math_SRCS:=$(wildcard math/*.c)
-longjmp_SRCS:=misc/setjmp.c
+longjmp_SRCS:=misc/setjmp.c misc/longjmp.c
 
 define DEFINE_TEST_TARGET
 test-$(1):	$(1)_test

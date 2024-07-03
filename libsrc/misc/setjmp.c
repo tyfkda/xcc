@@ -1,4 +1,4 @@
-#if !defined(__GNUC__) && !defined(__APPLE__)
+#if !defined(__GNUC__)
 #include "setjmp.h"
 
 #if defined(__WASM)
@@ -49,7 +49,7 @@ int setjmp(jmp_buf env) {
         "stp x22, x23, [x0, #48]\n"
         "stp x24, x25, [x0, #64]\n"
         "stp x26, x27, [x0, #80]\n"
-        "stp x28, x29, [x0, #96]\n"
+        "str x28, [x0, #96]\n"  // x29 is already saved (fp).
         SAVE_FREGS
         "mov w0, wzr");
 }

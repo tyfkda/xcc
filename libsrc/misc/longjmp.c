@@ -52,7 +52,7 @@ void longjmp(jmp_buf env, int result) {
         "ldp x22, x23, [x0, #48]\n"
         "ldp x24, x25, [x0, #64]\n"
         "ldp x26, x27, [x0, #80]\n"
-        "ldp x28, x29, [x0, #96]\n"
+        "ldr x28, [x0, #96]\n"
         RESTORE_FREGS
         "mov sp, x9\n"
         "mov w0, w1\n"  // Result value.
