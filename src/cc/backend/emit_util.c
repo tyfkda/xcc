@@ -270,5 +270,5 @@ bool is_fall_path_only(BBContainer *bbcon, int i) {
   BB *bb = bbcon->bbs->data[i], *pbb;
   int len;
   return bb->from_bbs->len == 1 && bb->from_bbs->data[0] == (pbb = bbcon->bbs->data[i - 1]) &&
-         (len = pbb->irs->len) > 0 && ((IR*)pbb->irs->data[len - 1])->kind != IR_TJMP;
+         ((len = pbb->irs->len) == 0 || ((IR*)pbb->irs->data[len - 1])->kind != IR_TJMP);
 }

@@ -363,7 +363,7 @@ extern inline void gen_return(Stmt *stmt) {
 extern inline void gen_if(Stmt *stmt) {
   BB *tbb = new_bb();
   BB *fbb = new_bb();
-  gen_cond_jmp(stmt->if_.cond, false, fbb);
+  gen_cond_jmp(stmt->if_.cond, tbb, fbb);
   set_curbb(tbb);
   gen_stmt(stmt->if_.tblock);
   if (stmt->if_.fblock == NULL) {
@@ -527,7 +527,7 @@ static void gen_while(Stmt *stmt) {
   gen_stmt(stmt->while_.body);
 
   set_curbb(cond_bb);
-  gen_cond_jmp(stmt->while_.cond, true, loop_bb);
+  gen_cond_jmp(stmt->while_.cond, loop_bb, next_bb);
 
   set_curbb(next_bb);
   pop_continue_bb(save_cont);
@@ -544,7 +544,7 @@ static void gen_do_while(Stmt *stmt) {
   gen_stmt(stmt->while_.body);
 
   set_curbb(cond_bb);
-  gen_cond_jmp(stmt->while_.cond, true, loop_bb);
+  gen_cond_jmp(stmt->while_.cond, loop_bb, next_bb);
 
   set_curbb(next_bb);
   pop_continue_bb(save_cont);
@@ -572,7 +572,7 @@ static void gen_for(Stmt *stmt) {
 
   set_curbb(cond_bb);
   if (stmt->for_.cond != NULL)
-    gen_cond_jmp(stmt->for_.cond, true, loop_bb);
+    gen_cond_jmp(stmt->for_.cond, loop_bb, next_bb);
   else
     new_ir_jmp(loop_bb);
 

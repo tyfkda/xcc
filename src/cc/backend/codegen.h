@@ -26,7 +26,7 @@ void gen(Vector *decls);
 
 VReg *gen_expr(Expr *expr);
 
-void gen_cond_jmp(Expr *cond, bool tf, BB *bb);
+void gen_cond_jmp(Expr *cond, BB *tbb, BB *fbb);
 
 void set_curbb(BB *bb);
 VReg *add_new_vreg(const Type *type);

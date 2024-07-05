@@ -80,13 +80,13 @@ static void remove_unnecessary_bb(BBContainer *bbcon) {
         if (i > 0) {
           BB *pbb = bbs->data[i - 1];
           IR *ir0 = is_last_jmp(pbb);
-          if (ir0 != NULL && ir0->jmp.cond != COND_ANY) {  // Fallthrough pass exists.
-            if (ir0->jmp.bb == bb->next) {                 // Skip jmp: Fix bb connection.
-              // Invert prev jmp condition and change jmp destination.
-              ir0->jmp.cond = invert_cond(ir0->jmp.cond);
-              ir0->jmp.bb = ir_jmp->jmp.bb;
-              remove = true;
-            }
+          if (ir0 != NULL && ir0->jmp.cond != COND_ANY &&  // Fallthrough pass exists.
+              ir0->jmp.bb == bb->next &&                   // Skip jmp: Fix bb connection.
+              !(ir0->jmp.cond & COND_FLONUM)) {
+            // Invert prev jmp condition and change jmp destination.
+            ir0->jmp.cond = invert_cond(ir0->jmp.cond);
+            ir0->jmp.bb = ir_jmp->jmp.bb;
+            remove = true;
           }
         }
       }

@@ -112,14 +112,11 @@ static struct CompareExpr gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
   return (struct CompareExpr){.cond = cond | flag, .lhs = lhs_reg, .rhs = rhs_reg};
 }
 
-void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
+void gen_cond_jmp(Expr *cond, BB *tbb, BB *fbb) {
   enum ExprKind ck = cond->kind;
   switch (ck) {
   case EX_FIXNUM:
-    if (cond->fixnum == 0)
-      tf = !tf;
-    if (tf)
-      new_ir_jmp(bb);
+    new_ir_jmp(cond->fixnum != 0 ? tbb : fbb);
     return;
   case EX_EQ:
   case EX_NE:
@@ -128,35 +125,31 @@ void gen_cond_jmp(Expr *cond, bool tf, BB *bb) {
   case EX_GE:
   case EX_GT:
     {
-      if (!tf) {
-        if (ck <= EX_NE)
-          ck = (EX_EQ + EX_NE) - ck;  // EQ <-> NE
-        else
-          ck = EX_LT + ((ck - EX_LT) ^ 2);  // LT <-> GE, LE <-> GT
-      }
       struct CompareExpr cmp = gen_compare_expr(ck, cond->bop.lhs, cond->bop.rhs);
-      new_ir_cjmp(cmp.lhs, cmp.rhs, cmp.cond, bb);
+      new_ir_cjmp(cmp.lhs, cmp.rhs, cmp.cond, tbb);
+      set_curbb(new_bb());
+      new_ir_jmp(fbb);
     }
     return;
   case EX_LOGAND:
+    {
+      BB *bb1 = new_bb();
+      gen_cond_jmp(cond->bop.lhs, bb1, fbb);
+      set_curbb(bb1);
+      gen_cond_jmp(cond->bop.rhs, tbb, fbb);
+    }
+    break;
   case EX_LOGIOR:
     {
       BB *bb1 = new_bb();
-      BB *bb2 = new_bb();
-      if (!tf)
-        ck = (EX_LOGAND + EX_LOGIOR) - ck;  // LOGAND <-> LOGIOR
-      if (ck == EX_LOGAND)
-        gen_cond_jmp(cond->bop.lhs, !tf, bb2);
-      else
-        gen_cond_jmp(cond->bop.lhs, tf, bb);
+      gen_cond_jmp(cond->bop.lhs, tbb, bb1);
       set_curbb(bb1);
-      gen_cond_jmp(cond->bop.rhs, tf, bb);
-      set_curbb(bb2);
+      gen_cond_jmp(cond->bop.rhs, tbb, fbb);
     }
     return;
   case EX_COMMA:
     gen_expr(cond->bop.lhs);
-    gen_cond_jmp(cond->bop.rhs, tf, bb);
+    gen_cond_jmp(cond->bop.rhs, tbb, fbb);
     break;
   default: assert(false); break;
   }
@@ -324,7 +317,7 @@ static VReg *gen_ternary(Expr *expr) {
     result = add_new_vreg(type);
   }
 
-  gen_cond_jmp(expr->ternary.cond, false, fbb);
+  gen_cond_jmp(expr->ternary.cond, tbb, fbb);
 
   set_curbb(tbb);
   VReg *tval = gen_expr(expr->ternary.tval);
@@ -814,16 +807,18 @@ static VReg *gen_relation(Expr *expr) {
 }
 
 static VReg *gen_expr_logandor(Expr *expr) {
-  BB *false_bb = new_bb();
-  BB *next_bb = new_bb();
-  gen_cond_jmp(expr, false, false_bb);
+  BB *tbb = new_bb();
+  BB *fbb = new_bb();
+  BB *nbb = new_bb();
+  gen_cond_jmp(expr, tbb, fbb);
+  set_curbb(tbb);
   enum VRegSize vsbool = to_vsize(&tyBool);
   VReg *result = add_new_vreg(&tyBool);
   new_ir_mov(result, new_const_vreg(true, vsbool), 0);
-  new_ir_jmp(next_bb);
-  set_curbb(false_bb);
+  new_ir_jmp(nbb);
+  set_curbb(fbb);
   new_ir_mov(result, new_const_vreg(false, vsbool), 0);
-  set_curbb(next_bb);
+  set_curbb(nbb);
   return result;
 }
 
