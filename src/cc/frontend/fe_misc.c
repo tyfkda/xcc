@@ -879,49 +879,11 @@ Expr *incdec_of(enum ExprKind kind, Expr *target, const Token *tok) {
   return new_expr_unary(kind, target->type, tok, target);
 }
 
-static enum ExprKind swap_cmp(enum ExprKind kind) {
-  assert(EX_EQ <= kind && kind <= EX_GT);
-  if (kind >= EX_LT)
-    kind = EX_GT - (kind - EX_LT);
-  return kind;
-}
-
 Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
   if (lhs->type->kind == TY_FUNC)
     lhs = make_refer(lhs->token, lhs);
   if (rhs->type->kind == TY_FUNC)
     rhs = make_refer(rhs->token, rhs);
-
-  Type *lt = lhs->type, *rt = rhs->type;
-  if (ptr_or_array(lt) || ptr_or_array(rt)) {
-    if (lt->kind == TY_ARRAY) {
-      lt = array_to_ptr(lt);
-      lhs = make_cast(lt, lhs->token, lhs, false);
-    }
-    if (rt->kind == TY_ARRAY) {
-      rt = array_to_ptr(rt);
-      rhs = make_cast(rt, rhs->token, rhs, false);
-    }
-    if (lt->kind != TY_PTR) {  // For comparison between pointer and 0.
-      Expr *tmp = lhs;
-      lhs = rhs;
-      rhs = tmp;
-      Type *tt = lt;
-      lt = rt;
-      rt = tt;
-      kind = swap_cmp(kind);
-    }
-    if (!(same_type_without_qualifier(lt, rt, true) ||
-          (lt->kind == TY_PTR && lt->pa.ptrof->kind == TY_VOID) ||
-          (rt->kind == TY_PTR && rt->pa.ptrof->kind == TY_VOID) ||
-          is_zero(rhs)))
-      parse_error(PE_WARNING, tok, "Compare pointer to other types");
-    if (rt->kind != TY_PTR)
-      rhs = make_cast(lhs->type, rhs->token, rhs, false);
-  } else {
-    if (!cast_numbers(&lhs, &rhs, false))
-      parse_error(PE_FATAL, tok, "Cannot compare except numbers");
-  }
 
   if (is_const(lhs) && is_const(rhs)) {
 #define JUDGE(kind, tf, l, r)               \
@@ -934,12 +896,23 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
   case EX_GE: tf = l >= r; break;           \
   case EX_GT: tf = l > r; break;            \
   }
-    bool tf;
+    int tf = -1;
     switch (lhs->kind) {
     default:
       assert(false);
       // Fallthrough to suppress warning.
     case EX_FIXNUM:
+      if (rhs->kind == EX_STR) {
+        if (is_zero(lhs)) {
+          switch (kind) {
+          case EX_EQ: tf = false; break;
+          case EX_NE: tf = true; break;
+          default: break;
+          }
+        }
+        break;
+      }
+
       assert(rhs->kind == EX_FIXNUM);
       if (lhs->type->fixnum.is_unsigned) {
         UFixnum l = lhs->fixnum, r = rhs->fixnum;
@@ -952,15 +925,82 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
 #ifndef __NO_FLONUM
     case EX_FLONUM:
       {
+        if (rhs->kind == EX_STR)
+          break;
         assert(rhs->kind == EX_FLONUM);
         Flonum l = lhs->flonum, r = rhs->flonum;
         JUDGE(kind, tf, l, r);
       }
       break;
 #endif
+    case EX_STR:
+      if (is_zero(rhs)) {
+        switch (kind) {
+        case EX_EQ: tf = false; break;
+        case EX_NE: tf = true; break;
+        default: break;
+        }
+      }
+      break;
     }
-    return new_expr_fixlit(&tyBool, tok, tf);
+    if (tf >= 0)
+      return new_expr_fixlit(&tyBool, tok, tf);
 #undef JUDGE
+  }
+
+  if (is_zero(rhs) || is_zero(lhs)) {
+    Expr *p = strip_cast(is_zero(rhs) ? lhs : rhs);
+    switch (p->kind) {
+    case EX_EQ: case EX_NE:
+      if (kind == EX_EQ)
+        p->kind = (EX_EQ + EX_NE) - p->kind;  // EQ <-> NE
+      return p;
+    case EX_LT: case EX_LE: case EX_GE: case EX_GT:
+      if (kind == EX_EQ)
+        p->kind = EX_LT + ((p->kind - EX_LT) ^ 2);  // LT <-> GE, LE <-> GT
+      return p;
+    case EX_LOGAND: case EX_LOGIOR:
+      if (kind == EX_EQ)
+        return new_expr_bop(
+            (EX_LOGAND + EX_LOGIOR) - p->kind,  // LOGAND <-> LOGIOR
+            &tyBool, p->token,
+            make_not_expr(p->bop.lhs->token, p->bop.lhs),
+            make_not_expr(p->bop.rhs->token, p->bop.rhs));
+      return p;
+    default:
+      break;
+    }
+  }
+
+  lhs = str_to_char_array_var(curscope, lhs);
+  rhs = str_to_char_array_var(curscope, rhs);
+
+  Type *lt = lhs->type, *rt = rhs->type;
+  if (ptr_or_array(lt) || ptr_or_array(rt)) {
+    if (lt->kind == TY_ARRAY) {
+      lt = array_to_ptr(lt);
+      lhs = make_cast(lt, lhs->token, lhs, false);
+    }
+    if (rt->kind == TY_ARRAY) {
+      rt = array_to_ptr(rt);
+      rhs = make_cast(rt, rhs->token, rhs, false);
+    }
+
+    bool st;
+    if (!((st = same_type_without_qualifier(lt, rt, true)) ||
+          (lt->kind == TY_PTR && lt->pa.ptrof->kind == TY_VOID) ||
+          (rt->kind == TY_PTR && rt->pa.ptrof->kind == TY_VOID) ||
+          is_zero(rhs) || is_zero(lhs))) {
+      enum ParseErrorLevel err = st ? PE_WARNING : PE_NOFATAL;
+      parse_error(err, tok, "Compare pointer to other types");
+    }
+    if (rt->kind != TY_PTR)
+      rhs = make_cast(lhs->type, rhs->token, rhs, false);
+    else if (lt->kind != TY_PTR)
+      lhs = make_cast(rhs->type, lhs->token, lhs, false);
+  } else {
+    if (!cast_numbers(&lhs, &rhs, false))
+      parse_error(PE_FATAL, tok, "Cannot compare except numbers");
   }
 
   return new_expr_bop(kind, &tyBool, tok, lhs, rhs);
@@ -1010,37 +1050,21 @@ Expr *make_cond(Expr *expr) {
   return expr;
 }
 
-Expr *make_not_expr(Expr *expr) {
-  Expr *cond = make_cond(expr);
-  enum ExprKind kind = cond->kind;
-  switch (kind) {
-  case EX_FIXNUM:
-    cond->fixnum = !cond->fixnum;
-    break;
-  case EX_EQ:
-  case EX_NE:
-    cond->kind = (EX_EQ + EX_NE) - kind;  // EQ <-> NE
-    break;
-  case EX_LT:
-  case EX_LE:
-  case EX_GE:
-  case EX_GT:
-    cond->kind = EX_LT + ((kind - EX_LT) ^ 2);  // LT <-> GE, LE <-> GT
-    break;
-  case EX_LOGAND:
-  case EX_LOGIOR:
-    cond = new_expr_bop(
-        (EX_LOGAND + EX_LOGIOR) - kind,  // LOGAND <-> LOGIOR
-        &tyBool, expr->token,
-        make_not_expr(cond->bop.lhs),
-        make_not_expr(cond->bop.rhs));
-    break;
-  case EX_COMMA:
-    cond->bop.rhs = make_not_expr(cond->bop.rhs);
-    break;
-  default: assert(false); break;
+Expr *make_not_expr(const Token *tok, Expr *expr) {
+  Type *type = expr->type;
+  assert(is_number(type) || ptr_or_array(type));
+  if (type->kind == TY_ARRAY)
+    type = array_to_ptr(type);
+  Expr *zero;
+#ifndef __NO_FLONUM
+  if (is_flonum(type)) {
+    zero = new_expr_flolit(type, tok, 0.0);
+  } else
+#endif
+  {
+    zero = new_expr_fixlit(type, tok, 0);
   }
-  return cond;
+  return new_expr_cmp(EX_EQ, tok, expr, zero);
 }
 
 void check_funcall_args(Expr *func, Vector *args, Scope *scope) {

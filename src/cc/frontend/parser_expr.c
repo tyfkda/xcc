@@ -1070,7 +1070,7 @@ static Expr *parse_unary(void) {
       parse_error(PE_NOFATAL, tok, "Cannot apply `!' except number or pointer types");
       return new_expr_fixlit(&tyBool, tok, false);
     }
-    return make_not_expr(expr);
+    return make_not_expr(tok, expr);
   }
 
   if ((tok = match(TK_TILDA)) != NULL) {
@@ -1236,8 +1236,6 @@ static Expr *parse_cmp(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_shift();
-    lhs = str_to_char_array_var(curscope, lhs);
-    rhs = str_to_char_array_var(curscope, rhs);
     expr = new_expr_cmp(kind, tok, lhs, rhs);
   }
 }
@@ -1256,8 +1254,6 @@ static Expr *parse_eq(void) {
       return expr;
 
     Expr *lhs = expr, *rhs = parse_cmp();
-    lhs = str_to_char_array_var(curscope, lhs);
-    rhs = str_to_char_array_var(curscope, rhs);
     expr = new_expr_cmp(kind, tok, lhs, rhs);
   }
 }

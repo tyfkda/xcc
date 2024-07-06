@@ -92,7 +92,7 @@ inline void not_bitfield_member(Expr *expr)  { (void)expr; }  // Must not, so no
 Expr *incdec_of(enum ExprKind kind, Expr *target, const Token *tok);
 Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs);
 Expr *make_cond(Expr *expr);
-Expr *make_not_expr(Expr *expr);
+Expr *make_not_expr(const Token *tok, Expr *expr);
 void check_funcall_args(Expr *func, Vector *args, Scope *scope);
 Vector *extract_varinfo_types(const Vector *vars);  // <VarInfo*> => <Type*>
 Type *choose_ternary_result_type(Expr *tval, Expr *fval);
