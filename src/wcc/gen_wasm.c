@@ -1086,7 +1086,6 @@ static void gen_cond(Expr *cond, bool tf, bool needval) {
       gen_cond(cond->bop.rhs, tf, needval);
       if (needval) {
         ADD_CODE(OP_ELSE);
-        assert((tf & ~1) == 0);  // tf == true || tf == false
         ADD_CODE(OP_I32_CONST, tf ^ logand);
       }
       ADD_CODE(OP_END);
