@@ -71,19 +71,28 @@ export class WccRunner {
     await Promise.all([
       loadFromServer(PACKED_ZIP_PATH, {binary: true})
         .then((binary) => new Promise((resolve, reject) => {
-          unzip(new Uint8Array(binary as ArrayBuffer), (err, unzipped) => {
+          return unzip(new Uint8Array(binary as ArrayBuffer), (err, unzipped) => {
             if (err) {
               reject(err)
               return
             }
+
+            let ccExists = false
             const promises = Object.entries(unzipped).map(async ([filename, data]) => {
               if (data == null || data.byteLength === 0)  // Skip directories.
                 return
               const filepath = `/${filename}`
               await this.mkdir(path.dirname(filepath), recursiveTrue)
               await this.writeFile(filepath, data)
+              ccExists ||= filepath === CC_PATH
             })
-            resolve(Promise.all(promises))
+            Promise.all(promises)
+              .then((result) => {
+                if (!ccExists)
+                  throw 'C-compiler not found in the zip file'
+                resolve(result)
+              })
+              .catch(reject)
           })
         })),
 

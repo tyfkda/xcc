@@ -182,7 +182,7 @@ export const releaseBuild = gulp.series(sass, () => {
                    `!${DEST_DIR}/**/*.js`,
                    `!${DEST_DIR}/**/*.map`,
                   ],
-                  {base: DEST_DIR})
+                  {base: DEST_DIR, encoding: false})
     .pipe(gulp.dest(RELEASE_DIR))
 })
 
