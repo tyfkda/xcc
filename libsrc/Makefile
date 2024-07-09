@@ -54,11 +54,11 @@ clean:	clean-test
 
 $(LIB_DIR)/crt0.a:	$(CRT0_OBJS)
 	@mkdir -p $(LIB_DIR)
-	$(AR) r $@ $^
+	$(AR) rc $@ $^
 
 $(LIB_DIR)/libc.a:	$(LIBC_OBJS)
 	@mkdir -p $(LIB_DIR)
-	$(AR) r $@ $^
+	$(AR) rc $@ $^
 
 define DEFINE_OBJ_TARGET
 $(OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
@@ -128,11 +128,11 @@ echo-wcc-libc-objs:
 
 $(WCC_LIB_DIR)/wcrt0.a:	$(WCC_CRT0_OBJS)
 	@mkdir -p $(WCC_LIB_DIR)
-	$(AR) r $@ $^
+	$(AR) rc $@ $^
 
 $(WCC_LIB_DIR)/wlibc.a:	$(WCC_LIBC_OBJS)
 	@mkdir -p $(WCC_LIB_DIR)
-	$(AR) r $@ $^
+	$(AR) rc $@ $^
 
 define DEFINE_WCCOBJ_TARGET
 $(WCC_OBJ_DIR)/%.o: $(1)/%.c
