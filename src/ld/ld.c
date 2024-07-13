@@ -3,6 +3,7 @@
 #include <ar.h>
 #include <assert.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,11 +103,13 @@ typedef struct {
   int nfiles;
   uintptr_t offsets[SEC_COUNT];
   Vector *progbit_sections[SEC_COUNT];
+  int error_count;
 } LinkEditor;
 
 void ld_init(LinkEditor *ld, int nfiles) {
   ld->files = calloc_or_die(sizeof(*ld->files) * nfiles);
   ld->nfiles = nfiles;
+  ld->error_count = 0;
 
   for (int secno = 0; secno < SEC_COUNT; ++secno) {
     ld->offsets[secno] = 0;
@@ -267,11 +270,7 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       void *p = dst_info->progbits.content + rela->r_offset;
       uintptr_t pc = elfobj->section_infos[shdr->sh_info].progbits.address + rela->r_offset;
       switch (ELF64_R_TYPE(rela->r_info)) {
-#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
-      case R_RISCV_64:
-        *(uint64_t*)p = address;
-        break;
-#else
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
       case R_X86_64_64:
         *(uint64_t*)p = address;
         break;
@@ -279,8 +278,8 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       case R_X86_64_PLT32:
         *(uint32_t*)p = address - pc;
         break;
-#endif
 
+#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
       case R_AARCH64_ABS64:
         *(uint64_t*)p = address;
         break;
@@ -310,6 +309,10 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
         assert(!"TODO: Implement");
         break;
 
+#elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+      case R_RISCV_64:
+        *(uint64_t*)p = address;
+        break;
       case R_RISCV_CALL:
         {
           int64_t offset = address - pc;
@@ -405,8 +408,12 @@ static void resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
           }
         }
         break;
+#endif
 
-      default: assert(false); break;
+      default:
+        fprintf(stderr, "Unhandled rela type: %" PRIx32 "\n", (uint32_t)ELF64_R_TYPE(rela->r_info));
+        ++ld->error_count;
+        break;
       }
     }
   }
@@ -597,6 +604,8 @@ bool ld_link(LinkEditor *ld, Table *unresolved, uintptr_t start_address) {
   }
 
   resolve_relas(ld);
+  if (ld->error_count > 0)
+    return false;
 
   for (int i = 0; i < ld->nfiles; ++i) {
     File *file = &ld->files[i];

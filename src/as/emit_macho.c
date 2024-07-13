@@ -124,26 +124,6 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
     UnresolvedInfo *u = unresolved->data[i];
     struct relocation_info *rela = &rela_bufs[u->src_section][rela_counts[u->src_section]++];
     switch (u->kind) {
-    case UNRES_EXTERN:
-    case UNRES_EXTERN_PC32:
-    case UNRES_OTHER_SECTION:
-      {
-#if XCC_TARGET_ARCH == XCC_ARCH_X64
-        int symidx = symtab_find(symtab, u->label);
-        assert(symidx >= 0);
-
-        // assert(u->add == 0);
-        rela->r_address = u->offset;
-        rela->r_symbolnum = symidx;
-        rela->r_pcrel = 1;
-        rela->r_length = 2;
-        rela->r_extern = 1;
-        rela->r_type = u->kind == UNRES_OTHER_SECTION ? X86_64_RELOC_SIGNED : X86_64_RELOC_BRANCH;
-#else
-        assert(false);
-#endif
-      }
-      break;
     case UNRES_ABS64:
       {
         int symidx = symtab_find(symtab, u->label);
@@ -164,9 +144,41 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
       }
       break;
 
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+    case UNRES_EXTERN:
+    case UNRES_EXTERN_PC32:
+    case UNRES_OTHER_SECTION:
+      {
+        int symidx = symtab_find(symtab, u->label);
+        assert(symidx >= 0);
+
+        // assert(u->add == 0);
+        rela->r_address = u->offset;
+        rela->r_symbolnum = symidx;
+        rela->r_pcrel = 1;
+        rela->r_length = 2;
+        rela->r_extern = 1;
+        rela->r_type = u->kind == UNRES_OTHER_SECTION ? X86_64_RELOC_SIGNED : X86_64_RELOC_BRANCH;
+      }
+      break;
+    case UNRES_X64_GOT_LOAD:
+      {
+        int symidx = symtab_find(symtab, u->label);
+        assert(symidx >= 0);
+
+        // assert(u->add == 0);
+        rela->r_address = u->offset;
+        rela->r_symbolnum = symidx;
+        rela->r_pcrel = 1;
+        rela->r_length = 2;
+        rela->r_extern = 1;
+        rela->r_type = X86_64_RELOC_GOT_LOAD;
+      }
+      break;
+
+#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
     case UNRES_CALL:
       {
-#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
         int symidx = symtab_find(symtab, u->label);
         assert(symidx >= 0);
 
@@ -177,16 +189,12 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         rela->r_length = 2;
         rela->r_extern = 1;
         rela->r_type = ARM64_RELOC_BRANCH26;
-#else
-        assert(false);
-#endif
       }
       break;
 
     case UNRES_GOT_HI:
     case UNRES_GOT_LO:
       {
-#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
         LabelInfo *label = table_get(label_table, u->label);
         assert(label != NULL);
         int symidx = symtab_find(symtab, u->label);
@@ -199,16 +207,12 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         rela->r_length = 2;
         rela->r_extern = 1;
         rela->r_type = u->kind == UNRES_GOT_HI ? ARM64_RELOC_GOT_LOAD_PAGE21 : ARM64_RELOC_GOT_LOAD_PAGEOFF12;
-#else
-        assert(false);
-#endif
       }
       break;
 
     case UNRES_PCREL_HI:
     case UNRES_PCREL_LO:
       {
-#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
         int symidx = symtab_find(symtab, u->label);
         assert(symidx >= 0);
 
@@ -229,30 +233,9 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
           rela2->r_extern = 0;
           rela2->r_type = ARM64_RELOC_ADDEND;
         }
-#else
-        assert(false);
-#endif
       }
       break;
-
-    case UNRES_X64_GOT_LOAD:
-      {
-#if XCC_TARGET_ARCH == XCC_ARCH_X64
-        int symidx = symtab_find(symtab, u->label);
-        assert(symidx >= 0);
-
-        // assert(u->add == 0);
-        rela->r_address = u->offset;
-        rela->r_symbolnum = symidx;
-        rela->r_pcrel = 1;
-        rela->r_length = 2;
-        rela->r_extern = 1;
-        rela->r_type = X86_64_RELOC_GOT_LOAD;
-#else
-        assert(false);
 #endif
-      }
-      break;
 
     default: assert(false); break;
     }

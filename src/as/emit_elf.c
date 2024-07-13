@@ -153,6 +153,34 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
     UnresolvedInfo *u = unresolved->data[i];
     Elf64_Rela *rela = &rela_bufs[u->src_section][rela_counts[u->src_section]++];
     switch (u->kind) {
+    case UNRES_ABS64:
+      {
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+        const int type = R_RISCV_64;
+#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+        const int type = R_AARCH64_ABS64;
+#elif XCC_TARGET_ARCH == XCC_ARCH_X64
+        const int type = R_X86_64_64;
+#else
+        assert(false);
+#endif
+        LabelInfo *label = table_get(label_table, u->label);
+        if (label == NULL || label->flag & (LF_GLOBAL | LF_REFERRED)) {
+          int symidx = symtab_find(symtab, u->label);
+          assert(symidx >= 0);
+
+          rela->r_offset = u->offset;
+          rela->r_info = ELF64_R_INFO(symidx, type);
+          rela->r_addend = u->add;
+        } else {
+          rela->r_offset = u->offset;
+          rela->r_info = ELF64_R_INFO(label->section + 1, type);
+          rela->r_addend = u->add + (label->address - section_start_addresses[label->section]);
+        }
+      }
+      break;
+
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
     case UNRES_EXTERN:
     case UNRES_EXTERN_PC32:
       {
@@ -175,56 +203,31 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         rela->r_addend = u->add;
       }
       break;
-    case UNRES_ABS64:
-      {
-#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
-        const int type = R_RISCV_64;
+
+    // case UNRES_X64_GOT_LOAD:
+    //   assert(!"TODO");
+    //   break;
+
 #elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-        const int type = R_AARCH64_ABS64;
-#else  // #elif XCC_TARGET_ARCH == XCC_ARCH_X64
-        const int type = R_X86_64_64;
-#endif
-        LabelInfo *label = table_get(label_table, u->label);
-        if (label == NULL || label->flag & (LF_GLOBAL | LF_REFERRED)) {
-          int symidx = symtab_find(symtab, u->label);
-          assert(symidx >= 0);
-
-          rela->r_offset = u->offset;
-          rela->r_info = ELF64_R_INFO(symidx, type);
-          rela->r_addend = u->add;
-        } else {
-          rela->r_offset = u->offset;
-          rela->r_info = ELF64_R_INFO(label->section + 1, type);
-          rela->r_addend = u->add + (label->address - section_start_addresses[label->section]);
-        }
-      }
-      break;
-    case UNRES_RISCV_BRANCH:
-    case UNRES_RISCV_RVC_BRANCH:
-      {
-        Elf64_Sym *sym = symtab_add(symtab, u->label);
-        size_t index = sym - symtab->buf;
-
-        rela->r_offset = u->offset;
-        rela->r_info = ELF64_R_INFO(index, u->kind == UNRES_RISCV_RVC_BRANCH ? R_RISCV_RVC_BRANCH
-                                                                             : R_RISCV_BRANCH);
-        rela->r_addend = u->add;
-      }
-      break;
-
     case UNRES_CALL:
       {
         int symidx = symtab_find(symtab, u->label);
         assert(symidx >= 0);
 
         rela->r_offset = u->offset;
-#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
-        rela->r_info = ELF64_R_INFO(symidx, R_RISCV_CALL);
-#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
         rela->r_info = ELF64_R_INFO(symidx, R_AARCH64_CALL26);
-#else
-        assert(false);
-#endif
+        rela->r_addend = u->add;
+      }
+      break;
+
+    case UNRES_PCREL_HI:
+    case UNRES_PCREL_LO:
+      {
+        int symidx = symtab_find(symtab, u->label);
+        assert(symidx >= 0);
+
+        rela->r_offset = u->offset;
+        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? R_AARCH64_ADR_PREL_PG_HI21 : R_AARCH64_ADD_ABS_LO12_NC);
         rela->r_addend = u->add;
       }
       break;
@@ -249,6 +252,7 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
       }
       break;
 
+#elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
     case UNRES_PCREL_HI:
     case UNRES_PCREL_LO:
       {
@@ -256,21 +260,34 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         assert(symidx >= 0);
 
         rela->r_offset = u->offset;
-#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
         rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? R_RISCV_PCREL_HI20 : R_RISCV_PCREL_LO12_I);
-#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? R_AARCH64_ADR_PREL_PG_HI21 : R_AARCH64_ADD_ABS_LO12_NC);
-#else
-        assert(false);
-#endif
         rela->r_addend = u->add;
       }
       break;
 
-    case UNRES_X64_GOT_LOAD:
-      assert(!"TODO");
+    case UNRES_CALL:
+      {
+        int symidx = symtab_find(symtab, u->label);
+        assert(symidx >= 0);
+
+        rela->r_offset = u->offset;
+        rela->r_info = ELF64_R_INFO(symidx, R_RISCV_CALL);
+        rela->r_addend = u->add;
+      }
       break;
 
+    case UNRES_RISCV_BRANCH:
+    case UNRES_RISCV_RVC_BRANCH:
+      {
+        Elf64_Sym *sym = symtab_add(symtab, u->label);
+        size_t index = sym - symtab->buf;
+
+        rela->r_offset = u->offset;
+        rela->r_info = ELF64_R_INFO(index, u->kind == UNRES_RISCV_RVC_BRANCH ? R_RISCV_RVC_BRANCH
+                                                                             : R_RISCV_BRANCH);
+        rela->r_addend = u->add;
+      }
+      break;
     case UNRES_RISCV_JAL:
     case UNRES_RISCV_RVC_JUMP:
       {
@@ -289,6 +306,9 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         rela->r_addend = u->add;
       }
       break;
+#endif
+
+    default: assert(false); break;
     }
   }
 }
