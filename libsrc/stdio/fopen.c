@@ -4,8 +4,6 @@
 
 #include "_file.h"
 
-extern int _detect_open_flag(const char *mode);
-
 FILE *fopen(const char *fileName, const char *mode) {
   FILE *fp = NULL;
   int flag = _detect_open_flag(mode);

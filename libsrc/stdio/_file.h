@@ -29,33 +29,19 @@ struct FILE {
   const cookie_io_functions_t *iof;  // not struct but const pointer.
   int (*flush)(struct FILE *fp);
   unsigned char *wbuf;
+  unsigned char *rbuf;
 
   int fd;
-  unsigned int rp, rs;
-  unsigned int wp, ws;
+  unsigned int rp, rs, rcapa;
+  unsigned int wp, wcapa;
   unsigned int flag;
-
-  // TODO: allocate buffers only if required.
-  union {
-    struct {
-      unsigned char rbuf[256];
-      unsigned char wwork[32];
-    };  // For file.
-    struct {
-      char **pmem;
-      size_t *psize;
-    };  // For memory.
-  };
 };
 
-extern ssize_t _fread(void *cookie, char *buf, size_t size);
-extern ssize_t _fwrite(void *cookie, const char *buf, size_t size);
-extern int _fseek(void *cookie, off_t *offset, int origin);
-extern int _fclose(void *cookie);
 extern int _fflush(FILE *fp);
-extern void _finit(FILE *fp);
 
+extern void _add_opened_file(FILE *fp);
 extern void _remove_opened_file(FILE *fp);
+extern int _detect_open_flag(const char *mode);
 
 inline int FPUTC(int c, FILE *fp)  {
   unsigned char _buf = c;
