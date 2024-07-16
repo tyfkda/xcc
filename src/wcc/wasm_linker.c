@@ -558,8 +558,8 @@ typedef struct {
 
 #define FOREACH_FILE_ARCONTENT(ar, content, body) \
   {Vector *contents = (ar)->contents; \
-  for (int i = 0; i < contents->len; i += 2) { \
-    ArContent *content = contents->data[i + 1]; \
+  for (int _ic = 0; _ic < contents->len; _ic += 2) { \
+    ArContent *content = contents->data[_ic + 1]; \
     body \
   }}
 

@@ -32,6 +32,13 @@ typedef struct {
   char name[1];  // [sizeof(((struct ar_hdr*)0)->ar_name) + 1]
 } ArContent;
 
+#define FOREACH_FILE_ARCONTENT(ar, content, body) \
+  {Vector *contents = (ar)->contents; \
+  for (int _ic = 0; _ic < contents->len; _ic += 2) { \
+    ArContent *content = contents->data[_ic + 1]; \
+    body \
+  }}
+
 ElfObj *load_archive_elfobj(Archive *ar, uint32_t offset) {
   Vector *contents = ar->contents;
   for (int i = 0; i < contents->len; i += 2) {
@@ -150,15 +157,14 @@ static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
     case FK_ARCHIVE:
       {
         Archive *ar = file->archive;
-        for (int j = 0; j < ar->contents->len; j += 2) {
-          ArContent *content = ar->contents->data[j + 1];
+        FOREACH_FILE_ARCONTENT(ar, content, {
           elfobj = content->elfobj;
           sym = elfobj_find_symbol(elfobj, name);
           if (sym != NULL) {
             i = ld->nfiles;  // Found.
             break;
           }
-        }
+        });
       }
       break;
     }
@@ -504,10 +510,9 @@ static void link_archive(LinkEditor *ld, Archive *ar, Table *unresolved) {
 }
 
 static void resolve_rela_archive(LinkEditor *ld, Archive *ar) {
-  for (int i = 0; i < ar->contents->len; i += 2) {
-    ArContent *content = ar->contents->data[i + 1];
+  FOREACH_FILE_ARCONTENT(ar, content, {
     resolve_rela_elfobj(ld, content->elfobj);
-  }
+  });
 }
 
 static void resolve_relas(LinkEditor *ld) {
@@ -602,10 +607,9 @@ bool ld_link(LinkEditor *ld, Table *unresolved, uintptr_t start_address) {
     case FK_ARCHIVE:
       {
         Archive *ar = file->archive;
-        for (int i = 0; i < ar->contents->len; i += 2) {
-          ArContent *content = ar->contents->data[i + 1];
+        FOREACH_FILE_ARCONTENT(ar, content, {
           add_elfobj_sections(content->elfobj);
-        }
+        });
       }
       break;
     }
@@ -716,10 +720,9 @@ static void dump_map_file(LinkEditor *ld, FILE *fp) {
     case FK_ARCHIVE:
       {
         Archive *ar = file->archive;
-        for (int j = 0; j < ar->contents->len; j += 2) {
-          ArContent *content = ar->contents->data[j + 1];
+        FOREACH_FILE_ARCONTENT(ar, content, {
           dump_map_elfobj(ld, content->elfobj, file, content, fp);
-        }
+        });
       }
       break;
     }
