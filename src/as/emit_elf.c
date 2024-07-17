@@ -109,7 +109,7 @@ static int construct_symtab(Symtab *symtab, Table *label_table) {
     int bind;
     if (info->flag & LF_GLOBAL) {
       bind = STB_GLOBAL;
-    } else if (info->flag & LF_REFERRED) {
+    } else if (info->flag & LF_REFERRED || info->kind == LK_FUNC) {
       bind = STB_LOCAL;
     } else {
       continue;

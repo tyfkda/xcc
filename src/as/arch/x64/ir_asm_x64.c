@@ -129,20 +129,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
               Value value = calc_expr(label_table, inst->opr[0].indirect.offset.expr);
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
-                if (label_info == NULL) {
-                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
-                  info->kind = UNRES_EXTERN_PC32;
-                  info->label = value.label;
-                  info->src_section = sec;
-                  info->offset = address + 3 - start_address;
-                  info->add = value.offset - 4;
-                  vec_push(unresolved, info);
-#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-                  put_value(ir->code.buf + 3, value.offset, sizeof(int32_t));
-#endif
-                  break;
-                }
-                if (label_info->section != sec) {
+                if (label_info != NULL && label_info->section != sec) {
                   Vector *irs2 = section_irs[label_info->section];
                   uintptr_t dst_start_address = irs2->len > 0 ? ((IR *)irs2->data[0])->address : 0;
 
@@ -157,6 +144,20 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   put_value(ir->code.buf + 3, value.offset, sizeof(int32_t));
 #endif
                   break;
+                }
+                if (label_info == NULL || label_info->flag & LF_GLOBAL) {
+                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                  info->kind = UNRES_EXTERN_PC32;
+                  info->label = value.label;
+                  info->src_section = sec;
+                  info->offset = address + 3 - start_address;
+                  info->add = value.offset - 4;
+                  vec_push(unresolved, info);
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+                  put_value(ir->code.buf + 3, value.offset, sizeof(int32_t));
+#endif
+                  if (label_info == NULL)
+                    break;
                 }
                 value.offset += label_info->address;
               }
@@ -220,7 +221,8 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   info->offset = address + 1 - start_address;
                   info->add = value.offset - 4;
                   vec_push(unresolved, info);
-                  break;
+                  if (label_info == NULL)
+                    break;
                 }
                 value.offset += label_info->address;
               }
