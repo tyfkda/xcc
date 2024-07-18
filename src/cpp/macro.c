@@ -372,9 +372,6 @@ void macro_expand(Vector *tokens) {
         intersection_hideset(hs, hs2);
         hideset_put(hs, tok->ident);
         replaced = subst(macro, macro->param_table, args, hs);
-      } else {
-        // Insert whitespace to unexpected concatenation.
-        vec_insert(tokens, ++i, alloc_token(PPTK_SPACE, NULL, " ", NULL));
       }
     }
 

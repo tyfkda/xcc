@@ -19,7 +19,7 @@ try() {
   begin_test "$title"
 
   local actual
-  actual=$(echo -e "$input" | $CPP 2>/dev/null | $REMOVE_TOP_LINEMARKER | tr -d '\n')
+  actual=$(echo -e "$input" | $CPP 2>/dev/null | $REMOVE_TOP_LINEMARKER | tr -d '\n' | sed 's/ $//')
   local exitcode=$?
   if [ $exitcode -ne 0 ]; then
     end_test "CPP failed: exitcode=${exitcode}"
@@ -126,12 +126,13 @@ test_macro() {
 
   try 'No arguments keeps as is' 'int MAX =123;' "#define MAX(a,b) ((a)>=(b)?(a):(b))\nint MAX=123;"
   try '() macro and struct name' 'struct F f;' "#define F(a, b)  FF(a, b)\nstruct F f;"
+  try '()-ed macro insert space' 'void foo(){}' "#define EXTERN(x)  x\nEXTERN(void)foo(){}"
   try 'Newline in macro' '1+2' "#define ADD(x,y) x+y\nADD(1,\n2)"
   try 'Newline in macro2' '(1 + 2)' "#define FOO(x) (x)\nFOO( 1  \n + 2 )"
   try 'Newline in macro3' '(123)' "#define FOO(x) (x)\nFOO\n(123)"
   try 'Macro w/ str str' '"a" "b"' "#define M(x) x\nM(\"a\" \"b\")"
   try 'Block comment after #define' '88' '#define X 88/*block\ncomment*/\nX'
-  try 'Nothing' 'ABC ' '#define NOTHING /*nothing*/\nABC NOTHING'
+  try 'Nothing' 'ABC' '#define NOTHING /*nothing*/\nABC NOTHING'
   try 'Block comment in macro body removed' 'FOO_abc' "#define M(x)  FOO_/**/x\nM(abc)"
 
   try 'recursive macro' 'SELF(123-1)' "#define SELF(n) SELF(n-1)\nSELF(123)"

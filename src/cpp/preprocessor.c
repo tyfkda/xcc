@@ -150,13 +150,14 @@ static void process_line(const char *line, Stream *stream) {
       break;
 
     Token *ident = match(TK_IDENT);
+    Macro *macro;
     if (ident != NULL) {
       if (equal_name(ident->ident, defined)) {
         // TODO: Raise error if not matched.
         match(TK_LPAR);
         match(TK_IDENT);
         match(TK_RPAR);
-      } else if (can_expand_ident(ident->ident)) {
+      } else if ((macro = can_expand_ident(ident->ident)) != NULL) {
         const char *p = begin;
         begin = ident->end;  // Update for EOF callback.
 
@@ -171,6 +172,10 @@ static void process_line(const char *line, Stream *stream) {
         for (int i = 0; i < tokens->len; ++i) {
           const Token *tok = tokens->data[i];
           fwrite(tok->begin, tok->end - tok->begin, 1, pp_ofp);
+        }
+        if (macro->params_len >= 0) {
+          // Put whitespace to avoid unexpected concatenation.
+          fputc(' ', pp_ofp);
         }
         begin = get_lex_p();
       }
