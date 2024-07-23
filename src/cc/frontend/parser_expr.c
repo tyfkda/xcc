@@ -127,7 +127,8 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
   if (ident == NULL)
     return target;
 
-  ensure_struct(type, ident, curscope);
+  if (!ensure_struct(type, ident, curscope))
+    return new_expr_fixlit(&tyInt, acctok, 0);  // TODO
 
   int index = find_struct_member(type->struct_.info, ident->ident);
   if (index >= 0) {
@@ -228,7 +229,8 @@ static StructInfo *parse_struct(bool is_union) {
 
       if (!not_void(type, NULL))
         type = &tyInt;  // Deceive to continue compiling.
-      ensure_struct(type, ident, curscope);
+      if (!ensure_struct(type, ident, curscope))
+        continue;
       Expr *bit = NULL;
 #ifndef __NO_BITFIELD
       if (type->kind == TY_FIXNUM) {
@@ -970,7 +972,8 @@ static Expr *parse_sizeof(const Token *token) {
     tok = expr->token;
   }
   assert(type != NULL);
-  ensure_struct(type, token, curscope);
+  if (!ensure_struct(type, tok, curscope))
+    return new_expr_fixlit(&tySize, token, 1);  // Dummy
 #ifndef __NO_VLA
   if (ptr_or_array(type) && type->pa.vla != NULL)
     return calc_type_size(type);

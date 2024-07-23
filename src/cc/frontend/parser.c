@@ -161,7 +161,8 @@ static void def_type(Type *type, Token *ident) {
 
   if (defined == NULL || (type->kind == TY_STRUCT && type->struct_.info != NULL)) {
     if (type->kind == TY_ARRAY) {
-      ensure_struct(type, ident, curscope);
+      if (!ensure_struct(type, ident, curscope))
+        return;
     }
     add_typedef(curscope, name, type);
   }

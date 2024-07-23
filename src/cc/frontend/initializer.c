@@ -898,8 +898,9 @@ Initializer *check_vardecl(Type **ptype, const Token *ident, int storage, Initia
   }
 
   Type *type = *ptype;
-  if (!(storage & VS_EXTERN))
-    ensure_struct(type, ident, curscope);
+  if (!(storage & VS_EXTERN) &&
+      !ensure_struct(type, ident, curscope))
+    return NULL;
   init = flatten_initializer(type, init);
   if (type->kind == TY_ARRAY) {
     if (init != NULL) {

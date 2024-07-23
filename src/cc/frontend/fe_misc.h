@@ -63,7 +63,7 @@ void define_enum_member(Type *type, const Token *ident, int value);
 Scope *enter_scope(Function *func);
 void exit_scope(void);
 
-void ensure_struct(Type *type, const Token *token, Scope *scope);
+bool ensure_struct(Type *type, const Token *token, Scope *scope);
 Expr *calc_type_size(const Type *type);
 #ifndef __NO_VLA
 Expr *reserve_vla_type_size(Type *type);

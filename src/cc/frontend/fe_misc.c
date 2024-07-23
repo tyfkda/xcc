@@ -156,14 +156,16 @@ void exit_scope(void) {
 }
 
 // Call before accessing struct member to ensure that struct is declared.
-void ensure_struct(Type *type, const Token *token, Scope *scope) {
+bool ensure_struct(Type *type, const Token *token, Scope *scope) {
   switch (type->kind) {
   case TY_STRUCT:
     {
       if (type->struct_.info == NULL) {
         StructInfo *sinfo = find_struct(scope, type->struct_.name, NULL);
-        if (sinfo == NULL)
-          parse_error(PE_FATAL, token, "Imcomplete struct: `%.*s'", NAMES(type->struct_.name));
+        if (sinfo == NULL) {
+          parse_error(PE_NOFATAL, token, "Imcomplete struct: `%.*s'", NAMES(type->struct_.name));
+          return false;
+        }
         type->struct_.info = sinfo;
       }
 
@@ -171,17 +173,18 @@ void ensure_struct(Type *type, const Token *token, Scope *scope) {
       StructInfo *sinfo = type->struct_.info;
       for (int i = 0; i < sinfo->member_count; ++i) {
         MemberInfo *minfo = &sinfo->members[i];
-        if (minfo->type->kind == TY_STRUCT)
-          ensure_struct(minfo->type, token, scope);
+        if (minfo->type->kind == TY_STRUCT &&
+            !ensure_struct(minfo->type, token, scope))
+          return false;
       }
     }
     break;
   case TY_ARRAY:
-    ensure_struct(type->pa.ptrof, token, scope);
-    break;
+    return ensure_struct(type->pa.ptrof, token, scope);
   default:
     break;
   }
+  return true;
 }
 
 Expr *calc_type_size(const Type *type) {
@@ -669,7 +672,8 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       if (ltype->kind == TY_ARRAY)
         type = array_to_ptr(ltype);
       // lhs + ((size_t)rhs * sizeof(*lhs))
-      ensure_struct(type->pa.ptrof, tok, curscope);
+      if (!ensure_struct(type->pa.ptrof, tok, curscope))
+        return lhs;
       rhs = new_expr_num_bop(EX_MUL, rhs->token,
                              make_cast(&tySize, rhs->token, rhs, false),
                              calc_type_size(type->pa.ptrof));
@@ -688,7 +692,8 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         rhs = new_expr_cast(rtype, rhs->token, rhs);
       }
       // ((size_t)lhs - (size_t)rhs) / sizeof(*lhs)
-      ensure_struct(ltype->pa.ptrof, tok, curscope);
+      if (!ensure_struct(ltype->pa.ptrof, tok, curscope))
+        return lhs;
       if (is_const(lhs) && is_const(rhs)) {
         assert(lhs->kind == EX_FIXNUM);
         assert(rhs->kind == EX_FIXNUM);
@@ -706,7 +711,8 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       if (type->kind == TY_ARRAY)
         type = array_to_ptr(type);
       // ((size_t)lhs * sizeof(*rhs)) + rhs
-      ensure_struct(type->pa.ptrof, tok, curscope);
+      if (!ensure_struct(type->pa.ptrof, tok, curscope))
+        return rhs;
       Expr *tmp = new_expr_num_bop(EX_MUL, lhs->token,
                                    make_cast(&tySize, lhs->token, lhs, false),
                                    new_expr_fixlit(&tySize, tok, type_size(type->pa.ptrof)));
@@ -1083,7 +1089,8 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
       arg = make_cast(array_to_ptr(arg->type), arg->token, arg, false);
     if (i < paramc) {
       Type *type = types->data[i];
-      ensure_struct(type, func->token, scope);
+      if (!ensure_struct(type, arg->token, scope))
+        continue;
       if (type->kind == TY_ARRAY)
         type = array_to_ptr(type);  // Needed for VLA.
       arg = make_cast(type, arg->token, arg, false);
