@@ -475,8 +475,8 @@ static unsigned char *asm_f_ldrstr(Inst *inst, Code *code) {
     uint32_t s = opr2->register_offset.extend > 0 ? 1 : 0;
 
     switch (inst->op) {
-    case LDR:    W_LDR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, 0, s, opt); break;
-    case STR:    W_STR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, s, opt); break;
+    case F_LDR:  F_LDR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, 0, s, opt); break;
+    case F_STR:  F_STR_R(sz, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, s, opt); break;
     default: assert(false); break;
     }
     return code->buf;

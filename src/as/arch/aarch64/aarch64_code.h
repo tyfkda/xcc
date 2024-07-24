@@ -80,6 +80,9 @@
 #define F_LDP(b, rt, ru, base, ofs, prepost)       MAKE_CODE32(inst, code, 0x2c400000U | ((b) << 30) | ((prepost) << 23) | ((((ofs) & ((1U << 10) - (1 << 3)))) << (15 - 3)) | ((ru) << 10) | ((base) << 5) | (rt))
 #define F_STP(b, rt, ru, base, ofs, prepost)       MAKE_CODE32(inst, code, 0x2c000000U | ((b) << 30) | ((prepost) << 23) | ((((ofs) & ((1U << 10) - (1 << 3)))) << (15 - 3)) | ((ru) << 10) | ((base) << 5) | (rt))
 
+#define F_LDR_R(sz, rt, base, rm, s, s2, option)   MAKE_CODE32(inst, code, 0xbc700800U | ((sz) << 30) | ((s) << 23) | ((rm) << 16) | ((option) << 13) | ((s2) << 12) | ((base) << 5) | (rt))
+#define F_STR_R(sz, rt, base, rm, s2, option)      MAKE_CODE32(inst, code, 0xbc300800U | ((sz) << 30) | ((rm) << 16) | ((option) << 13) | ((s2) << 12) | ((base) << 5) | (rt))
+
 #define FMOV(sz, rd, rn)                           MAKE_CODE32(inst, code, 0x1e204000U | ((sz) << 22) | ((rn) << 5) | (rd))
 #define FADD(sz, rd, rn, rm)                       MAKE_CODE32(inst, code, 0x1e202800U | ((sz) << 22) | ((rm) << 16) | ((rn) << 5) | (rd))
 #define FSUB(sz, rd, rn, rm)                       MAKE_CODE32(inst, code, 0x1e203800U | ((sz) << 22) | ((rm) << 16) | ((rn) << 5) | (rd))
