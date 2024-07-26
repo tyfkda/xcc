@@ -448,7 +448,7 @@ Expr *reduce_refer(Expr *expr) {
           target = new_expr_unary(EX_REF, ptrof(target->type), target->token, target);
         }
         return new_expr_unary(EX_DEREF, minfo->type, expr->token,
-                              new_expr_bop(EX_ADD, ptype, expr->token, target,
+                              new_expr_bop(EX_ADD, ptrof(minfo->type), expr->token, target,
                                            new_expr_fixlit(&tySize, expr->token, minfo->offset)));
       default:
         // ex. funcall().x cannot be taken its reference, so keep the expression.
