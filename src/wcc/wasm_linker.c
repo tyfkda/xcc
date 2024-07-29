@@ -1128,14 +1128,9 @@ static void out_function_section(WasmLinker *linker) {
       function_count += out_function_section_wasmobj(file->wasmobj, &functions_section);
       break;
     case FK_ARCHIVE:
-      {
-        Archive *ar = file->archive;
-        Vector *contents = ar->contents;
-        for (int i = 0; i < contents->len; i += 2) {
-          ArContent *content = contents->data[i + 1];
-          function_count += out_function_section_wasmobj(content->wasmobj, &functions_section);
-        }
-      }
+      FOREACH_FILE_ARCONTENT(file->archive, content, {
+        function_count += out_function_section_wasmobj(content->wasmobj, &functions_section);
+      });
       break;
     }
   }
@@ -1322,14 +1317,9 @@ static void out_code_section(WasmLinker *linker) {
       code_count += out_code_section_wasmobj(file->wasmobj, &codesec);
       break;
     case FK_ARCHIVE:
-      {
-        Archive *ar = file->archive;
-        Vector *contents = ar->contents;
-        for (int i = 0; i < contents->len; i += 2) {
-          ArContent *content = contents->data[i + 1];
-          code_count += out_code_section_wasmobj(content->wasmobj, &codesec);
-        }
-      }
+      FOREACH_FILE_ARCONTENT (file->archive, content, {
+        code_count += out_code_section_wasmobj(content->wasmobj, &codesec);
+      });
       break;
     }
   }
@@ -1384,14 +1374,9 @@ static void out_data_section(WasmLinker *linker) {
       data_count += out_data_section_wasmobj(file->wasmobj, &datasec);
       break;
     case FK_ARCHIVE:
-      {
-        Archive *ar = file->archive;
-        Vector *contents = ar->contents;
-        for (int i = 0; i < contents->len; i += 2) {
-          ArContent *content = contents->data[i + 1];
-          data_count += out_data_section_wasmobj(content->wasmobj, &datasec);
-        }
-      }
+      FOREACH_FILE_ARCONTENT (file->archive, content, {
+        data_count += out_data_section_wasmobj(content->wasmobj, &datasec);
+      });
       break;
     }
   }
@@ -1522,10 +1507,9 @@ bool link_wasm_objs(WasmLinker *linker, Vector *exports, uint32_t stack_size) {
         verbose_symbols(file->wasmobj, SIK_SYMTAB_FUNCTION);
         break;
       case FK_ARCHIVE:
-        for (int j = 0; j < file->archive->contents->len; j += 2) {
-          ArContent *content = file->archive->contents->data[j + 1];
+        FOREACH_FILE_ARCONTENT(file->archive, content, {
           verbose_symbols(content->wasmobj, SIK_SYMTAB_FUNCTION);
-        }
+        });
         break;
       }
     }
@@ -1545,10 +1529,9 @@ bool link_wasm_objs(WasmLinker *linker, Vector *exports, uint32_t stack_size) {
         verbose_symbols(file->wasmobj, SIK_SYMTAB_DATA);
         break;
       case FK_ARCHIVE:
-        for (int j = 0; j < file->archive->contents->len; j += 2) {
-          ArContent *content = file->archive->contents->data[j + 1];
+        FOREACH_FILE_ARCONTENT(file->archive, content, {
           verbose_symbols(content->wasmobj, SIK_SYMTAB_DATA);
-        }
+        });
         break;
       }
     }
