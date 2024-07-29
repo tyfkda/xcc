@@ -6,6 +6,9 @@
 
 #define EOF  (-1)
 
+#define BUFSIZ  1024
+#define	L_tmpnam  1024
+
 enum {
   SEEK_SET,  // 0
   SEEK_CUR,  // 1
@@ -53,13 +56,19 @@ int fflush(FILE *fp);
 int fseek(FILE *fp, long offset, int origin);
 long ftell(FILE *fp);
 int feof(FILE *fp);
+int ferror(FILE *fp);
+void clearerr(FILE *fp);
+FILE *freopen(const char *path, const char *mode, FILE *fp);
 int remove(const char *fn);
+int rename(const char *oldname, const char *newname);
+char *tmpnam(char *);
 
 int fgetc(FILE *fp);
 int fputc(int c, FILE *fp);
 char *fgets(char *s, int n, FILE *fp);
 int fputs(const char *s, FILE *fp);
 int puts(const char *s);
+int ungetc(int c, FILE *fp);
 
 #define getc(fp)     fgetc(fp)
 #define getchar()    fgetc(stdin)
@@ -84,3 +93,9 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 
 FILE *fmemopen(void *buf, size_t size, const char *mode);
 FILE *open_memstream(char **ptr, size_t *sizeloc);
+
+#define	_IOFBF	0		/* setvbuf should set fully buffered */
+#define	_IOLBF	1		/* setvbuf should set line buffered */
+#define	_IONBF	2		/* setvbuf should set unbuffered */
+
+int	setvbuf(FILE *fp, char *, int, size_t);

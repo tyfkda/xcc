@@ -17,6 +17,7 @@ void *calloc(size_t size, size_t n);
 
 _Noreturn void exit(int code);
 int atexit(void (*func)(void));
+_Noreturn void abort(void);
 
 long strtol(const char *p, char **pp, int base);
 unsigned long strtoul(const char *p, char **pp, int base);
@@ -49,3 +50,5 @@ int mkstemp(char *tmpl);
 int mkstemps(char *tmpl, int suffixlen);
 
 char *getenv(const char *varname);
+
+int system(const char *command);
