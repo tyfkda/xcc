@@ -36,6 +36,7 @@ async function getRealpaths(map) {
   program
     .option('--dir <directory>', 'Make a directory accessible', handleDir)
     .option('--mapdir <virtual-path::actual-path>', 'Map actual as virtual path', handleMapDir)
+    .allowExcessArguments()
     .parse(process.argv)
     .usage('[.wasm] <arguments...>')
 

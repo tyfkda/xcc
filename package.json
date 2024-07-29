@@ -22,22 +22,22 @@
     "node": ">=20.0"
   },
   "devDependencies": {
-    "@types/alpinejs": "~3.13.6",
-    "@types/node": "~20.11.24",
-    "@types/path-browserify": "~1.0.2",
-    "@typescript-eslint/eslint-plugin": "~6.6.0",
-    "@typescript-eslint/parser": "~6.6.0",
-    "commander": "~12.0.0",
-    "sass": "~1.71.1",
+    "@types/alpinejs": "~3.13.11",
+    "@types/node": "~22.14.1",
+    "@types/path-browserify": "~1.0.3",
+    "@typescript-eslint/eslint-plugin": "~8.30.1",
+    "@typescript-eslint/parser": "~8.30.1",
+    "commander": "~13.1.0",
+    "sass": "~1.86.3",
     "ts-node": "~10.9.2",
-    "vite": "~5.4.12"
+    "vite": "~6.3.1"
   },
   "dependencies": {
     "@wasmer/wasi": "~0.12.0",
     "@wasmer/wasmfs": "~0.12.0",
-    "alpinejs": "~3.13.5",
+    "alpinejs": "~3.14.9",
     "buffer": "~6.0.3",
-    "core-js": "~3.36.0",
+    "core-js": "~3.41.0",
     "fflate": "~0.8.2",
     "path-browserify": "~1.0.1",
     "split.js": "~1.6.5"
