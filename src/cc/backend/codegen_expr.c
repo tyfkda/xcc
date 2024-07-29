@@ -24,12 +24,7 @@ enum VRegSize to_vsize(const Type *type) {
   int size = type_size(type);
   assert(1 <= size && size <= MAX_REG_SIZE && IS_POWER_OF_2(size));
   UNUSED(MAX_REG_SIZE);
-  for (enum VRegSize vsize = VRegSize1; vsize <= VRegSize8; ++vsize) {
-    if (size == 1 << vsize)
-      return vsize;
-  }
-  assert(!"Must not reached");
-  return -1;
+  return most_significant_bit(size);
 }
 
 int to_vflag(const Type *type) {

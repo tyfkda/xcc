@@ -199,10 +199,7 @@ static enum VRegSize get_elem_vtype(const Type *type) {
   }
 
   assert(s > 0);
-  enum VRegSize vsize = VRegSize1;
-  for (; s >>= 1, s > 0; ++vsize)
-    ;
-  return vsize;
+  return most_significant_bit(s);
 }
 
 void gen_memcpy(const Type *type, VReg *dst, VReg *src) {
