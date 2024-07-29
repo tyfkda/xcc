@@ -602,6 +602,7 @@ static void append_predefined_macros(Vector *cpp_cmd) {
   vec_push(cpp_cmd, "-D__x86_64__");
 #elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
   vec_push(cpp_cmd, "-D__aarch64__");
+  vec_push(cpp_cmd, "-D__arm64__");
 #elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
   vec_push(cpp_cmd, "-D__riscv");
 #endif
