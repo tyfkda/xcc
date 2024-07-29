@@ -52,5 +52,5 @@ char *getenv(const char *varname);
 
 #if !defined(__wasm)
 int system(const char *command);
-void abort(void);
+_Noreturn void abort(void);
 #endif

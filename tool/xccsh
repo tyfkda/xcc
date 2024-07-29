@@ -6,7 +6,8 @@ UNAME=$(uname)
 ARCH=$(arch)
 
 if [[ "$UNAME" = "Darwin" ]]; then
-    SYS_INCLUDE_DIR="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include"
+    # SYS_INCLUDE_DIR="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include"
+    SYS_INCLUDE_DIR="/usr/include/$ARCH-linux-gnu"
 else
     SYS_INCLUDE_DIR="/usr/include/$ARCH-linux-gnu"
 fi
