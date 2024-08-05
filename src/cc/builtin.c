@@ -119,7 +119,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
 
   FuncBackend *fnbe = curfunc->extra;
   FrameInfo *fi = &fnbe->vaarg_frame_info;
-  VReg *p = new_ir_bofs(fi);
+  VReg *p = new_ir_bofs(fi)->dst;
   if (offset > 0) {
     enum VRegSize vsize = to_vsize(&tyVoidPtr);
     p = new_ir_bop(IR_ADD, p, new_const_vreg(offset, vsize), vsize,
@@ -185,7 +185,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
 
   FuncBackend *fnbe = curfunc->extra;
   FrameInfo *fi = &fnbe->vaarg_frame_info;
-  VReg *p = new_ir_bofs(fi);
+  VReg *p = new_ir_bofs(fi)->dst;
   if (offset > 0) {
     enum VRegSize vsize = to_vsize(&tyVoidPtr);
     p = new_ir_bop(IR_ADD, p, new_const_vreg(offset, vsize), vsize,
@@ -252,7 +252,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
         IRF_UNSIGNED);
     FuncBackend *fnbe = curfunc->extra;
     FrameInfo *fi = &fnbe->vaarg_frame_info;
-    VReg *p = new_ir_bofs(fi);
+    VReg *p = new_ir_bofs(fi)->dst;
     int gs = MAX(gn - MAX_REG_ARGS, 0), fs = MAX(fn - MAX_FREG_ARGS, 0);
     if (gs > 0 || fs > 0) {
       p = new_ir_bop(IR_ADD, p, new_const_vreg((gs + fs) * TARGET_POINTER_SIZE, vsize), vsize,
@@ -270,7 +270,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
         vsize, IRF_UNSIGNED);
     FrameInfo *fi = malloc_or_die(sizeof(*fi));
     fi->offset = -(MAX_REG_ARGS + MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
-    VReg *p = new_ir_bofs(fi);
+    VReg *p = new_ir_bofs(fi)->dst;
     new_ir_store(reg_save_area, p, 0);
   }
   return NULL;

@@ -206,40 +206,45 @@ VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize, int flag) {
   return ir->dst = reg_alloc_spawn(curra, vsize, opr->flag & VRF_MASK);
 }
 
-VReg *new_ir_load(VReg *opr, enum VRegSize vsize, int vflag, int irflag) {
+IR *new_ir_load(VReg *opr, enum VRegSize vsize, int vflag, int irflag) {
   IR *ir = new_ir(IR_LOAD);
   ir->opr1 = opr;
   ir->flag = irflag;
-  return ir->dst = reg_alloc_spawn(curra, vsize, vflag);
+  ir->dst = reg_alloc_spawn(curra, vsize, vflag);
+  return ir;
 }
 
-VReg *new_ir_bofs(FrameInfo *fi) {
+IR *new_ir_bofs(FrameInfo *fi) {
   assert(fi != NULL);
   IR *ir = new_ir(IR_BOFS);
   ir->bofs.frameinfo = fi;
   ir->bofs.offset = 0;
-  return ir->dst = reg_alloc_spawn(curra, vtVoidPtr, 0);
+  ir->dst = reg_alloc_spawn(curra, vtVoidPtr, 0);
+  return ir;
 }
 
-VReg *new_ir_iofs(const Name *label, bool global) {
+IR *new_ir_iofs(const Name *label, bool global) {
   IR *ir = new_ir(IR_IOFS);
   ir->iofs.label = label;
   ir->iofs.global = global;
   ir->iofs.offset = 0;
-  return ir->dst = reg_alloc_spawn(curra, vtVoidPtr, 0);
+  ir->dst = reg_alloc_spawn(curra, vtVoidPtr, 0);
+  return ir;
 }
 
-VReg *new_ir_sofs(VReg *src) {
+IR *new_ir_sofs(VReg *src) {
   IR *ir = new_ir(IR_SOFS);
   ir->opr1 = src;
-  return ir->dst = reg_alloc_spawn(curra, vtVoidPtr, 0);
+  ir->dst = reg_alloc_spawn(curra, vtVoidPtr, 0);
+  return ir;
 }
 
-void new_ir_store(VReg *dst, VReg *src, int flag) {
+IR *new_ir_store(VReg *dst, VReg *src, int flag) {
   IR *ir = new_ir(IR_STORE);
   ir->opr1 = src;
   ir->opr2 = dst;  // `dst` is used by indirect, so it is not actually `dst`.
   ir->flag = flag;
+  return ir;
 }
 
 IR *new_ir_cond(VReg *opr1, VReg *opr2, enum ConditionKind cond) {

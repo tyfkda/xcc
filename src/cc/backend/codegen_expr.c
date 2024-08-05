@@ -209,13 +209,13 @@ static VReg *gen_ref_sub(Expr *expr) {
       const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
       if (is_global_scope(scope))
-        return new_ir_iofs(expr->var.name, (varinfo->storage & VS_STATIC) == 0);
+        return new_ir_iofs(expr->var.name, (varinfo->storage & VS_STATIC) == 0)->dst;
       else if (is_local_storage(varinfo))
-        return new_ir_bofs(varinfo->local.frameinfo);
+        return new_ir_bofs(varinfo->local.frameinfo)->dst;
       else if (varinfo->storage & VS_STATIC)
-        return new_ir_iofs(varinfo->static_.svar->ident->ident, false);
+        return new_ir_iofs(varinfo->static_.svar->ident->ident, false)->dst;
       else
-        return new_ir_iofs(expr->var.name, true);
+        return new_ir_iofs(expr->var.name, true)->dst;
     }
   case EX_DEREF:
     return gen_expr(expr->unary.sub);
@@ -268,7 +268,7 @@ static VReg *gen_variable(Expr *expr) {
 
       VReg *vreg = gen_lval(expr);
       int irflag = is_unsigned(expr->type) ? IRF_UNSIGNED : 0;
-      VReg *result = new_ir_load(vreg, to_vsize(expr->type), to_vflag(expr->type), irflag);
+      VReg *result = new_ir_load(vreg, to_vsize(expr->type), to_vflag(expr->type), irflag)->dst;
       return result;
     }
   case TY_ARRAY:   // Use variable address as a pointer.
@@ -434,7 +434,7 @@ static VReg *gen_funcall(Expr *expr) {
       } else {
         enum VRegSize offset_type = 2;  //{.size = 4, .align = 4};  // TODO:
         int ofs = p->offset;
-        VReg *dst = new_ir_sofs(new_const_vreg(ofs, offset_type));
+        VReg *dst = new_ir_sofs(new_const_vreg(ofs, offset_type))->dst;
         if (is_stack_param(arg->type)) {
           gen_memcpy(arg->type, dst, vreg);
         } else {
@@ -446,7 +446,7 @@ static VReg *gen_funcall(Expr *expr) {
     }
   }
   if (ret_varinfo != NULL) {
-    VReg *dst = new_ir_bofs(ret_varinfo->local.frameinfo);
+    VReg *dst = new_ir_bofs(ret_varinfo->local.frameinfo)->dst;
     new_ir_pusharg(dst, 0);
     arg_vregs[0] = dst;
     ++reg_arg_count;
@@ -532,8 +532,8 @@ static VReg *gen_flonum(Expr *expr) {
   VarInfo *gvarinfo = is_global_scope(curscope) ? varinfo : varinfo->static_.svar;
   gvarinfo->global.init = init;
 
-  VReg *src = new_ir_iofs(gvarinfo->ident->ident, false);
-  return new_ir_load(src, to_vsize(type), to_vflag(type), 0);
+  VReg *src = new_ir_iofs(gvarinfo->ident->ident, false)->dst;
+  return new_ir_load(src, to_vsize(type), to_vflag(type), 0)->dst;
 #else
   UNUSED(expr);
   assert(false);
@@ -556,7 +556,7 @@ static VReg *gen_deref(Expr *expr) {
   // array, struct and func values are handled as a pointer.
   if (is_prim_type(expr->type)) {
     int irflag = is_unsigned(expr->type) ? IRF_UNSIGNED : 0;
-    vreg = new_ir_load(vreg, to_vsize(expr->type), to_vflag(expr->type), irflag);
+    vreg = new_ir_load(vreg, to_vsize(expr->type), to_vflag(expr->type), irflag)->dst;
   }
   return vreg;
 }
@@ -577,7 +577,7 @@ static VReg *gen_member(Expr *expr) {
   VReg *result = vreg;
   if (is_prim_type(expr->type)) {
     int irflag = is_unsigned(expr->type) ? IRF_UNSIGNED : 0;
-    result = new_ir_load(vreg, to_vsize(expr->type), to_vflag(expr->type), irflag);
+    result = new_ir_load(vreg, to_vsize(expr->type), to_vflag(expr->type), irflag)->dst;
   }
   return result;
 }
@@ -661,7 +661,7 @@ static VReg *gen_expr_incdec(Expr *expr) {
     }
   } else {
     lval = gen_lval(target);
-    val = new_ir_load(lval, vsize, to_vflag(expr->type), flag);
+    val = new_ir_load(lval, vsize, to_vflag(expr->type), flag)->dst;
     if (IS_POST(expr))
       before = val;
   }

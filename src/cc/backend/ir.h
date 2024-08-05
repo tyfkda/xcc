@@ -187,12 +187,12 @@ VReg *new_const_vreg(int64_t value, enum VRegSize vsize);
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, int flag);
 IR *new_ir_bop_raw(enum IrKind kind, VReg *dst, VReg *opr1, VReg *opr2, int flag);
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize, int flag);
-VReg *new_ir_load(VReg *opr, enum VRegSize vsize, int vflag, int irflag);
+IR *new_ir_load(VReg *opr, enum VRegSize vsize, int vflag, int irflag);
 IR *new_ir_mov(VReg *dst, VReg *src, int flag);
-VReg *new_ir_bofs(FrameInfo *fi);
-VReg *new_ir_iofs(const Name *label, bool global);
-VReg *new_ir_sofs(VReg *src);
-void new_ir_store(VReg *dst, VReg *src, int flag);
+IR *new_ir_bofs(FrameInfo *fi);
+IR *new_ir_iofs(const Name *label, bool global);
+IR *new_ir_sofs(VReg *src);
+IR *new_ir_store(VReg *dst, VReg *src, int flag);
 IR *new_ir_cond(VReg *opr1, VReg *opr2, enum ConditionKind cond);
 IR *new_ir_jmp(BB *bb);  // Non-conditional jump
 void new_ir_cjmp(VReg *opr1, VReg *opr2, enum ConditionKind cond, BB *bb);  // Conditional jump

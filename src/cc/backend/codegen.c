@@ -212,7 +212,7 @@ void gen_memcpy(const Type *type, VReg *dst, VReg *src) {
   size_t count = size >> elem_vsize;
   assert(count > 0);
   if (count == 1) {
-    VReg *tmp = new_ir_load(src, elem_vsize, to_vflag(type), 0);
+    VReg *tmp = new_ir_load(src, elem_vsize, to_vflag(type), 0)->dst;
     new_ir_store(dst, tmp, 0);
   } else {
     VReg *srcp = add_new_vreg(&tyVoidPtr);
@@ -227,7 +227,7 @@ void gen_memcpy(const Type *type, VReg *dst, VReg *src) {
 
     BB *loop_bb = new_bb();
     set_curbb(loop_bb);
-    VReg *tmp = new_ir_load(srcp, elem_vsize, to_vflag(type), 0);
+    VReg *tmp = new_ir_load(srcp, elem_vsize, to_vflag(type), 0)->dst;
     new_ir_mov(srcp, new_ir_bop(IR_ADD, srcp, vadd, srcp->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // srcp += elem_size
     new_ir_store(dstp, tmp, 0);
     new_ir_mov(dstp, new_ir_bop(IR_ADD, dstp, vadd, dstp->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // dstp += elem_size
@@ -613,7 +613,7 @@ void gen_clear_local_var(const VarInfo *varinfo) {
   if (is_prim_type(varinfo->type))
     return;
 
-  VReg *vreg = new_ir_bofs(varinfo->local.frameinfo);
+  VReg *vreg = new_ir_bofs(varinfo->local.frameinfo)->dst;
   gen_clear(varinfo->type, vreg);
 }
 
