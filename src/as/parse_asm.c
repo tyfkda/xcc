@@ -22,6 +22,7 @@ int current_section = SEC_CODE;
 
 static const char *kDirectiveTable[] = {
   "ascii",
+  "string",
   "section",
   "text",
   "data",
@@ -733,13 +734,16 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
   case NODIRECTIVE:
     break;
   case DT_ASCII:
+  case DT_STRING:
     {
       if (*info->p != '"')
         parse_error(info, "`\"' expected");
       ++info->p;
       const char *p = info->p;
       size_t len = unescape_string(info, NULL);
-      char *str = malloc_or_die(len);
+      if (dir == DT_STRING)
+        ++len;
+      char *str = calloc_or_die(len);
       info->p = p;  // Again.
       unescape_string(info, str);
 

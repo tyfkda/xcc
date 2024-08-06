@@ -15,6 +15,7 @@ typedef struct Vector Vector;
 enum DirectiveType {
   NODIRECTIVE,
   DT_ASCII,
+  DT_STRING,
   DT_SECTION,
   DT_TEXT,
   DT_DATA,

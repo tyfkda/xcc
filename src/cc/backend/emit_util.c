@@ -205,14 +205,18 @@ static void emit_number(void *ud, const Type *type, Expr *var, int64_t offset) {
 static void emit_string(void *ud, Expr *str, size_t size) {
   UNUSED(ud);
   assert(str->kind == EX_STR);
-  size_t src_size = str->str.len * type_size(str->type->pa.ptrof);
+  size_t csize = type_size(str->type->pa.ptrof);
+  size_t src_size = str->str.len * csize;
   if (src_size > size)
     src_size = size;
+
+  bool is_string = (csize == 1 && src_size > 0 && src_size == size &&
+                    str->str.buf[src_size - 1] == '\0');
 
   StringBuffer sb;
   sb_init(&sb);
   sb_append(&sb, "\"", NULL);
-  escape_string(str->str.buf, src_size, &sb);
+  escape_string(str->str.buf, src_size - is_string, &sb);
   if (size > src_size) {
     static const char NULCHR[] = "\\0";
     for (size_t i = 0, n = size - src_size; i < n; ++i)
@@ -220,7 +224,10 @@ static void emit_string(void *ud, Expr *str, size_t size) {
   }
   sb_append(&sb, "\"", NULL);
   const char *escaped = sb_to_string(&sb);
-  _ASCII(escaped);
+  if (is_string)
+    _STRING(escaped);
+  else
+    _ASCII(escaped);
 }
 
 void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
