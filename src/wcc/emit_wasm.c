@@ -643,9 +643,15 @@ static void emit_linking_section(EmitWasm *ew) {
     for (int i = 0; i < segments->len; ++i) {
       DataSegment *segment = segments->data[i];
       VarInfo *varinfo = segment->gvarinfo->varinfo;
+      int flags = 0;
+      if (varinfo->global.init != NULL && varinfo->global.init->kind == IK_SINGLE) {
+        Expr *e = varinfo->global.init->single;
+        if (e->kind == EX_STR)
+          flags |= WASM_SEG_FLAG_STRINGS;
+      }
       data_string(&linking_section, varinfo->name->chars, varinfo->name->bytes);
       data_uleb128(&linking_section, -1, segment->p2align);
-      data_uleb128(&linking_section, -1, 0);  // flags
+      data_uleb128(&linking_section, -1, flags);
     }
     data_close_chunk(&linking_section, -1);
   }

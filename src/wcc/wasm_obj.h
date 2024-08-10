@@ -25,6 +25,11 @@ enum SymInfoKind {
   SIK_SYMTAB_TABLE            = 5,
 };
 
+// enum SegmentFlags
+#define WASM_SEG_FLAG_STRINGS       (1 << 0)
+#define WASM_SEG_FLAG_TLS           (1 << 1)
+#define WASM_SEG_FLAG_RETAIN        (1 << 2)
+
 // enum SymFlags
 #define WASM_SYM_BINDING_WEAK       (1 << 0)
 #define WASM_SYM_BINDING_LOCAL      (1 << 1)
