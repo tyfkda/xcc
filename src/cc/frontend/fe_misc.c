@@ -899,7 +899,26 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
       assert(false);
       // Fallthrough to suppress warning.
     case EX_FIXNUM:
-      if (rhs->kind == EX_STR) {
+      switch (rhs->kind) {
+      case EX_FIXNUM:
+        if (lhs->type->fixnum.is_unsigned || rhs->type->fixnum.is_unsigned) {
+          UFixnum l = lhs->fixnum, r = rhs->fixnum;
+          JUDGE(kind, tf, l, r);
+        } else {
+          Fixnum l = lhs->fixnum, r = rhs->fixnum;
+          JUDGE(kind, tf, l, r);
+        }
+        break;
+#ifndef __NO_FLONUM
+      case EX_FLONUM:
+        {
+          Flonum l = lhs->type->fixnum.is_unsigned ? (Flonum)(UFixnum)lhs->fixnum : (Flonum)lhs->fixnum;
+          Flonum r = rhs->flonum;
+          JUDGE(kind, tf, l, r);
+        }
+        break;
+#endif
+      case EX_STR:
         if (is_zero(lhs)) {
           switch (kind) {
           case EX_EQ: tf = false; break;
@@ -908,25 +927,30 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
           }
         }
         break;
-      }
-
-      assert(rhs->kind == EX_FIXNUM);
-      if (lhs->type->fixnum.is_unsigned) {
-        UFixnum l = lhs->fixnum, r = rhs->fixnum;
-        JUDGE(kind, tf, l, r);
-      } else {
-        Fixnum l = lhs->fixnum, r = rhs->fixnum;
-        JUDGE(kind, tf, l, r);
+      default: break;
       }
       break;
 #ifndef __NO_FLONUM
     case EX_FLONUM:
-      {
-        if (rhs->kind == EX_STR)
-          break;
-        assert(rhs->kind == EX_FLONUM);
-        Flonum l = lhs->flonum, r = rhs->flonum;
-        JUDGE(kind, tf, l, r);
+      switch (rhs->kind) {
+      case EX_STR:
+        break;
+      case EX_FIXNUM:
+      case EX_FLONUM:
+        {
+          Flonum l = lhs->flonum;
+          Flonum r;
+          if (rhs->kind == EX_FLONUM) {
+            r = rhs->flonum;
+          } else if (rhs->kind == EX_FIXNUM) {
+            r = rhs->type->fixnum.is_unsigned ? (Flonum)(UFixnum)rhs->fixnum : (Flonum)rhs->fixnum;
+          } else {
+            break;
+          }
+          JUDGE(kind, tf, l, r);
+        }
+        break;
+      default: break;
       }
       break;
 #endif
