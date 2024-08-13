@@ -74,14 +74,7 @@ void symtab_concat(Symtab *dest, Symtab *src) {
 
 //
 
-static void putnum(FILE *fp, unsigned long num, int bytes) {
-  for (int i = 0; i < bytes; ++i) {
-    fputc(num, fp);
-    num >>= 8;
-  }
-}
-
-static int construct_symtab(Symtab *symtab, Table *label_table) {
+static int construct_symtab(Symtab *symtab, const int *section_indices, Table *label_table) {
   symtab_init(symtab);
 
   Symtab symtab_global;
@@ -92,15 +85,18 @@ static int construct_symtab(Symtab *symtab, Table *label_table) {
     [STB_GLOBAL] = &symtab_global,
   };
 
+  const Name *nulname = alloc_name("", NULL, false);
   // UND
   Elf64_Sym *sym;
-  sym = symtab_add(symtab, alloc_name("", NULL, false));
+  sym = symtab_add(symtab, nulname);
   sym->st_info = ELF64_ST_INFO(STB_LOCAL, STT_NOTYPE);
   // SECTION
-  for (int i = 0; i < 4; ++i) {
-    sym = symtab_add(symtab, alloc_name("", NULL, false));
+  for (int i = 0; i < SECTION_COUNT; ++i) {
+    if (section_indices[i] <= 0)
+      continue;
+    sym = symtab_add(symtab, nulname);
     sym->st_info = ELF64_ST_INFO(STB_LOCAL, STT_SECTION);
-    sym->st_shndx = i + 1;  // Section index.
+    sym->st_shndx = section_indices[i];  // Section index.
   }
 
   const Name *name;
@@ -124,7 +120,8 @@ static int construct_symtab(Symtab *symtab, Table *label_table) {
     }
     sym->st_info = ELF64_ST_INFO(bind, type);
     sym->st_value = (info->flag & LF_DEFINED) ? info->address - section_start_addresses[info->section] : 0;
-    sym->st_shndx = info->section >= 0 ? info->section + 1 : SHN_UNDEF;  // Symbol index for Local section.
+    assert(info->section < 0 || section_indices[info->section] > 0);
+    sym->st_shndx = info->section >= 0 ? section_indices[info->section] : SHN_UNDEF;  // Symbol index for Local section.
   }
 
   int local_symbol_count = symtab->count;
@@ -135,6 +132,7 @@ static int construct_symtab(Symtab *symtab, Table *label_table) {
 }
 
 static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_table,
+                            const int *section_indices,
                             int rela_counts[], Elf64_Rela *rela_bufs[]) {
   memset(rela_counts, 0x00, sizeof(*rela_counts) * SECTION_COUNT);
   for (int i = 0; i < unresolved->len; ++i) {
@@ -173,8 +171,9 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
           rela->r_info = ELF64_R_INFO(symidx, type);
           rela->r_addend = u->add;
         } else {
+          int secidx = section_indices[label->section];
           rela->r_offset = u->offset;
-          rela->r_info = ELF64_R_INFO(label->section + 1, type);
+          rela->r_info = ELF64_R_INFO(secidx, type);
           rela->r_addend = u->add + (label->address - section_start_addresses[label->section]);
         }
       }
@@ -197,7 +196,7 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
       {
         LabelInfo *label = table_get(label_table, u->label);
         assert(label != NULL);
-        int secidx = label->section + 1;
+        int secidx = section_indices[label->section];
         rela->r_offset = u->offset;
         rela->r_info = ELF64_R_INFO(secidx, R_X86_64_PC32);
         rela->r_addend = u->add;
@@ -245,8 +244,9 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
           rela->r_info = ELF64_R_INFO(symidx, type);
           rela->r_addend = u->add;
         } else {
+          int secidx = section_indices[label->section];
           rela->r_offset = u->offset;
-          rela->r_info = ELF64_R_INFO(label->section + 1, type);
+          rela->r_info = ELF64_R_INFO(secidx, type);
           rela->r_addend = u->add + (label->address - section_start_addresses[label->section]);
         }
       }
@@ -314,15 +314,160 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
 }
 
 int emit_elf_obj(const char *ofn, Table *label_table, Vector *unresolved) {
+  size_t section_sizes[SECTION_COUNT];
+  get_section_size(SEC_CODE, &section_sizes[SEC_CODE], NULL);
+  get_section_size(SEC_RODATA, &section_sizes[SEC_RODATA], NULL);
+  get_section_size(SEC_DATA, &section_sizes[SEC_DATA], NULL);
+  get_section_size(SEC_BSS, &section_sizes[SEC_BSS], NULL);
+
+  int section_indices[SECTION_COUNT];
+  int out_section_count = 0;
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    int index = (section_sizes[sec] > 0) ? ++out_section_count : -1;
+    section_indices[sec] = index;
+  }
+
   // Construct symtab and strtab.
   Symtab symtab;
   int local_symbol_count;
-  local_symbol_count = construct_symtab(&symtab, label_table);
+  local_symbol_count = construct_symtab(&symtab, section_indices, label_table);
 
   // Construct relas.
   int rela_counts[SECTION_COUNT];
   Elf64_Rela *rela_bufs[SECTION_COUNT];
-  construct_relas(unresolved, &symtab, label_table, rela_counts, rela_bufs);
+  construct_relas(unresolved, &symtab, label_table, section_indices, rela_counts, rela_bufs);
+
+  uintptr_t addr = sizeof(Elf64_Ehdr);
+  uintptr_t section_offsets[SECTION_COUNT];
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    section_offsets[sec] = addr;
+    if (section_sizes[sec] > 0) {
+      section_offsets[sec] = addr = ALIGN(addr, 0x10);
+      if (sec != SEC_BSS)
+        addr += section_sizes[sec];
+    }
+  }
+
+  uintptr_t rela_ofss[SECTION_COUNT];
+  for (int i = 0; i < SEC_BSS; ++i) {
+    rela_ofss[i] = addr = ALIGN(addr, 0x10);
+    if (rela_counts[i] > 0)
+      addr += sizeof(*rela_bufs[i]) * rela_counts[i];
+  }
+
+  uintptr_t symtab_ofs = addr;
+  addr += sizeof(*symtab.buf) * symtab.count;
+  uintptr_t strtab_ofs = addr;
+  addr += symtab.strtab.size;
+
+  // Section headers.
+  Strtab shstrtab;
+  strtab_init(&shstrtab);
+  DataStorage section_headers;
+  data_init(&section_headers);
+
+  Elf64_Word index = 1 + out_section_count;
+  for (int i = SEC_CODE; i < SEC_BSS; ++i)
+    index += rela_counts[i] > 0;
+  Elf64_Word strtab_index = index++;
+  Elf64_Word symtab_index = index;
+  int shnum = index + 2;  // symtab, shstrtab
+
+  Elf64_Shdr nulsec = {
+    .sh_name = strtab_add(&shstrtab, alloc_name("", NULL, false)),
+    .sh_type = SHT_NULL,
+    .sh_addralign = 1,
+  };
+  data_append(&section_headers, &nulsec, sizeof(nulsec));
+
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    static const struct {
+      const char *name;
+      Elf64_Word type;
+      Elf64_Xword flags;
+    } kTable[] = {
+      [SEC_CODE] = { .name = ".text", .type = SHT_PROGBITS, .flags = SHF_EXECINSTR | SHF_ALLOC },
+      [SEC_RODATA] = { .name = ".rodata", .type = SHT_PROGBITS, .flags = SHF_ALLOC },
+      [SEC_DATA] = { .name = ".data", .type = SHT_PROGBITS, .flags = SHF_WRITE | SHF_ALLOC },
+      [SEC_BSS] = { .name = ".bss", .type = SHT_NOBITS, .flags = SHF_WRITE | SHF_ALLOC },
+    };
+    if (section_sizes[sec] > 0) {
+      Elf64_Shdr shdr = {
+        .sh_name = strtab_add(&shstrtab, alloc_name(kTable[sec].name, NULL, false)),
+        .sh_type = kTable[sec].type,
+        .sh_flags = kTable[sec].flags,
+        .sh_offset = section_offsets[sec],
+        .sh_size = section_sizes[sec],
+        .sh_addralign = section_aligns[sec],
+      };
+      data_append(&section_headers, &shdr, sizeof(shdr));
+    }
+  }
+
+  for (int sec = 0; sec < SEC_BSS; ++sec) {
+    static const char *kNames[] = {
+      [SEC_CODE] = ".rela.text",
+      [SEC_RODATA] = ".rela.rodata",
+      [SEC_DATA] = ".rela.data",
+    };
+    if (rela_counts[sec] > 0) {
+      assert(section_indices[sec] > 0);
+      Elf64_Shdr shdr = {
+        .sh_name = strtab_add(&shstrtab, alloc_name(kNames[sec], NULL, false)),
+        .sh_type = SHT_RELA,
+        .sh_flags = SHF_INFO_LINK,
+        .sh_offset = rela_ofss[sec],
+        .sh_size = sizeof(Elf64_Rela) * rela_counts[sec],
+        .sh_link = symtab_index,
+        .sh_info = section_indices[sec],
+        .sh_addralign = 8,
+        .sh_entsize = sizeof(Elf64_Rela),
+      };
+      data_append(&section_headers, &shdr, sizeof(shdr));
+    }
+  }
+
+  Elf64_Shdr strtabsec = {
+    .sh_name = strtab_add(&shstrtab, alloc_name(".strtab", NULL, false)),
+    .sh_type = SHT_STRTAB,
+    .sh_offset = strtab_ofs,
+    .sh_size = symtab.strtab.size,
+    .sh_addralign = 1,
+  };
+  data_append(&section_headers, &strtabsec, sizeof(strtabsec));
+
+  Elf64_Shdr symtabsec = {
+    .sh_name = strtab_add(&shstrtab, alloc_name(".symtab", NULL, false)),
+    .sh_type = SHT_SYMTAB,
+    .sh_offset = symtab_ofs,
+    .sh_size = sizeof(*symtab.buf) * symtab.count,
+    .sh_link = strtab_index,
+    .sh_info = local_symbol_count,  // Number of local symbols
+    .sh_addralign = 8,
+    .sh_entsize = sizeof(Elf64_Sym),
+  };
+  data_append(&section_headers, &symtabsec, sizeof(symtabsec));
+
+  Elf64_Shdr shstrtabsec = {
+    .sh_name = strtab_add(&shstrtab, alloc_name(".shstrtab", NULL, false)),
+    .sh_type = SHT_STRTAB,
+    .sh_offset = 0,  // Dummy
+    .sh_size = 0,    // Dummy
+    .sh_addralign = 1,
+  };
+  data_append(&section_headers, &shstrtabsec, sizeof(shstrtabsec));
+
+  uintptr_t shstrtab_ofs = addr;  // ALIGN(addr, 0x10);
+  addr += shstrtab.size;
+
+  Elf64_Shdr *pshstrtabsec = (Elf64_Shdr*)(section_headers.buf + section_headers.len - sizeof(Elf64_Shdr));
+  pshstrtabsec->sh_offset = shstrtab_ofs;
+  pshstrtabsec->sh_size = shstrtab.size;
+
+  uintptr_t sh_ofs = addr = ALIGN(addr, 0x10);
+  // addr += section_headers.len;
+
+  //
 
   FILE *ofp;
   if (ofn == NULL) {
@@ -337,225 +482,34 @@ int emit_elf_obj(const char *ofn, Table *label_table, Vector *unresolved) {
 
   uintptr_t entry = 0;
   int phnum = 0;
-  int shnum = 11;
 #if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
   const int flags = EF_RISCV_RVC | EF_RISCV_FLOAT_ABI_DOUBLE;
 #else
   const int flags = 0;
 #endif
-  out_elf_header(ofp, entry, phnum, shnum, flags);
+  out_elf_header(ofp, entry, phnum, shnum, flags, sh_ofs);
 
-  size_t codesz, rodatasz, datasz, bsssz;
-  get_section_size(SEC_CODE, &codesz, NULL);
-  get_section_size(SEC_RODATA, &rodatasz, NULL);
-  get_section_size(SEC_DATA, &datasz, NULL);
-  get_section_size(SEC_BSS, &bsssz, NULL);
-
-  uintptr_t addr = sizeof(Elf64_Ehdr);
-  uintptr_t code_ofs = addr;
-  output_section(ofp, SEC_CODE);
-  uintptr_t rodata_ofs = addr += codesz;
-  if (rodatasz > 0) {
-    rodata_ofs = ALIGN(rodata_ofs, 0x10);
-    put_padding(ofp, rodata_ofs);
-    output_section(ofp, SEC_RODATA);
-    addr = rodata_ofs + rodatasz;
-  }
-  uintptr_t data_ofs = addr;
-  if (datasz > 0) {
-    data_ofs = ALIGN(data_ofs, 0x10);
-    put_padding(ofp, data_ofs);
-    output_section(ofp, SEC_DATA);
-    addr = data_ofs + datasz;
-  }
-  uintptr_t bss_ofs = addr;
-  if (bsssz > 0) {
-    bss_ofs = ALIGN(bss_ofs, 0x10);
-    put_padding(ofp, bss_ofs);
-    addr = bss_ofs;
-  }
-
-  uintptr_t rela_ofss[SECTION_COUNT];
-  for (int i = 0; i < SEC_BSS; ++i) {
-    rela_ofss[i] = addr = ALIGN(addr, 0x10);
-    put_padding(ofp, addr);
-    if (rela_counts[i] > 0) {
-      fwrite(rela_bufs[i], sizeof(*rela_bufs[i]), rela_counts[i], ofp);
-      addr += sizeof(*rela_bufs[i]) * rela_counts[i];
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    if (section_sizes[sec] > 0) {
+      put_padding(ofp, section_offsets[sec]);
+      output_section(ofp, sec);
     }
   }
 
-  uintptr_t symtab_ofs = addr + unresolved->len * sizeof(Elf64_Rela);
-  put_padding(ofp, symtab_ofs);
-  fwrite(symtab.buf, sizeof(*symtab.buf), symtab.count, ofp);
+  for (int i = 0; i < SEC_BSS; ++i) {
+    put_padding(ofp, rela_ofss[i]);
+    if (rela_counts[i] > 0)
+      fwrite(rela_bufs[i], sizeof(*rela_bufs[i]), rela_counts[i], ofp);
+  }
 
-  uintptr_t strtab_ofs = symtab_ofs + sizeof(*symtab.buf) * symtab.count;
+  fwrite(symtab.buf, sizeof(*symtab.buf), symtab.count, ofp);
   fwrite(strtab_dump(&symtab.strtab), symtab.strtab.size, 1, ofp);
 
-  // Set up shstrtab.
-  Strtab shstrtab;
-  strtab_init(&shstrtab);
+  assert(ftell(ofp) == (long)shstrtab_ofs);
+  fwrite(strtab_dump(&shstrtab), shstrtab.size, 1, ofp);
 
-  // Output section headers.
-  {
-    Elf64_Shdr nulsec = {
-      .sh_name = strtab_add(&shstrtab, alloc_name("", NULL, false)),
-      .sh_type = SHT_NULL,
-      .sh_addralign = 1,
-    };
-    Elf64_Shdr textsec = {
-      .sh_name = strtab_add(&shstrtab, alloc_name(".text", NULL, false)),
-      .sh_type = SHT_PROGBITS,
-      .sh_flags = SHF_EXECINSTR | SHF_ALLOC,
-      .sh_addr = 0,
-      .sh_offset = code_ofs,
-      .sh_size = codesz,
-      .sh_link = 0,
-      .sh_info = 0,
-      .sh_addralign = section_aligns[SEC_CODE],
-      .sh_entsize = 0,
-    };
-    Elf64_Shdr rodatasec = {
-      .sh_name = strtab_add(&shstrtab, alloc_name(".rodata", NULL, false)),
-      .sh_type = SHT_PROGBITS,
-      .sh_flags = SHF_ALLOC,
-      .sh_addr = 0,
-      .sh_offset = rodata_ofs,
-      .sh_size = rodatasz,
-      .sh_link = 0,
-      .sh_info = 0,
-      .sh_addralign = section_aligns[SEC_RODATA],
-      .sh_entsize = 0,
-    };
-    Elf64_Shdr datasec = {
-      .sh_name = strtab_add(&shstrtab, alloc_name(".data", NULL, false)),
-      .sh_type = SHT_PROGBITS,
-      .sh_flags = SHF_WRITE | SHF_ALLOC,
-      .sh_addr = 0,
-      .sh_offset = data_ofs,
-      .sh_size = datasz,
-      .sh_link = 0,
-      .sh_info = 0,
-      .sh_addralign = section_aligns[SEC_DATA],
-      .sh_entsize = 0,
-    };
-    Elf64_Shdr bsssec = {
-      .sh_name = strtab_add(&shstrtab, alloc_name(".bss", NULL, false)),
-      .sh_type = SHT_NOBITS,
-      .sh_flags = SHF_WRITE | SHF_ALLOC,
-      .sh_addr = 0,
-      .sh_offset = bss_ofs,
-      .sh_size = bsssz,
-      .sh_link = 0,
-      .sh_info = 0,
-      .sh_addralign = section_aligns[SEC_BSS],
-      .sh_entsize = 0,
-    };
-    Elf64_Shdr relatextsec = {
-      .sh_name = strtab_add(&shstrtab, alloc_name(".rela.text", NULL, false)),
-      .sh_type = SHT_RELA,
-      .sh_flags = SHF_INFO_LINK,
-      .sh_addr = 0,
-      .sh_offset = rela_ofss[SEC_CODE],
-      .sh_size = sizeof(Elf64_Rela) * rela_counts[SEC_CODE],
-      .sh_link = 9,  // Index of symtab
-      .sh_info = 1,  // Index of text
-      .sh_addralign = 8,
-      .sh_entsize = sizeof(Elf64_Rela),
-    };
-    Elf64_Shdr relarodatasec = {
-      .sh_name = strtab_add(&shstrtab, alloc_name(".rela.rodata", NULL, false)),
-      .sh_type = SHT_RELA,
-      .sh_flags = SHF_INFO_LINK,
-      .sh_addr = 0,
-      .sh_offset = rela_ofss[SEC_RODATA],
-      .sh_size = sizeof(Elf64_Rela) * rela_counts[SEC_RODATA],
-      .sh_link = 9,  // Index of symtab
-      .sh_info = 2,  // Index of rodata
-      .sh_addralign = 8,
-      .sh_entsize = sizeof(Elf64_Rela),
-    };
-    Elf64_Shdr reladatasec = {
-      .sh_name = strtab_add(&shstrtab, alloc_name(".rela.data", NULL, false)),
-      .sh_type = SHT_RELA,
-      .sh_flags = SHF_INFO_LINK,
-      .sh_addr = 0,
-      .sh_offset = rela_ofss[SEC_DATA],
-      .sh_size = sizeof(Elf64_Rela) * rela_counts[SEC_DATA],
-      .sh_link = 9,  // Index of symtab
-      .sh_info = 3,  // Index of data
-      .sh_addralign = 8,
-      .sh_entsize = sizeof(Elf64_Rela),
-    };
-    Elf64_Shdr strtabsec = {
-      .sh_name = strtab_add(&shstrtab, alloc_name(".strtab", NULL, false)),
-      .sh_type = SHT_STRTAB,
-      .sh_flags = 0,
-      .sh_addr = 0,
-      .sh_offset = strtab_ofs,
-      .sh_size = symtab.strtab.size,
-      .sh_link = 0,
-      .sh_info = 0,
-      .sh_addralign = 1,
-      .sh_entsize = 0,
-    };
-    Elf64_Shdr symtabsec = {
-      .sh_name = strtab_add(&shstrtab, alloc_name(".symtab", NULL, false)),
-      .sh_type = SHT_SYMTAB,
-      .sh_flags = 0,
-      .sh_addr = 0,
-      .sh_offset = symtab_ofs,
-      .sh_size = sizeof(*symtab.buf) * symtab.count,
-      .sh_link = 8,  // Index of strtab
-      .sh_info = local_symbol_count,  // Number of local symbols
-      .sh_addralign = 8,
-      .sh_entsize = sizeof(Elf64_Sym),
-    };
-    Elf64_Shdr shstrtabsec = {
-      .sh_name = strtab_add(&shstrtab, alloc_name(".shstrtab", NULL, false)),
-      .sh_type = SHT_STRTAB,
-      .sh_flags = 0,
-      .sh_addr = 0,
-      .sh_offset = 0,  // Dummy
-      .sh_size = 0,    // Dummy
-      .sh_link = 0,
-      .sh_info = 0,
-      .sh_addralign = 1,
-      .sh_entsize = 0,
-    };
-
-    long shstrtab_ofs;
-    {
-      void *buf = strtab_dump(&shstrtab);
-      assert(buf != NULL);
-      long cur = ftell(ofp);
-      shstrtab_ofs = ALIGN(cur, 0x10);
-      put_padding(ofp, shstrtab_ofs);
-      fwrite(buf, shstrtab.size, 1, ofp);
-    }
-    shstrtabsec.sh_offset = shstrtab_ofs;
-    shstrtabsec.sh_size = shstrtab.size;
-
-    long cur = ftell(ofp);
-    long sh_ofs = ALIGN(cur, 0x10);
-    put_padding(ofp, sh_ofs);
-
-    fwrite(&nulsec, sizeof(nulsec), 1, ofp);
-    fwrite(&textsec, sizeof(textsec), 1, ofp);
-    fwrite(&rodatasec, sizeof(rodatasec), 1, ofp);
-    fwrite(&datasec, sizeof(datasec), 1, ofp);
-    fwrite(&bsssec, sizeof(bsssec), 1, ofp);
-    fwrite(&relatextsec, sizeof(relatextsec), 1, ofp);
-    fwrite(&relarodatasec, sizeof(relarodatasec), 1, ofp);
-    fwrite(&reladatasec, sizeof(reladatasec), 1, ofp);
-    fwrite(&strtabsec, sizeof(strtabsec), 1, ofp);
-    fwrite(&symtabsec, sizeof(symtabsec), 1, ofp);
-    fwrite(&shstrtabsec, sizeof(shstrtabsec), 1, ofp);
-
-    // Write section table offset.
-    fseek(ofp, offsetof(Elf64_Ehdr, e_shoff), SEEK_SET);
-    putnum(ofp, sh_ofs, 8);
-  }
+  put_padding(ofp, sh_ofs);
+  fwrite(section_headers.buf, section_headers.len, 1, ofp);
 
   return 0;
 }

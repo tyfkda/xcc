@@ -87,6 +87,8 @@ void get_section_size(int section, size_t *psize, uintptr_t *ploadadr) {
 }
 
 void output_section(FILE *fp, int section) {
+  if (section >= SEC_BSS)
+    return;
   Section *sec = &sections[section];
   const void *buf = sec->ds.buf;
   fwrite(buf, sec->ds.len, 1, fp);

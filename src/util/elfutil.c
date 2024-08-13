@@ -2,7 +2,7 @@
 #include "elfutil.h"
 
 #ifndef ELF_NOT_SUPPORTED
-void out_elf_header(FILE *fp, uintptr_t entry, int phnum, int shnum, int flags) {
+void out_elf_header(FILE *fp, uintptr_t entry, int phnum, int shnum, int flags, uintptr_t shoff) {
   Elf64_Ehdr ehdr = {
     .e_ident     = { ELFMAG0, ELFMAG1, ELFMAG2 ,ELFMAG3,
                      ELFCLASS64, ELFDATA2LSB, EV_CURRENT, ELFOSABI_SYSV },
@@ -11,14 +11,14 @@ void out_elf_header(FILE *fp, uintptr_t entry, int phnum, int shnum, int flags) 
     .e_version   = EV_CURRENT,
     .e_entry     = entry,
     .e_phoff     = phnum > 0 ? sizeof(Elf64_Ehdr) : 0,
-    .e_shoff     = 0, // dummy
+    .e_shoff     = shoff,
     .e_flags     = flags,
     .e_ehsize    = sizeof(Elf64_Ehdr),
     .e_phentsize = phnum > 0 ? sizeof(Elf64_Phdr) : 0,
     .e_phnum     = phnum,
     .e_shentsize = shnum > 0 ? sizeof(Elf64_Shdr) : 0,
     .e_shnum     = shnum,
-    .e_shstrndx  = shnum > 0 ? shnum - 1 : SHN_UNDEF,
+    .e_shstrndx  = shnum > 0 ? shnum - 1 : SHN_UNDEF,  // Assumes shstrndx is at last.
   };
 
   fwrite(&ehdr, sizeof(Elf64_Ehdr), 1, fp);

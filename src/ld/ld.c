@@ -659,7 +659,7 @@ static bool output_exe(const char *ofn, uintptr_t entry_address) {
 #else
   const int flags = 0;
 #endif
-  out_elf_header(fp, entry_address, phnum, 0, flags);
+  out_elf_header(fp, entry_address, phnum, 0, flags, 0);
   out_program_header(fp, 0, PROG_START, codeloadadr, code_rodata_sz, code_rodata_sz);
   if (phnum > 1) {
     size_t bss_align = section_aligns[SEC_BSS];

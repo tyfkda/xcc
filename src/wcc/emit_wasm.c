@@ -44,11 +44,11 @@ static void emit_global_number(void *ud, const Type *type, Expr *var, Fixnum off
       if (type->flonum.kind < FL_DOUBLE) {
         data_push(ds, OP_F32_CONST);
         uint32_t f = offset;
-        data_append(ds, (unsigned char*)&f, sizeof(float));  // TODO: Endian
+        data_append(ds, &f, sizeof(float));  // TODO: Endian
       } else {
         data_push(ds, OP_F64_CONST);
         uint64_t d = offset;
-        data_append(ds, (unsigned char*)&d, sizeof(double));  // TODO: Endian
+        data_append(ds, &d, sizeof(double));  // TODO: Endian
       }
     }
     break;
@@ -75,7 +75,7 @@ typedef struct {
 
 static void emit_fixnum(DataStorage *ds, Fixnum v, size_t size) {
   // Assume endian and CHAR_BIT are same on host and target.
-  data_append(ds, (unsigned char*)&v, size);
+  data_append(ds, &v, size);
 }
 
 static void emit_align(void *ud, int align) {
@@ -145,7 +145,7 @@ static void emit_string(void *ud, Expr *str, size_t size) {
     data_append(ds, buf, size);
     free(buf);
   } else {
-    data_append(ds, (unsigned char*)str->str.buf, size);
+    data_append(ds, str->str.buf, size);
   }
 }
 

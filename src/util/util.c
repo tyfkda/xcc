@@ -448,8 +448,8 @@ void data_reserve(DataStorage *data, size_t capacity) {
   }
 }
 
-void data_insert(DataStorage *data, ssize_t _pos, const unsigned char *buf, size_t size) {
-  size_t pos = _pos == -1 ? data->len : (size_t)_pos;
+void data_insert(DataStorage *data, ssize_t pos_, const void *buf, size_t size) {
+  size_t pos = pos_ == -1 ? data->len : (size_t)pos_;
   assert(/* 0 <= pos && */ pos <= data->len);
   size_t newlen = data->len + size;
   data_reserve(data, newlen);
@@ -459,7 +459,7 @@ void data_insert(DataStorage *data, ssize_t _pos, const unsigned char *buf, size
   data->len = newlen;
 }
 
-void data_append(DataStorage *data, const unsigned char *buf, size_t size) {
+void data_append(DataStorage *data, const void *buf, size_t size) {
   data_insert(data, -1, buf, size);
 }
 
