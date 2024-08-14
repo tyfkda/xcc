@@ -144,7 +144,7 @@ print_type_test:	$(TYPE_SRCS)
 
 link_test: link_main.c link_sub.c
 	$(XCC) -c -olink_main.o -Werror link_main.c
-	$(CC) -o $@ link_sub.c link_main.o
+	$(CC) -no-pie -o $@ link_sub.c link_main.o
 
 .PHONY: test-std-valtest
 test-std-valtest:
