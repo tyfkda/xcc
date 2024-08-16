@@ -16,7 +16,6 @@ static Section sections[SECTION_COUNT];
 static size_t bss_size;
 
 size_t section_aligns[SECTION_COUNT] = {8, 1, 8, 1};
-uintptr_t section_start_addresses[SECTION_COUNT];
 
 void add_bss(size_t size) {
   bss_size += size;
@@ -34,21 +33,10 @@ void align_section_size(enum SectionType secno, size_t align) {
   }
 }
 
-uintptr_t align_next_section(enum SectionType sec, uintptr_t address) {
-  size_t align = section_aligns[sec];
-  if (align > 1)
-    address = ALIGN(address, align);
-  return address;
-}
-
 void add_section_data(enum SectionType secno, const void *data, size_t bytes) {
   assert(secno != SEC_BSS);
   Section *sec = &sections[secno];
   data_append(&sec->ds, data, bytes);
-}
-
-void add_code(const void *buf, size_t bytes) {
-  add_section_data(SEC_CODE, buf, bytes);
 }
 
 void fix_section_size(uintptr_t start_address) {

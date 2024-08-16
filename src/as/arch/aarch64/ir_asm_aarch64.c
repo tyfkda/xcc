@@ -4,19 +4,43 @@
 #include <assert.h>
 
 #include "aarch64_code.h"
-#include "gen_section.h"
 #include "parse_asm.h"
 #include "table.h"
 #include "util.h"
 
-bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table) {
+static void sec_add_data(SectionInfo *section, const void *data, size_t bytes) {
+  assert(!(section->flag & SF_BSS));
+  data_append(section->ds, data, bytes);
+}
+
+static void sec_add_code(SectionInfo *section, const void *buf, size_t bytes) {
+  sec_add_data(section, buf, bytes);
+}
+
+static void sec_add_bss(SectionInfo *section, size_t size) {
+  assert(section->flag & SF_BSS);
+  section->bss_size += size;
+}
+
+static void sec_align_size(SectionInfo *section, size_t align) {
+  if (align > section->align)
+    section->align = align;
+
+  if (section->flag & SF_BSS)
+    section->bss_size = ALIGN(section->bss_size, align);
+  else
+    data_align(section->ds, align);
+}
+
+bool calc_label_address(uintptr_t start_address, Vector *sections, Table *label_table) {
   bool settle = true;
   uintptr_t address = start_address;
-  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
-    address = align_next_section(sec, address);
-    section_start_addresses[sec] = address;
+  for (int sec = 0; sec < sections->len; ++sec) {
+    SectionInfo *section = sections->data[sec];
+    address = ALIGN(address, section->align);
+    section->start_address = address;
 
-    Vector *irs = section_irs[sec];
+    Vector *irs = section->irs;
     for (int i = 0, len = irs->len; i < len; ++i) {
       IR *ir = irs->data[i];
       ir->address = address;
@@ -43,8 +67,8 @@ bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
         break;
       case IR_ALIGN:
         ir->address = address = ALIGN(address, ir->align);
-        if ((size_t)ir->align > section_aligns[sec]) {
-          section_aligns[sec] = ir->align;
+        if ((size_t)ir->align > section->align) {
+          section->align = ir->align;
           settle = false;
         }
         break;
@@ -66,12 +90,13 @@ bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *la
   return settle;
 }
 
-bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved) {
+bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unresolved) {
   assert(unresolved != NULL);
   vec_clear(unresolved);
   bool size_upgraded = false;
-  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
-    Vector *irs = section_irs[sec];
+  for (int sec = 0; sec < sections->len; ++sec) {
+    SectionInfo *section = sections->data[sec];
+    Vector *irs = section->irs;
     uintptr_t start_address = irs->len > 0 ? ((IR*)irs->data[0])->address : 0;
     for (int i = 0, len = irs->len; i < len; ++i) {
       IR *ir = irs->data[i];
@@ -90,7 +115,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   UnresolvedInfo *info = malloc_or_die(sizeof(*info));
                   info->kind = expr->flag == LF_PAGEOFF ? UNRES_PCREL_LO : UNRES_GOT_LO;
                   info->label = value.label;
-                  info->src_section = sec;
+                  info->src_section = section;
                   info->offset = address - start_address;
                   info->add = value.offset;
                   vec_push(unresolved, info);
@@ -120,7 +145,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 UnresolvedInfo *info = malloc_or_die(sizeof(*info));
                 info->kind = table[i][1];
                 info->label = value.label;
-                info->src_section = sec;
+                info->src_section = section;
                 info->offset = address - start_address;
                 info->add = value.offset;
                 vec_push(unresolved, info);
@@ -149,7 +174,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 UnresolvedInfo *info = malloc_or_die(sizeof(*info));
                 info->kind = table[i][1];
                 info->label = value.label;
-                info->src_section = sec;
+                info->src_section = section;
                 info->offset = address - start_address;
                 info->add = value.offset;
                 vec_push(unresolved, info);
@@ -169,7 +194,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                   /*UnresolvedInfo *info = malloc_or_die(sizeof(*info));
                   info->kind = UNRES_EXTERN;
                   info->label = value.label;
-                  info->src_section = sec;
+                  info->src_section = section;
                   info->offset = address - start_address;
                   info->add = value.offset - 4;
                   vec_push(unresolved, info);
@@ -206,7 +231,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
                 UnresolvedInfo *info = malloc_or_die(sizeof(*info));
                 info->kind = UNRES_CALL;
                 info->label = value.label;
-                info->src_section = sec;
+                info->src_section = section;
                 info->offset = address - start_address;
                 info->add = value.offset;
                 vec_push(unresolved, info);
@@ -228,7 +253,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
           UnresolvedInfo *info = malloc_or_die(sizeof(*info));
           info->kind = UNRES_ABS64;  // TODO:
           info->label = value.label;
-          info->src_section = sec;
+          info->src_section = section;
           info->offset = address - start_address;
           info->add = value.offset;
           ir->expr.addend = value.offset;
@@ -247,25 +272,26 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
   return !size_upgraded;
 }
 
-void emit_irs(Vector **section_irs) {
-  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
-    Vector *irs = section_irs[sec];
+void emit_irs(Vector *sections) {
+  for (int sec = 0; sec < sections->len; ++sec) {
+    SectionInfo *section = sections->data[sec];
+    Vector *irs = section->irs;
     for (int i = 0, len = irs->len; i < len; ++i) {
       IR *ir = irs->data[i];
       switch (ir->kind) {
       case IR_LABEL:
         break;
       case IR_CODE:
-        add_code(ir->code.buf, ir->code.len);
+        sec_add_code(section, ir->code.buf, ir->code.len);
         break;
       case IR_DATA:
-        add_section_data(sec, ir->data.buf, ir->data.len);
+        sec_add_data(section, ir->data.buf, ir->data.len);
         break;
       case IR_BSS:
-        add_bss(ir->bss);
+        sec_add_bss(section, ir->bss);
         break;
       case IR_ALIGN:
-        align_section_size(sec, ir->align);
+        sec_align_size(section, ir->align);
         break;
       case IR_EXPR_BYTE:
       case IR_EXPR_SHORT:
@@ -278,7 +304,7 @@ void emit_irs(Vector **section_irs) {
           int64_t value = 0;
 #endif
           int size = 1 << (ir->kind - IR_EXPR_BYTE);
-          add_section_data(sec, &value, size);  // TODO: Target endian
+          sec_add_data(section, &value, size);  // TODO: Target endian
         }
         break;
       }

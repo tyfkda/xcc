@@ -14,6 +14,7 @@
 
 typedef struct Expr Expr;
 typedef struct Name Name;
+typedef struct SectionInfo SectionInfo;
 typedef struct Table Table;
 typedef struct Vector Vector;
 
@@ -40,7 +41,7 @@ enum UnresolvedKind {
 typedef struct {
   const Name *label;
   uintptr_t offset;
-  int src_section;
+  SectionInfo *src_section;
   int add;
   enum UnresolvedKind kind;
 } UnresolvedInfo;
@@ -86,6 +87,6 @@ IR *new_ir_bss(size_t size);
 IR *new_ir_align(int align);
 IR *new_ir_expr(enum IrKind kind, const Expr *expr);
 
-bool calc_label_address(uintptr_t start_address, Vector **section_irs, Table *label_table);
-bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *unresolved);
-void emit_irs(Vector **section_irs);
+bool calc_label_address(uintptr_t start_address, Vector *sections, Table *label_table);
+bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unresolved);
+void emit_irs(Vector *sections);

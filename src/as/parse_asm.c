@@ -12,13 +12,25 @@
 #include <alloca.h>
 #endif
 
-#include "gen_section.h"
 #include "ir_asm.h"
 #include "table.h"
 #include "util.h"
 
-bool err;
-int current_section = SEC_CODE;
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+const char kSegText[] = "__TEXT";
+const char kSecText[] = "__text";
+const char kSegRodata[] = "__DATA";
+const char kSecRodata[] = "__const";
+const char kSegData[] = "__DATA";
+const char kSecData[] = "__data";
+const char kSegBss[] = "__DATA";
+const char kSecBss[] = "__bss";
+#else
+const char kSecText[] = ".text";
+const char kSecRodata[] = ".rodata";
+const char kSecData[] = ".data";
+const char kSecBss[] = ".bss";
+#endif
 
 static const char *kDirectiveTable[] = {
   "ascii",
@@ -43,7 +55,39 @@ static const char *kDirectiveTable[] = {
 #endif
 };
 
-static LabelInfo *new_label(int section) {
+SectionInfo *get_section_info(ParseInfo *info, const char *name, const char *segname, int flag) {
+  const Name *key = alloc_name(name, NULL, true);
+  SectionInfo *section;
+  if (!table_try_get(info->section_infos, key, (void**)&section)) {
+    section = calloc_or_die(sizeof(*section));
+    section->name = key;
+    section->segname = segname;
+    section->irs = new_vector();
+    section->flag = flag;
+    section->index = 0;
+    section->start_address = 0;
+    section->ds = NULL;
+    section->align = 1;
+    section->bss_size = 0;
+    section->rela_count = 0;
+    section->rela_buf = NULL;
+    if (!(flag & SF_BSS)) {
+      DataStorage *ds = calloc_or_die(sizeof(*ds));
+      data_init(ds);
+      section->ds = ds;
+    }
+    table_put(info->section_infos, key, section);
+  }
+  return section;
+}
+
+SectionInfo *set_current_section(ParseInfo *info, const char *name, const char *segname, int flag) {
+  SectionInfo *section = get_section_info(info, name, segname, flag);
+  info->current_section = section;
+  return section;
+}
+
+static LabelInfo *new_label(SectionInfo *section) {
   LabelInfo *info = calloc_or_die(sizeof(*info));
   info->section = section;
   info->flag = 0;
@@ -54,7 +98,7 @@ static LabelInfo *new_label(int section) {
   return info;
 }
 
-LabelInfo *add_label_table(Table *label_table, const Name *label, int section, bool define, bool global) {
+LabelInfo *add_label_table(Table *label_table, const Name *label, SectionInfo *section, bool define, bool global) {
   LabelInfo *info = table_get(label_table, label);
   if (info != NULL) {
     if (define) {
@@ -76,10 +120,10 @@ LabelInfo *add_label_table(Table *label_table, const Name *label, int section, b
   return info;
 }
 
-void parse_error(const ParseInfo *info, const char *message) {
+void parse_error(ParseInfo *info, const char *message) {
   fprintf(stderr, "%s(%d): %s\n", info->filename, info->lineno, message);
   fprintf(stderr, "%s\n", info->rawline);
-  err = true;
+  ++info->error_count;
 }
 
 static enum DirectiveType find_directive(const char *p, size_t n) {
@@ -726,9 +770,47 @@ static size_t unescape_string(ParseInfo *info, char *dst) {
   return len;
 }
 
-void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_irs,
-                      Table *label_table) {
-  Vector *irs = section_irs[current_section];
+#if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
+static char *parse_string(ParseInfo *info) {
+  const char *start = skip_whitespaces(info->p);
+  if (*start != '"')
+    return NULL;
+
+  info->p = start;
+  const char *p = get_label_end(info);
+  if (p == start)
+    return NULL;
+
+  info->p = p;
+
+  const char *s = start + 1, *e = p - 1;
+  return strndup(s, e - s);
+}
+
+static uint32_t parse_section_flag(ParseInfo *info) {
+  uint32_t flag = 0;
+  char *flag_str = parse_string(info);
+  if (flag_str == NULL) {
+    parse_error(info, ".section: flag string expected");
+  } else {
+    for (char *p = flag_str; *p != '\0'; ++p) {
+      switch (*p) {
+      case 'a':  /*ignore*/ break;
+      case 'w':  flag |= SF_WRITABLE; break;
+      case 'x':  flag |= SF_EXECUTABLE; break;
+      default:
+        parse_error(info, ".section: illegal flag character");
+        break;
+      }
+    }
+  }
+  return flag;
+}
+#endif
+
+void handle_directive(ParseInfo *info, enum DirectiveType dir) {
+  SectionInfo *section = info->current_section;
+  Vector *irs = section->irs;
 
   switch (dir) {
   case NODIRECTIVE:
@@ -753,8 +835,8 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
 
   case DT_COMM:
     {
-      const Name *label = parse_label(info);
-      if (label == NULL)
+      const Name *name = parse_label(info);
+      if (name == NULL)
         parse_error(info, ".comm: label expected");
       info->p = skip_whitespaces(info->p);
       if (*info->p != ',')
@@ -785,27 +867,27 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
 #endif
       }
 
-      enum SectionType sec = SEC_BSS;
-      irs = section_irs[sec];
+      SectionInfo *section = get_section_info(info, kSecBss, kSegBss, SF_BSS | SF_WRITABLE);
+      irs = section->irs;
       if (align > 1)
         vec_push(irs, new_ir_align(align));
-      vec_push(irs, new_ir_label(label));
+      vec_push(irs, new_ir_label(name));
       vec_push(irs, new_ir_bss(size));
 
-      LabelInfo *info = add_label_table(label_table, label, sec, true, false);
-      if (info == NULL)
+      LabelInfo *label = add_label_table(info->label_table, name, section, true, false);
+      if (label == NULL)
         return;
-      info->size = size;
-      info->align = align;
+      label->size = size;
+      label->align = align;
     }
     break;
 
   case DT_TEXT:
-    current_section = SEC_CODE;
+    set_current_section(info, kSecText, kSegText, SF_EXECUTABLE);
     break;
 
   case DT_DATA:
-    current_section = SEC_DATA;
+    set_current_section(info, kSecData, kSegData, SF_WRITABLE);
     break;
 
   case DT_ALIGN:
@@ -827,8 +909,8 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
 
   case DT_TYPE:
     {
-      const Name *label = parse_label(info);
-      if (label == NULL) {
+      const Name *name = parse_label(info);
+      if (name == NULL) {
         parse_error(info, ".type: label expected");
         break;
       }
@@ -847,9 +929,9 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         break;
       }
 
-      LabelInfo *info = add_label_table(label_table, label, current_section, false, false);
-      if (info != NULL) {
-        info->kind = kind;
+      LabelInfo *label = add_label_table(info->label_table, name, section, false, false);
+      if (label != NULL) {
+        label->kind = kind;
       }
     }
     break;
@@ -931,8 +1013,8 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         return;
       }
 
-      if (!add_label_table(label_table, label, current_section, false, dir == DT_GLOBL))
-        err = true;
+      if (!add_label_table(info->label_table, label, section, false, dir == DT_GLOBL))
+        ++info->error_count;
     }
     break;
 
@@ -944,10 +1026,15 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         return;
       }
 #if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
-      if (equal_name(name, alloc_name(".rodata", NULL, false))) {
-        current_section = SEC_RODATA;
-        break;
+      int flag = 0;
+      const char *p = skip_whitespaces(info->p);
+      if (*p == ',') {
+        info->p = p + 1;
+        flag = parse_section_flag(info);
       }
+
+      char *sectname = strndup(name->chars, name->bytes);
+      set_current_section(info, sectname, kSegRodata, flag);
 #else
       const char *p = skip_whitespaces(info->p);
       if (*p != ',') {
@@ -960,16 +1047,13 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_
         parse_error(info, ".section: section name expected");
         return;
       }
-      if (equal_name(name, alloc_name("__DATA", NULL, false))) {
-        if (equal_name(name2, alloc_name("__const", NULL, false))) {
-          current_section = SEC_RODATA;
-          break;
-        }
-      }
+      char *segname = strndup(name->chars, name->bytes);
+      char *sectname = strndup(name2->chars, name2->bytes);
+      int flag = 0;  // TODO
+      section = set_current_section(info, sectname, segname, flag);
 #endif
-      parse_error(info, "Unknown section name");
-      return;
     }
+    break;
 
   case DT_EXTERN:
     break;
