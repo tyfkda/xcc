@@ -156,8 +156,7 @@ bool resolve_relative_address(Vector **section_irs, Table *label_table, Vector *
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
                   put_value(ir->code.buf + 3, value.offset, sizeof(int32_t));
 #endif
-                  if (label_info == NULL)
-                    break;
+                  break;
                 }
                 value.offset += label_info->address;
               }

@@ -12,7 +12,6 @@
 
 typedef struct Name Name;
 typedef struct Table Table;
-typedef struct Vector Vector;
 
 typedef struct {
   struct ElfObj *elfobj;
