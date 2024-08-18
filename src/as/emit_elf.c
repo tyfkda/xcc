@@ -365,6 +365,8 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
   };
   data_append(&section_headers, &nulsec, sizeof(nulsec));
 
+  const Name *init_array_name = alloc_name(".init_array", NULL, false);
+  const Name *fini_array_name = alloc_name(".fini_array", NULL, false);
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
     size_t size = section->ds != NULL ? section->ds->len : section->bss_size;
@@ -375,9 +377,20 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
       flags |= SHF_EXECINSTR;
     if (section->flag & SF_WRITABLE)
       flags |= SHF_WRITE;
+
+    Elf64_Word type;
+    if (section->flag & SF_BSS)
+      type = SHT_NOBITS;
+    else if (equal_name(section->name, init_array_name))
+      type = SHT_INIT_ARRAY;
+    else if (equal_name(section->name, fini_array_name))
+      type = SHT_FINI_ARRAY;
+    else
+      type = SHT_PROGBITS;
+
     Elf64_Shdr shdr = {
       .sh_name = strtab_add(&shstrtab, section->name),
-      .sh_type = section->flag & SF_BSS ? SHT_NOBITS : SHT_PROGBITS,
+      .sh_type = type,
       .sh_flags = flags,
       .sh_offset = section->offset,
       .sh_size = size,

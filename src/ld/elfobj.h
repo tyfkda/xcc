@@ -39,7 +39,7 @@ typedef struct ElfObj {
   Elf64_Shdr *shdrs;
   Table *symbol_table;  // <Elf64_Sym*>, global only
 
-  Vector *prog_sections;  // <ElfSectionInfo*>, PROGBITS or NOBITS
+  Vector *prog_sections;  // <ElfSectionInfo*>, PROGBITS, NOBITS, INIT_ARRAY, FINI_ARRAY, PREINIT_ARRAY
   ElfSectionInfo *section_infos;
   ElfSectionInfo *symtab_section;
 } ElfObj;

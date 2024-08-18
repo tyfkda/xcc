@@ -215,7 +215,8 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
     const ElfSectionInfo *symhdrinfo = &elfobj->section_infos[shdr->sh_link];
     const ElfSectionInfo *strinfo = &elfobj->section_infos[symhdr->sh_link];
     const ElfSectionInfo *dst_info = &elfobj->section_infos[shdr->sh_info];
-    assert(dst_info->shdr->sh_type == SHT_PROGBITS);
+    assert(dst_info->shdr->sh_type == SHT_PROGBITS || dst_info->shdr->sh_type == SHT_INIT_ARRAY ||
+           dst_info->shdr->sh_type == SHT_FINI_ARRAY || dst_info->shdr->sh_type == SHT_PREINIT_ARRAY);
     if (dst_info->progbits.content == NULL) {
       // Target section is not collected, so skip relocation.
       continue;
@@ -422,7 +423,8 @@ static void collect_sections_elfobj(LinkEditor *ld, ElfObj *elfobj, const char *
     if (section == NULL)
       continue;
     Elf64_Shdr *shdr = section->shdr;
-    assert(shdr->sh_type == SHT_PROGBITS || shdr->sh_type == SHT_NOBITS);
+    assert(shdr->sh_type == SHT_PROGBITS || shdr->sh_type == SHT_NOBITS || shdr->sh_type == SHT_INIT_ARRAY ||
+           shdr->sh_type == SHT_FINI_ARRAY || shdr->sh_type == SHT_PREINIT_ARRAY);
     assert(shdr->sh_size > 0);
 
     const char *s = &strbuf[shdr->sh_name];
@@ -594,13 +596,21 @@ static void ld_load_elf_objects(Vector *section_lists[SECTION_COUNT]) {
           for (int j = 0; j < list->len; ++j) {
             ElfSectionInfo *p = list->data[j];
             Elf64_Shdr *shdr = p->shdr;
-            if (shdr->sh_type == SHT_PROGBITS) {
-              Elf64_Xword size = shdr->sh_size;
-              assert(size > 0);
+            switch (shdr->sh_type) {
+            case SHT_PROGBITS:
+            case SHT_INIT_ARRAY:
+            case SHT_FINI_ARRAY:
+            case SHT_PREINIT_ARRAY:
+              {
+                Elf64_Xword size = shdr->sh_size;
+                assert(size > 0);
 
-              ElfObj *elfobj = p->elfobj;
-              void *buf = read_or_die(elfobj->fp, NULL, shdr->sh_offset + elfobj->start_offset, size, "read error");
-              p->progbits.content = buf;
+                ElfObj *elfobj = p->elfobj;
+                void *buf = read_or_die(elfobj->fp, NULL, shdr->sh_offset + elfobj->start_offset, size, "read error");
+                p->progbits.content = buf;
+              }
+              break;
+            default: break;
             }
           }
         }
@@ -866,6 +876,16 @@ static const ElemData kCodeSectionNames[] = {
 };
 static const ElemData kDataSectionNames[] = {
   {.kind = LEK_SECTION, .section = {.name = ".data"}},
+
+  {.kind = LEK_ALIGN, .align = 8},
+  {.kind = LEK_SYMBOL, .symbol = {.name = "__init_array_start"}},
+  {.kind = LEK_SECTION, .section = {.name = ".init_array"}},
+  {.kind = LEK_SYMBOL, .symbol = {.name = "__init_array_end"}},
+
+  {.kind = LEK_SYMBOL, .symbol = {.name = "__fini_array_start"}},
+  {.kind = LEK_SECTION, .section = {.name = ".fini_array"}},
+  {.kind = LEK_SYMBOL, .symbol = {.name = "__fini_array_end"}},
+
   {.kind = LEK_SECTION, .section = {.name = ".bss"}},
   {.kind = -1},
 };

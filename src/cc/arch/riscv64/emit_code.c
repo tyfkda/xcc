@@ -133,19 +133,18 @@ void emit_defun(Function *func) {
     global = (varinfo->storage & VS_STATIC) == 0;
   }
 
-  char *label = fmt_name(func->name);
-  if (global) {
-    label = quote_label(MANGLE(label));
-    _GLOBL(label);
-  } else {
-    label = quote_label(label);
-    _LOCAL(label);
-  }
-  EMIT_ALIGN(2);
+  {
+    char *label = format_func_name(func->name, global);
+    if (global)
+      _GLOBL(label);
+    else
+      _LOCAL(label);
+    EMIT_ALIGN(2);
 #if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
-  EMIT_ASM(".type", quote_label(fmt_name(func->name)), "@function");
+    EMIT_ASM(".type", quote_label(fmt_name(func->name)), "@function");
 #endif
-  EMIT_LABEL(label);
+    EMIT_LABEL(label);
+  }
 
   bool no_stmt = true;
   if (func->body_block != NULL) {

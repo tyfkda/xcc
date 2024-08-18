@@ -463,7 +463,7 @@ typedef struct Function {
   Table *label_table;  // <const Name*, Stmt*>
   Vector *gotos;  // <Stmt*>
   void *extra;
-  Table *attributes;
+  Table *attributes;  // <Vector<Token*>>
   int flag;
 } Function;
 

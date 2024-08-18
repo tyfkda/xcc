@@ -105,6 +105,9 @@ ElfObj *read_elf(FILE *fp, const char *fn) {
       switch (shdr->sh_type) {
       case SHT_PROGBITS:
       case SHT_NOBITS:
+      case SHT_INIT_ARRAY:
+      case SHT_FINI_ARRAY:
+      case SHT_PREINIT_ARRAY:
         vec_push(prog_sections, p);
         break;
       default: break;
