@@ -41,9 +41,7 @@ typedef struct ElfObj {
   ElfSectionInfo *section_infos;
 } ElfObj;
 
-void elfobj_init(ElfObj *elfobj);
-bool open_elf(const char *fn, ElfObj *elfobj);
-bool read_elf(ElfObj *elfobj, FILE *fp, const char *fn);
+ElfObj *read_elf(FILE *fp, const char *fn);
 void close_elf(ElfObj *elfobj);
 Elf64_Sym *elfobj_find_symbol(ElfObj *elfobj, const Name *name);
 

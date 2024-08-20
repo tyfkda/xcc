@@ -28,63 +28,6 @@ static const char kDefaultEntryName[] = "_start";
 //
 
 typedef struct {
-  ElfObj *elfobj;
-  size_t size;
-  char name[1];  // [sizeof(((struct ar_hdr*)0)->ar_name) + 1]
-} ArContent;
-
-#define FOREACH_FILE_ARCONTENT(ar, content, body) \
-  {Vector *contents = (ar)->contents; \
-  for (int _ic = 0; _ic < contents->len; _ic += 2) { \
-    ArContent *content = contents->data[_ic + 1]; \
-    body \
-  }}
-
-ElfObj *load_archive_elfobj(Archive *ar, uint32_t offset) {
-  Vector *contents = ar->contents;
-  for (int i = 0; i < contents->len; i += 2) {
-    if (VOIDP2INT(contents->data[i]) == offset) {
-      // Already loaded.
-      return NULL;
-    }
-  }
-
-  fseek(ar->fp, offset, SEEK_SET);
-
-  struct ar_hdr hdr;
-  read_or_die(ar->fp, &hdr, sizeof(hdr), "hdr");
-  if (memcmp(hdr.ar_fmag, ARFMAG, sizeof(hdr.ar_fmag)) != 0)
-    error("Malformed archive");
-
-  ArContent *content = malloc_or_die(sizeof(*content) + sizeof(hdr.ar_name));
-
-  memcpy(content->name, hdr.ar_name, sizeof(hdr.ar_name));
-  char *p = memchr(content->name, '/', sizeof(hdr.ar_name));
-  if (p == NULL)
-    p = &content->name[sizeof(hdr.ar_name)];
-  *p = '\0';
-
-  char sizestr[sizeof(hdr.ar_size) + 1];
-  memcpy(sizestr, hdr.ar_size, sizeof(hdr.ar_size));
-  sizestr[sizeof(hdr.ar_size)] = '\0';
-  content->size = strtoul(sizestr, NULL, 10);
-
-  ElfObj *elfobj = malloc_or_die(sizeof(*elfobj));
-  content->elfobj = elfobj;
-  elfobj_init(elfobj);
-  if (!read_elf(elfobj, ar->fp, content->name)) {
-    error("Failed to extract .o: %s", content->name);
-  }
-
-  vec_push(contents, INT2VOIDP(offset));
-  vec_push(contents, content);
-
-  return elfobj;
-}
-
-//
-
-typedef struct {
   const char *filename;
   enum {
     FK_ELFOBJ,
@@ -122,13 +65,16 @@ void ld_load(LinkEditor *ld, int i, const char *filename) {
   File *file = &ld->files[i];
   file->filename = filename;
   if (strcasecmp(ext, "o") == 0) {
-    ElfObj *elfobj = malloc_or_die(sizeof(*elfobj));
-    elfobj_init(elfobj);
-    if (!open_elf(filename, elfobj)) {
-      exit(1);
+    FILE *fp;
+    if (!is_file(filename) || (fp = fopen(filename, "rb")) == NULL) {
+      fprintf(stderr, "cannot open: %s\n", filename);
+    } else {
+      ElfObj *elfobj = read_elf(fp, filename);
+      if (elfobj == NULL)
+        exit(1);
+      file->kind = FK_ELFOBJ;
+      file->elfobj = elfobj;
     }
-    file->kind = FK_ELFOBJ;
-    file->elfobj = elfobj;
   } else if (strcasecmp(ext, "a") == 0) {
     Archive *archive = load_archive(filename);
     if (archive == NULL) {
@@ -161,7 +107,7 @@ static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
       {
         Archive *ar = file->archive;
         FOREACH_FILE_ARCONTENT(ar, content, {
-          elfobj = content->elfobj;
+          elfobj = content->obj;
           sym = elfobj_find_symbol(elfobj, name);
           if (sym != NULL) {
             i = ld->nfiles;  // Found.
@@ -493,6 +439,11 @@ static void link_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unresolved) {
   }
 }
 
+static void *load_elfobj(FILE *fp, const char *fn, size_t size) {
+  UNUSED(size);
+  return read_elf(fp, fn);
+}
+
 static void link_archive(LinkEditor *ld, Archive *ar, Table *unresolved) {
   Table *table = &ar->symbol_table;
   for (;;) {
@@ -504,7 +455,7 @@ static void link_archive(LinkEditor *ld, Archive *ar, Table *unresolved) {
       if (!table_try_get(table, name, (void**)&symbol))
         continue;
 
-      ElfObj *elfobj = load_archive_elfobj(ar, symbol->offset);
+      ElfObj *elfobj = load_archive_content(ar, symbol, load_elfobj);
       if (elfobj != NULL) {
         link_elfobj(ld, elfobj, unresolved);
         retry = true;
@@ -518,7 +469,7 @@ static void link_archive(LinkEditor *ld, Archive *ar, Table *unresolved) {
 
 static void resolve_rela_archive(LinkEditor *ld, Archive *ar) {
   FOREACH_FILE_ARCONTENT(ar, content, {
-    resolve_rela_elfobj(ld, content->elfobj);
+    resolve_rela_elfobj(ld, content->obj);
   });
 }
 
@@ -617,7 +568,7 @@ bool ld_link(LinkEditor *ld, Table *unresolved, uintptr_t start_address) {
       {
         Archive *ar = file->archive;
         FOREACH_FILE_ARCONTENT(ar, content, {
-          add_elfobj_sections(content->elfobj);
+          add_elfobj_sections(content->obj);
         });
       }
       break;
@@ -730,7 +681,7 @@ static void dump_map_file(LinkEditor *ld, FILE *fp) {
       {
         Archive *ar = file->archive;
         FOREACH_FILE_ARCONTENT(ar, content, {
-          dump_map_elfobj(ld, content->elfobj, file, content, fp);
+          dump_map_elfobj(ld, content->obj, file, content, fp);
         });
       }
       break;

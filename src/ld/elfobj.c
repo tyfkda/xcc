@@ -100,58 +100,49 @@ static bool load_symtab(ElfObj *elfobj) {
   return true;
 }
 
-bool read_elf(ElfObj *elfobj, FILE *fp, const char *fn) {
-  elfobj->fp = fp;
-  elfobj->start_offset = ftell(fp);
-  ssize_t size = fread(&elfobj->ehdr, sizeof(elfobj->ehdr), 1, fp);
-  if (size != 1 || elfobj->ehdr.e_ident[0] != ELFMAG0 || elfobj->ehdr.e_ident[1] != ELFMAG1 ||
-      elfobj->ehdr.e_ident[2] != ELFMAG2 || elfobj->ehdr.e_ident[3] != ELFMAG3) {
+ElfObj *read_elf(FILE *fp, const char *fn) {
+  long start_offset = ftell(fp);
+  Elf64_Ehdr ehdr;
+  ssize_t size = fread(&ehdr, sizeof(ehdr), 1, fp);
+  if (size != 1 || ehdr.e_ident[0] != ELFMAG0 || ehdr.e_ident[1] != ELFMAG1 ||
+      ehdr.e_ident[2] != ELFMAG2 || ehdr.e_ident[3] != ELFMAG3) {
     fprintf(stderr, "no elf file: %s\n", fn);
-    return false;
+    return NULL;
   }
-  if (elfobj->ehdr.e_machine != MACHINE_TYPE || elfobj->ehdr.e_version != EV_CURRENT ||
-      elfobj->ehdr.e_ehsize != sizeof(Elf64_Ehdr) ||
-      elfobj->ehdr.e_shentsize != sizeof(Elf64_Shdr) ||
-      elfobj->ehdr.e_shnum < 1 || elfobj->ehdr.e_shstrndx >= elfobj->ehdr.e_shnum) {
+  if (ehdr.e_machine != MACHINE_TYPE || ehdr.e_version != EV_CURRENT ||
+      ehdr.e_ehsize != sizeof(Elf64_Ehdr) ||
+      ehdr.e_shentsize != sizeof(Elf64_Shdr) ||
+      ehdr.e_shnum < 1 || ehdr.e_shstrndx >= ehdr.e_shnum) {
     fprintf(stderr, "illegal elf: %s\n", fn);
-    return false;
+    return NULL;
   }
-  elfobj->shdrs = read_all_section_headers(fp, elfobj->start_offset, &elfobj->ehdr);
-  if (elfobj->shdrs != NULL) {
-    ElfSectionInfo *section_infos = calloc_or_die(elfobj->ehdr.e_shnum * sizeof(*elfobj->section_infos));
-    elfobj->section_infos = section_infos;
-    for (unsigned short i = 0; i < elfobj->ehdr.e_shnum; ++i) {
-      Elf64_Shdr *shdr = &elfobj->shdrs[i];
-      ElfSectionInfo *p = &section_infos[i];
-      p->elfobj = elfobj;
-      p->shdr = shdr;
-    }
+  Elf64_Shdr *shdrs = read_all_section_headers(fp, start_offset, &ehdr);
+  if (shdrs == NULL)
+    return NULL;
 
-    elfobj->shstrtab = read_strtab(fp, elfobj->start_offset,
-                                   &elfobj->shdrs[elfobj->ehdr.e_shstrndx]);
-    if (elfobj->shstrtab != NULL) {
-      if (!load_symtab(elfobj))
-        return false;
-    }
+  ElfObj *elfobj = calloc_or_die(sizeof(*elfobj));
+  elfobj->fp = fp;
+  elfobj->start_offset = start_offset;
+  elfobj->ehdr = ehdr;
+  elfobj->shdrs = shdrs;
+  elfobj->shstrtab = NULL;
+  elfobj->symbol_table = NULL;
+
+  ElfSectionInfo *section_infos = calloc_or_die(ehdr.e_shnum * sizeof(ElfSectionInfo));
+  elfobj->section_infos = section_infos;
+  for (unsigned short i = 0; i < ehdr.e_shnum; ++i) {
+    Elf64_Shdr *shdr = &shdrs[i];
+    ElfSectionInfo *p = &section_infos[i];
+    p->elfobj = elfobj;
+    p->shdr = shdr;
   }
-  return true;
-}
 
-void elfobj_init(ElfObj *elfobj) {
-  memset(elfobj, 0, sizeof(*elfobj));
-}
-
-bool open_elf(const char *fn, ElfObj *elfobj) {
-  FILE *fp;
-  if (!is_file(fn) || (fp = fopen(fn, "rb")) == NULL) {
-    fprintf(stderr, "cannot open: %s\n", fn);
-  } else {
-    if (read_elf(elfobj, fp, fn))
-      return true;
-    fclose(fp);
-    elfobj->fp = NULL;
+  elfobj->shstrtab = read_strtab(fp, elfobj->start_offset, &shdrs[ehdr.e_shstrndx]);
+  if (elfobj->shstrtab != NULL) {
+    if (!load_symtab(elfobj))
+      return NULL;
   }
-  return false;
+  return elfobj;
 }
 
 void close_elf(ElfObj *elfobj) {

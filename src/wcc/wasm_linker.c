@@ -550,61 +550,6 @@ static WasmObj *read_wasm(FILE *fp, const char *filename, size_t filesize) {
 
 //
 
-typedef struct {
-  WasmObj *wasmobj;
-  size_t size;
-  char name[1];  // [sizeof(((struct ar_hdr*)0)->ar_name) + 1]
-} ArContent;
-
-#define FOREACH_FILE_ARCONTENT(ar, content, body) \
-  {Vector *contents = (ar)->contents; \
-  for (int _ic = 0; _ic < contents->len; _ic += 2) { \
-    ArContent *content = contents->data[_ic + 1]; \
-    body \
-  }}
-
-WasmObj *load_archive_wasmobj(Archive *ar, uint32_t offset) {
-  Vector *contents = ar->contents;
-  for (int i = 0; i < contents->len; i += 2) {
-    if (VOIDP2INT(contents->data[i]) == offset) {
-      // Already loaded.
-      return NULL;
-    }
-  }
-
-  fseek(ar->fp, offset, SEEK_SET);
-
-  struct ar_hdr hdr;
-  read_or_die(ar->fp, &hdr, sizeof(hdr), "hdr");
-  if (memcmp(hdr.ar_fmag, ARFMAG, sizeof(hdr.ar_fmag)) != 0)
-    error("Malformed archive");
-
-  ArContent *content = malloc_or_die(sizeof(*content) + sizeof(hdr.ar_name));
-
-  memcpy(content->name, hdr.ar_name, sizeof(hdr.ar_name));
-  char *p = memchr(content->name, '/', sizeof(hdr.ar_name));
-  if (p == NULL)
-    p = &content->name[sizeof(hdr.ar_name)];
-  *p = '\0';
-
-  char sizestr[sizeof(hdr.ar_size) + 1];
-  memcpy(sizestr, hdr.ar_size, sizeof(hdr.ar_size));
-  sizestr[sizeof(hdr.ar_size)] = '\0';
-  content->size = strtoul(sizestr, NULL, 10);
-
-  WasmObj *wasmobj = read_wasm(ar->fp, content->name, content->size);
-  if (wasmobj == NULL)
-    return false;
-  content->wasmobj = wasmobj;
-
-  vec_push(contents, INT2VOIDP(offset));
-  vec_push(contents, content);
-
-  return wasmobj;
-}
-
-//
-
 struct File {
   const char *filename;
   enum {
@@ -649,6 +594,10 @@ static int resolve_symbols_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
   return err_count;
 }
 
+static void *load_wasmobj(FILE *fp, const char *name, size_t size) {
+  return read_wasm(fp, name, size);
+}
+
 static int resolve_symbols_archive(WasmLinker *linker, Archive *ar) {
   Table *unresolved = &linker->unresolved;
   Table *table = &ar->symbol_table;
@@ -662,7 +611,7 @@ static int resolve_symbols_archive(WasmLinker *linker, Archive *ar) {
         continue;
       table_delete(unresolved, name);
 
-      WasmObj *wasmobj = load_archive_wasmobj(ar, symbol->offset);
+      WasmObj *wasmobj = load_archive_content(ar, symbol, load_wasmobj);
       if (wasmobj != NULL) {
         resolve_symbols_wasmobj(linker, wasmobj);
         retry = true;
@@ -794,7 +743,7 @@ static void renumber_symbols(WasmLinker *linker) {
       break;
     case FK_ARCHIVE:
       FOREACH_FILE_ARCONTENT(file->archive, content, {
-        renumber_symbols_wasmobj(content->wasmobj, defined_count);
+        renumber_symbols_wasmobj(content->obj, defined_count);
       });
       break;
     }
@@ -835,7 +784,7 @@ static void renumber_func_types(WasmLinker *linker) {
       break;
     case FK_ARCHIVE:
       FOREACH_FILE_ARCONTENT(file->archive, content, {
-        renumber_func_types_wasmobj(content->wasmobj);
+        renumber_func_types_wasmobj(content->obj);
       });
       break;
     }
@@ -877,7 +826,7 @@ static uint32_t remap_data_address(WasmLinker *linker, uint32_t address) {
       break;
     case FK_ARCHIVE:
       FOREACH_FILE_ARCONTENT(file->archive, content, {
-        address = remap_data_address_wasmobj(content->wasmobj, address);
+        address = remap_data_address_wasmobj(content->obj, address);
       });
       break;
     }
@@ -930,7 +879,7 @@ static void renumber_indirect_functions(WasmLinker *linker) {
       break;
     case FK_ARCHIVE:
       FOREACH_FILE_ARCONTENT(file->archive, content, {
-        renumber_indirect_functions_wasmobj(linker, content->wasmobj);
+        renumber_indirect_functions_wasmobj(linker, content->obj);
       });
       break;
     }
@@ -1060,7 +1009,7 @@ static void apply_relocation(WasmLinker *linker) {
       break;
     case FK_ARCHIVE:
       FOREACH_FILE_ARCONTENT(file->archive, content, {
-        apply_relocation_wasmobj(linker, content->wasmobj);
+        apply_relocation_wasmobj(linker, content->obj);
       });
       break;
     }
@@ -1129,7 +1078,7 @@ static void out_function_section(WasmLinker *linker) {
       break;
     case FK_ARCHIVE:
       FOREACH_FILE_ARCONTENT(file->archive, content, {
-        function_count += out_function_section_wasmobj(content->wasmobj, &functions_section);
+        function_count += out_function_section_wasmobj(content->obj, &functions_section);
       });
       break;
     }
@@ -1317,8 +1266,8 @@ static void out_code_section(WasmLinker *linker) {
       code_count += out_code_section_wasmobj(file->wasmobj, &codesec);
       break;
     case FK_ARCHIVE:
-      FOREACH_FILE_ARCONTENT (file->archive, content, {
-        code_count += out_code_section_wasmobj(content->wasmobj, &codesec);
+      FOREACH_FILE_ARCONTENT(file->archive, content, {
+        code_count += out_code_section_wasmobj(content->obj, &codesec);
       });
       break;
     }
@@ -1374,8 +1323,8 @@ static void out_data_section(WasmLinker *linker) {
       data_count += out_data_section_wasmobj(file->wasmobj, &datasec);
       break;
     case FK_ARCHIVE:
-      FOREACH_FILE_ARCONTENT (file->archive, content, {
-        data_count += out_data_section_wasmobj(content->wasmobj, &datasec);
+      FOREACH_FILE_ARCONTENT(file->archive, content, {
+        data_count += out_data_section_wasmobj(content->obj, &datasec);
       });
       break;
     }
@@ -1508,7 +1457,7 @@ bool link_wasm_objs(WasmLinker *linker, Vector *exports, uint32_t stack_size) {
         break;
       case FK_ARCHIVE:
         FOREACH_FILE_ARCONTENT(file->archive, content, {
-          verbose_symbols(content->wasmobj, SIK_SYMTAB_FUNCTION);
+          verbose_symbols(content->obj, SIK_SYMTAB_FUNCTION);
         });
         break;
       }
@@ -1530,7 +1479,7 @@ bool link_wasm_objs(WasmLinker *linker, Vector *exports, uint32_t stack_size) {
         break;
       case FK_ARCHIVE:
         FOREACH_FILE_ARCONTENT(file->archive, content, {
-          verbose_symbols(content->wasmobj, SIK_SYMTAB_DATA);
+          verbose_symbols(content->obj, SIK_SYMTAB_DATA);
         });
         break;
       }
