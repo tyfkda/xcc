@@ -13,7 +13,7 @@
 typedef struct Name Name;
 typedef struct Table Table;
 
-typedef struct {
+typedef struct ElfSectionInfo {
   struct ElfObj *elfobj;
   Elf64_Shdr *shdr;
   union {
@@ -26,6 +26,7 @@ typedef struct {
     } strtab;
     struct {
       Elf64_Sym *syms;
+      struct ElfSectionInfo *strtab;
     } symtab;
   };
 } ElfSectionInfo;
@@ -35,10 +36,10 @@ typedef struct ElfObj {
   size_t start_offset;
   Elf64_Ehdr ehdr;
   Elf64_Shdr *shdrs;
-  char *shstrtab;
   Table *symbol_table;  // <Elf64_Sym*>, global only
 
   ElfSectionInfo *section_infos;
+  ElfSectionInfo *symtab_section;
 } ElfObj;
 
 ElfObj *read_elf(FILE *fp, const char *fn);

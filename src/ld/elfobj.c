@@ -37,67 +37,51 @@ static char *read_strtab(FILE *fp, size_t start_offset, Elf64_Shdr *sec) {
   return buf;
 }
 
-static bool load_symtab(ElfObj *elfobj) {
-  int symtab_count = 0;
-  for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
-    Elf64_Shdr *shdr = &elfobj->shdrs[sec];
-    switch (shdr->sh_type) {
-    case SHT_STRTAB:
-      {
-        const char *buf = read_strtab(elfobj->fp, elfobj->start_offset, shdr);
-        if (buf == NULL)
-          error("read strtab failed");
-        elfobj->section_infos[sec].strtab.buf = buf;
-      }
-      break;
-    case SHT_SYMTAB:
-      {
-        if (symtab_count > 0)
-          error("Multiple symtabs not supported\n");
-        ++symtab_count;
-
-        Elf64_Sym *symbols = read_from(elfobj->fp, shdr->sh_offset + elfobj->start_offset,
-                                       shdr->sh_size);
-        if (symbols == NULL)
-          perror("read symtab failed");
-        if (shdr->sh_size % sizeof(Elf64_Sym) != 0)
-          error("malformed symtab");
-
-        Elf64_Shdr *strtab_sec = &elfobj->shdrs[shdr->sh_link];
-        if (strtab_sec->sh_type != SHT_STRTAB)
-          error("malformed symtab");
-
-        ElfSectionInfo *p = &elfobj->section_infos[sec];
-        p->symtab.syms = symbols;
-      }
-      break;
-    }
-  }
-
+static void load_symtab(ElfObj *elfobj) {
   for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
     Elf64_Shdr *shdr = &elfobj->shdrs[sec];
     if (shdr->sh_type != SHT_SYMTAB)
       continue;
+    if (elfobj->symtab_section != NULL)
+      error("Multiple symtabs not supported\n");
+    if (shdr->sh_size % sizeof(Elf64_Sym) != 0)
+      error("illega symtab size");
 
-    size_t count = shdr->sh_size / sizeof(Elf64_Sym);
+    Elf64_Sym *symbols = read_from(elfobj->fp, shdr->sh_offset + elfobj->start_offset,
+                                   shdr->sh_size);
+    if (symbols == NULL)
+      perror("read symtab failed");
+
+    ElfSectionInfo *p = &elfobj->section_infos[sec];
+    p->symtab.syms = symbols;
+    ElfSectionInfo *strtab_section = &elfobj->section_infos[shdr->sh_link];
+    p->symtab.strtab = strtab_section;
+    elfobj->symtab_section = p;
+
+    // Check strtab.
+    Elf64_Shdr *strtab_sec = strtab_section->shdr;
+    if (strtab_sec->sh_type != SHT_STRTAB)
+      error("malformed symtab");
+
+    const char *strbuf = read_strtab(elfobj->fp, elfobj->start_offset, strtab_sec);
+    if (strbuf == NULL)
+      error("read strtab failed");
+    elfobj->section_infos[shdr->sh_link].strtab.buf = strbuf;
+
+    // Construct global symbol table.
     assert(elfobj->symbol_table == NULL);
     Table *symbol_table = alloc_table();
     elfobj->symbol_table = symbol_table;
-
-    ElfSectionInfo *p = &elfobj->section_infos[sec];
-    ElfSectionInfo *q = &elfobj->section_infos[shdr->sh_link];  // Strtab
-    const char *str = q->strtab.buf;
-    Elf64_Sym *symbols = p->symtab.syms;
-    for (uint32_t i = 0; i < count; ++i) {
+    for (size_t i = 0, count = shdr->sh_size / sizeof(Elf64_Sym); i < count; ++i) {
       Elf64_Sym *sym = &symbols[i];
       if (ELF64_ST_BIND(sym->st_info) == STB_GLOBAL) {
-        const Name *name = alloc_name(&str[sym->st_name], NULL, false);
+        const Name *name = alloc_name(&strbuf[sym->st_name], NULL, false);
         table_put(symbol_table, name, sym);
       }
     }
   }
-
-  return true;
+  if (elfobj->symtab_section == NULL)
+    error("no symtab");
 }
 
 ElfObj *read_elf(FILE *fp, const char *fn) {
@@ -125,8 +109,8 @@ ElfObj *read_elf(FILE *fp, const char *fn) {
   elfobj->start_offset = start_offset;
   elfobj->ehdr = ehdr;
   elfobj->shdrs = shdrs;
-  elfobj->shstrtab = NULL;
   elfobj->symbol_table = NULL;
+  elfobj->symtab_section = NULL;
 
   ElfSectionInfo *section_infos = calloc_or_die(ehdr.e_shnum * sizeof(ElfSectionInfo));
   elfobj->section_infos = section_infos;
@@ -137,11 +121,7 @@ ElfObj *read_elf(FILE *fp, const char *fn) {
     p->shdr = shdr;
   }
 
-  elfobj->shstrtab = read_strtab(fp, elfobj->start_offset, &shdrs[ehdr.e_shstrndx]);
-  if (elfobj->shstrtab != NULL) {
-    if (!load_symtab(elfobj))
-      return NULL;
-  }
+  load_symtab(elfobj);
   return elfobj;
 }
 
