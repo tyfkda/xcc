@@ -21,6 +21,8 @@ long long strtoll(const char *p, char **pp, int base);
 unsigned long long strtoull(const char *p, char **pp, int base);
 
 void qsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *));
+void *bsearch(const void *key, const void *base, size_t nmemb, size_t size,
+              int (*compare)(const void*, const void*));
 
 int rand(void);  // [0, RAND_MAX]
 void srand(unsigned int seed);
