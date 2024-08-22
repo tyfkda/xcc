@@ -12,13 +12,13 @@
 // 4bytes big endian
 static uint32_t read4be(FILE *fp) {
   unsigned char buf[4];
-  read_or_die(fp, buf, sizeof(buf), "read4be");
+  read_or_die(fp, buf, -1, sizeof(buf), "read4be");
   return (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
 }
 
 static uint32_t *read_file_offsets(FILE *fp, uint32_t symbol_count) {
   uint32_t *file_offsets = malloc_or_die(sizeof(*file_offsets) * symbol_count);
-  read_or_die(fp, file_offsets, sizeof(*file_offsets) * symbol_count, "Offsets");
+  read_or_die(fp, file_offsets, -1, sizeof(*file_offsets) * symbol_count, "Offsets");
   // Convert big endian to machine endian.
   uint32_t *p = file_offsets;
   for (uint32_t i = 0; i < symbol_count; ++i) {
@@ -91,12 +91,12 @@ Archive *load_archive(const char *filename) {
   ar->contents = new_vector();
 
   char mag[SARMAG];
-  read_or_die(fp, mag, sizeof(mag), "Magic");
+  read_or_die(fp, mag, -1, sizeof(mag), "Magic");
   if (memcmp(mag, ARMAG, sizeof(mag)) != 0)
     error("Magic expected");
 
   struct ar_hdr ghdr;
-  read_or_die(fp, &ghdr, sizeof(ghdr), "Global header");
+  read_or_die(fp, &ghdr, -1, sizeof(ghdr), "Global header");
   if (memcmp(ghdr.ar_fmag, ARFMAG, sizeof(ghdr.ar_fmag)) != 0)
     error("FMagic expected");
 
@@ -122,7 +122,7 @@ Archive *load_archive(const char *filename) {
     assert(pos < contents[0].file_offset);
     size_t strtablen = contents[0].file_offset - pos;
     char *strtab = malloc_or_die(strtablen);  // Buffer pointer is not kept.
-    read_or_die(fp, strtab, strtablen, "Strtab");
+    read_or_die(fp, strtab, -1, strtablen, "Strtab");
     char *p = strtab;
     for (uint32_t i = 0; i < symbol_count; ++i) {
       char *q = memchr(p, '\0', &strtab[strtablen] - p);
@@ -150,7 +150,7 @@ void *load_archive_content(Archive *ar, ArSymbol *symbol,
   fseek(ar->fp, content->file_offset, SEEK_SET);
 
   struct ar_hdr hdr;
-  read_or_die(ar->fp, &hdr, sizeof(hdr), "hdr");
+  read_or_die(ar->fp, &hdr, -1, sizeof(hdr), "hdr");
   if (memcmp(hdr.ar_fmag, ARFMAG, sizeof(hdr.ar_fmag)) != 0)
     error("Malformed archive");
 

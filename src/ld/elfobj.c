@@ -8,33 +8,16 @@
 #include "table.h"
 #include "util.h"
 
-void *read_from(FILE *fp, unsigned long offset, size_t size) {
-  void *buf = malloc_or_die(size);
-  if (fseek(fp, offset, SEEK_SET) != 0 || fread(buf, 1, size, fp) != size) {
-    free(buf);
-    buf = NULL;
-  }
-  return buf;
-}
-
 static Elf64_Shdr *read_all_section_headers(FILE *fp, size_t start_offset, Elf64_Ehdr *ehdr) {
   if (ehdr->e_shnum <= 0)
     return NULL;
-  Elf64_Shdr *esecs = read_from(fp, ehdr->e_shoff + start_offset,
-                                ehdr->e_shnum * sizeof(Elf64_Shdr));
-  if (esecs == NULL) {
-    perror("read section header failed");
-  }
-  return esecs;
+  return read_or_die(fp, NULL, ehdr->e_shoff + start_offset,
+                     ehdr->e_shnum * sizeof(Elf64_Shdr), "read section header failed");
 }
 
 static char *read_strtab(FILE *fp, size_t start_offset, Elf64_Shdr *sec) {
   assert(sec->sh_type == SHT_STRTAB);
-  char *buf = read_from(fp, sec->sh_offset + start_offset, sec->sh_size);
-  if (buf == NULL) {
-    perror("read strtab failed");
-  }
-  return buf;
+  return read_or_die(fp, NULL, sec->sh_offset + start_offset, sec->sh_size, "read strtab failed");
 }
 
 static void load_symtab(ElfObj *elfobj) {
@@ -47,10 +30,8 @@ static void load_symtab(ElfObj *elfobj) {
     if (shdr->sh_size % sizeof(Elf64_Sym) != 0)
       error("illega symtab size");
 
-    Elf64_Sym *symbols = read_from(elfobj->fp, shdr->sh_offset + elfobj->start_offset,
-                                   shdr->sh_size);
-    if (symbols == NULL)
-      perror("read symtab failed");
+    Elf64_Sym *symbols = read_or_die(elfobj->fp, NULL, shdr->sh_offset + elfobj->start_offset,
+                                     shdr->sh_size, "read symtab failed");
 
     ElfSectionInfo *p = &elfobj->section_infos[sec];
     p->symtab.syms = symbols;

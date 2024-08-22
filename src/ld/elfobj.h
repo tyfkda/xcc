@@ -45,5 +45,3 @@ typedef struct ElfObj {
 ElfObj *read_elf(FILE *fp, const char *fn);
 void close_elf(ElfObj *elfobj);
 Elf64_Sym *elfobj_find_symbol(ElfObj *elfobj, const Name *name);
-
-void *read_from(FILE *fp, unsigned long offset, size_t size);

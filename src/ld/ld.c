@@ -190,11 +190,8 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
     Elf64_Shdr *shdr = &elfobj->shdrs[sec];
     if (shdr->sh_type != SHT_RELA || shdr->sh_size <= 0)
       continue;
-    const Elf64_Rela *relas = read_from(elfobj->fp, shdr->sh_offset + elfobj->start_offset,
-                                        shdr->sh_size);
-    if (relas == NULL) {
-      perror("read error");
-    }
+    const Elf64_Rela *relas = read_or_die(elfobj->fp, NULL, shdr->sh_offset + elfobj->start_offset,
+                                          shdr->sh_size, "read error");
     const Elf64_Shdr *symhdr = &elfobj->shdrs[shdr->sh_link];
     const ElfSectionInfo *symhdrinfo = &elfobj->section_infos[shdr->sh_link];
     const ElfSectionInfo *strinfo = &elfobj->section_infos[symhdr->sh_link];
@@ -390,10 +387,7 @@ static void calc_address_elfobj(LinkEditor *ld, ElfObj *elfobj, Vector *progbit_
         Elf64_Xword size = shdr->sh_size;
         if (size <= 0)
           break;
-        void *buf = read_from(elfobj->fp, shdr->sh_offset + elfobj->start_offset, size);
-        if (buf == NULL) {
-          perror("read error");
-        }
+        void *buf = read_or_die(elfobj->fp, NULL, shdr->sh_offset + elfobj->start_offset, size, "read error");
         enum SectionType secno;
         if (shdr->sh_flags & SHF_EXECINSTR) {
           secno = SEC_CODE;
