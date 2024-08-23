@@ -39,7 +39,9 @@ typedef struct {
   };
 } File;
 
-#define SEC_COUNT  (SEC_BSS + 1)
+typedef struct {
+  size_t align;
+} SectionGroup;
 
 typedef struct {
   File *files;
@@ -328,7 +330,7 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
   return error_count;
 }
 
-static void link_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unresolved) {
+static void resolve_symbols_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unresolved) {
   ElfSectionInfo *symtab_section = elfobj->symtab_section;
   assert(symtab_section != NULL);
   ElfSectionInfo *strtab_section = symtab_section->symtab.strtab;
@@ -358,45 +360,31 @@ static void link_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unresolved) {
   }
 }
 
-static void calc_address_elfobj(LinkEditor *ld, ElfObj *elfobj, Vector *progbit_sections[SEC_COUNT]) {
+static void collect_sections_elfobj(LinkEditor *ld, ElfObj *elfobj, int target_secno, Vector *seclist) {
   UNUSED(ld);
   for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
     Elf64_Shdr *shdr = &elfobj->shdrs[sec];
     switch (shdr->sh_type) {
     case SHT_PROGBITS:
-      {
-        Elf64_Xword size = shdr->sh_size;
-        if (size <= 0)
-          break;
-        void *buf = read_or_die(elfobj->fp, NULL, shdr->sh_offset + elfobj->start_offset, size, "read error");
-        enum SectionType secno;
-        if (shdr->sh_flags & SHF_EXECINSTR) {
-          secno = SEC_CODE;
-        } else if (shdr->sh_flags & SHF_WRITE) {
-          secno = SEC_DATA;
-        } else {
-          secno = SEC_RODATA;
-        }
-        Elf64_Xword align = shdr->sh_addralign;
-        align_section_size(secno, align);
-
-        ElfSectionInfo *p = &elfobj->section_infos[sec];
-        p->progbits.content = buf;
-        vec_push(progbit_sections[secno], p);
-      }
-      break;
     case SHT_NOBITS:
       {
         Elf64_Xword size = shdr->sh_size;
         if (size <= 0)
           break;
-        Elf64_Xword align = shdr->sh_addralign;
-        align_section_size(SEC_BSS, align);
-        add_bss(size);
+        enum SectionType secno;
+        if (shdr->sh_type == SHT_NOBITS)
+          secno = SEC_BSS;
+        else if (shdr->sh_flags & SHF_EXECINSTR)
+          secno = SEC_CODE;
+        else if (shdr->sh_flags & SHF_WRITE)
+          secno = SEC_DATA;
+        else
+          secno = SEC_RODATA;
+        if ((int)secno != target_secno)
+          continue;
 
         ElfSectionInfo *p = &elfobj->section_infos[sec];
-        p->progbits.content = NULL;
-        vec_push(progbit_sections[SEC_BSS], p);
+        vec_push(seclist, p);
       }
       break;
     default: break;
@@ -409,7 +397,7 @@ static void *load_elfobj(FILE *fp, const char *fn, size_t size) {
   return read_elf(fp, fn);
 }
 
-static void link_archive(LinkEditor *ld, Archive *ar, Table *unresolved) {
+static void resolve_symbols_archive(LinkEditor *ld, Archive *ar, Table *unresolved) {
   Table *table = &ar->symbol_table;
   for (;;) {
     bool retry = false;
@@ -421,7 +409,7 @@ static void link_archive(LinkEditor *ld, Archive *ar, Table *unresolved) {
 
       ElfObj *elfobj = load_archive_content(ar, symbol, load_elfobj);
       if (elfobj != NULL) {
-        link_elfobj(ld, elfobj, unresolved);
+        resolve_symbols_elfobj(ld, elfobj, unresolved);
         retry = true;
         break;
       }
@@ -431,13 +419,13 @@ static void link_archive(LinkEditor *ld, Archive *ar, Table *unresolved) {
   }
 }
 
-static void calc_address_archive(LinkEditor *ld, Archive *ar, Vector *progbit_sections[SEC_COUNT]) {
+static void collect_sections_archive(LinkEditor *ld, Archive *ar, int secno, Vector *seclist) {
   Vector *contents = ar->contents;
   for (int i = 0; i < contents->len; ++i) {
     ArContent *content = contents->data[i];
     ElfObj *elfobj = content->obj;
     if (elfobj != NULL)
-      calc_address_elfobj(ld, elfobj, progbit_sections);
+      collect_sections_elfobj(ld, elfobj, secno, seclist);
   }
 }
 
@@ -449,7 +437,7 @@ static int resolve_rela_archive(LinkEditor *ld, Archive *ar) {
   return error_count;
 }
 
-static int resolve_relas(LinkEditor *ld) {
+static int ld_resolve_relas(LinkEditor *ld) {
   int error_count = 0;
   for (int i = 0; i < ld->nfiles; ++i) {
     File *file = &ld->files[i];
@@ -473,57 +461,84 @@ static void add_elf_section(const ElfSectionInfo *p, int secno) {
   add_section_data(secno, content, shdr->sh_size);
 }
 
-static void ld_link(LinkEditor *ld, Table *unresolved) {
+static void ld_resolve_symbols(LinkEditor *ld, Table *unresolved) {
   for (int i = 0; i < ld->nfiles; ++i) {
     File *file = &ld->files[i];
     switch (file->kind) {
     case FK_ELFOBJ:
-      link_elfobj(ld, file->elfobj, unresolved);
+      resolve_symbols_elfobj(ld, file->elfobj, unresolved);
       break;
     case FK_ARCHIVE:
-      link_archive(ld, file->archive, unresolved);
+      resolve_symbols_archive(ld, file->archive, unresolved);
       break;
     }
   }
 }
 
-static void ld_calc_address(LinkEditor *ld, uintptr_t start_address, Vector *progbit_sections[SEC_COUNT]) {
-  for (int secno = 0; secno < SEC_COUNT; ++secno)
-    progbit_sections[secno] = new_vector();
-
+static void ld_collect_sections(LinkEditor *ld, int secno, Vector *seclist) {
   for (int i = 0; i < ld->nfiles; ++i) {
     File *file = &ld->files[i];
     switch (file->kind) {
     case FK_ELFOBJ:
-      calc_address_elfobj(ld, file->elfobj, progbit_sections);
+      collect_sections_elfobj(ld, file->elfobj, secno, seclist);
       break;
     case FK_ARCHIVE:
-      calc_address_archive(ld, file->archive, progbit_sections);
+      collect_sections_archive(ld, file->archive, secno, seclist);
       break;
     }
   }
+}
 
+static void ld_calc_address(SectionGroup section_groups[SECTION_COUNT], Vector *section_lists[SECTION_COUNT], uintptr_t start_address) {
   uintptr_t address = start_address;
-  for (int secno = 0; secno < SEC_COUNT; ++secno) {
-    Vector *v = progbit_sections[secno];
+  for (int secno = 0; secno < SECTION_COUNT; ++secno) {
+    Vector *v = section_lists[secno];
     if (v->len <= 0)
       continue;
 
-    address = ALIGN(address, section_aligns[secno]);
+    SectionGroup *secgroup = &section_groups[secno];
+    address = ALIGN(address, secgroup->align);
     for (int i = 0; i < v->len; ++i) {
       ElfSectionInfo *p = v->data[i];
       Elf64_Shdr *shdr = p->shdr;
-      address = ALIGN(address, shdr->sh_addralign);
+      size_t align = shdr->sh_addralign;
+      address = ALIGN(address, align);
       p->progbits.address = address;
-      address += shdr->sh_size;
+      size_t size = shdr->sh_size;
+      address += size;
+      align_section_size(secno, align);
+
+      if (secno == SEC_BSS)
+        add_bss(size);
     }
   }
 }
 
-static bool output_exe(const char *ofn, uintptr_t entry_address) {
-  size_t sizes[SEC_COUNT];
-  uintptr_t loadadrs[SEC_COUNT];
-  for (int sec = 0; sec < SEC_COUNT; ++sec) {
+static void ld_load_elf_objects(Vector *section_lists[SECTION_COUNT]) {
+  for (int secno = 0; secno < SECTION_COUNT; ++secno) {
+    Vector *v = section_lists[secno];
+    if (v->len <= 0)
+      continue;
+
+    for (int i = 0; i < v->len; ++i) {
+      ElfSectionInfo *p = v->data[i];
+      Elf64_Shdr *shdr = p->shdr;
+      if (shdr->sh_type == SHT_PROGBITS) {
+        Elf64_Xword size = shdr->sh_size;
+        assert(size > 0);
+
+        ElfObj *elfobj = p->elfobj;
+        void *buf = read_or_die(elfobj->fp, NULL, shdr->sh_offset + elfobj->start_offset, size, "read error");
+        p->progbits.content = buf;
+      }
+    }
+  }
+}
+
+static bool output_exe(const char *ofn, uintptr_t entry_address, SectionGroup section_groups[SECTION_COUNT]) {
+  size_t sizes[SECTION_COUNT];
+  uintptr_t loadadrs[SECTION_COUNT];
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     get_section_size(sec, &sizes[sec], &loadadrs[sec]);
   }
 
@@ -544,7 +559,7 @@ static bool output_exe(const char *ofn, uintptr_t entry_address) {
     assert(fp != NULL);
   }
 
-  size_t code_rodata_sz = sizes[SEC_RODATA] > 0 ? ALIGN(sizes[SEC_CODE], section_aligns[SEC_RODATA]) + sizes[SEC_RODATA] : sizes[SEC_CODE];
+  size_t code_rodata_sz = sizes[SEC_RODATA] > 0 ? ALIGN(sizes[SEC_CODE], section_groups[SEC_RODATA].align) + sizes[SEC_RODATA] : sizes[SEC_CODE];
 #if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
   const int flags = EF_RISCV_RVC | EF_RISCV_FLOAT_ABI_DOUBLE;
 #else
@@ -553,7 +568,7 @@ static bool output_exe(const char *ofn, uintptr_t entry_address) {
   out_elf_header(fp, entry_address, phnum, 0, flags, 0);
   out_program_header(fp, 0, PROG_START, loadadrs[SEC_CODE], code_rodata_sz, code_rodata_sz);
   if (phnum > 1) {
-    size_t datamemsz = ALIGN(sizes[SEC_DATA], section_aligns[SEC_BSS]) + sizes[SEC_BSS];
+    size_t datamemsz = ALIGN(sizes[SEC_DATA], section_groups[SEC_BSS].align) + sizes[SEC_BSS];
     uintptr_t offset = PROG_START + code_rodata_sz;
     if (sizes[SEC_DATA] > 0)
       offset = ALIGN(offset, DATA_ALIGN);
@@ -562,7 +577,7 @@ static bool output_exe(const char *ofn, uintptr_t entry_address) {
 
   uintptr_t addr = PROG_START;
   for (int sec = 0; sec < SEC_BSS; ++sec) {
-    addr = ALIGN(addr, section_aligns[sec]);
+    addr = ALIGN(addr, section_groups[sec].align);
     if (sizes[sec] <= 0)
       continue;
     put_padding(fp, addr);
@@ -729,7 +744,7 @@ static int do_link(Vector *sources, const Options *opts) {
   table_init(&unresolved);
   table_put(&unresolved, entry_name, (void*)entry_name);
 
-  ld_link(ld, &unresolved);
+  ld_resolve_symbols(ld, &unresolved);
   if (unresolved.count > 0) {
     fprintf(stderr, "Unresolved: #%d\n", unresolved.count);
     const Name *name;
@@ -739,15 +754,34 @@ static int do_link(Vector *sources, const Options *opts) {
     return 1;
   }
 
-  Vector *progbit_sections[SEC_COUNT];
-  ld_calc_address(ld, LOAD_ADDRESS, progbit_sections);
+  Vector *section_lists[SECTION_COUNT];  // <ElfSectionInfo*>
+  for (int secno = 0; secno < SECTION_COUNT; ++secno) {
+    Vector *seclist = new_vector();
+    ld_collect_sections(ld, secno, seclist);
+    section_lists[secno] = seclist;
+  }
 
-  int error_count = resolve_relas(ld);
+  SectionGroup section_groups[SECTION_COUNT];
+  for (int secno = 0; secno < SECTION_COUNT; ++secno) {
+    SectionGroup *secgroup = &section_groups[secno];
+    secgroup->align = section_aligns[secno] = secno == SEC_DATA ? DATA_ALIGN : 1;
+    Vector *seclist = section_lists[secno];
+    for (int i = 0; i < seclist->len; ++i) {
+      ElfSectionInfo *p = seclist->data[i];
+      Elf64_Xword align = p->shdr->sh_addralign;
+      if (align > secgroup->align)
+        secgroup->align = align;
+    }
+  }
+  ld_calc_address(section_groups, section_lists, LOAD_ADDRESS);
+  ld_load_elf_objects(section_lists);
+
+  int error_count = ld_resolve_relas(ld);
   if (error_count > 0)
     return 1;
 
   for (int secno = 0; secno < SEC_BSS; ++secno) {
-    Vector *v = progbit_sections[secno];
+    Vector *v = section_lists[secno];
     for (int i = 0; i < v->len; ++i) {
       ElfSectionInfo *p = v->data[i];
       add_elf_section(p, secno);
@@ -759,7 +793,7 @@ static int do_link(Vector *sources, const Options *opts) {
   uintptr_t entry_address = ld_symbol_address(ld, entry_name);
   assert(entry_address != (uintptr_t)-1);
 
-  bool result = output_exe(opts->ofn, entry_address);
+  bool result = output_exe(opts->ofn, entry_address, section_groups);
 
   if (opts->outmapfn != NULL && result) {
     FILE *mapfp;
@@ -797,8 +831,6 @@ int main(int argc, char *argv[]) {
 
   if (opts.ofn == NULL)
     opts.ofn = "a.out";
-
-  section_aligns[SEC_DATA] = DATA_ALIGN;
 
   return do_link(sources, &opts);
 }
