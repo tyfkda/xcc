@@ -103,6 +103,21 @@ ElfObj *read_elf(FILE *fp, const char *fn) {
   }
 
   load_symtab(elfobj);
+
+  {
+    ElfSectionInfo *shstrtab = &section_infos[ehdr.e_shstrndx];
+    if (shstrtab->shdr->sh_type != SHT_STRTAB) {
+      fprintf(stderr, "illegal shstrtab: %s\n", fn);
+      return NULL;
+    }
+    if (shstrtab->strtab.buf == NULL) {
+      const char *buf = read_strtab(elfobj->fp, elfobj->start_offset, shstrtab->shdr);
+      if (buf == NULL)
+        error("read shstrtab failed");
+      shstrtab->strtab.buf = buf;
+    }
+  }
+
   return elfobj;
 }
 
