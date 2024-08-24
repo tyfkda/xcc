@@ -52,36 +52,26 @@ void add_code(const void *buf, size_t bytes) {
 }
 
 void fix_section_size(uintptr_t start_address) {
-  sections[SEC_CODE].start_address = start_address;
-  int rodata_align = section_aligns[SEC_RODATA];
-  uintptr_t rodata_addr = ALIGN(start_address + sections[SEC_CODE].ds.len, rodata_align);
-  sections[SEC_RODATA].start_address = rodata_addr;
-
-  int data_align = section_aligns[SEC_DATA];
-  sections[SEC_DATA].start_address =
-      ALIGN(sections[SEC_RODATA].start_address + sections[SEC_RODATA].ds.len, data_align);
-  int bss_align = section_aligns[SEC_BSS];
-  sections[SEC_BSS].start_address =
-      sections[SEC_DATA].start_address + ALIGN(sections[SEC_DATA].ds.len, bss_align);
+  uintptr_t address = start_address;
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    Section *section = &sections[sec];
+    section->start_address = address = ALIGN(address, section_aligns[sec]);
+    address += sec == SEC_BSS ? bss_size : section->ds.len;
+  }
 }
 
 void get_section_size(int section, size_t *psize, uintptr_t *ploadadr) {
+  const Section *sec = &sections[section];
+  if (ploadadr != NULL)
+    *ploadadr = sec->start_address;
   switch (section) {
   case SEC_CODE:
   case SEC_RODATA:
   case SEC_DATA:
-    {
-      const Section *sec = &sections[section];
-      if (ploadadr != NULL)
-        *ploadadr = sec->start_address;
-      *psize = sec->ds.len;
-    }
+    *psize = sec->ds.len;
     break;
   case SEC_BSS:
-    {
-      assert(ploadadr == NULL);
-      *psize = bss_size;
-    }
+    *psize = bss_size;
     break;
   }
 }

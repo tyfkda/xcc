@@ -541,14 +541,13 @@ static void ld_calc_address(LinkEditor *ld, uintptr_t start_address, Vector *pro
 }
 
 static bool output_exe(const char *ofn, uintptr_t entry_address) {
-  size_t codesz, rodatasz, datasz, bsssz;
-  uintptr_t codeloadadr, dataloadadr;
-  get_section_size(SEC_CODE, &codesz, &codeloadadr);
-  get_section_size(SEC_RODATA, &rodatasz, NULL);
-  get_section_size(SEC_DATA, &datasz, &dataloadadr);
-  get_section_size(SEC_BSS, &bsssz, NULL);
+  size_t sizes[SEC_COUNT];
+  uintptr_t loadadrs[SEC_COUNT];
+  for (int sec = 0; sec < SEC_COUNT; ++sec) {
+    get_section_size(sec, &sizes[sec], &loadadrs[sec]);
+  }
 
-  int phnum = datasz > 0 || bsssz > 0 ? 2 : 1;
+  int phnum = sizes[SEC_DATA] > 0 || sizes[SEC_BSS] > 0 ? 2 : 1;
 
   FILE *fp;
   if (ofn == NULL) {
@@ -565,40 +564,30 @@ static bool output_exe(const char *ofn, uintptr_t entry_address) {
     assert(fp != NULL);
   }
 
-  size_t rodata_align = section_aligns[SEC_RODATA];
-  size_t code_rodata_sz = rodatasz > 0 ? ALIGN(codesz, rodata_align) + rodatasz : codesz;
+  size_t code_rodata_sz = sizes[SEC_RODATA] > 0 ? ALIGN(sizes[SEC_CODE], section_aligns[SEC_RODATA]) + sizes[SEC_RODATA] : sizes[SEC_CODE];
 #if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
   const int flags = EF_RISCV_RVC | EF_RISCV_FLOAT_ABI_DOUBLE;
 #else
   const int flags = 0;
 #endif
   out_elf_header(fp, entry_address, phnum, 0, flags, 0);
-  out_program_header(fp, 0, PROG_START, codeloadadr, code_rodata_sz, code_rodata_sz);
+  out_program_header(fp, 0, PROG_START, loadadrs[SEC_CODE], code_rodata_sz, code_rodata_sz);
   if (phnum > 1) {
-    size_t bss_align = section_aligns[SEC_BSS];
-    size_t datamemsz = ALIGN(datasz, bss_align) + bsssz;
+    size_t datamemsz = ALIGN(sizes[SEC_DATA], section_aligns[SEC_BSS]) + sizes[SEC_BSS];
     uintptr_t offset = PROG_START + code_rodata_sz;
-    if (datasz > 0)
+    if (sizes[SEC_DATA] > 0)
       offset = ALIGN(offset, DATA_ALIGN);
-    out_program_header(fp, 1, offset, dataloadadr, datasz, datamemsz);
+    out_program_header(fp, 1, offset, loadadrs[SEC_DATA], sizes[SEC_DATA], datamemsz);
   }
 
   uintptr_t addr = PROG_START;
-  put_padding(fp, addr);
-  output_section(fp, SEC_CODE);
-  addr += codesz;
-  if (rodatasz > 0) {
-    size_t rodata_align = section_aligns[SEC_RODATA];
-    addr = ALIGN(addr, rodata_align);
+  for (int sec = 0; sec < SEC_BSS; ++sec) {
+    addr = ALIGN(addr, section_aligns[sec]);
+    if (sizes[sec] <= 0)
+      continue;
     put_padding(fp, addr);
-    output_section(fp, SEC_RODATA);
-    addr += rodatasz;
-  }
-  if (datasz > 0) {
-    addr = ALIGN(addr, DATA_ALIGN);
-    put_padding(fp, addr);
-    output_section(fp, SEC_DATA);
-    addr += datasz;
+    output_section(fp, sec);
+    addr += sizes[sec];
   }
   fclose(fp);
 
