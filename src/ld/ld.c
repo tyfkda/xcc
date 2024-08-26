@@ -20,10 +20,10 @@
 
 static const char kDefaultEntryName[] = "_start";
 
-#define PROG_START      (0x100)
-#define START_ADDRESS   (0x01000000 + PROG_START)
-#define LOAD_ADDRESS    START_ADDRESS
-#define DATA_ALIGN      (0x1000)
+#define PROG_START          (0x100)
+#define CODE_START_ADDRESS  (0x01000000 + PROG_START)
+#define DATA_START_ADDRESS  (0x80000000)
+#define DATA_ALIGN          (0x1000)
 
 //
 
@@ -507,7 +507,7 @@ static void ld_link(LinkEditor *ld, Table *unresolved) {
   }
 }
 
-static void ld_calc_address(LinkEditor *ld, uintptr_t start_address, Vector *progbit_sections[SEC_COUNT]) {
+static void ld_calc_address(LinkEditor *ld, uintptr_t start_address, uintptr_t data_start_address, Vector *progbit_sections[SEC_COUNT]) {
   for (int secno = 0; secno < SEC_COUNT; ++secno)
     progbit_sections[secno] = new_vector();
 
@@ -529,7 +529,10 @@ static void ld_calc_address(LinkEditor *ld, uintptr_t start_address, Vector *pro
     if (v->len <= 0)
       continue;
 
-    address = ALIGN(address, section_aligns[secno]);
+    if (secno == SEC_DATA)
+      address = data_start_address;
+    else
+      address = ALIGN(address, section_aligns[secno]);
     for (int i = 0; i < v->len; ++i) {
       ElfSectionInfo *p = v->data[i];
       Elf64_Shdr *shdr = p->shdr;
@@ -580,14 +583,14 @@ static bool output_exe(const char *ofn, uintptr_t entry_address) {
     out_program_header(fp, 1, offset, loadadrs[SEC_DATA], sizes[SEC_DATA], datamemsz);
   }
 
-  uintptr_t addr = PROG_START;
+  uintptr_t offset = PROG_START;
   for (int sec = 0; sec < SEC_BSS; ++sec) {
-    addr = ALIGN(addr, section_aligns[sec]);
+    offset = ALIGN(offset, section_aligns[sec]);
     if (sizes[sec] <= 0)
       continue;
-    put_padding(fp, addr);
+    put_padding(fp, offset);
     output_section(fp, sec);
-    addr += sizes[sec];
+    offset += sizes[sec];
   }
   fclose(fp);
 
@@ -761,7 +764,7 @@ static int do_link(Vector *sources, const Options *opts) {
   }
 
   Vector *progbit_sections[SEC_COUNT];
-  ld_calc_address(ld, LOAD_ADDRESS, progbit_sections);
+  ld_calc_address(ld, CODE_START_ADDRESS, DATA_START_ADDRESS, progbit_sections);
 
   int error_count = resolve_relas(ld);
   if (error_count > 0)
@@ -775,7 +778,7 @@ static int do_link(Vector *sources, const Options *opts) {
     }
   }
 
-  fix_section_size(LOAD_ADDRESS);
+  fix_section_size(CODE_START_ADDRESS, DATA_START_ADDRESS);
 
   uintptr_t entry_address = ld_symbol_address(ld, entry_name);
   assert(entry_address != (uintptr_t)-1);
@@ -793,7 +796,7 @@ static int do_link(Vector *sources, const Options *opts) {
     }
 
     fprintf(mapfp, "### Symbols\n");
-    fprintf(mapfp, "%9lx:  (start address)\n", (long)LOAD_ADDRESS);
+    fprintf(mapfp, "%9lx:  (start address)\n", (long)CODE_START_ADDRESS);
     dump_map_file(ld, mapfp);
 
     fprintf(mapfp, "\n### Entry point\n");

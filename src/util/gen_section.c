@@ -51,9 +51,14 @@ void add_code(const void *buf, size_t bytes) {
   add_section_data(SEC_CODE, buf, bytes);
 }
 
-void fix_section_size(uintptr_t start_address) {
+void fix_section_size(uintptr_t start_address, uintptr_t data_start_address) {
   uintptr_t address = start_address;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    if (sec == SEC_DATA && data_start_address != 0) {
+      if (address > data_start_address)
+        error(".text section overlaps .data section");
+      address = data_start_address;
+    }
     Section *section = &sections[sec];
     section->start_address = address = ALIGN(address, section_aligns[sec]);
     address += sec == SEC_BSS ? bss_size : section->ds.len;

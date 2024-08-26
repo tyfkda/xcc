@@ -12,7 +12,6 @@
 
 #define PROG_START      (0x100)
 #define START_ADDRESS   (0x01000000 + PROG_START)
-#define LOAD_ADDRESS    START_ADDRESS
 #define DATA_ALIGN      (0x1000)
 
 static void parse_file(FILE *fp, const char *filename, Vector **section_irs, Table *label_table) {
@@ -126,7 +125,7 @@ int main(int argc, char *argv[]) {
   Vector *unresolved = new_vector();
   bool settle1, settle2;
   do {
-    settle1 = calc_label_address(LOAD_ADDRESS, section_irs, &label_table);
+    settle1 = calc_label_address(START_ADDRESS, section_irs, &label_table);
     settle2 = resolve_relative_address(section_irs, &label_table, unresolved);
   } while (!(settle1 && settle2));
 
@@ -137,7 +136,7 @@ int main(int argc, char *argv[]) {
 
   emit_irs(section_irs);
 
-  fix_section_size(LOAD_ADDRESS);
+  fix_section_size(START_ADDRESS, 0);
 
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
   extern int emit_macho_obj(const char *ofn, Table *label_table, Vector *unresolved);
