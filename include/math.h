@@ -18,6 +18,21 @@
 #define INFINITY    (1.0 / 0.0)
 #define HUGE_VAL    INFINITY
 
+#if defined(__riscv) || defined(__WASM)  // newlib environments.
+#define FP_NAN        0
+#define FP_INFINITE   1
+#define FP_ZERO       2
+#define FP_SUBNORMAL  3
+#define FP_NORMAL     4
+#else
+
+#define FP_NAN        1
+#define FP_INFINITE   2
+#define FP_ZERO       3
+#define FP_NORMAL     4
+#define FP_SUBNORMAL  5
+#endif
+
 double sin(double);
 double cos(double);
 double tan(double);
@@ -58,10 +73,23 @@ inline int signbit(double x) {
 
 double copysign(double x, double f);
 
+inline int fpclassify(double x) {
+#if defined(__APPLE__) || defined(__riscv)
+  extern int __fpclassifyd(double);
+  return __fpclassifyd(x);
+#else
+  extern int __fpclassify(double x);
+  return __fpclassify(x);
+#endif
+}
+
 inline int isfinite(double x) {
 #if defined(__APPLE__)
   extern int __isfinited(double);
   return __isfinited(x);
+#elif defined(__riscv)
+  int c = fpclassify(x);
+  return c != FP_INFINITE && c != FP_NAN;
 #else
   return finite(x);
 #endif
@@ -71,6 +99,8 @@ inline int isnan(double x) {
 #if defined(__APPLE__)
   extern int __isnand(double);
   return __isnand(x);
+#elif defined(__riscv) || defined(__WASM)
+  return fpclassify(x) == FP_NAN;
 #else
   extern int __isnan(double);
   return __isnan(x);
@@ -81,6 +111,8 @@ inline int isinf(double x) {
 #if defined(__APPLE__)
   extern int __isinfd(double);
   return __isinfd(x);
+#elif defined(__riscv) || defined(__WASM)
+  return fpclassify(x) == FP_INFINITE;
 #else
   extern int __isinf(double);
   return __isinf(x);
