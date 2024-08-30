@@ -646,8 +646,12 @@ static void emit_linking_section(EmitWasm *ew) {
       int flags = 0;
       if (varinfo->global.init != NULL && varinfo->global.init->kind == IK_SINGLE) {
         Expr *e = varinfo->global.init->single;
-        if (e->kind == EX_STR)
-          flags |= WASM_SEG_FLAG_STRINGS;
+        if (e->kind == EX_STR && e->str.kind == STR_CHAR) {
+          const Type *type = varinfo->type;
+          if (type->kind == TY_ARRAY && type->pa.length > 0 &&
+              type->pa.length == (ssize_t)e->str.len && e->str.buf[type->pa.length - 1] == '\0')
+            flags |= WASM_SEG_FLAG_STRINGS;
+        }
       }
       data_string(&linking_section, varinfo->name->chars, varinfo->name->bytes);
       data_uleb128(&linking_section, -1, segment->p2align);
