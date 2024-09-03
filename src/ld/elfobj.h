@@ -12,6 +12,7 @@
 
 typedef struct Name Name;
 typedef struct Table Table;
+typedef struct Vector Vector;
 
 typedef struct ElfSectionInfo {
   struct ElfObj *elfobj;
@@ -38,6 +39,7 @@ typedef struct ElfObj {
   Elf64_Shdr *shdrs;
   Table *symbol_table;  // <Elf64_Sym*>, global only
 
+  Vector *prog_sections;  // <ElfSectionInfo*>, PROGBITS or NOBITS
   ElfSectionInfo *section_infos;
   ElfSectionInfo *symtab_section;
 } ElfObj;

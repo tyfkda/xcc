@@ -93,6 +93,7 @@ ElfObj *read_elf(FILE *fp, const char *fn) {
   elfobj->symbol_table = NULL;
   elfobj->symtab_section = NULL;
 
+  Vector *prog_sections = new_vector();
   ElfSectionInfo *section_infos = calloc_or_die(ehdr.e_shnum * sizeof(ElfSectionInfo));
   elfobj->section_infos = section_infos;
   for (unsigned short i = 0; i < ehdr.e_shnum; ++i) {
@@ -100,7 +101,17 @@ ElfObj *read_elf(FILE *fp, const char *fn) {
     ElfSectionInfo *p = &section_infos[i];
     p->elfobj = elfobj;
     p->shdr = shdr;
+    if (shdr->sh_size > 0) {
+      switch (shdr->sh_type) {
+      case SHT_PROGBITS:
+      case SHT_NOBITS:
+        vec_push(prog_sections, p);
+        break;
+      default: break;
+      }
+    }
   }
+  elfobj->prog_sections = prog_sections;
 
   load_symtab(elfobj);
 

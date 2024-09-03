@@ -14,7 +14,6 @@
 #include "archive.h"
 #include "elfobj.h"
 #include "elfutil.h"
-#include "gen_section.h"
 #include "table.h"
 #include "util.h"
 
@@ -24,6 +23,13 @@ static const char kDefaultEntryName[] = "_start";
 #define START_ADDRESS   (0x01000000 + PROG_START)
 #define LOAD_ADDRESS    START_ADDRESS
 #define DATA_ALIGN      (0x1000)
+
+#define SECTION_COUNT  (2)
+
+enum SectionType {
+  SEC_TEXT,
+  SEC_DATA,
+};
 
 //
 
@@ -41,6 +47,9 @@ typedef struct {
 
 typedef struct {
   size_t align;
+  uintptr_t start_address;
+  DataStorage *ds;
+  size_t bss_size;
 } SectionGroup;
 
 typedef struct {
@@ -367,34 +376,23 @@ static void resolve_symbols_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unreso
   }
 }
 
-static void collect_sections_elfobj(LinkEditor *ld, ElfObj *elfobj, int target_secno, Vector *seclist) {
+static void collect_sections_elfobj(LinkEditor *ld, ElfObj *elfobj, const char *name, Vector *seclist) {
   UNUSED(ld);
-  for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
-    Elf64_Shdr *shdr = &elfobj->shdrs[sec];
-    switch (shdr->sh_type) {
-    case SHT_PROGBITS:
-    case SHT_NOBITS:
-      {
-        Elf64_Xword size = shdr->sh_size;
-        if (size <= 0)
-          break;
-        enum SectionType secno;
-        if (shdr->sh_type == SHT_NOBITS)
-          secno = SEC_BSS;
-        else if (shdr->sh_flags & SHF_EXECINSTR)
-          secno = SEC_CODE;
-        else if (shdr->sh_flags & SHF_WRITE)
-          secno = SEC_DATA;
-        else
-          secno = SEC_RODATA;
-        if ((int)secno != target_secno)
-          continue;
+  ElfSectionInfo *shsymtab = &elfobj->section_infos[elfobj->ehdr.e_shstrndx];
+  assert(shsymtab->shdr->sh_type == SHT_STRTAB);
+  const char *strbuf = shsymtab->strtab.buf;
+  for (int i = 0; i < elfobj->prog_sections->len; ++i) {
+    ElfSectionInfo *section = elfobj->prog_sections->data[i];
+    if (section == NULL)
+      continue;
+    Elf64_Shdr *shdr = section->shdr;
+    assert(shdr->sh_type == SHT_PROGBITS || shdr->sh_type == SHT_NOBITS);
+    assert(shdr->sh_size > 0);
 
-        ElfSectionInfo *p = &elfobj->section_infos[sec];
-        vec_push(seclist, p);
-      }
-      break;
-    default: break;
+    const char *s = &strbuf[shdr->sh_name];
+    if (strcmp(s, name) == 0) {  // TODO: Wild card
+      vec_push(seclist, section);
+      elfobj->prog_sections->data[i] = NULL;
     }
   }
 }
@@ -426,13 +424,13 @@ static void resolve_symbols_archive(LinkEditor *ld, Archive *ar, Table *unresolv
   }
 }
 
-static void collect_sections_archive(LinkEditor *ld, Archive *ar, int secno, Vector *seclist) {
+static void collect_sections_archive(LinkEditor *ld, Archive *ar, const char *name, Vector *seclist) {
   Vector *contents = ar->contents;
   for (int i = 0; i < contents->len; ++i) {
     ArContent *content = contents->data[i];
     ElfObj *elfobj = content->obj;
     if (elfobj != NULL)
-      collect_sections_elfobj(ld, elfobj, secno, seclist);
+      collect_sections_elfobj(ld, elfobj, name, seclist);
   }
 }
 
@@ -460,12 +458,18 @@ static int ld_resolve_relas(LinkEditor *ld) {
   return error_count;
 }
 
-static void add_elf_section(const ElfSectionInfo *p, int secno) {
+static void add_elf_section(SectionGroup section_groups[SECTION_COUNT], const ElfSectionInfo *p, int secno) {
+  Elf64_Shdr *shdr = p->shdr;
+  if (shdr->sh_type == SHT_NOBITS)
+    return;
+  Elf64_Xword align = shdr->sh_addralign;
+  SectionGroup *secgroup = &section_groups[secno];
+  assert(align <= secgroup->align);
+  assert(secgroup->ds != NULL);
+  data_align(secgroup->ds, align);
   void *content = p->progbits.content;
   assert(content != NULL);
-  Elf64_Shdr *shdr = p->shdr;
-  align_section_size(secno, shdr->sh_addralign);
-  add_section_data(secno, content, shdr->sh_size);
+  data_append(secgroup->ds, content, shdr->sh_size);
 }
 
 static void ld_resolve_symbols(LinkEditor *ld, Table *unresolved) {
@@ -482,15 +486,15 @@ static void ld_resolve_symbols(LinkEditor *ld, Table *unresolved) {
   }
 }
 
-static void ld_collect_sections(LinkEditor *ld, int secno, Vector *seclist) {
+static void ld_collect_sections(LinkEditor *ld, const char *name, Vector *seclist) {
   for (int i = 0; i < ld->nfiles; ++i) {
     File *file = &ld->files[i];
     switch (file->kind) {
     case FK_ELFOBJ:
-      collect_sections_elfobj(ld, file->elfobj, secno, seclist);
+      collect_sections_elfobj(ld, file->elfobj, name, seclist);
       break;
     case FK_ARCHIVE:
-      collect_sections_archive(ld, file->archive, secno, seclist);
+      collect_sections_archive(ld, file->archive, name, seclist);
       break;
     }
   }
@@ -504,7 +508,7 @@ static void ld_calc_address(SectionGroup section_groups[SECTION_COUNT], Vector *
       continue;
 
     SectionGroup *secgroup = &section_groups[secno];
-    address = ALIGN(address, secgroup->align);
+    secgroup->start_address = address = ALIGN(address, secgroup->align);
     for (int i = 0; i < v->len; ++i) {
       ElfSectionInfo *p = v->data[i];
       Elf64_Shdr *shdr = p->shdr;
@@ -513,10 +517,12 @@ static void ld_calc_address(SectionGroup section_groups[SECTION_COUNT], Vector *
       p->progbits.address = address;
       size_t size = shdr->sh_size;
       address += size;
-      align_section_size(secno, align);
 
-      if (secno == SEC_BSS)
-        add_bss(size);
+      if (align > secgroup->align)
+        secgroup->align = align;
+
+      if (p->shdr->sh_type == SHT_NOBITS)
+        secgroup->bss_size += size;
     }
   }
 }
@@ -542,14 +548,16 @@ static void ld_load_elf_objects(Vector *section_lists[SECTION_COUNT]) {
   }
 }
 
-static bool output_exe(const char *ofn, uintptr_t entry_address, SectionGroup section_groups[SECTION_COUNT]) {
-  size_t sizes[SECTION_COUNT];
-  uintptr_t loadadrs[SECTION_COUNT];
-  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
-    get_section_size(sec, &sizes[sec], &loadadrs[sec]);
-  }
+static void output_section(FILE *fp, SectionGroup *secgroup) {
+  if (secgroup->ds == NULL)
+    return;
+  DataStorage *ds = secgroup->ds;
+  const void *buf = ds->buf;
+  fwrite(buf, ds->len, 1, fp);
+}
 
-  int phnum = sizes[SEC_DATA] > 0 || sizes[SEC_BSS] > 0 ? 2 : 1;
+static bool output_exe(const char *ofn, uintptr_t entry_address, SectionGroup section_groups[SECTION_COUNT]) {
+  int phnum = section_groups[SEC_DATA].ds->len > 0 || section_groups[SEC_DATA].bss_size > 0 ? 2 : 1;
 
   FILE *fp;
   if (ofn == NULL) {
@@ -566,30 +574,31 @@ static bool output_exe(const char *ofn, uintptr_t entry_address, SectionGroup se
     assert(fp != NULL);
   }
 
-  size_t code_rodata_sz = sizes[SEC_RODATA] > 0 ? ALIGN(sizes[SEC_CODE], section_groups[SEC_RODATA].align) + sizes[SEC_RODATA] : sizes[SEC_CODE];
+  size_t code_rodata_sz = section_groups[SEC_TEXT].ds->len;
 #if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
   const int flags = EF_RISCV_RVC | EF_RISCV_FLOAT_ABI_DOUBLE;
 #else
   const int flags = 0;
 #endif
   out_elf_header(fp, entry_address, phnum, 0, flags, 0);
-  out_program_header(fp, 0, PROG_START, loadadrs[SEC_CODE], code_rodata_sz, code_rodata_sz);
+  out_program_header(fp, 0, PROG_START, section_groups[SEC_TEXT].start_address, code_rodata_sz, code_rodata_sz);
   if (phnum > 1) {
-    size_t datamemsz = ALIGN(sizes[SEC_DATA], section_groups[SEC_BSS].align) + sizes[SEC_BSS];
+    size_t datamemsz = section_groups[SEC_DATA].ds->len + section_groups[SEC_DATA].bss_size;
     uintptr_t offset = PROG_START + code_rodata_sz;
-    if (sizes[SEC_DATA] > 0)
+    if (section_groups[SEC_DATA].ds->len > 0)
       offset = ALIGN(offset, DATA_ALIGN);
-    out_program_header(fp, 1, offset, loadadrs[SEC_DATA], sizes[SEC_DATA], datamemsz);
+    out_program_header(fp, 1, offset, section_groups[SEC_DATA].start_address, section_groups[SEC_DATA].ds->len, datamemsz);
   }
 
   uintptr_t addr = PROG_START;
-  for (int sec = 0; sec < SEC_BSS; ++sec) {
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     addr = ALIGN(addr, section_groups[sec].align);
-    if (sizes[sec] <= 0)
+    size_t size = section_groups[sec].ds->len;
+    if (size <= 0)
       continue;
     put_padding(fp, addr);
-    output_section(fp, sec);
-    addr += sizes[sec];
+    output_section(fp, &section_groups[sec]);
+    addr += size;
   }
   fclose(fp);
 
@@ -738,6 +747,13 @@ static Vector *parse_options(int argc, char *argv[], Options *opts) {
   return sources;
 }
 
+static const char *kCodeSectionNames[] = {".text", ".rodata", NULL};
+static const char *kDataSectionNames[] = {".data", ".bss", NULL};
+static const char **kSectionNames[] = {
+  [SEC_TEXT] = kCodeSectionNames,
+  [SEC_DATA] = kDataSectionNames,
+};
+
 static int do_link(Vector *sources, const Options *opts) {
   LinkEditor *ld = malloc_or_die(sizeof(*ld));
   ld_init(ld, sources->len);
@@ -764,14 +780,22 @@ static int do_link(Vector *sources, const Options *opts) {
   Vector *section_lists[SECTION_COUNT];  // <ElfSectionInfo*>
   for (int secno = 0; secno < SECTION_COUNT; ++secno) {
     Vector *seclist = new_vector();
-    ld_collect_sections(ld, secno, seclist);
-    section_lists[secno] = seclist;
+    for (const char **pp = kSectionNames[secno]; *pp != NULL; ++pp) {
+      ld_collect_sections(ld, *pp, seclist);
+      section_lists[secno] = seclist;
+    }
   }
 
   SectionGroup section_groups[SECTION_COUNT];
   for (int secno = 0; secno < SECTION_COUNT; ++secno) {
     SectionGroup *secgroup = &section_groups[secno];
-    secgroup->align = section_aligns[secno] = secno == SEC_DATA ? DATA_ALIGN : 1;
+    secgroup->align = secno == SEC_DATA ? DATA_ALIGN : 1;
+    secgroup->start_address = 0;
+    secgroup->ds = NULL;
+    secgroup->bss_size = 0;
+    secgroup->ds = calloc_or_die(sizeof(*secgroup->ds));
+    data_init(secgroup->ds);
+
     Vector *seclist = section_lists[secno];
     for (int i = 0; i < seclist->len; ++i) {
       ElfSectionInfo *p = seclist->data[i];
@@ -787,15 +811,13 @@ static int do_link(Vector *sources, const Options *opts) {
   if (error_count > 0)
     return 1;
 
-  for (int secno = 0; secno < SEC_BSS; ++secno) {
+  for (int secno = 0; secno < SECTION_COUNT; ++secno) {
     Vector *v = section_lists[secno];
     for (int i = 0; i < v->len; ++i) {
       ElfSectionInfo *p = v->data[i];
-      add_elf_section(p, secno);
+      add_elf_section(section_groups, p, secno);
     }
   }
-
-  fix_section_size(LOAD_ADDRESS);
 
   uintptr_t entry_address = ld_symbol_address(ld, entry_name);
   assert(entry_address != (uintptr_t)-1);
