@@ -433,8 +433,7 @@ static void link_archive(LinkEditor *ld, Archive *ar, Table *unresolved) {
   for (;;) {
     bool retry = false;
     const Name *name;
-    void *dummy;
-    for (int it = 0; (it = table_iterate(unresolved, it, &name, &dummy)) != -1;) {
+    for (int it = 0; (it = table_iterate(unresolved, it, &name, NULL)) != -1;) {
       ArSymbol *symbol;
       if (!table_try_get(table, name, (void**)&symbol))
         continue;
@@ -753,8 +752,7 @@ static int do_link(Vector *sources, const Options *opts) {
   if (unresolved.count > 0) {
     fprintf(stderr, "Unresolved: #%d\n", unresolved.count);
     const Name *name;
-    void *dummy;
-    for (int it = 0; (it = table_iterate(&unresolved, it, &name, &dummy)) != -1;) {
+    for (int it = 0; (it = table_iterate(&unresolved, it, &name, NULL)) != -1;) {
       fprintf(stderr, "  %.*s\n", NAMES(name));
     }
     return 1;

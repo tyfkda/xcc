@@ -211,7 +211,7 @@ static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs
         const Token *next = body->data[i + 1];
         intptr_t j;
         if (next->kind == TK_IDENT &&
-            param_table != NULL && table_try_get(param_table, next->ident, (void*)&j)) {
+            param_table != NULL && table_try_get(param_table, next->ident, (void**)&j)) {
           assert(j < args->len);
           const Vector *arg = args->data[j];
           const Token *str = stringize(arg);
@@ -227,7 +227,7 @@ static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs
         const Token *next = body->data[i + 1];
         if (next->kind == TK_IDENT) {
           intptr_t j;
-          if (param_table != NULL && table_try_get(param_table, next->ident, (void*)&j)) {
+          if (param_table != NULL && table_try_get(param_table, next->ident, (void**)&j)) {
             assert(j < args->len);
             const Vector *arg = args->data[j];
             if (arg->len > 0)
@@ -245,13 +245,13 @@ static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs
     case TK_IDENT:
       if (body->len > i + 1 && ((Token*)body->data[i + 1])->kind == PPTK_CONCAT) {
         intptr_t j;
-        if (param_table != NULL && table_try_get(param_table, tok->ident, (void*)&j)) {
+        if (param_table != NULL && table_try_get(param_table, tok->ident, (void**)&j)) {
           assert(j < args->len);
           const Vector *arg = args->data[j];
           if (arg->len == 0) {  // only if actuals can be empty
             intptr_t k;
             if (body->len > i + 2 && ((Token*)body->data[i + 2])->kind == TK_IDENT &&
-                table_try_get(param_table, ((Token*)body->data[i + 2])->ident, (void*)&k)) {
+                table_try_get(param_table, ((Token*)body->data[i + 2])->ident, (void**)&k)) {
               assert(k < args->len);
               const Vector *arg2 = args->data[k];
               for (int l = 0; l < arg2->len; ++l)
@@ -269,7 +269,7 @@ static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs
 
       if (param_table != NULL) {
         intptr_t j;
-        if (table_try_get(param_table, tok->ident, (void*)&j)) {
+        if (table_try_get(param_table, tok->ident, (void**)&j)) {
           assert(j < args->len);
           Vector *expanded = expanded_args[j];
           if (expanded == NULL) {
@@ -296,7 +296,7 @@ static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs
           ((Token*)body->data[i + 2])->kind == TK_IDENT && param_table != NULL) {
         const Token *next = body->data[i + 2];
         intptr_t j;
-        if (table_try_get(param_table, next->ident, (void*)&j) && j == macro->params_len) {
+        if (table_try_get(param_table, next->ident, (void**)&j) && j == macro->params_len) {
           const Vector *arg = args->data[j];
           if (arg->len == 0) {
             i += 2;  // Argument is empty, so omit `,` and `##`.

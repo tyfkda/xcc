@@ -604,8 +604,7 @@ static int resolve_symbols_archive(WasmLinker *linker, Archive *ar) {
   for (;;) {
     bool retry = false;
     const Name *name;
-    void *dummy;
-    for (int it = 0; (it = table_iterate(unresolved, it, &name, &dummy)) != -1;) {
+    for (int it = 0; (it = table_iterate(unresolved, it, &name, NULL)) != -1;) {
       ArSymbol *symbol;
       if (!table_try_get(table, name, (void**)&symbol))
         continue;
