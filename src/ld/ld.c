@@ -44,11 +44,14 @@ typedef struct {
 typedef struct {
   File *files;
   int nfiles;
+  Table *symbol_table;  // <ElfObj*>
 } LinkEditor;
 
 void ld_init(LinkEditor *ld, int nfiles) {
   ld->files = calloc_or_die(sizeof(*ld->files) * nfiles);
   ld->nfiles = nfiles;
+  ld->symbol_table = alloc_table();
+  assert(ld->symbol_table != NULL);
 }
 
 void ld_load(LinkEditor *ld, int i, const char *filename) {
@@ -79,58 +82,28 @@ void ld_load(LinkEditor *ld, int i, const char *filename) {
 }
 
 static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
-  ElfObj *elfobj = NULL;
-  Elf64_Sym *sym = NULL;
-  for (int i = 0; i < ld->nfiles; ++i) {
-    File *file = &ld->files[i];
-    switch (file->kind) {
-    case FK_ELFOBJ:
-      {
-        elfobj = file->elfobj;
-        sym = elfobj_find_symbol(elfobj, name);
-        if (sym != NULL) {
-          i = ld->nfiles;  // Found.
-          break;
-        }
-      }
-      break;
-    case FK_ARCHIVE:
-      {
-        Archive *ar = file->archive;
-        FOREACH_FILE_ARCONTENT(ar, content, {
-          elfobj = content->obj;
-          sym = elfobj_find_symbol(elfobj, name);
-          if (sym != NULL) {
-            i = ld->nfiles;  // Found.
-            break;
-          }
-        });
-      }
-      break;
-    }
-  }
-
-  uintptr_t address = (uintptr_t)-1;
-  if (sym != NULL) {
+  ElfObj *elfobj = table_get(ld->symbol_table, name);
+  if (elfobj != NULL) {
+    Elf64_Sym *sym = elfobj_find_symbol(elfobj, name);
     assert(sym != NULL && sym->st_shndx != SHN_UNDEF);
     if (sym->st_shndx < SHN_LORESERVE) {
 #ifndef NDEBUG
       const Elf64_Shdr *tshdr = &elfobj->shdrs[sym->st_shndx];
       assert(tshdr->sh_type == SHT_PROGBITS || tshdr->sh_type == SHT_NOBITS);
 #endif
-      address = elfobj->section_infos[sym->st_shndx].progbits.address + sym->st_value;
-    } else {
-      switch (sym->st_shndx) {
-      case SHN_COMMON:
-        assert(!"Unhandled shndx:common");
-        break;
-      default:
-        assert(!"Unhandled shndx");
-        break;
-      }
+      return elfobj->section_infos[sym->st_shndx].progbits.address + sym->st_value;
+    }
+
+    switch (sym->st_shndx) {
+    case SHN_COMMON:
+      assert(!"Unhandled shndx:common");
+      break;
+    default:
+      assert(!"Unhandled shndx");
+      break;
     }
   }
-  return address;
+  return (uintptr_t)-1;
 }
 
 // RISC-V
@@ -361,6 +334,7 @@ static void link_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unresolved) {
   ElfSectionInfo *strtab_section = symtab_section->symtab.strtab;
   const char *str = strtab_section->strtab.buf;
 
+  Table *defined = ld->symbol_table;
   Table *symbol_table = elfobj->symbol_table;
   const Name *name;
   Elf64_Sym *sym;
@@ -368,11 +342,18 @@ static void link_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unresolved) {
     if (ELF64_ST_TYPE(sym->st_info) == STT_SECTION || str[sym->st_name] == '\0')
       continue;
     const Name *name = alloc_name(&str[sym->st_name], NULL, false);
-    if (sym->st_shndx == SHN_UNDEF) {
-      if (ld_symbol_address(ld, name) == (uintptr_t)-1)
-        table_put(unresolved, name, (void*)name);
+
+    if (table_try_get(defined, name, NULL)) {
+      if (sym->st_shndx != SHN_UNDEF) {
+        // TODO: Raise duplicate symbol error.
+      }
     } else {
-      table_delete(unresolved, name);
+      if (sym->st_shndx == SHN_UNDEF) {
+        table_put(unresolved, name, (void*)name);
+      } else {
+        table_delete(unresolved, name);
+        table_put(defined, name, elfobj);
+      }
     }
   }
 }
