@@ -50,6 +50,7 @@ static const char *kDirectiveTable[] = {
   "zero",
   "globl",
   "local",
+  "weak",
   "extern",
 #ifndef __NO_FLONUM
   "float",
@@ -1020,17 +1021,23 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
 
   case DT_GLOBL:
   case DT_LOCAL:
+  case DT_WEAK:
     {
-      const Name *label = parse_label(info);
-      if (label == NULL) {
+      const Name *name = parse_label(info);
+      if (name == NULL) {
         char buf[32];
         snprintf(buf, sizeof(buf), "%s: label expected", dir == DT_GLOBL ? ".globl" : ".local");
         parse_error(info, buf);
         return;
       }
 
-      if (!add_label_table(info->label_table, label, section, false, dir == DT_GLOBL))
+      LabelInfo *label = add_label_table(info->label_table, name, section, false, dir == DT_GLOBL);
+      if (label == NULL) {
         ++info->error_count;
+      } else {
+        if (dir == DT_WEAK)
+          label->flag |= LF_WEAK;
+      }
     }
     break;
 

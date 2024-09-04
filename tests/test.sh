@@ -396,6 +396,14 @@ test_link() {
   link_error 'Non-extern inline function cannot be linked'     tmp_link_inline1.c tmp_link_inline2.c
   link_success 'Extern inline function can be linked' -DEXTERN tmp_link_inline1.c tmp_link_inline2.c
 
+  # weak function can be overridden.
+  echo '__attribute__((weak)) int weakfunc(void) {return 11;} int main(void){return !(weakfunc() == ANS);}' > tmp_link_weak1.c
+  echo 'int weakfunc(void) {return 22;}' > tmp_link_weak2.c
+  echo '__attribute__((weak)) int weakfunc(void) {return 33;}' > tmp_link_weak3.c
+  link_success 'weak function can be called'     -DANS=11 tmp_link_weak1.c
+  link_success 'weak function can be overridden' -DANS=22 tmp_link_weak1.c tmp_link_weak2.c
+  link_success 'first weak function alive'       -DANS=11 tmp_link_weak1.c tmp_link_weak3.c
+
   end_test_suite
 }
 

@@ -56,7 +56,8 @@ static void load_symtab(ElfObj *elfobj) {
     elfobj->symbol_table = symbol_table;
     for (size_t i = 0, count = p->symtab.count; i < count; ++i) {
       Elf64_Sym *sym = &symbols[i];
-      if (ELF64_ST_BIND(sym->st_info) == STB_GLOBAL) {
+      unsigned char bind = ELF64_ST_BIND(sym->st_info);
+      if (bind == STB_GLOBAL || bind == STB_WEAK) {
         const Name *name = alloc_name(&strbuf[sym->st_name], NULL, false);
         table_put(symbol_table, name, sym);
       }

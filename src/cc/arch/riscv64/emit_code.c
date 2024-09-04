@@ -136,7 +136,9 @@ void emit_defun(Function *func) {
 
   {
     char *label = format_func_name(func->name, global);
-    if (global)
+    if (is_weak_attr(func->attributes))
+      _WEAK(label);
+    else if (global)
       _GLOBL(label);
     else
       _LOCAL(label);

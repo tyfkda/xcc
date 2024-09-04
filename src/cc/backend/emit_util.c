@@ -300,6 +300,10 @@ char *format_func_name(const Name *funcname, bool global) {
   return label;
 }
 
+bool is_weak_attr(Table *attributes) {
+  return attributes != NULL && table_try_get(attributes, alloc_name("weak", NULL, false), NULL);
+}
+
 static void emit_asm(Expr *asmstr) {
   assert(asmstr->kind == EX_STR);
   EMIT_ASM(asmstr->str.buf);

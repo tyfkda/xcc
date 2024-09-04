@@ -10,6 +10,7 @@ typedef struct BBContainer BBContainer;
 typedef struct Function Function;
 typedef struct FuncBackend FuncBackend;
 typedef struct Initializer Initializer;
+typedef struct Table Table;
 typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 
@@ -54,6 +55,7 @@ bool function_not_returned(FuncBackend *fnbe);
 #define _FLOAT(x)      EMIT_ASM(".float", x)
 #define _DOUBLE(x)     EMIT_ASM(".double", x)
 #define _GLOBL(x)      EMIT_ASM(".globl", x)
+#define _WEAK(x)       EMIT_ASM(".weak", x)
 #define _ASCII(x)      EMIT_ASM(".ascii", x)
 #define _STRING(x)     EMIT_ASM(".string", x)
 #define _SECTION(x)    EMIT_ASM(".section", x)
@@ -80,6 +82,7 @@ bool function_not_returned(FuncBackend *fnbe);
 
 bool is_fall_path_only(BBContainer *bbcon, int i);
 char *format_func_name(const Name *funcname, bool global);
+bool is_weak_attr(Table *attributes);
 
 void emit_code(Vector *decls);
 extern void emit_defun(Function *func);
