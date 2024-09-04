@@ -45,6 +45,32 @@ typedef struct {
   };
 } File;
 
+enum LinkElemKind {
+  LEK_SECTION,
+  LEK_SYMBOL,
+  LEK_ALIGN,
+};
+
+typedef struct {
+  enum LinkElemKind kind;
+  union {
+    struct {
+      const char *name;
+      Vector *list;  // <ElfSectionInfo*>
+    } section;
+    struct {
+      uintptr_t address;
+    } symbol;
+    Elf64_Xword align;
+  };
+} LinkElem;
+
+static LinkElem *new_link_elem(enum LinkElemKind kind) {
+  LinkElem *elem = calloc_or_die(sizeof(*elem));
+  elem->kind = kind;
+  return elem;
+}
+
 typedef struct {
   size_t align;
   uintptr_t start_address;
@@ -56,6 +82,7 @@ typedef struct {
   File *files;
   int nfiles;
   Table *symbol_table;  // <ElfObj*>
+  Table *generated_symbol_table;  // <LinkElem*>
 } LinkEditor;
 
 void ld_init(LinkEditor *ld, int nfiles) {
@@ -63,6 +90,8 @@ void ld_init(LinkEditor *ld, int nfiles) {
   ld->nfiles = nfiles;
   ld->symbol_table = alloc_table();
   assert(ld->symbol_table != NULL);
+  ld->generated_symbol_table = alloc_table();
+  assert(ld->generated_symbol_table != NULL);
 }
 
 void ld_load(LinkEditor *ld, int i, const char *filename) {
@@ -112,6 +141,12 @@ static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
     default:
       assert(!"Unhandled shndx");
       break;
+    }
+  } else {
+    LinkElem *elem = table_get(ld->generated_symbol_table, name);
+    if (elem != NULL) {
+      assert(elem->kind == LEK_SYMBOL);
+      return elem->symbol.address;
     }
   }
   return (uintptr_t)-1;
@@ -353,6 +388,7 @@ static void resolve_symbols_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unreso
   const char *str = strtab_section->strtab.buf;
 
   Table *defined = ld->symbol_table;
+  Table *generated = ld->generated_symbol_table;
   Table *symbol_table = elfobj->symbol_table;
   const Name *name;
   Elf64_Sym *sym;
@@ -361,7 +397,7 @@ static void resolve_symbols_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unreso
       continue;
     const Name *name = alloc_name(&str[sym->st_name], NULL, false);
 
-    if (table_try_get(defined, name, NULL)) {
+    if (table_try_get(defined, name, NULL) || table_try_get(generated, name, NULL)) {
       if (sym->st_shndx != SHN_UNDEF) {
         // TODO: Raise duplicate symbol error.
       }
@@ -510,19 +546,35 @@ static void ld_calc_address(SectionGroup section_groups[SECTION_COUNT], Vector *
     SectionGroup *secgroup = &section_groups[secno];
     secgroup->start_address = address = ALIGN(address, secgroup->align);
     for (int i = 0; i < v->len; ++i) {
-      ElfSectionInfo *p = v->data[i];
-      Elf64_Shdr *shdr = p->shdr;
-      size_t align = shdr->sh_addralign;
-      address = ALIGN(address, align);
-      p->progbits.address = address;
-      size_t size = shdr->sh_size;
-      address += size;
+      LinkElem *elem = v->data[i];
+      switch (elem->kind) {
+      case LEK_SECTION:
+        {
+          Vector *list = elem->section.list;
+          for (int j = 0; j < list->len; ++j) {
+            ElfSectionInfo *p = list->data[j];
+            Elf64_Shdr *shdr = p->shdr;
+            size_t align = shdr->sh_addralign;
+            address = ALIGN(address, align);
+            p->progbits.address = address;
+            size_t size = shdr->sh_size;
+            address += size;
 
-      if (align > secgroup->align)
-        secgroup->align = align;
+            if (align > secgroup->align)
+              secgroup->align = align;
 
-      if (p->shdr->sh_type == SHT_NOBITS)
-        secgroup->bss_size += size;
+            if (p->shdr->sh_type == SHT_NOBITS)
+              secgroup->bss_size += size;
+          }
+        }
+        break;
+      case LEK_SYMBOL:
+        elem->symbol.address = address;
+        break;
+      case LEK_ALIGN:
+        address = ALIGN(address, elem->align);
+        break;
+      }
     }
   }
 }
@@ -534,15 +586,28 @@ static void ld_load_elf_objects(Vector *section_lists[SECTION_COUNT]) {
       continue;
 
     for (int i = 0; i < v->len; ++i) {
-      ElfSectionInfo *p = v->data[i];
-      Elf64_Shdr *shdr = p->shdr;
-      if (shdr->sh_type == SHT_PROGBITS) {
-        Elf64_Xword size = shdr->sh_size;
-        assert(size > 0);
+      LinkElem *elem = v->data[i];
+      switch (elem->kind) {
+      case LEK_SECTION:
+        {
+          Vector *list = elem->section.list;
+          for (int j = 0; j < list->len; ++j) {
+            ElfSectionInfo *p = list->data[j];
+            Elf64_Shdr *shdr = p->shdr;
+            if (shdr->sh_type == SHT_PROGBITS) {
+              Elf64_Xword size = shdr->sh_size;
+              assert(size > 0);
 
-        ElfObj *elfobj = p->elfobj;
-        void *buf = read_or_die(elfobj->fp, NULL, shdr->sh_offset + elfobj->start_offset, size, "read error");
-        p->progbits.content = buf;
+              ElfObj *elfobj = p->elfobj;
+              void *buf = read_or_die(elfobj->fp, NULL, shdr->sh_offset + elfobj->start_offset, size, "read error");
+              p->progbits.content = buf;
+            }
+          }
+        }
+        break;
+      case LEK_SYMBOL:
+      case LEK_ALIGN:
+        break;
       }
     }
   }
@@ -649,6 +714,40 @@ static void dump_map_file(LinkEditor *ld, FILE *fp) {
       break;
     }
   }
+
+  fprintf(fp, "--- generated symbols\n");
+  LinkElem* elem;
+  const Name *name;
+  for (int it = 0; (it = table_iterate(ld->generated_symbol_table, it, &name, (void**)&elem)) != -1; ) {
+    assert(elem->kind == LEK_SYMBOL);
+    uintptr_t address = elem->symbol.address;
+    fprintf(fp, "%9lx: %.*s\n", address, NAMES(name));
+  }
+}
+
+static bool output_map_file(LinkEditor *ld, const char *outmapfn, uintptr_t entry_address, const Name *entry_name) {
+  FILE *mapfp;
+  if (strcmp(outmapfn, "-") == 0) {
+    mapfp = stdout;
+  } else {
+    mapfp = fopen(outmapfn, "w");
+    if (mapfp == NULL) {
+      perror("Failed to open map file");
+      return false;
+    }
+  }
+
+  fprintf(mapfp, "### Symbols\n");
+  fprintf(mapfp, "%9lx:  (start address)\n", (long)LOAD_ADDRESS);
+  dump_map_file(ld, mapfp);
+
+  fprintf(mapfp, "\n### Entry point\n");
+  fprintf(mapfp, "%9lx: %.*s\n", entry_address, NAMES(entry_name));
+
+  if (mapfp != stdout)
+    fclose(mapfp);
+
+  return true;
 }
 
 // search 'libXXX.a' from library paths.
@@ -747,12 +846,145 @@ static Vector *parse_options(int argc, char *argv[], Options *opts) {
   return sources;
 }
 
-static const char *kCodeSectionNames[] = {".text", ".rodata", NULL};
-static const char *kDataSectionNames[] = {".data", ".bss", NULL};
-static const char **kSectionNames[] = {
+typedef struct {
+  enum LinkElemKind kind;
+  union {
+    struct {
+      const char *name;
+    } section;
+    struct {
+      const char *name;
+    } symbol;
+    size_t align;
+  };
+} ElemData;
+
+static const ElemData kCodeSectionNames[] = {
+  {.kind = LEK_SECTION, .section = {.name = ".text"}},
+  {.kind = LEK_SECTION, .section = {.name = ".rodata"}},
+  {.kind = -1},
+};
+static const ElemData kDataSectionNames[] = {
+  {.kind = LEK_SECTION, .section = {.name = ".data"}},
+  {.kind = LEK_SECTION, .section = {.name = ".bss"}},
+  {.kind = -1},
+};
+static const ElemData *kSectionNames[] = {
   [SEC_TEXT] = kCodeSectionNames,
   [SEC_DATA] = kDataSectionNames,
 };
+
+static void prepare_section_lists(LinkEditor *ld, Vector *section_lists[SECTION_COUNT]) {
+  for (int secno = 0; secno < SECTION_COUNT; ++secno) {
+    Vector *seclist = new_vector();
+    section_lists[secno] = seclist;
+    for (const ElemData *p = kSectionNames[secno]; (int)p->kind >= 0; ++p) {
+      LinkElem *elem = NULL;
+      switch (p->kind) {
+      case LEK_SECTION:
+        elem = new_link_elem(LEK_SECTION);
+        elem->section.name = p->section.name;
+        elem->section.list = new_vector();
+        break;
+      case LEK_SYMBOL:
+        elem = new_link_elem(LEK_SYMBOL);
+        elem->symbol.address = 0;
+        table_put(ld->generated_symbol_table, alloc_name(p->symbol.name, NULL, false), elem);
+        break;
+      case LEK_ALIGN:
+        elem = new_link_elem(LEK_ALIGN);
+        elem->align = p->align;
+        break;
+      }
+      if (elem != NULL)
+        vec_push(seclist, elem);
+    }
+  }
+}
+
+static void collect_sections(LinkEditor *ld, Vector *section_lists[SECTION_COUNT]) {
+  for (int secno = 0; secno < SECTION_COUNT; ++secno) {
+    Vector *seclist = section_lists[secno];
+    for (int i = 0; i < seclist->len; ++i) {
+      LinkElem *elem = seclist->data[i];
+      switch (elem->kind) {
+      case LEK_SECTION:
+        ld_collect_sections(ld, elem->section.name, elem->section.list);
+        break;
+      case LEK_SYMBOL:
+      case LEK_ALIGN:
+        break;
+      }
+    }
+  }
+}
+
+static void prepare_section_groups(Vector *section_lists[SECTION_COUNT], SectionGroup section_groups[SECTION_COUNT]) {
+  for (int secno = 0; secno < SECTION_COUNT; ++secno) {
+    SectionGroup *secgroup = &section_groups[secno];
+    secgroup->align = secno == SEC_DATA ? DATA_ALIGN : 1;
+    secgroup->start_address = 0;
+    secgroup->ds = NULL;
+    secgroup->bss_size = 0;
+    secgroup->ds = calloc_or_die(sizeof(*secgroup->ds));
+    data_init(secgroup->ds);
+
+    Vector *seclist = section_lists[secno];
+    for (int i = 0; i < seclist->len; ++i) {
+      LinkElem *elem = seclist->data[i];
+      switch (elem->kind) {
+      case LEK_SECTION:
+        {
+          Vector *list = elem->section.list;
+          for (int j = 0; j < list->len; ++j) {
+            ElfSectionInfo *p = list->data[j];
+            Elf64_Xword align = p->shdr->sh_addralign;
+            if (align > secgroup->align)
+              secgroup->align = align;
+          }
+        }
+        break;
+      case LEK_SYMBOL:
+        break;
+      case LEK_ALIGN:
+        {
+          Elf64_Xword align = elem->align;
+          if (align > secgroup->align)
+            secgroup->align = align;
+        }
+        break;
+      }
+    }
+  }
+}
+
+static void collect_section_data(Vector *section_lists[SECTION_COUNT], SectionGroup section_groups[SECTION_COUNT]) {
+  for (int secno = 0; secno < SECTION_COUNT; ++secno) {
+    Vector *v = section_lists[secno];
+    for (int i = 0; i < v->len; ++i) {
+      LinkElem *elem = v->data[i];
+      switch (elem->kind) {
+      case LEK_SECTION:
+        {
+          Vector *list = elem->section.list;
+          for (int j = 0; j < list->len; ++j) {
+            ElfSectionInfo *p = list->data[j];
+            add_elf_section(section_groups, p, secno);
+          }
+        }
+        break;
+      case LEK_SYMBOL:
+        break;
+      case LEK_ALIGN:
+        {
+          SectionGroup *secgroup = &section_groups[secno];
+          data_align(secgroup->ds, elem->align);
+        }
+        break;
+      }
+    }
+  }
+}
 
 static int do_link(Vector *sources, const Options *opts) {
   LinkEditor *ld = malloc_or_die(sizeof(*ld));
@@ -767,6 +999,9 @@ static int do_link(Vector *sources, const Options *opts) {
   table_init(&unresolved);
   table_put(&unresolved, entry_name, (void*)entry_name);
 
+  Vector *section_lists[SECTION_COUNT];  // <LinkElem*>
+  prepare_section_lists(ld, section_lists);
+
   ld_resolve_symbols(ld, &unresolved);
   if (unresolved.count > 0) {
     fprintf(stderr, "Unresolved: #%d\n", unresolved.count);
@@ -777,33 +1012,11 @@ static int do_link(Vector *sources, const Options *opts) {
     return 1;
   }
 
-  Vector *section_lists[SECTION_COUNT];  // <ElfSectionInfo*>
-  for (int secno = 0; secno < SECTION_COUNT; ++secno) {
-    Vector *seclist = new_vector();
-    for (const char **pp = kSectionNames[secno]; *pp != NULL; ++pp) {
-      ld_collect_sections(ld, *pp, seclist);
-      section_lists[secno] = seclist;
-    }
-  }
+  collect_sections(ld, section_lists);
 
   SectionGroup section_groups[SECTION_COUNT];
-  for (int secno = 0; secno < SECTION_COUNT; ++secno) {
-    SectionGroup *secgroup = &section_groups[secno];
-    secgroup->align = secno == SEC_DATA ? DATA_ALIGN : 1;
-    secgroup->start_address = 0;
-    secgroup->ds = NULL;
-    secgroup->bss_size = 0;
-    secgroup->ds = calloc_or_die(sizeof(*secgroup->ds));
-    data_init(secgroup->ds);
+  prepare_section_groups(section_lists, section_groups);
 
-    Vector *seclist = section_lists[secno];
-    for (int i = 0; i < seclist->len; ++i) {
-      ElfSectionInfo *p = seclist->data[i];
-      Elf64_Xword align = p->shdr->sh_addralign;
-      if (align > secgroup->align)
-        secgroup->align = align;
-    }
-  }
   ld_calc_address(section_groups, section_lists, LOAD_ADDRESS);
   ld_load_elf_objects(section_lists);
 
@@ -811,39 +1024,15 @@ static int do_link(Vector *sources, const Options *opts) {
   if (error_count > 0)
     return 1;
 
-  for (int secno = 0; secno < SECTION_COUNT; ++secno) {
-    Vector *v = section_lists[secno];
-    for (int i = 0; i < v->len; ++i) {
-      ElfSectionInfo *p = v->data[i];
-      add_elf_section(section_groups, p, secno);
-    }
-  }
+  collect_section_data(section_lists, section_groups);
 
   uintptr_t entry_address = ld_symbol_address(ld, entry_name);
   assert(entry_address != (uintptr_t)-1);
 
   bool result = output_exe(opts->ofn, entry_address, section_groups);
 
-  if (opts->outmapfn != NULL && result) {
-    FILE *mapfp;
-    if (strcmp(opts->outmapfn, "-") == 0) {
-      mapfp = stdout;
-    } else {
-      mapfp = fopen(opts->outmapfn, "w");
-      if (mapfp == NULL)
-        perror("Failed to open map file");
-    }
-
-    fprintf(mapfp, "### Symbols\n");
-    fprintf(mapfp, "%9lx:  (start address)\n", (long)LOAD_ADDRESS);
-    dump_map_file(ld, mapfp);
-
-    fprintf(mapfp, "\n### Entry point\n");
-    fprintf(mapfp, "%9lx: %.*s\n", entry_address, NAMES(entry_name));
-
-    if (mapfp != stdout)
-      fclose(mapfp);
-  }
+  if (opts->outmapfn != NULL && result)
+    result = output_map_file(ld, opts->outmapfn, entry_address, entry_name);
   return result ? 0 : 1;
 }
 
