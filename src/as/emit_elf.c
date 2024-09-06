@@ -448,21 +448,17 @@ int emit_elf_obj(const char *ofn, Table *label_table, Vector *unresolved) {
   };
   data_append(&section_headers, &symtabsec, sizeof(symtabsec));
 
+  uintptr_t shstrtab_ofs = addr;  // ALIGN(addr, 0x10);
+  size_t shstrtab_name = strtab_add(&shstrtab, alloc_name(".shstrtab", NULL, false));
   Elf64_Shdr shstrtabsec = {
-    .sh_name = strtab_add(&shstrtab, alloc_name(".shstrtab", NULL, false)),
+    .sh_name = shstrtab_name,
     .sh_type = SHT_STRTAB,
-    .sh_offset = 0,  // Dummy
-    .sh_size = 0,    // Dummy
+    .sh_offset = shstrtab_ofs,
+    .sh_size = shstrtab.size,
     .sh_addralign = 1,
   };
   data_append(&section_headers, &shstrtabsec, sizeof(shstrtabsec));
-
-  uintptr_t shstrtab_ofs = addr;  // ALIGN(addr, 0x10);
   addr += shstrtab.size;
-
-  Elf64_Shdr *pshstrtabsec = (Elf64_Shdr*)(section_headers.buf + section_headers.len - sizeof(Elf64_Shdr));
-  pshstrtabsec->sh_offset = shstrtab_ofs;
-  pshstrtabsec->sh_size = shstrtab.size;
 
   uintptr_t sh_ofs = addr = ALIGN(addr, 0x10);
   // addr += section_headers.len;
