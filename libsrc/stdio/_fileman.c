@@ -38,3 +38,12 @@ void _remove_opened_file(FILE *fp) {
     }
   }
 }
+
+__attribute__((destructor))
+static void flush_opened_files(void) {
+  struct FILE **files = __fileman.opened;
+  for (int i = 0, length = __fileman.length; i < length; ++i) {
+    FILE *fp = files[i];
+    (fp->flush)(fp);
+  }
+}

@@ -32,7 +32,7 @@ static void _finit(FILE *fp) {
   fp->flag |= FF_INITIALIZED;
 }
 
-static ssize_t _fread(void *cookie, char *buf, size_t total) {
+ssize_t _fread(void *cookie, char *buf, size_t total) {
   FILE *fp = cookie;
   _finit(fp);
   unsigned char *p = (unsigned char*)buf;
@@ -81,7 +81,7 @@ static ssize_t _fread(void *cookie, char *buf, size_t total) {
   return (uintptr_t)(p - (unsigned char*)buf);
 }
 
-static ssize_t _fwrite(void *cookie, const char *buf, size_t size) {
+ssize_t _fwrite(void *cookie, const char *buf, size_t size) {
   FILE *fp = cookie;
   _finit(fp);
   if (fp->wp >= fp->wcapa && (*fp->flush)(fp) != 0)
@@ -112,7 +112,7 @@ int _fflush(FILE *fp) {
   return 0;
 }
 
-static int _fseek(void *cookie, off_t *offset, int origin) {
+int _fseek(void *cookie, off_t *offset, int origin) {
   FILE *fp = cookie;
   off_t result = lseek(fp->fd, *offset, origin);
   if (result == -1)
@@ -122,19 +122,3 @@ static int _fseek(void *cookie, off_t *offset, int origin) {
   *offset = result;
   return 0;
 }
-
-static int _fclose(void *cookie) {
-  FILE *fp = cookie;
-  _remove_opened_file(fp);
-  (*fp->flush)(fp);
-  close(fp->fd);
-  free(fp);
-  return 0;
-}
-
-const cookie_io_functions_t _kFileCookieIoFunctions = {
-  .read = _fread,
-  .write = _fwrite,
-  .seek = _fseek,
-  .close = _fclose,
-};

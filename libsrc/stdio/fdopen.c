@@ -3,11 +3,21 @@
 #include "fcntl.h"  // O_ACCMODE, etc.
 #include "stdlib.h"  // calloc
 #include "string.h"  // strchr
+#include "unistd.h"  // close
 
 #include "_file.h"
 
 #define RCAPA  256
 #define WCAPA  128
+
+static int _fclose(void *cookie) {
+  FILE *fp = cookie;
+  _remove_opened_file(fp);
+  (*fp->flush)(fp);
+  close(fp->fd);
+  free(fp);
+  return 0;
+}
 
 FILE *fdopen(int fd, const char *mode) {
   // TODO: Validate fd.
@@ -26,7 +36,14 @@ FILE *fdopen(int fd, const char *mode) {
 
   FILE *fp = calloc(1, size);
   if (fp != NULL) {
-    fp->iof = &_kFileCookieIoFunctions;
+    static const cookie_io_functions_t kIof = {
+      .read = _fread,
+      .write = _fwrite,
+      .seek = _fseek,
+      .close = _fclose,
+    };
+
+    fp->iof = &kIof;
     fp->flush = _fflush;
     fp->fd = fd;
     fp->rp = fp->rs = fp->rcapa = 0;
