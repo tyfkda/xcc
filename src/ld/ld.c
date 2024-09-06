@@ -170,10 +170,17 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
     const Elf64_Shdr *symhdr = &elfobj->shdrs[shdr->sh_link];
     const ElfSectionInfo *symhdrinfo = &elfobj->section_infos[shdr->sh_link];
     const ElfSectionInfo *strinfo = &elfobj->section_infos[symhdr->sh_link];
-    assert(elfobj->shdrs[shdr->sh_info].sh_type == SHT_PROGBITS);
     const ElfSectionInfo *dst_info = &elfobj->section_infos[shdr->sh_info];
+    assert(dst_info->shdr->sh_type == SHT_PROGBITS);
+    if (dst_info->progbits.content == NULL) {
+      // Target section is not collected, so skip relocation.
+      continue;
+    }
+
+    size_t symbol_count = elfobj->symtab_section->shdr->sh_size / sizeof(Elf64_Sym);
     for (size_t j = 0, n = shdr->sh_size / sizeof(Elf64_Rela); j < n; ++j) {
       const Elf64_Rela *rela = &relas[j];
+      assert(ELF64_R_SYM(rela->r_info) < symbol_count);
       const Elf64_Sym *sym = &symhdrinfo->symtab.syms[ELF64_R_SYM(rela->r_info)];
       uintptr_t address = calc_rela_sym_address(ld, elfobj, rela, sym, strinfo);
 
