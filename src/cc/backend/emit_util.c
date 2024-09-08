@@ -230,7 +230,7 @@ static void emit_string(void *ud, Expr *str, size_t size) {
     _ASCII(escaped);
 }
 
-void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
+static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
   static const ConstructInitialValueVTable kVtable = {
     .emit_align = emit_align,
     .emit_number = emit_number,
@@ -278,4 +278,36 @@ bool is_fall_path_only(BBContainer *bbcon, int i) {
   int len;
   return bb->from_bbs->len == 1 && bb->from_bbs->data[0] == (pbb = bbcon->bbs->data[i - 1]) &&
          ((len = pbb->irs->len) == 0 || ((IR*)pbb->irs->data[len - 1])->kind != IR_TJMP);
+}
+
+static void emit_asm(Expr *asmstr) {
+  assert(asmstr->kind == EX_STR);
+  EMIT_ASM(asmstr->str.buf);
+}
+
+void emit_code(Vector *decls) {
+  for (int i = 0, len = decls->len; i < len; ++i) {
+    Declaration *decl = decls->data[i];
+    if (decl == NULL)
+      continue;
+
+    switch (decl->kind) {
+    case DCL_DEFUN:
+      emit_defun(decl->defun.func);
+      break;
+    case DCL_VARDECL:
+      break;
+    case DCL_ASM:
+      emit_asm(decl->asmstr);
+      break;
+    }
+  }
+
+  emit_comment(NULL);
+  for (int i = 0; i < global_scope->vars->len; ++i) {
+    VarInfo *varinfo = global_scope->vars->data[i];
+    if ((varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) || varinfo->type->kind == TY_FUNC)
+      continue;
+    emit_varinfo(varinfo, varinfo->global.init);
+  }
 }

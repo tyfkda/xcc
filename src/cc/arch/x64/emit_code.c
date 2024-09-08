@@ -148,7 +148,7 @@ static void move_params_to_assigned(Function *func) {
   }
 }
 
-static void emit_defun(Function *func) {
+void emit_defun(Function *func) {
   if (func->scopes == NULL ||  // Prototype definition.
       func->extra == NULL)     // Code emission is omitted.
     return;
@@ -251,36 +251,4 @@ static void emit_defun(Function *func) {
   }
 
   // Static variables are emitted through global variables.
-}
-
-static void emit_asm(Expr *asmstr) {
-  assert(asmstr->kind == EX_STR);
-  EMIT_ASM(asmstr->str.buf);
-}
-
-void emit_code(Vector *decls) {
-  for (int i = 0, len = decls->len; i < len; ++i) {
-    Declaration *decl = decls->data[i];
-    if (decl == NULL)
-      continue;
-
-    switch (decl->kind) {
-    case DCL_DEFUN:
-      emit_defun(decl->defun.func);
-      break;
-    case DCL_VARDECL:
-      break;
-    case DCL_ASM:
-      emit_asm(decl->asmstr);
-      break;
-    }
-  }
-
-  emit_comment(NULL);
-  for (int i = 0; i < global_scope->vars->len; ++i) {
-    VarInfo *varinfo = global_scope->vars->data[i];
-    if ((varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) || varinfo->type->kind == TY_FUNC)
-      continue;
-    emit_varinfo(varinfo, varinfo->global.init);
-  }
 }

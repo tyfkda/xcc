@@ -7,9 +7,11 @@
 #include <stdio.h>
 
 typedef struct BBContainer BBContainer;
+typedef struct Function Function;
 typedef struct FuncBackend FuncBackend;
 typedef struct Initializer Initializer;
 typedef struct VarInfo VarInfo;
+typedef struct Vector Vector;
 
 #ifndef EMIT_LABEL
 #define EMIT_LABEL(label)  emit_label(label)
@@ -74,5 +76,7 @@ bool function_not_returned(FuncBackend *fnbe);
 #define MANGLE(label)  mangle(label)
 #endif
 
-void emit_varinfo(const VarInfo *varinfo, const Initializer *init);
 bool is_fall_path_only(BBContainer *bbcon, int i);
+
+void emit_code(Vector *decls);
+extern void emit_defun(Function *func);
