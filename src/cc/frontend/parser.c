@@ -948,6 +948,82 @@ static Declaration *parse_declaration(void) {
   return NULL;
 }
 
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+static void generate_dtor_func(Vector *decls) {
+  const Name *destructor_name = alloc_name("destructor", NULL, false);
+  Vector *dtors = NULL;
+  for (int i = 0, len = decls->len; i < len; ++i) {
+    Declaration *decl = decls->data[i];
+    if (decl == NULL || decl->kind != DCL_DEFUN)
+      continue;
+    Function *func = decl->defun.func;
+    if (func->attributes != NULL) {
+      if (table_try_get(func->attributes, destructor_name, NULL)) {
+        if (dtors == NULL)
+          dtors = new_vector();
+        vec_push(dtors, func);
+      }
+    }
+  }
+  if (dtors == NULL)
+    return;
+
+  // Declare: extern void __dso_handle();
+  const Name *dso_handle_name = alloc_name("__dso_handle", NULL, false);
+  scope_add(global_scope, dso_handle_name, &tyVoidPtr, VS_EXTERN);
+
+  // Declare: extern int __cxa_atexit(void*, void*, void*);
+  const Name *cxa_atexit_name = alloc_name("__cxa_atexit", NULL, false);
+  Type *cxa_atexit_functype = new_func_type(&tyVoid, NULL, false);
+  define_func(cxa_atexit_functype, alloc_ident(cxa_atexit_name, NULL, cxa_atexit_name->chars, NULL), new_vector(), VS_EXTERN, NULL);
+
+  // Generate function that calls destructors. It is marked as `constructor` to register thenm.
+
+  Type *functype = new_func_type(&tyVoid, new_vector(), false);
+  const Token *functok = alloc_dummy_ident();
+  Table *attributes = alloc_table();
+  assert(attributes != NULL);
+  table_put(attributes, alloc_name("constructor", NULL, false), NULL);
+  Function *func = define_func(functype, functok, new_vector(), VS_STATIC, attributes);
+
+  func->flag |= FUNCF_HAS_FUNCALL;  // Make frame pointer saved on prologue.
+
+  assert(curfunc == NULL);
+  assert(is_global_scope(curscope));
+  curfunc = func;
+
+  Vector *top_vars = new_vector();
+  func->scopes = new_vector();
+  Scope *scope = enter_scope(func);
+  scope->vars = top_vars;
+
+  // Construct function body: call destructors.
+  Vector *cxa_atexit_param_types = new_vector();
+  vec_push(cxa_atexit_param_types, &tyVoidPtr);  // void (*func)(void*)
+  vec_push(cxa_atexit_param_types, &tyVoidPtr);
+  vec_push(cxa_atexit_param_types, &tyVoidPtr);
+  Type *cxa_atexit_type = new_func_type(&tyInt, cxa_atexit_param_types, false);
+  Vector *stmts = new_vector();
+  for (int i = 0; i < dtors->len; ++i) {
+    Function *dtor = dtors->data[i];
+    // __cxa_atexit(func, NULL, &__dso_handle);
+    const Token *token = NULL;
+    Vector *args = new_vector();
+    vec_push(args, new_expr_variable(dtor->name, dtor->type, token, global_scope));
+    vec_push(args, new_expr_fixlit(&tyVoidPtr, token, 0));
+    vec_push(args, new_expr_unary(EX_REF, &tyVoidPtr, NULL, new_expr_variable(dso_handle_name, &tyVoidPtr, token, global_scope)));
+    Expr *func = new_expr_variable(cxa_atexit_name, cxa_atexit_type, token, global_scope);
+    Expr *call = new_expr_funcall(token, func, args);
+    vec_push(stmts, new_stmt_expr(call));
+  }
+  func->body_block = new_stmt_block(NULL, stmts, scope, NULL);
+
+  curfunc = NULL;
+
+  vec_push(decls, new_decl_defun(func));
+}
+#endif
+
 void parse(Vector *decls) {
   curscope = global_scope;
 
@@ -956,4 +1032,8 @@ void parse(Vector *decls) {
     if (decl != NULL)
       vec_push(decls, decl);
   }
+
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+  generate_dtor_func(decls);
+#endif
 }

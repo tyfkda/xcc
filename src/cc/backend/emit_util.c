@@ -9,6 +9,7 @@
 
 #include "ast.h"
 #include "cc_misc.h"
+#include "fe_misc.h"
 #include "ir.h"
 #include "table.h"
 #include "type.h"
@@ -316,6 +317,21 @@ static void emit_decls_ctor_dtor(Vector *decls) {
   if (ctors->len <= 0 && dtors->len <= 0)
     return;
 
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+  emit_comment(NULL);
+  _SECTION("__DATA,__mod_init_func,mod_init_funcs");
+  EMIT_ALIGN(8);
+  for (int i = 0; i < ctors->len; ++i) {
+    Function *func = ctors->data[i];
+    bool global = true;
+    const VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
+    if (varinfo != NULL)
+      global = (varinfo->storage & VS_STATIC) == 0;
+    _QUAD(format_func_name(func->name, global));
+  }
+  // For Apple platforms, the constructor function that registers the destructor function is
+  // generated, so no need to handle the destructor functions.
+#else
   if (ctors->len > 0) {
     emit_comment(NULL);
     _SECTION(".init_array");
@@ -342,6 +358,7 @@ static void emit_decls_ctor_dtor(Vector *decls) {
       _QUAD(format_func_name(func->name, global));
     }
   }
+#endif
 }
 
 void emit_code(Vector *decls) {

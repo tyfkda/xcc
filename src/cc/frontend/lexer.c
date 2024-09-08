@@ -152,7 +152,7 @@ void lex_error(const char *p, const char *fmt, ...) {
   exit(1);
 }
 
-static Token *alloc_ident(const Name *name, Line *line, const char *begin, const char *end) {
+Token *alloc_ident(const Name *name, Line *line, const char *begin, const char *end) {
   Token *tok = alloc_token(TK_IDENT, line, begin, end);
   tok->ident = name;
   return tok;
