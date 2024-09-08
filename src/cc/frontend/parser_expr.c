@@ -69,7 +69,7 @@ static Expr *parse_funcall(Expr *func) {
                               embed_inline_funcall(varinfo));
   }
 
-  return new_expr_funcall(token, func, rettype, args);
+  return new_expr_funcall(token, func, args);
 }
 
 static Expr *parse_array_index(const Token *token, Expr *expr) {

@@ -945,7 +945,7 @@ Initializer *check_vardecl(Type **ptype, const Token *ident, int storage, Initia
                                            global_scope);
       Vector *args = new_vector();
       vec_push(args, size_var);
-      Expr *call_alloca = new_expr_funcall(tok, alloca_var, &tyVoidPtr, args);
+      Expr *call_alloca = new_expr_funcall(tok, alloca_var, args);
       if (assign_sizevar != NULL)
         call_alloca = new_expr_bop(EX_COMMA, &tyVoidPtr, tok, assign_sizevar, call_alloca);
 
