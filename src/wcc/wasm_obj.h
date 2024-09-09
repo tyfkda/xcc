@@ -123,8 +123,13 @@ typedef struct WasmObj {
   } import;
   struct {
     Vector *symtab;     // <SymbolInfo*>
+    Vector *init_funcs;  // <SymbolInfo*>
   } linking;
   Vector *types;  // <int>
+  struct {
+    Vector *types;
+    uint32_t count;
+  } func;
   struct {
     struct DataSegmentForLink *segments;
     uint32_t count;

@@ -20,6 +20,7 @@ Table gvar_info_table;
 Vector *functypes;  // <DataStorage*>
 Table indirect_function_table;
 Vector *tags;
+Vector *init_funcs;
 
 uint32_t get_indirect_function_index(const Name *name) {
   FuncInfo *info = table_get(&indirect_function_table, name);

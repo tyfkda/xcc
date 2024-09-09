@@ -22,7 +22,7 @@
 #include "wasm.h"
 #include "wasm_obj.h"
 
-#define CODE  (((FuncExtra*)curfunc->extra)->code)
+#define CODE  (curcodeds)
 
 #define ADD_LEB128(x)  data_leb128(CODE, -1, x)
 #define ADD_ULEB128(x) data_uleb128(CODE, -1, x)
@@ -33,6 +33,8 @@
 #define ADD_F64(x)     do { double d = (x); add_code((unsigned char*)&d, sizeof(d)); } while (0)
 
 static void gen_lval(Expr *expr);
+
+DataStorage *curcodeds;
 
 void add_code(const unsigned char *buf, size_t size) {
   data_append(CODE, buf, size);
@@ -1611,15 +1613,18 @@ static void gen_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
-  curfunc = func;
-
   DataStorage *code = malloc_or_die(sizeof(*code));
   data_init(code);
+  data_open_chunk(code);
+
   FuncExtra *extra = func->extra;
   assert(extra != NULL);
   extra->code = code;
   func->extra = extra;
   uint32_t frame_size = allocate_local_variables(func, code);
+
+  curfunc = func;
+  curcodeds = code;
 
   // Prologue
 
@@ -1701,10 +1706,11 @@ static void gen_defun(Function *func) {
   ADD_CODE(OP_END);
 
   size_t before = code->len;
-  data_uleb128(code, 0, code->len);  // Insert code size at the top.
+  data_close_chunk(code, -1);
   extra->offset = code->len - before;
 
   curfunc = NULL;
+  curcodeds = NULL;
   assert(cur_depth == 0);
 }
 

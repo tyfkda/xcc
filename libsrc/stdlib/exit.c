@@ -28,6 +28,12 @@ OnExitChain *__on_exit_chain;
 void exit(int code) {
   // TODO: Guard multiple calls
 
+#if defined(__WASM)
+  // On wcc, if there is a indirect function call but no actual function reference exists,
+  // table/elem section are not emitted and cause a load error.
+  // To avoid this, make sure a function reference exists and table/elem section are emitted.
+  (void)exit;
+#endif
   OnExitChain *chain = __on_exit_chain;
   __on_exit_chain = NULL;
   for (; chain != NULL; chain = chain->next) {

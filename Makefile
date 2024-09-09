@@ -236,7 +236,7 @@ wcc-libs:
 	$(MAKE) CC=../wcc AR=llvm-ar -C libsrc wcc-libs
 
 WCCLD_SRCS:=$(DEBUG_DIR)/wcc-ld.c $(WCC_DIR)/wasm_linker.c \
-	$(WCC_DIR)/wcc_util.c $(WCC_DIR)/emit_wasm.c $(WCC_DIR)/traverse.c $(WCC_DIR)/traverse_setjmp.c \
+	$(WCC_DIR)/wcc_util.c $(WCC_DIR)/emit_wasm.c $(WCC_DIR)/gen_wasm.c $(WCC_DIR)/traverse.c $(WCC_DIR)/traverse_setjmp.c \
 	$(wildcard $(CC1_FE_DIR)/*.c) \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c $(UTIL_DIR)/archive.c
 WCCLD_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCCLD_SRCS:.c=.o)))

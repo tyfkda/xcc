@@ -700,6 +700,25 @@ static void traverse_defun(Function *func) {
   curfunc = NULL;
 
   // Static variables are traversed through global variables.
+
+  // Pick up constructor function.
+  // Destructor is converted to constructor which register itself with atexit,
+  // so it is not necessary to pick up destructor here.
+  const Name *constructor_name = alloc_name("constructor", NULL, false);
+  if (func->attributes != NULL) {
+    if (table_try_get(func->attributes, constructor_name, NULL)) {
+      // Ensure that the function has no parameters and returns void.
+      const Type *type = func->type;
+      if (type->func.params == NULL || type->func.params->len > 0 || type->func.ret->kind != TY_VOID) {
+        const Token *token = func->body_block != NULL ? func->body_block->token : NULL;
+        parse_error(PE_NOFATAL, token, "constructor must have no parameters and return void");
+      } else {
+        if (init_funcs == NULL)
+          init_funcs = new_vector();
+        vec_push(init_funcs, func);
+      }
+    }
+  }
 }
 
 static void traverse_decl(Declaration *decl) {

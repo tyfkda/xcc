@@ -1,24 +1,9 @@
 #include "alloca.h"  // alloca
-#include "stdio.h"   // fflush
-#include "stdlib.h"  // atexit, exit
+#include "stdlib.h"  // exit
 
-#include "../../stdio/_fileman.h"
 #include "../wasi.h"
 
-extern FILEMAN __fileman;
-
-inline void __flush_all_files(void) {
-  fflush(stdout);
-  fflush(stderr);
-
-  struct FILE **files = __fileman.opened;
-  for (int i = 0, length = __fileman.length; i < length; ++i)
-    fflush(files[i]);
-}
-
-static void _atexit_proc(void) {
-  __flush_all_files();
-}
+extern void __wasm_call_ctors(void);
 
 int __max_preopen_fd = 3;
 
@@ -55,7 +40,8 @@ void _start(void) {
 
   __max_preopen_fd = find_preopens();
 
-  atexit(_atexit_proc);
+  __wasm_call_ctors();
+
   int ec = main(argc, argv);
   exit(ec);
 #undef main

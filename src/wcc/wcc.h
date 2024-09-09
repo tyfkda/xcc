@@ -133,6 +133,7 @@ extern Table func_info_table;
 extern Table gvar_info_table;
 extern Table indirect_function_table;  // <FuncInfo*>
 extern Vector *tags;  // <TagInfo*>
+extern Vector *init_funcs;  // <Function*>
 
 #define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)
 #define VERBOSE(fmt, ...)  do { if (verbose) printf(fmt, __VA_ARGS__); } while (0)
@@ -156,3 +157,5 @@ typedef struct FuncExtra {
 Expr *get_sp_var(void);
 unsigned char to_wtype(const Type *type);
 bool is_global_datsec_var(const VarInfo *varinfo, Scope *scope);  // Whether this global variable put on data section.
+
+extern DataStorage *curcodeds;

@@ -660,6 +660,21 @@ static void emit_linking_section(EmitWasm *ew) {
     data_close_chunk(&linking_section, -1);
   }
 
+  if (init_funcs != NULL) {
+    data_push(&linking_section, LT_WASM_INIT_FUNCS);  // subsec type
+    data_open_chunk(&linking_section);  // Payload start.
+    data_uleb128(&linking_section, -1, init_funcs->len);  // Count
+    for (int i = 0; i < init_funcs->len; ++i) {
+      Function *func = init_funcs->data[i];
+      FuncInfo *info;
+      info = table_get(&func_info_table, func->name);
+      assert(info != NULL);
+      data_uleb128(&linking_section, -1, 65535);  // Priority
+      data_uleb128(&linking_section, -1, info->index);  // Symbol index
+    }
+    data_close_chunk(&linking_section, -1);
+  }
+
   if (linking_section.len > 0) {
     data_close_chunk(&linking_section, -1);
 

@@ -17,6 +17,12 @@
 #include "wasm_obj.h"
 #include "wcc.h"
 
+#define CODE  (curcodeds)
+
+#define ADD_LEB128(x)  data_leb128(CODE, -1, x)
+#define ADD_ULEB128(x) data_uleb128(CODE, -1, x)
+#define ADD_VARUINT32(x)  data_varuint32(CODE, -1, x)
+
 static int64_t read_leb128(unsigned char *p, unsigned char **next) {
   int64_t result = 0;
   int shift = 0;
@@ -187,6 +193,17 @@ static void read_import_section(WasmObj *wasmobj, unsigned char *p) {
   }
 }
 
+static void read_func_section(WasmObj *wasmobj, unsigned char *p) {
+  uint32_t num = read_uleb128(p, &p);
+  Vector *types = new_vector();
+  for (uint32_t i = 0; i < num; ++i) {
+    uint32_t index = read_uleb128(p, &p);
+    vec_push(types, INT2VOIDP(index));
+  }
+  wasmobj->func.types = types;
+  wasmobj->func.count = num;
+}
+
 typedef struct DataSegmentForLink {
   unsigned char *content;
   uint32_t start;
@@ -195,8 +212,7 @@ typedef struct DataSegmentForLink {
 
 static void read_data_section(WasmObj *wasmobj, unsigned char *p) {
   DataSegmentForLink *segments = NULL;
-  uint32_t count = 0;
-  count = read_uleb128(p, &p);
+  uint32_t count = read_uleb128(p, &p);
   segments = calloc_or_die(sizeof(*segments) * count);
   for (uint32_t i = 0; i < count; ++i) {
     read_uleb128(p, &p);  // flag
@@ -247,21 +263,6 @@ static void read_elem_section(WasmObj *wasmobj, unsigned char *p) {
   wasmobj->elem.count = count;
 }
 
-static Vector *read_func_section(WasmObj *wasmobj) {
-  WasmSection *sec = find_section(wasmobj, SEC_FUNC);
-  if (sec == NULL)
-    return NULL;
-
-  unsigned char *p = sec->start;
-  Vector *func_types = new_vector();
-  uint32_t num = read_uleb128(p, &p);
-  for (uint32_t i = 0; i < num; ++i) {
-    uint32_t index = read_uleb128(p, &p);
-    vec_push(func_types, INT2VOIDP(index));
-  }
-  return func_types;
-}
-
 static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end) {
   uint32_t version = read_uleb128(p, &p);
 
@@ -282,7 +283,7 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
     switch (linking_type) {
     case LT_WASM_SYMBOL_TABLE:
       {
-        Vector *func_types = read_func_section(wasmobj);
+        Vector *func_types = wasmobj->func.types;
         uint32_t count = read_uleb128(p, &p);
         for (uint32_t i = 0; i < count; ++i) {
           enum SymInfoKind kind = *p++;
@@ -406,6 +407,21 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
       }
       break;
 
+    case LT_WASM_INIT_FUNCS:
+      {
+        Vector *init_funcs = new_vector();
+        uint32_t count = read_uleb128(p, &p);
+        for (uint32_t i = 0; i < count; ++i) {
+          /*uint32_t priority =*/ read_uleb128(p, &p);  // TODO: Sort by priority.
+          uint32_t index = read_uleb128(p, &p);
+          assert(index < (uint32_t)wasmobj->linking.symtab->len);
+          SymbolInfo *sym = wasmobj->linking.symtab->data[index];
+          vec_push(init_funcs, sym);
+        }
+        wasmobj->linking.init_funcs = init_funcs;
+      }
+      break;
+
     default:
       error("linking not handled: %d", linking_type);
       break;
@@ -514,6 +530,9 @@ static WasmObj *read_wasm(FILE *fp, const char *filename, size_t filesize) {
       case SEC_IMPORT:
         read_import_section(wasmobj, p);
         break;
+      case SEC_FUNC:
+        read_func_section(wasmobj, p);
+        break;
       case SEC_DATA:
         read_data_section(wasmobj, p);
         break;
@@ -570,7 +589,7 @@ static int resolve_symbols_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
     if (sym->flags & WASM_SYM_UNDEFINED) {
       SymbolInfo *pre;
       if (!table_try_get(&linker->defined, sym->name, (void**)&pre) || pre == NULL) {
-        table_put(&linker->unresolved, sym->name, (void*)sym);
+        table_put(&linker->unresolved, sym->name, sym);
       } else if (sym->kind != pre->kind) {
         fprintf(stderr, "different symbol type: %.*s\n", NAMES(sym->name));
         ++err_count;
@@ -586,7 +605,7 @@ static int resolve_symbols_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
         fprintf(stderr, "different symbol type: %.*s\n", NAMES(sym->name));
         ++err_count;
       } else {
-        table_put(&linker->defined, sym->name, (void*)sym);
+        table_put(&linker->defined, sym->name, sym);
         table_delete(&linker->unresolved, sym->name);
       }
     }
@@ -685,10 +704,61 @@ static bool resolve_symbols(WasmLinker *linker) {
   return err_count == 0;
 }
 
+static void generate_init_funcs(WasmLinker *linker) {
+  Vector *init_funcs = new_vector();
+  for (int i = 0; i < linker->files->len; ++i) {
+    File *file = linker->files->data[i];
+    switch (file->kind) {
+    case FK_WASMOBJ:
+      {
+        WasmObj *wasmobj = file->wasmobj;
+        if (wasmobj->linking.init_funcs != NULL) {
+          vec_concat(init_funcs, wasmobj->linking.init_funcs);
+        }
+      }
+      break;
+    case FK_ARCHIVE:
+      FOREACH_FILE_ARCONTENT(file->archive, content, {
+        WasmObj *wasmobj = content->obj;
+        if (wasmobj->linking.init_funcs != NULL) {
+          vec_concat(init_funcs, wasmobj->linking.init_funcs);
+        }
+      });
+      break;
+    }
+  }
+
+  // Generate
+  WasmObj *wasmobj = ((File*)linker->files->data[0])->wasmobj;
+  WasmSection *codesec = &wasmobj->sections[0];
+  assert(codesec->id == SEC_CODE);
+  DataStorage ds;
+  data_init(&ds);
+  data_uleb128(&ds, -1, 1);  // num functions
+  {
+    curcodeds = &ds;
+
+    data_open_chunk(&ds);
+    data_uleb128(&ds, -1, 0);  // Local variable count
+    for (int i = 0; i < init_funcs->len; ++i) {
+      SymbolInfo *syminfo = init_funcs->data[i];
+      ADD_CODE(OP_CALL);
+      ADD_ULEB128(syminfo->combined_index);
+    }
+    ADD_CODE(OP_END);
+    data_close_chunk(&ds, -1);
+
+    curcodeds = NULL;
+  }
+  codesec->start = ds.buf;
+  codesec->size = ds.len;
+}
+
+
 static void renumber_symbols_wasmobj(WasmObj *wasmobj, uint32_t *defined_count) {
   Vector *symtab = wasmobj->linking.symtab;
   uint32_t import_count[3];
-  import_count[SIK_SYMTAB_FUNCTION] = wasmobj->import.functions->len;
+  import_count[SIK_SYMTAB_FUNCTION] = wasmobj->import.functions != NULL ? wasmobj->import.functions->len : 0;
   import_count[SIK_SYMTAB_DATA] = 0;
   for (int j = 0; j < symtab->len; ++j) {
     SymbolInfo *sym = symtab->data[j];
@@ -716,16 +786,8 @@ static void renumber_symbols_wasmobj(WasmObj *wasmobj, uint32_t *defined_count) 
   }
 
   // Increment count_table according to defined counts.
-  static const int kSecTable[] = {SEC_FUNC, SEC_DATA};
-  for (size_t i = 0; i < ARRAY_SIZE(kSecTable); ++i) {
-    int secidx = kSecTable[i];
-    WasmSection *sec = find_section(wasmobj, secidx);
-    if (sec != NULL) {
-      unsigned char *p = sec->start;
-      uint32_t num = read_uleb128(p, &p);
-      defined_count[i] += num;
-    }
-  }
+  defined_count[0] += wasmobj->func.count;
+  defined_count[1] += wasmobj->data.count;
 }
 
 static void renumber_symbols(WasmLinker *linker) {
@@ -1246,6 +1308,7 @@ static uint32_t out_code_section_wasmobj(WasmObj *wasmobj, DataStorage *codesec)
   if (sec == NULL)
     return 0;
   unsigned char *p = sec->start;
+  assert(p != NULL);
   uint32_t num = read_uleb128(p, &p);
   data_append(codesec, p, sec->size - (p - sec->start));
   return num;
@@ -1347,6 +1410,46 @@ void linker_init(WasmLinker *linker) {
 
   linker->sp_name = alloc_name(SP_NAME, NULL, false);
   linker->curbrk_name = alloc_name(BREAK_ADDRESS_NAME, NULL, false);
+
+  // Prepare linker generated wasmobj.
+  WasmObj *obj = calloc_or_die(sizeof(*obj));
+  obj->linking.symtab = new_vector();
+
+  // Funcion type.
+  obj->types = new_vector();
+  {
+    static const unsigned char functype[] = {0x00, 0x00};
+    unsigned char *dup = malloc_or_die(sizeof(functype));
+    memcpy(dup, functype, sizeof(functype));
+    int index = getsert_func_type(dup, sizeof(functype), true);
+    vec_push(obj->types, INT2VOIDP(index));
+  }
+
+  File *file = calloc_or_die(sizeof(*file));
+  file->filename = "*linker-generated*";
+  file->kind = FK_WASMOBJ;
+  file->wasmobj = obj;
+  vec_push(linker->files, file);
+
+  // Register symbol `__wasm_call_ctors`.
+  SymbolInfo *sym = calloc_or_die(sizeof(*sym));
+  sym->kind = SIK_SYMTAB_FUNCTION;
+  sym->module_name = NULL;
+  sym->name = alloc_name("__wasm_call_ctors", NULL, false);
+  vec_push(obj->linking.symtab, sym);
+
+  // Function
+  int section_count = 1;
+  WasmSection *sections = calloc_or_die(sizeof(*sections) * section_count);
+  obj->section_count = section_count;
+  obj->sections = sections;
+  {
+    WasmSection *p = &sections[0];
+    p->id = SEC_CODE;
+    p->start = NULL;
+    p->size = 0;
+  }
+  obj->func.count = 1;
 }
 
 bool read_wasm_obj(WasmLinker *linker, const char *filename) {
@@ -1412,6 +1515,8 @@ bool link_wasm_objs(WasmLinker *linker, Vector *exports, uint32_t stack_size) {
   renumber_func_types(linker);
   renumber_indirect_functions(linker);
   apply_relocation(linker);
+
+  generate_init_funcs(linker);
 
   uint32_t address_bottom = ALIGN(data_end_address, 16);
   linker->address_bottom = address_bottom;

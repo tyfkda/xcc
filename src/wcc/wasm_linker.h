@@ -13,7 +13,7 @@ typedef struct Vector Vector;
 
 typedef struct {
   Vector *files;  // <File*>
-  Table defined, unresolved;
+  Table defined, unresolved;  // <SymbolInfo*>
   Table indirect_functions;
   uint32_t unresolved_func_count;
   uint32_t address_bottom;

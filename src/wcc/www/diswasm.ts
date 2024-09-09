@@ -802,6 +802,8 @@ export class DisWasm {
   private funcs = new Map<number, [string, string]>()
   private importGlobalCount = 0
   private globals = new Map<number, [string, string]>()
+  private importTableCount = 0
+  private tables = new Map<number, [string, string]>()
   private names = new Map<number, string>()  // CustomNameType + index * 100
   private log: (s: string)=>void = console.log
 
@@ -1129,6 +1131,7 @@ export class DisWasm {
 
     const customSectionOffset = this.bufferReader.getOffset()
     const name = this.bufferReader.readString()
+    const symbols = new Array<string>()
 
     // Special handling for wasm object file.
     switch (name) {
@@ -1162,6 +1165,21 @@ export class DisWasm {
               this.log(';;     )')
             }
             break
+          case LinkingType.WASM_INIT_FUNCS:
+            {
+              this.log(`${this.addr(subsecOffset0)};;   (init-funcs`)
+
+              const count = this.bufferReader.readUleb128()
+              for (let i = 0; i < count; ++i) {
+                const offset = this.bufferReader.getOffset()
+                const priority = this.bufferReader.readUleb128()
+                const symbolIndex = this.bufferReader.readUleb128()
+                const name = symbols[symbolIndex]
+                this.log(`${this.addr(offset)};;     (func (name "${name}") (priority ${priority}))`)
+              }
+              this.log(';;     )')
+            }
+            break
           case LinkingType.WASM_SYMBOL_TABLE:
             {
               this.log(`${this.addr(subsecOffset0)};;   (symtab`)
@@ -1175,21 +1193,29 @@ export class DisWasm {
                 switch (kind) {
                 case SymInfoKind.SYMTAB_FUNCTION:
                 case SymInfoKind.SYMTAB_GLOBAL:
+                case SymInfoKind.SYMTAB_TABLE:
                   {
                     const index = this.bufferReader.readUleb128()
-                    let symname = null
+                    let symname = ''
 
                     switch (kind) {
                     case SymInfoKind.SYMTAB_FUNCTION:
                       if (index < this.importFuncCount && !(flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
-                        symname = this.funcs.get(index)?.join('.')
+                        symname = this.funcs.get(index)?.join('.')!
                       } else {
                         symname = this.bufferReader.readString()
                       }
                       break
                     case SymInfoKind.SYMTAB_GLOBAL:
-                      if (index < this.importGlobalCount && !(flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
-                        symname = this.globals.get(index)?.join('.')
+                        if (index < this.importGlobalCount && !(flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
+                        symname = this.globals.get(index)?.join('.')!
+                      } else {
+                        symname = this.bufferReader.readString()
+                      }
+                      break
+                    case SymInfoKind.SYMTAB_TABLE:
+                        if (index < this.importTableCount && !(flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
+                        symname = this.tables.get(index)?.join('.')!
                       } else {
                         symname = this.bufferReader.readString()
                       }
@@ -1203,6 +1229,7 @@ export class DisWasm {
                         flagNames.push(value)
                     })
                     this.log(`${this.addr(offset)};;     (${kSymInfoKindNames[kind]} (index ${index}) (name "${symname}") (flags ${flagNames.join(' ')}))`)
+                    symbols.push(symname)
                   }
                   break
                 case SymInfoKind.SYMTAB_DATA:
@@ -1216,6 +1243,7 @@ export class DisWasm {
                       const size = this.bufferReader.readUleb128()
                       this.log(`${this.addr(offset)};;     (${kSymInfoKindNames[kind]} (name "${symname}") (index ${index}) (offset ${suboffset}) (size ${size}))`)
                     }
+                    symbols.push(symname)
                   }
                   break
                 case SymInfoKind.SYMTAB_EVENT:
@@ -1223,6 +1251,7 @@ export class DisWasm {
                     const typeindex = this.bufferReader.readUleb128()
                     const symname = this.bufferReader.readString()
                     this.log(`${this.addr(offset)};;     (${kSymInfoKindNames[kind]} (name "${symname}") (typeindex ${typeindex}))`)
+                    symbols.push(symname)
                   }
                   break
                 default:
@@ -1350,7 +1379,9 @@ export class DisWasm {
       case ImportKind.TABLE:
         {
           const tt = readType(this.bufferReader)
+          const index = this.tables.size
           this.log(`${this.addr(offset)}(import "${modName}" "${name}" (table ${tt}))`)
+          this.tables.set(index, [modName, name])
         }
         break
       case ImportKind.MEMORY:
@@ -1378,6 +1409,7 @@ export class DisWasm {
     }
     this.importFuncCount = this.funcs.size
     this.importGlobalCount = this.globals.size
+    this.importTableCount = this.tables.size
   }
 
   private readFuncSection(): void {
