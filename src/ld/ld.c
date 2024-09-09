@@ -222,7 +222,7 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       continue;
     }
 
-    size_t symbol_count = elfobj->symtab_section->shdr->sh_size / sizeof(Elf64_Sym);
+    size_t symbol_count = elfobj->symtab_section->symtab.count;
     for (size_t j = 0, n = shdr->sh_size / sizeof(Elf64_Rela); j < n; ++j) {
       const Elf64_Rela *rela = &relas[j];
       assert(ELF64_R_SYM(rela->r_info) < symbol_count);
@@ -680,62 +680,100 @@ static bool output_exe(const char *ofn, uintptr_t entry_address, SectionGroup se
   return true;
 }
 
-static void dump_map_elfobj(LinkEditor *ld, ElfObj *elfobj, File *file, ArContent *content, FILE *fp) {
-  const Name *name;
-  Elf64_Sym* sym;
-  for (int it = 0; (it = table_iterate(elfobj->symbol_table, it, &name, (void**)&sym)) != -1; ) {
+#define DSF_LOCAL      (1 << 0)
+#define DSF_GENERATED  (1 << 1)
+
+typedef struct {
+  const char *filename;
+  const char *name;
+  uintptr_t address;
+  int flag;
+} DumpSymbol;
+
+static void dump_map_elfobj(LinkEditor *ld, ElfObj *elfobj, File *file, ArContent *content, Vector *symbols) {
+  ElfSectionInfo *symtab = elfobj->symtab_section;
+  assert(symtab != NULL);
+  const char *strbuf = symtab->symtab.strtab->strtab.buf;
+  for (size_t i = 0; i < symtab->symtab.count; ++i) {
+    Elf64_Sym* sym = &symtab->symtab.syms[i];
     if (sym->st_shndx == SHN_UNDEF)
       continue;
 
+    const char *name = &strbuf[sym->st_name];
     uintptr_t address = 0;
+    int flag = 0;
     switch (ELF64_ST_BIND(sym->st_info)) {
     case STB_LOCAL:
       {
+        Elf64_Word type = ELF64_ST_TYPE(sym->st_info);
+        if (type != STT_FUNC && type != STT_OBJECT) {
+          continue;
+        }
         const ElfSectionInfo *s = &elfobj->section_infos[sym->st_shndx];
-        address = s->progbits.address;
+        address = s->progbits.address + sym->st_value;
+        flag |= DSF_LOCAL;
       }
       break;
     case STB_GLOBAL:
-      address = ld_symbol_address(ld, name);
+      address = ld_symbol_address(ld, alloc_name(name, NULL, false));
       break;
     default: assert(false); break;
     }
-    fprintf(fp, "%9lx: %.*s  (%s", address, NAMES(name), file->filename);
-    if (content != NULL)
-      fprintf(fp, ", %s", content->name);
-    fprintf(fp, ")\n");
+
+    DumpSymbol *ds = calloc_or_die(sizeof(*ds));
+    ds->filename = content != NULL ? content->name : file->filename;  // TODO: Confirm nul-terminated.
+    ds->name = name;
+    ds->address = address;
+    ds->flag = flag;
+    vec_push(symbols, ds);
   }
 }
 
-static void dump_map_file(LinkEditor *ld, FILE *fp) {
-  for (int i = 0; i < ld->nfiles; ++i) {
-    File *file = &ld->files[i];
-    switch (file->kind) {
-    case FK_ELFOBJ:
-      dump_map_elfobj(ld, file->elfobj, file, NULL, fp);
-      break;
-    case FK_ARCHIVE:
-      {
-        Archive *ar = file->archive;
-        FOREACH_FILE_ARCONTENT(ar, content, {
-          dump_map_elfobj(ld, content->obj, file, content, fp);
-        });
-      }
-      break;
-    }
-  }
-
-  fprintf(fp, "--- generated symbols\n");
+static void dump_map_file(LinkEditor *ld, Vector *symbols) {
   LinkElem* elem;
   const Name *name;
   for (int it = 0; (it = table_iterate(ld->generated_symbol_table, it, &name, (void**)&elem)) != -1; ) {
     assert(elem->kind == LEK_SYMBOL);
     uintptr_t address = elem->symbol.address;
-    fprintf(fp, "%9lx: %.*s\n", address, NAMES(name));
+    DumpSymbol *ds = calloc_or_die(sizeof(*ds));
+    ds->filename = "*generated*";
+    ds->name = name->chars;  // TODO: Confirm nul-terminated.
+    ds->address = address;
+    ds->flag = DSF_GENERATED;
+    vec_push(symbols, ds);
+  }
+
+  for (int i = 0; i < ld->nfiles; ++i) {
+    File *file = &ld->files[i];
+    switch (file->kind) {
+    case FK_ELFOBJ:
+      dump_map_elfobj(ld, file->elfobj, file, NULL, symbols);
+      break;
+    case FK_ARCHIVE:
+      {
+        Archive *ar = file->archive;
+        FOREACH_FILE_ARCONTENT(ar, content, {
+          dump_map_elfobj(ld, content->obj, file, content, symbols);
+        });
+      }
+      break;
+    }
   }
 }
 
+static int sort_dump_symbol(const void *a, const void *b) {
+  DumpSymbol *dsa = *(DumpSymbol**)a;
+  DumpSymbol *dsb = *(DumpSymbol**)b;
+  if (dsa->address != dsb->address)
+    return dsa->address < dsb->address ? -1 : 1;
+  return a < b ? -1 : 1;
+}
+
 static bool output_map_file(LinkEditor *ld, const char *outmapfn, uintptr_t entry_address, const Name *entry_name) {
+  Vector *symbols = new_vector();  // <DumpSymbol*>
+  dump_map_file(ld, symbols);
+  qsort(symbols->data, symbols->len, sizeof(*symbols->data), sort_dump_symbol);
+
   FILE *mapfp;
   if (strcmp(outmapfn, "-") == 0) {
     mapfp = stdout;
@@ -749,7 +787,11 @@ static bool output_map_file(LinkEditor *ld, const char *outmapfn, uintptr_t entr
 
   fprintf(mapfp, "### Symbols\n");
   fprintf(mapfp, "%9lx:  (start address)\n", (long)LOAD_ADDRESS);
-  dump_map_file(ld, mapfp);
+
+  for (int i = 0; i < symbols->len; ++i) {
+    DumpSymbol *ds = symbols->data[i];
+    fprintf(mapfp, "%9lx: %c %s  (%s)\n", ds->address, ds->flag & DSF_LOCAL ? 'L' : 'G', ds->name, ds->filename);
+  }
 
   fprintf(mapfp, "\n### Entry point\n");
   fprintf(mapfp, "%9lx: %.*s\n", entry_address, NAMES(entry_name));

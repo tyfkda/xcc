@@ -37,6 +37,7 @@ static void load_symtab(ElfObj *elfobj) {
     p->symtab.syms = symbols;
     ElfSectionInfo *strtab_section = &elfobj->section_infos[shdr->sh_link];
     p->symtab.strtab = strtab_section;
+    p->symtab.count = shdr->sh_size / sizeof(Elf64_Sym);
     elfobj->symtab_section = p;
 
     // Check strtab.
@@ -53,7 +54,7 @@ static void load_symtab(ElfObj *elfobj) {
     assert(elfobj->symbol_table == NULL);
     Table *symbol_table = alloc_table();
     elfobj->symbol_table = symbol_table;
-    for (size_t i = 0, count = shdr->sh_size / sizeof(Elf64_Sym); i < count; ++i) {
+    for (size_t i = 0, count = p->symtab.count; i < count; ++i) {
       Elf64_Sym *sym = &symbols[i];
       if (ELF64_ST_BIND(sym->st_info) == STB_GLOBAL) {
         const Name *name = alloc_name(&strbuf[sym->st_name], NULL, false);

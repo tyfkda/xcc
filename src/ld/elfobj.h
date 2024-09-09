@@ -28,6 +28,7 @@ typedef struct ElfSectionInfo {
     struct {
       Elf64_Sym *syms;
       struct ElfSectionInfo *strtab;
+      size_t count;
     } symtab;
   };
 } ElfSectionInfo;
