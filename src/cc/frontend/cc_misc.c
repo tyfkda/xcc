@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <inttypes.h>  // PRId64
 
-#include "initializer.h"  // calc_bitfield_initial_value
+#include "ast.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
@@ -59,6 +59,30 @@ static void eval_initial_value(Expr *expr, Expr **pvar, int64_t *poffset) {
 }
 
 #ifndef __NO_BITFIELD
+static Fixnum calc_bitfield_initial_value(const StructInfo *sinfo, const Initializer *init, int *pi) {
+  assert(!sinfo->is_union);  // TODO
+  assert(init == NULL || (init->kind == IK_MULTI && init->multi->len == sinfo->member_count));
+  Fixnum x = 0;
+  int i = *pi, n = sinfo->member_count;
+  for (bool top = true; i < n; ++i, top = false) {
+    const MemberInfo *member = &sinfo->members[i];
+    if (member->bitfield.width <= 0 || (!top && member->bitfield.position == 0))
+      break;
+
+    if (init == NULL)
+      continue;
+    const Initializer *mem_init = init->multi->data[i];
+    if (mem_init == NULL)
+      continue;  // 0
+    assert(mem_init->kind == IK_SINGLE && mem_init->single->kind == EX_FIXNUM);
+
+    Fixnum mask = (1LL << member->bitfield.width) - 1;
+    x |= (mem_init->single->fixnum & mask) << member->bitfield.position;
+  }
+  *pi = i - 1;
+  return x;
+}
+
 static int construct_initial_value_bitfield(
     const StructInfo *sinfo, const Initializer *init, int start, int *poffset,
     const ConstructInitialValueVTable *vtable, void *ud) {
