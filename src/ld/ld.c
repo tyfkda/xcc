@@ -772,7 +772,7 @@ static int sort_dump_symbol(const void *a, const void *b) {
 static bool output_map_file(LinkEditor *ld, const char *outmapfn, uintptr_t entry_address, const Name *entry_name) {
   Vector *symbols = new_vector();  // <DumpSymbol*>
   dump_map_file(ld, symbols);
-  qsort(symbols->data, symbols->len, sizeof(*symbols->data), sort_dump_symbol);
+  mergesort(symbols->data, symbols->len, sizeof(*symbols->data), sort_dump_symbol);
 
   FILE *mapfp;
   if (strcmp(outmapfn, "-") == 0) {
