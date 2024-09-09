@@ -7,6 +7,7 @@
 
 #include "inst.h"  // Inst
 
+typedef struct DataStorage DataStorage;
 typedef struct Name Name;
 typedef struct Table Table;
 typedef struct Token Token;
@@ -34,14 +35,61 @@ enum DirectiveType {
   DT_DOUBLE,
 };
 
+#define SF_EXECUTABLE  (1 << 0)
+#define SF_WRITABLE    (1 << 1)
+#define SF_BSS         (1 << 2)
+
+typedef struct SectionInfo {
+  const Name *name;
+  const char *segname;
+  Vector *irs;
+  int flag;
+
+  int index;
+  uintptr_t start_address;
+  DataStorage *ds;
+  size_t align;
+  size_t bss_size;
+  uintptr_t offset;  // File offset.
+
+  int rela_count;
+  void *rela_buf;
+  uintptr_t rela_ofs;
+} SectionInfo;
+
 typedef struct ParseInfo {
   const char *filename;
-  int lineno;
   const char *rawline;
   const char *p;
+  int lineno;
+  int error_count;
 
   const Token *prefetched;
+
+  Table *section_infos;  // <SectionInfo*>
+  Table *label_table;
+  SectionInfo *current_section;
 } ParseInfo;
+
+SectionInfo *set_current_section(ParseInfo *info, const char *name, const char *segname, int flag);
+SectionInfo *get_section_info(ParseInfo *info, const char *name, const char *segname, int flag);
+
+extern const char kSecText[];
+extern const char kSecRodata[];
+extern const char kSecData[];
+extern const char kSecBss[];
+
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+extern const char kSegText[];
+extern const char kSegRodata[];
+extern const char kSegData[];
+extern const char kSegBss[];
+#else
+#define kSegText    NULL
+#define kSegRodata  NULL
+#define kSegData    NULL
+#define kSegBss     NULL
+#endif
 
 typedef struct Line {
   const Name *label;
@@ -85,14 +133,10 @@ typedef struct Expr {
   };
 } Expr;
 
-extern int current_section;  // enum SectionType
-extern bool err;
-
 Line *parse_line(ParseInfo *info);
 void parse_set_p(ParseInfo *info, const char *p);
-void handle_directive(ParseInfo *info, enum DirectiveType dir, Vector **section_irs,
-                      Table *label_table);
-void parse_error(const ParseInfo *info, const char *message);
+void handle_directive(ParseInfo *info, enum DirectiveType dir);
+void parse_error(ParseInfo *info, const char *message);
 
 typedef struct {
   enum Opcode op;
@@ -135,7 +179,7 @@ enum LabelKind {
 };
 
 typedef struct {
-  int section;
+  SectionInfo *section;
   int flag;
   uintptr_t address;
   enum LabelKind kind;
@@ -143,4 +187,4 @@ typedef struct {
   int align;
 } LabelInfo;
 
-LabelInfo *add_label_table(Table *label_table, const Name *label, int section, bool define, bool global);
+LabelInfo *add_label_table(Table *label_table, const Name *label, SectionInfo *section, bool define, bool global);

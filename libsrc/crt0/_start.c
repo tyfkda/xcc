@@ -5,23 +5,18 @@
 #endif
 
 #if defined(__linux__)
+extern void (*__init_array_start []) (void);  // __attribute__((weak));
+extern void (*__init_array_end []) (void);  // __attribute__((weak));
+extern void (*__fini_array_start []) (void);  // __attribute__((weak));
+extern void (*__fini_array_end []) (void);  // __attribute__((weak));
 
-#include "stdio.h"  // fflush
-#include "../stdio/_fileman.h"
-
-extern FILEMAN __fileman;
-
-inline void __flush_all_files(void) {
-  fflush(stdout);
-  fflush(stderr);
-
-  struct FILE **files = __fileman.opened;
-  for (int i = 0, length = __fileman.length; i < length; ++i)
-    fflush(files[i]);
-}
+#if defined(__riscv)
+int __dummy = 123;  // Force .data section to be exist to avoid ELF-load error on spike/pk.
+#endif
 
 static void _atexit_proc(void) {
-  __flush_all_files();
+  for (void (**pp)(void) = __fini_array_start; pp < __fini_array_end; ++pp)
+    (*pp)();
 }
 
 static void start2(int argc, char *argv[], char *env[]) {
@@ -31,6 +26,10 @@ static void start2(int argc, char *argv[], char *env[]) {
   environ = env;
 #endif
   atexit(_atexit_proc);
+
+  for (void (**pp)(void) = __init_array_start; pp < __init_array_end; ++pp)
+    (*pp)();
+
   int ec = main(argc, argv, env);
   exit(ec);
 }

@@ -40,7 +40,7 @@ inline bool opr_reg8(const Reg *reg) {
   return opr_regno(reg) < 4;
 }
 
-inline bool assemble_error(const ParseInfo *info, const char *message) {
+inline bool assemble_error(ParseInfo *info, const char *message) {
   parse_error(info, message);
   return false;
 }
@@ -1607,7 +1607,7 @@ static const AsmInstFunc table[] = {
   [SQRTSD] = asm_sqrtsd_xx,
 };
 
-void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
+void assemble_inst(Inst *inst, ParseInfo *info, Code *code) {
   code->flag = 0;
   code->len = 0;
 

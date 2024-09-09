@@ -4,7 +4,7 @@
 #include "_file.h"
 #include "_fileman.h"
 
-#define IOF  &_kFileCookieIoFunctions
+#define FFLUSH  _fflush
 
 typedef struct INFILE {
   FILE file;
@@ -16,9 +16,27 @@ typedef struct OUTFILE {
   unsigned char wwork[128];
 } OUTFILE;
 
-static INFILE  _stdin  = {.file={.iof = IOF, .flush = _fflush, .fd = STDIN_FILENO,  .flag = FF_READ, .rbuf = _stdin.rwork, .rcapa = sizeof(_stdin.rwork)}};
-static OUTFILE _stdout = {.file={.iof = IOF, .flush = _fflush, .fd = STDOUT_FILENO, .flag = FF_WRITE, .wbuf = _stdout.wwork, .wcapa = sizeof(_stdout.wwork)}};
-static OUTFILE _stderr = {.file={.iof = IOF, .flush = _fflush, .fd = STDERR_FILENO, .flag = FF_WRITE, .wbuf = _stderr.wwork, .wcapa = sizeof(_stderr.wwork)}};
+// Same as _fclose, except calling _remove_opend_file and free.
+static int _fclose_std(void *cookie) {
+  FILE *fp = cookie;
+  // _remove_opened_file(fp);
+  (*fp->flush)(fp);
+  close(fp->fd);
+  // free(fp);
+  return 0;
+}
+
+static const cookie_io_functions_t kIof = {
+  .read = _fread,
+  .write = _fwrite,
+  .seek = _fseek,
+  .close = _fclose_std,
+};
+#define IOF  &kIof
+
+static INFILE  _stdin  = {.file={.iof = IOF, .flush = FFLUSH, .fd = STDIN_FILENO,  .flag = FF_READ, .rbuf = _stdin.rwork, .rcapa = sizeof(_stdin.rwork)}};
+static OUTFILE _stdout = {.file={.iof = IOF, .flush = FFLUSH, .fd = STDOUT_FILENO, .flag = FF_WRITE, .wbuf = _stdout.wwork, .wcapa = sizeof(_stdout.wwork)}};
+static OUTFILE _stderr = {.file={.iof = IOF, .flush = FFLUSH, .fd = STDERR_FILENO, .flag = FF_WRITE, .wbuf = _stderr.wwork, .wcapa = sizeof(_stderr.wwork)}};
 
 #if defined(__riscv)
 static struct _reent _impure_entity = {
@@ -35,3 +53,9 @@ FILE *stdin = &_stdin.file;
 FILE *stdout = &_stdout.file;
 FILE *stderr = &_stderr.file;
 #endif
+
+__attribute__((destructor))
+static void flush_std_files(void) {
+  FFLUSH(stdout);
+  FFLUSH(stderr);
+}

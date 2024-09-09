@@ -93,9 +93,9 @@ cpp_SRCS:=$(wildcard $(CPP_DIR)/*.c) \
 	$(CC1_DIR)/lexer.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 as_SRCS:=$(wildcard $(AS_DIR)/*.c) \
 	$(wildcard $(AS_ARCH_DIR)/*.c) \
-	$(UTIL_DIR)/gen_section.c $(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 ld_SRCS:=$(wildcard $(LD_DIR)/*.c) $(UTIL_DIR)/archive.c \
-	$(UTIL_DIR)/gen_section.c $(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/elfutil.c $(UTIL_DIR)/table.c
 
 src_as_CFLAGS:=-I$(AS_DIR) -I$(AS_ARCH_DIR)
 src_as_arch_$(ARCHTYPE)_CFLAGS:=-I$(AS_DIR) -I$(AS_ARCH_DIR)

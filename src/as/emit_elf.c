@@ -8,7 +8,6 @@
 
 #include "as_util.h"
 #include "elfutil.h"
-#include "gen_section.h"
 #include "ir_asm.h"
 #include "parse_asm.h"
 #include "table.h"
@@ -74,7 +73,7 @@ void symtab_concat(Symtab *dest, Symtab *src) {
 
 //
 
-static int construct_symtab(Symtab *symtab, const int *section_indices, Table *label_table) {
+static int construct_symtab(Symtab *symtab, Vector *sections, Table *label_table) {
   symtab_init(symtab);
 
   Symtab symtab_global;
@@ -91,12 +90,13 @@ static int construct_symtab(Symtab *symtab, const int *section_indices, Table *l
   sym = symtab_add(symtab, nulname);
   sym->st_info = ELF64_ST_INFO(STB_LOCAL, STT_NOTYPE);
   // SECTION
-  for (int i = 0; i < SECTION_COUNT; ++i) {
-    if (section_indices[i] <= 0)
+  for (int i = 0; i < sections->len; ++i) {
+    SectionInfo *section = sections->data[i];
+    if ((section->flag & SF_BSS ? section->bss_size : section->ds->len) <= 0)
       continue;
     sym = symtab_add(symtab, nulname);
     sym->st_info = ELF64_ST_INFO(STB_LOCAL, STT_SECTION);
-    sym->st_shndx = section_indices[i];  // Section index.
+    sym->st_shndx = section->index;  // Section index.
   }
 
   const Name *name;
@@ -119,9 +119,9 @@ static int construct_symtab(Symtab *symtab, const int *section_indices, Table *l
     case LK_OBJECT:  type = STT_OBJECT; break;
     }
     sym->st_info = ELF64_ST_INFO(bind, type);
-    sym->st_value = (info->flag & LF_DEFINED) ? info->address - section_start_addresses[info->section] : 0;
-    assert(info->section < 0 || section_indices[info->section] > 0);
-    sym->st_shndx = info->section >= 0 ? section_indices[info->section] : SHN_UNDEF;  // Symbol index for Local section.
+    sym->st_value = (info->flag & LF_DEFINED) ? info->address - info->section->start_address : 0;
+    assert(info->section == NULL || info->section->index > 0);
+    sym->st_shndx = info->section != NULL ? info->section->index : SHN_UNDEF;  // Symbol index for Local section.
   }
 
   int local_symbol_count = symtab->count;
@@ -131,25 +131,13 @@ static int construct_symtab(Symtab *symtab, const int *section_indices, Table *l
   return local_symbol_count;
 }
 
-static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_table,
-                            const int *section_indices,
-                            int rela_counts[], Elf64_Rela *rela_bufs[]) {
-  memset(rela_counts, 0x00, sizeof(*rela_counts) * SECTION_COUNT);
+static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_table) {
   for (int i = 0; i < unresolved->len; ++i) {
     UnresolvedInfo *u = unresolved->data[i];
-    assert(u->src_section >= 0 && u->src_section < SECTION_COUNT);
-    ++rela_counts[u->src_section];
-  }
-
-  for (int i = 0; i < SECTION_COUNT; ++i) {
-    int count = rela_counts[i];
-    rela_bufs[i] = count <= 0 ? NULL : calloc_or_die(count * sizeof(*rela_bufs[i]));
-  }
-  memset(rela_counts, 0x00, sizeof(*rela_counts) * SECTION_COUNT);  // Reset count.
-
-  for (int i = 0; i < unresolved->len; ++i) {
-    UnresolvedInfo *u = unresolved->data[i];
-    Elf64_Rela *rela = &rela_bufs[u->src_section][rela_counts[u->src_section]++];
+    SectionInfo *section = u->src_section;
+    Elf64_Rela *rela;
+    section->rela_buf = rela = realloc_or_die(section->rela_buf, ++section->rela_count * sizeof(*rela));
+    rela += section->rela_count - 1;
     switch (u->kind) {
     case UNRES_ABS64:
       {
@@ -171,10 +159,10 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
           rela->r_info = ELF64_R_INFO(symidx, type);
           rela->r_addend = u->add;
         } else {
-          int secidx = section_indices[label->section];
+          int secidx = label->section->index;
           rela->r_offset = u->offset;
           rela->r_info = ELF64_R_INFO(secidx, type);
-          rela->r_addend = u->add + (label->address - section_start_addresses[label->section]);
+          rela->r_addend = u->add + (label->address - label->section->start_address);
         }
       }
       break;
@@ -196,7 +184,7 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
       {
         LabelInfo *label = table_get(label_table, u->label);
         assert(label != NULL);
-        int secidx = section_indices[label->section];
+        int secidx = label->section->index;
         rela->r_offset = u->offset;
         rela->r_info = ELF64_R_INFO(secidx, R_X86_64_PC32);
         rela->r_addend = u->add;
@@ -244,10 +232,10 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
           rela->r_info = ELF64_R_INFO(symidx, type);
           rela->r_addend = u->add;
         } else {
-          int secidx = section_indices[label->section];
+          int secidx = label->section->index;
           rela->r_offset = u->offset;
           rela->r_info = ELF64_R_INFO(secidx, type);
-          rela->r_addend = u->add + (label->address - section_start_addresses[label->section]);
+          rela->r_addend = u->add + (label->address - label->section->start_address);
         }
       }
       break;
@@ -313,46 +301,41 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
   }
 }
 
-int emit_elf_obj(const char *ofn, Table *label_table, Vector *unresolved) {
-  size_t section_sizes[SECTION_COUNT];
-  get_section_size(SEC_CODE, &section_sizes[SEC_CODE], NULL);
-  get_section_size(SEC_RODATA, &section_sizes[SEC_RODATA], NULL);
-  get_section_size(SEC_DATA, &section_sizes[SEC_DATA], NULL);
-  get_section_size(SEC_BSS, &section_sizes[SEC_BSS], NULL);
-
-  int section_indices[SECTION_COUNT];
+int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *unresolved) {
   int out_section_count = 0;
-  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
-    int index = (section_sizes[sec] > 0) ? ++out_section_count : -1;
-    section_indices[sec] = index;
+  for (int sec = 0; sec < sections->len; ++sec) {
+    SectionInfo *section = sections->data[sec];
+    if ((section->flag & SF_BSS ? section->bss_size : section->ds->len) <= 0)
+      continue;
+    section->index = ++out_section_count;
   }
 
   // Construct symtab and strtab.
   Symtab symtab;
   int local_symbol_count;
-  local_symbol_count = construct_symtab(&symtab, section_indices, label_table);
+  local_symbol_count = construct_symtab(&symtab, sections, label_table);
 
   // Construct relas.
-  int rela_counts[SECTION_COUNT];
-  Elf64_Rela *rela_bufs[SECTION_COUNT];
-  construct_relas(unresolved, &symtab, label_table, section_indices, rela_counts, rela_bufs);
+  construct_relas(unresolved, &symtab, label_table);
 
   uintptr_t addr = sizeof(Elf64_Ehdr);
-  uintptr_t section_offsets[SECTION_COUNT];
-  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
-    section_offsets[sec] = addr;
-    if (section_sizes[sec] > 0) {
-      section_offsets[sec] = addr = ALIGN(addr, 0x10);
-      if (sec != SEC_BSS)
-        addr += section_sizes[sec];
-    }
+  for (int sec = 0; sec < sections->len; ++sec) {
+    SectionInfo *section = sections->data[sec];
+    section->offset = addr;
+    size_t size = section->ds != NULL ? section->ds->len : section->bss_size;
+    if (size <= 0)
+      continue;
+    section->offset = addr = ALIGN(addr, 0x08);
+    if (!(section->flag & SF_BSS))
+    addr += size;
   }
 
-  uintptr_t rela_ofss[SECTION_COUNT];
-  for (int i = 0; i < SEC_BSS; ++i) {
-    rela_ofss[i] = addr = ALIGN(addr, 0x10);
-    if (rela_counts[i] > 0)
-      addr += sizeof(*rela_bufs[i]) * rela_counts[i];
+  for (int sec = 0; sec < sections->len; ++sec) {
+    SectionInfo *section = sections->data[sec];
+    if (section->rela_count <= 0)
+      continue;
+    section->rela_ofs = addr = ALIGN(addr, 0x08);
+    addr += sizeof(Elf64_Rela) * section->rela_count;
   }
 
   uintptr_t symtab_ofs = addr;
@@ -367,8 +350,10 @@ int emit_elf_obj(const char *ofn, Table *label_table, Vector *unresolved) {
   data_init(&section_headers);
 
   Elf64_Word index = 1 + out_section_count;
-  for (int i = SEC_CODE; i < SEC_BSS; ++i)
-    index += rela_counts[i] > 0;
+  for (int sec = 0; sec < sections->len; ++sec) {
+    SectionInfo *section = sections->data[sec];
+    index += section->rela_count > 0;
+  }
   Elf64_Word strtab_index = index++;
   Elf64_Word symtab_index = index;
   int shnum = index + 2;  // symtab, shstrtab
@@ -380,51 +365,61 @@ int emit_elf_obj(const char *ofn, Table *label_table, Vector *unresolved) {
   };
   data_append(&section_headers, &nulsec, sizeof(nulsec));
 
-  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
-    static const struct {
-      const char *name;
-      Elf64_Word type;
-      Elf64_Xword flags;
-    } kTable[] = {
-      [SEC_CODE] = { .name = ".text", .type = SHT_PROGBITS, .flags = SHF_EXECINSTR | SHF_ALLOC },
-      [SEC_RODATA] = { .name = ".rodata", .type = SHT_PROGBITS, .flags = SHF_ALLOC },
-      [SEC_DATA] = { .name = ".data", .type = SHT_PROGBITS, .flags = SHF_WRITE | SHF_ALLOC },
-      [SEC_BSS] = { .name = ".bss", .type = SHT_NOBITS, .flags = SHF_WRITE | SHF_ALLOC },
+  const Name *init_array_name = alloc_name(".init_array", NULL, false);
+  const Name *fini_array_name = alloc_name(".fini_array", NULL, false);
+  for (int sec = 0; sec < sections->len; ++sec) {
+    SectionInfo *section = sections->data[sec];
+    size_t size = section->ds != NULL ? section->ds->len : section->bss_size;
+    if (size <= 0)
+      continue;
+    Elf64_Xword flags = SHF_ALLOC;
+    if (section->flag & SF_EXECUTABLE)
+      flags |= SHF_EXECINSTR;
+    if (section->flag & SF_WRITABLE)
+      flags |= SHF_WRITE;
+
+    Elf64_Word type;
+    if (section->flag & SF_BSS)
+      type = SHT_NOBITS;
+    else if (equal_name(section->name, init_array_name))
+      type = SHT_INIT_ARRAY;
+    else if (equal_name(section->name, fini_array_name))
+      type = SHT_FINI_ARRAY;
+    else
+      type = SHT_PROGBITS;
+
+    Elf64_Shdr shdr = {
+      .sh_name = strtab_add(&shstrtab, section->name),
+      .sh_type = type,
+      .sh_flags = flags,
+      .sh_offset = section->offset,
+      .sh_size = size,
+      .sh_addralign = section->align,
     };
-    if (section_sizes[sec] > 0) {
-      Elf64_Shdr shdr = {
-        .sh_name = strtab_add(&shstrtab, alloc_name(kTable[sec].name, NULL, false)),
-        .sh_type = kTable[sec].type,
-        .sh_flags = kTable[sec].flags,
-        .sh_offset = section_offsets[sec],
-        .sh_size = section_sizes[sec],
-        .sh_addralign = section_aligns[sec],
-      };
-      data_append(&section_headers, &shdr, sizeof(shdr));
-    }
+    data_append(&section_headers, &shdr, sizeof(shdr));
   }
 
-  for (int sec = 0; sec < SEC_BSS; ++sec) {
-    static const char *kNames[] = {
-      [SEC_CODE] = ".rela.text",
-      [SEC_RODATA] = ".rela.rodata",
-      [SEC_DATA] = ".rela.data",
+  for (int sec = 0; sec < sections->len; ++sec) {
+    SectionInfo *section = sections->data[sec];
+    if (section->rela_count <= 0)
+      continue;
+    const Name *name = section->name;
+    char *buf = malloc_or_die(name->bytes + 6);  // sizeof(".rela\0")
+    snprintf(buf, name->bytes + 6, ".rela%.*s", name->bytes, name->chars);
+
+    assert(section->index > 0);
+    Elf64_Shdr shdr = {
+      .sh_name = strtab_add(&shstrtab, alloc_name(buf, NULL, false)),
+      .sh_type = SHT_RELA,
+      .sh_flags = SHF_INFO_LINK,
+      .sh_offset = section->rela_ofs,
+      .sh_size = sizeof(Elf64_Rela) * section->rela_count,
+      .sh_link = symtab_index,
+      .sh_info = section->index,
+      .sh_addralign = 8,
+      .sh_entsize = sizeof(Elf64_Rela),
     };
-    if (rela_counts[sec] > 0) {
-      assert(section_indices[sec] > 0);
-      Elf64_Shdr shdr = {
-        .sh_name = strtab_add(&shstrtab, alloc_name(kNames[sec], NULL, false)),
-        .sh_type = SHT_RELA,
-        .sh_flags = SHF_INFO_LINK,
-        .sh_offset = rela_ofss[sec],
-        .sh_size = sizeof(Elf64_Rela) * rela_counts[sec],
-        .sh_link = symtab_index,
-        .sh_info = section_indices[sec],
-        .sh_addralign = 8,
-        .sh_entsize = sizeof(Elf64_Rela),
-      };
-      data_append(&section_headers, &shdr, sizeof(shdr));
-    }
+    data_append(&section_headers, &shdr, sizeof(shdr));
   }
 
   Elf64_Shdr strtabsec = {
@@ -485,17 +480,22 @@ int emit_elf_obj(const char *ofn, Table *label_table, Vector *unresolved) {
 #endif
   out_elf_header(ofp, entry, phnum, shnum, flags, sh_ofs);
 
-  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
-    if (section_sizes[sec] > 0) {
-      put_padding(ofp, section_offsets[sec]);
-      output_section(ofp, sec);
-    }
+  for (int sec = 0; sec < sections->len; ++sec) {
+    SectionInfo *section = sections->data[sec];
+    DataStorage *ds = section->ds;
+    if (ds == NULL || ds->len <= 0)
+      continue;
+    put_padding(ofp, section->offset);
+    fwrite(ds->buf, ds->len, 1, ofp);
   }
 
-  for (int i = 0; i < SEC_BSS; ++i) {
-    put_padding(ofp, rela_ofss[i]);
-    if (rela_counts[i] > 0)
-      fwrite(rela_bufs[i], sizeof(*rela_bufs[i]), rela_counts[i], ofp);
+  for (int sec = 0; sec < sections->len; ++sec) {
+    SectionInfo *section = sections->data[sec];
+    int rela_count = section->rela_count;
+    if (rela_count > 0) {
+      put_padding(ofp, section->rela_ofs);
+      fwrite(section->rela_buf, sizeof(Elf64_Rela), rela_count, ofp);
+    }
   }
 
   fwrite(symtab.buf, sizeof(*symtab.buf), symtab.count, ofp);

@@ -77,6 +77,7 @@ bool function_not_returned(FuncBackend *fnbe);
 #endif
 
 bool is_fall_path_only(BBContainer *bbcon, int i);
+char *format_func_name(const Name *funcname, bool global);
 
 void emit_code(Vector *decls);
 extern void emit_defun(Function *func);

@@ -23,8 +23,6 @@ typedef struct {
   cookie_close_function_t close;
 } cookie_io_functions_t;
 
-extern const cookie_io_functions_t _kFileCookieIoFunctions;
-
 struct FILE {
   const cookie_io_functions_t *iof;  // not struct but const pointer.
   int (*flush)(struct FILE *fp);
@@ -37,6 +35,9 @@ struct FILE {
   unsigned int flag;
 };
 
+extern ssize_t _fread(void *cookie, char *buf, size_t total);
+extern ssize_t _fwrite(void *cookie, const char *buf, size_t size);
+extern int _fseek(void *cookie, off_t *offset, int origin);
 extern int _fflush(FILE *fp);
 
 extern void _add_opened_file(FILE *fp);

@@ -27,7 +27,7 @@ void make_code32(Inst *inst, Code *code, unsigned int *buf, int len) {
   code->len += len;
 }
 
-inline bool assemble_error(const ParseInfo *info, const char *message) {
+inline bool assemble_error(ParseInfo *info, const char *message) {
   parse_error(info, message);
   return false;
 }
@@ -588,7 +588,7 @@ static const AsmInstFunc table[] = {
   [FCVT] = asm_f_2r, [FCVTZS] = asm_f_2r, [FCVTZU] = asm_f_2r,
 };
 
-void assemble_inst(Inst *inst, const ParseInfo *info, Code *code) {
+void assemble_inst(Inst *inst, ParseInfo *info, Code *code) {
   code->flag = 0;
   code->len = 0;
 

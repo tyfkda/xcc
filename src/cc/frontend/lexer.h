@@ -37,3 +37,4 @@ LexEofCallback set_lex_eof_callback(LexEofCallback callback);
 bool lex_eof_continue(void);
 
 Token *alloc_token(enum TokenKind kind, Line *line, const char *begin, const char *end);
+Token *alloc_ident(const Name *name, Line *line, const char *begin, const char *end);

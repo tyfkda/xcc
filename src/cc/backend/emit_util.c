@@ -9,6 +9,7 @@
 
 #include "ast.h"
 #include "cc_misc.h"
+#include "fe_misc.h"
 #include "ir.h"
 #include "table.h"
 #include "type.h"
@@ -280,9 +281,84 @@ bool is_fall_path_only(BBContainer *bbcon, int i) {
          ((len = pbb->irs->len) == 0 || ((IR*)pbb->irs->data[len - 1])->kind != IR_TJMP);
 }
 
+char *format_func_name(const Name *funcname, bool global) {
+  char *label = fmt_name(funcname);
+  if (global)
+    label = quote_label(MANGLE(label));
+  else
+    label = quote_label(label);
+  return label;
+}
+
 static void emit_asm(Expr *asmstr) {
   assert(asmstr->kind == EX_STR);
   EMIT_ASM(asmstr->str.buf);
+}
+
+static void emit_decls_ctor_dtor(Vector *decls) {
+  const Name *constructor_name = alloc_name("constructor", NULL, false);
+  const Name *destructor_name = alloc_name("destructor", NULL, false);
+
+  Vector *ctors = new_vector();
+  Vector *dtors = new_vector();
+  for (int i = 0, len = decls->len; i < len; ++i) {
+    Declaration *decl = decls->data[i];
+    if (decl == NULL || decl->kind != DCL_DEFUN)
+      continue;
+    Function *func = decl->defun.func;
+    if (func->attributes != NULL) {
+      if (table_try_get(func->attributes, constructor_name, NULL))
+        vec_push(ctors, func);
+      if (table_try_get(func->attributes, destructor_name, NULL))
+        vec_push(dtors, func);
+    }
+  }
+
+  if (ctors->len <= 0 && dtors->len <= 0)
+    return;
+
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+  emit_comment(NULL);
+  _SECTION("__DATA,__mod_init_func,mod_init_funcs");
+  EMIT_ALIGN(8);
+  for (int i = 0; i < ctors->len; ++i) {
+    Function *func = ctors->data[i];
+    bool global = true;
+    const VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
+    if (varinfo != NULL)
+      global = (varinfo->storage & VS_STATIC) == 0;
+    _QUAD(format_func_name(func->name, global));
+  }
+  // For Apple platforms, the constructor function that registers the destructor function is
+  // generated, so no need to handle the destructor functions.
+#else
+  if (ctors->len > 0) {
+    emit_comment(NULL);
+    _SECTION(".init_array");
+    EMIT_ALIGN(8);
+    for (int i = 0; i < ctors->len; ++i) {
+      Function *func = ctors->data[i];
+      bool global = true;
+      const VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
+      if (varinfo != NULL)
+        global = (varinfo->storage & VS_STATIC) == 0;
+      _QUAD(format_func_name(func->name, global));
+    }
+  }
+  if (dtors->len > 0) {
+    emit_comment(NULL);
+      _SECTION(".fini_array");
+    EMIT_ALIGN(8);
+    for (int i = 0; i < dtors->len; ++i) {
+      Function *func = dtors->data[i];
+      bool global = true;
+      const VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
+      if (varinfo != NULL)
+        global = (varinfo->storage & VS_STATIC) == 0;
+      _QUAD(format_func_name(func->name, global));
+    }
+  }
+#endif
 }
 
 void emit_code(Vector *decls) {
@@ -302,6 +378,8 @@ void emit_code(Vector *decls) {
       break;
     }
   }
+
+  emit_decls_ctor_dtor(decls);
 
   emit_comment(NULL);
   for (int i = 0; i < global_scope->vars->len; ++i) {
