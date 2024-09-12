@@ -160,7 +160,8 @@ clean:
 .PHONY: test-riscv64
 test-riscv64:	cross-compile-riscv64
 	$(MAKE) -C tests clean && \
-		$(MAKE) RUN_EXE="$(CURDIR)/tool/run-riscv64" NO_LINK_TEST=1 -C tests all
+		$(MAKE) RUN_EXE="$(CURDIR)/tool/run-riscv64" NO_LINK_TEST=1 -C tests all && \
+		$(MAKE) -C libsrc clean-test && $(MAKE) CC=../xcc RUN_EXE="$(CURDIR)/tool/run-riscv64" -C libsrc test
 
 .PHONY: cross-compile-riscv64
 cross-compile-riscv64:

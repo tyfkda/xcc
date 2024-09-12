@@ -89,7 +89,7 @@ longjmp_SRCS:=misc/setjmp.c misc/longjmp.c
 define DEFINE_TEST_TARGET
 test-$(1):	$(1)_test
 	@echo "## $(1)"
-	@./$(1)_test
+	@$(RUN_EXE) ./$(1)_test
 
 $(1)_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $($(1)_SRCS:.c=.o)))
 

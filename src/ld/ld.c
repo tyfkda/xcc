@@ -364,7 +364,7 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
             assert((*q & 0xc003) == 0xc001);
             *q = (*q & 0xe383) | SWIZZLE_C_BXX(offset);
           } else {
-            assert(offset < (1 << 11) && offset >= -(1 << 11));
+            assert(offset < (1 << 13) && offset >= -(1 << 13));
             uint32_t *q = (uint32_t*)p;
             *q = (*q & 0x01fff07f) | SWIZZLE_BXX(offset);
           }

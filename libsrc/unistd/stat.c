@@ -11,7 +11,7 @@ int stat(const char *pathname, struct stat *buf) {
   SYSCALL_RET(__NR_stat, ret);
   return ret;
 }
-#elif defined(__NR_newfstatat)
+#elif defined(__NR_fstatat) || defined(__NR_newfstatat)
 #include "fcntl.h"  // AT_FDCWD
 int stat(const char *pathname, struct stat *buf) {
   return fstatat(AT_FDCWD, pathname, buf, 0);
