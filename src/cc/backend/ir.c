@@ -425,8 +425,7 @@ static void propagate_out_regs(VReg *vreg, Vector *froms) {
     if (vec_contains(bb->assigned_regs, vreg) ||
         !insert_vreg_into_vec(bb->in_regs, vreg))
       continue;
-    for (int i = 0; i < bb->from_bbs->len; ++i)
-      vec_push(froms, bb->from_bbs->data[i]);
+    vec_concat(froms, bb->from_bbs);
   }
 }
 
@@ -464,8 +463,7 @@ void analyze_reg_flow(BBContainer *bbcon) {
     Vector *in_regs = bb->in_regs;
     for (int j = 0; j < in_regs->len; ++j) {
       assert(dstbbs->len == 0);
-      for (int i = 0; i < from_bbs->len; ++i)
-        vec_push(dstbbs, from_bbs->data[i]);
+      vec_concat(dstbbs, from_bbs);
       VReg *vreg = in_regs->data[j];
       propagate_out_regs(vreg, dstbbs);
     }

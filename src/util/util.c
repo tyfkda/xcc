@@ -417,6 +417,11 @@ bool vec_contains(Vector *vec, void *elem) {
   return false;
 }
 
+void vec_concat(Vector *dst, const Vector *src) {
+  for (int i = 0; i < src->len; ++i)
+    vec_push(dst, src->data[i]);
+}
+
 // DataStorage
 
 void data_release(DataStorage *data) {

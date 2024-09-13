@@ -254,13 +254,11 @@ static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs
                 table_try_get(param_table, ((Token*)body->data[i + 2])->ident, (void**)&k)) {
               assert(k < args->len);
               const Vector *arg2 = args->data[k];
-              for (int l = 0; l < arg2->len; ++l)
-                vec_push(os, arg2->data[l]);
+              vec_concat(os, arg2);
             }
             i += 2;
           } else {
-            for (int l = 0; l < arg->len; ++l)
-              vec_push(os, arg->data[l]);
+            vec_concat(os, arg);
             // Handle `##` at next iteration.
           }
           continue;
@@ -275,15 +273,11 @@ static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs
           if (expanded == NULL) {
             Vector *arg = args->data[j];
             expanded = new_vector();
-            for (int i = 0; i < arg->len; ++i)
-              vec_push(expanded, arg->data[i]);
+            vec_concat(expanded, arg);
             macro_expand(expanded);
             expanded_args[j] = expanded;
           }
-          for (int k = 0; k < expanded->len; ++k) {
-            const Token *t = expanded->data[k];
-            vec_push(os, t);
-          }
+          vec_concat(os, expanded);
           continue;
         }
       }

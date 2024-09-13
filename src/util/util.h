@@ -74,6 +74,7 @@ void *vec_pop(Vector *vec);
 void vec_insert(Vector *vec, int pos, const void *elem);
 void vec_remove_at(Vector *vec, int index);
 bool vec_contains(Vector *vec, void *elem);
+void vec_concat(Vector *dst, const Vector *src);
 
 // DataStorage
 
