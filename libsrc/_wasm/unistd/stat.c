@@ -2,7 +2,7 @@
 #include "string.h"  // memset, strncmp
 #include "../wasi.h"
 
-extern int max_preopen_fd;
+extern int __max_preopen_fd;
 
 void _set_stat(Filestat *fs, struct stat *st) {
   mode_t mode = 0;
@@ -32,7 +32,7 @@ void _set_stat(Filestat *fs, struct stat *st) {
 int stat(const char *fn, struct stat *st) {
   memset(st, 0, sizeof(st));
   size_t fnlen = strlen(fn);
-  for (int base_fd = 3; base_fd < max_preopen_fd; ++base_fd) {
+  for (int base_fd = 3; base_fd < __max_preopen_fd; ++base_fd) {
     Prestat prestat;
     fd_prestat_get(base_fd, &prestat);
     size_t l = prestat.u.dir.pr_name_len;  // Includes '\0' or not, depending on the environment,

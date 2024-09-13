@@ -3,7 +3,7 @@
 #include "string.h"
 #include "../wasi.h"
 
-extern int max_preopen_fd;
+extern int __max_preopen_fd;
 
 int open(const char *fn, int flag, ...) {
   int dirflags = LOOKUPFLAGS_SYMLINK_FOLLOW;
@@ -34,7 +34,7 @@ int open(const char *fn, int flag, ...) {
 
   // Search from preopens
   size_t fnlen = strlen(fn);
-  for (int base_fd = 3; base_fd < max_preopen_fd; ++base_fd) {
+  for (int base_fd = 3; base_fd < __max_preopen_fd; ++base_fd) {
     Prestat prestat;
     fd_prestat_get(base_fd, &prestat);
     size_t l = prestat.u.dir.pr_name_len;  // Includes '\0' or not, depending on the environment,

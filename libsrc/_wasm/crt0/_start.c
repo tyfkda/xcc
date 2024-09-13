@@ -20,7 +20,7 @@ static void _atexit_proc(void) {
   __flush_all_files();
 }
 
-int max_preopen_fd = 3;
+int __max_preopen_fd = 3;
 
 static int find_preopens(void) {
   for (int fd = 3; ; ++fd) {
@@ -53,7 +53,7 @@ void _start(void) {
   }
   argv[argc] = NULL;
 
-  max_preopen_fd = find_preopens();
+  __max_preopen_fd = find_preopens();
 
   atexit(_atexit_proc);
   int ec = main(argc, argv);

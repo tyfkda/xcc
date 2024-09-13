@@ -3,12 +3,12 @@
 #include "string.h"
 #include "../wasi.h"
 
-extern int max_preopen_fd;
+extern int __max_preopen_fd;
 
 int unlink(const char *fn) {
   // Search from preopens
   size_t fnlen = strlen(fn);
-  for (int base_fd = 3; base_fd < max_preopen_fd; ++base_fd) {
+  for (int base_fd = 3; base_fd < __max_preopen_fd; ++base_fd) {
     Prestat prestat;
     if (fd_prestat_get(base_fd, &prestat) != 0)
       break;
