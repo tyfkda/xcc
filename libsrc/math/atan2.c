@@ -3,10 +3,9 @@
 
 #ifndef __NO_FLONUM
 double atan2(double y, double x) {
-  double ax = fabs(x), ay = fabs(y);
-  if (ax >= ay) {
-    if (ax == 0)
-      return signbit(ax) == 0 ? 0.0 : M_PI;
+  if (fabs(x) >= fabs(y)) {
+    if (x == 0)
+      return signbit(x) == 0 ? y : copysign(M_PI, y);
     double t = atan(y / x);
     if (x < 0)
       t = (t <= 0 ? M_PI : -M_PI) + t;

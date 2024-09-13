@@ -10,6 +10,15 @@
 #include "../../tests/xtest.h"
 
 #define EXPECT(expected, actual)  EXPECT_DEQ(expected, actual)
+#define EXPECT_EQ_D64(expected, actual)  EXPECT_TRUE(equal_d64(expected, actual))
+
+static bool equal_d64(double a, double b) {
+  union u { double d; int64_t u; };
+  union u ua, ub;
+  ua.d = a;
+  ub.d = b;
+  return ua.u == ub.u;
+}
 
 TEST(misc) {
   EXPECT_NEAR(M_SQRT2, sqrt(2.0));
@@ -26,11 +35,20 @@ TEST(misc) {
   EXPECT_NEAR(1.0, log(M_E));
   EXPECT_NEAR(M_E, exp(1.0));
   EXPECT_NEAR(1.858729, pow(1.2, 3.4));
-  EXPECT(1.23, fabs(-1.23));
   EXPECT_NEAR( 1.14, fmod( 12.34,  5.6));
   EXPECT_NEAR( 1.14, fmod( 12.34, -5.6));
   EXPECT_NEAR(-1.14, fmod(-12.34,  5.6));
   EXPECT_NEAR(-1.14, fmod(-12.34, -5.6));
+}
+
+TEST(fabs) {
+  EXPECT(1.23, fabs(1.23));
+  EXPECT(4.56, fabs(-4.56));
+
+  EXPECT_EQ_D64(0.0, fabs(0.0));
+  EXPECT_EQ_D64(0.0, fabs(-0.0));
+  EXPECT_EQ_D64(HUGE_VAL, fabs(-HUGE_VAL));
+  EXPECT_EQ_D64(NAN, fabs(-NAN));
 }
 
 TEST(floor) {
@@ -160,6 +178,8 @@ TEST(negative_zero) {
   EXPECT_TRUE(inv < 0.0);
 
   EXPECT_NEAR(M_PI, atan2(0.0, nzero));
+  EXPECT_NEAR(-M_PI, atan2(nzero, nzero));
+  EXPECT_EQ_D64(nzero, atan2(nzero, 0.0));
 }
 
 XTEST_MAIN();
