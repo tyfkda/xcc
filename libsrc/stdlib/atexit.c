@@ -1,4 +1,5 @@
 #include "stdlib.h"
+#include "_exit.h"
 
 #define MAX  (8)
 
@@ -14,7 +15,16 @@ int atexit(void (*func)(void)) {
   return 0;
 }
 
-void __atexit_call(void) {
-  for (AtexitFunc *p = &buf[count]; p > buf; )
-    (*(--p))();
+static void call_atexit_funcs(void) {
+  for (AtexitFunc *p = &buf[count]; p > buf; ) {
+    --p;
+    (*p)();
+  }
+}
+
+__attribute__((constructor))
+static void register_atexit(void) {
+  static OnExitChain chain = {NULL, call_atexit_funcs};
+  chain.next = __on_exit_chain;
+  __on_exit_chain = &chain;
 }

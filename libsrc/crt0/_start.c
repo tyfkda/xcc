@@ -1,4 +1,5 @@
 #include "stdlib.h"  // atexit, exit
+#include "../stdlib/_exit.h"
 
 #if defined(__GNUC__)
 #pragma GCC diagnostic ignored "-Wunused-function"
@@ -14,7 +15,7 @@ extern void (*__fini_array_end []) (void);  // __attribute__((weak));
 int __dummy = 123;  // Force .data section to be exist to avoid ELF-load error on spike/pk.
 #endif
 
-static void _atexit_proc(void) {
+static void call_fini_funcs(void) {
   for (void (**pp)(void) = __fini_array_start; pp < __fini_array_end; ++pp)
     (*pp)();
 }
@@ -25,7 +26,10 @@ static void start2(int argc, char *argv[], char *env[]) {
   extern char **environ;
   environ = env;
 #endif
-  atexit(_atexit_proc);
+
+  static OnExitChain chain = {NULL, call_fini_funcs};
+  chain.next = __on_exit_chain;
+  __on_exit_chain = &chain;
 
   for (void (**pp)(void) = __init_array_start; pp < __init_array_end; ++pp)
     (*pp)();
