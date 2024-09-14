@@ -35,7 +35,7 @@ TEST(vector) {
 
   EXPECT_EQ(false, vec_contains(vec, (void*)(intptr_t)19));
   EXPECT_EQ(true, vec_contains(vec, (void*)(intptr_t)20));
-} END_TEST()
+}
 
 TEST(sb) {
   StringBuffer sb;
@@ -51,7 +51,7 @@ TEST(sb) {
 
   sb_clear(&sb);
   EXPECT_EQ(true, sb_empty(&sb));
-} END_TEST()
+}
 
 TEST(escape) {
   StringBuffer sb;
@@ -60,7 +60,7 @@ TEST(escape) {
   static const char s1[] = "\"a b\tc\rd\ne\\\x1b";
   escape_string(s1, sizeof(s1), &sb);
   EXPECT_STREQ("escape_string", "\\\"a b\\tc\\rd\\ne\\\\\\x1b\\0", sb_to_string(&sb));
-} END_TEST()
+}
 
 TEST(is_fullpath) {
   EXPECT_EQ(true, is_fullpath("/foo/bar"));
@@ -68,7 +68,7 @@ TEST(is_fullpath) {
   EXPECT_EQ(false, is_fullpath("/foo/../bar"));
   EXPECT_EQ(true, is_fullpath("/foo/bar..baz/"));
   EXPECT_EQ(true, is_fullpath("/foo/..bar"));
-} END_TEST()
+}
 
 TEST(join_paths) {
   EXPECT_STREQ("Relative", "/user/foo/inc/stdio.h", JOIN_PATHS("/user/foo", "inc/stdio.h"));
@@ -93,22 +93,13 @@ TEST(join_paths) {
   EXPECT_STREQ("Parent", "../foo.txt", JOIN_PATHS("..", "foo.txt"));
   EXPECT_STREQ("Parent with abs", "/bar.txt", JOIN_PATHS("..", "/bar.txt"));
   EXPECT_STREQ("Parent with abs", "../../../baz.txt", JOIN_PATHS("..", "../../baz.txt"));
-} END_TEST()
+}
 
 TEST(change_ext) {
   EXPECT_STREQ("has ext", "foo.o", change_ext("foo.c", "o"));
   EXPECT_STREQ("no ext", "foo.o", change_ext("foo", "o"));
   EXPECT_STREQ("mult ext", "foo.bar.baz.o", change_ext("foo.bar.baz.c", "o"));
   EXPECT_STREQ("dir", "/foo/bar.baz/qux.s", change_ext("/foo/bar.baz/qux", "s"));
-} END_TEST()
-
-int main(void) {
-  return RUN_ALL_TESTS(
-    test_vector,
-    test_sb,
-    test_escape,
-    test_is_fullpath,
-    test_join_paths,
-    test_change_ext,
-  );
 }
+
+XTEST_MAIN();

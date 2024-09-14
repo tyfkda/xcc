@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 #include "../math/_ieee.h"
-#include "./xtest.h"
+#include "../../tests/xtest.h"
 
 #define EXPECT(expected, actual)  EXPECT_DEQ(expected, actual)
 
@@ -31,7 +31,7 @@ TEST(misc) {
   EXPECT_NEAR( 1.14, fmod( 12.34, -5.6));
   EXPECT_NEAR(-1.14, fmod(-12.34,  5.6));
   EXPECT_NEAR(-1.14, fmod(-12.34, -5.6));
-} END_TEST()
+}
 
 TEST(floor) {
   EXPECT(1.0, floor(1.999999));
@@ -51,7 +51,7 @@ TEST(floor) {
   EXPECT((double)(ONE), floor((double)(ONE) + 0.5));
   EXPECT((double)-(ONE / 2) - 1, floor((double)-(ONE / 2) - 0.5));
   EXPECT((double)-(ONE), floor((double)-(ONE) - 0.5));  // Fraction is under precision, so floor function doesn't detect fraction.
-} END_TEST()
+}
 
 TEST(ceil) {
   EXPECT(2.0, ceil(1.999999));
@@ -71,7 +71,7 @@ TEST(ceil) {
   EXPECT((double)(ONE), ceil((double)(ONE) + 0.5));  // Fraction is under precision, so ceil function doesn't detect fraction.
   EXPECT((double)-(ONE / 2), ceil((double)-(ONE / 2) - 0.5));
   EXPECT((double)-(ONE), ceil((double)-(ONE) - 0.5));
-} END_TEST()
+}
 
 TEST(round) {
   EXPECT(2.0, round(1.999999));
@@ -91,7 +91,7 @@ TEST(round) {
   EXPECT((double)(ONE), round((double)(ONE) + 0.5));  // Fraction is under precision, so round function doesn't detect fraction.
   EXPECT((double)-(ONE / 2) - 1, round((double)-(ONE / 2) - 0.5));
   EXPECT((double)-(ONE), round((double)-(ONE) - 0.5));
-} END_TEST()
+}
 
 TEST(modf) {
   double i = 123;
@@ -104,7 +104,7 @@ TEST(modf) {
   EXPECT_NAN(i);
   EXPECT(0.0, modf(HUGE_VAL, &i));
   EXPECT(HUGE_VAL, i);
-} END_TEST()
+}
 
 TEST(frexp) {
   int e;
@@ -118,14 +118,14 @@ TEST(frexp) {
   e = 5678;
   EXPECT_NAN(frexp(NAN, &e));
   EXPECT_EQ(0, e);
-} END_TEST()
+}
 
 TEST(isinf) {
   EXPECT_TRUE(isinf(HUGE_VAL));
   EXPECT_FALSE(isinf(1.23));
   EXPECT_FALSE(isinf(0.0));
   EXPECT_FALSE(isinf(NAN));
-} END_TEST()
+}
 
 TEST(isnan) {
   EXPECT_TRUE(isnan(NAN));
@@ -133,7 +133,7 @@ TEST(isnan) {
   EXPECT_FALSE(isnan(1.23));
   EXPECT_FALSE(isnan(0.0));
   EXPECT_FALSE(isnan(HUGE_VAL));
-} END_TEST()
+}
 
 TEST(copysign_signbit) {
   double pzero = 0.0;
@@ -147,7 +147,7 @@ TEST(copysign_signbit) {
   double nnan = copysign(NAN, -1);
   EXPECT_EQ(1, signbit(nnan));
   EXPECT_EQ(0, signbit(copysign(nnan, +1)));
-} END_TEST()
+}
 
 TEST(negative_zero) {
   double nzero = -0.0;
@@ -160,22 +160,9 @@ TEST(negative_zero) {
   EXPECT_TRUE(inv < 0.0);
 
   EXPECT_NEAR(M_PI, atan2(0.0, nzero));
-} END_TEST()
-
-int main() {
-  return RUN_ALL_TESTS(
-    test_misc,
-    test_floor,
-    test_ceil,
-    test_round,
-    test_modf,
-    test_frexp,
-    test_isinf,
-    test_isnan,
-    test_copysign_signbit,
-    test_negative_zero,
-  );
 }
+
+XTEST_MAIN();
 #else
 
 #include <stdio.h>

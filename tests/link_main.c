@@ -25,8 +25,6 @@ TEST(all) {
 #ifndef __NO_FLONUM
   expectf64("many_dargs", 17.0, many_fargs(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0));
 #endif
-} END_TEST()
-
-int main(void) {
-  return RUN_ALL_TESTS(test_all);
 }
+
+XTEST_MAIN();

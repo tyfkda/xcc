@@ -6,14 +6,35 @@
 #include <stdbool.h>
 #include <stdint.h>  // int64_t
 #include <stdio.h>
+#include <stdlib.h>  // exit
 #include <string.h>
 
 #ifdef __GNUC__
 #pragma GCC diagnostic ignored "-Wunused-function"
 #endif
 
-#define TEST(name)  void test_ ## name (void) { begin_test_suite(#name);
-#define END_TEST()  end_test_suite(); }
+#define MAX_TEST_CASES  32
+
+struct XTestCase {
+  const char *title;
+  void (*fn)(void);
+};
+static struct XTestCase xtest_cases[MAX_TEST_CASES];
+static size_t xtest_case_count;
+
+#define TEST(name) \
+  static void test_ ## name (void); \
+  __attribute__((constructor)) static void register_test_ ## name (void) { \
+    if (xtest_case_count >= MAX_TEST_CASES) { \
+      fprintf(stderr, "Too many test cases\n"); \
+      exit(1); \
+    } \
+    struct XTestCase *p = &xtest_cases[xtest_case_count++]; \
+    p->title = #name; \
+    p->fn = test_ ## name; \
+  } \
+  static void test_ ## name (void)
+#define END_TEST()
 
 #define EXPECT_EQ(expected, actual)  expecti64(#actual, expected, actual)
 #define EXPECT_TRUE(actual)   expecti64(#actual, true, !!(actual))
@@ -30,12 +51,6 @@
 #if !defined(XTEST_NO_EXPECT_NEAR) && !defined(__NO_FLONUM)
 #define EXPECT_NEAR(expected, actual)  expect_near(#actual, expected, actual)
 #endif
-
-#define RUN_ALL_TESTS(...)  ({ \
-  static void (*const tests[])(void) = {__VA_ARGS__}; \
-  for (size_t i = 0; i < sizeof(tests)/sizeof(*tests); ++i) \
-    (*tests[i])(); \
-  failed_suite_count < 255 ? failed_suite_count : 255; })
 
 static const char *suite_name;
 static int failed_suite_count;
@@ -112,7 +127,7 @@ static void expectf32(const char *title, float expected, float actual) {
 #endif
 
 #if !defined(XTEST_NO_EXPECT_NEAR) && !defined(__NO_FLONUM)
-void expect_near(const char *title, double expected, double actual) {
+static void expect_near(const char *title, double expected, double actual) {
   begin_test(title);
   int ok = 0;
   if (isfinite(actual)) {
@@ -126,3 +141,15 @@ void expect_near(const char *title, double expected, double actual) {
     fail("%s, %f expected, but got %f\n", title, expected, actual);
 }
 #endif
+
+static int xtest_main(void) {
+  for (size_t i = 0; i < xtest_case_count; ++i) {
+    struct XTestCase *p = &xtest_cases[i];
+    begin_test_suite(p->title);
+    (*p->fn)();
+    end_test_suite();
+  }
+  return failed_suite_count == 0 ? 0 : 1;
+}
+
+#define XTEST_MAIN()  int main(void) { return xtest_main(); }

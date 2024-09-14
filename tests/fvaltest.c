@@ -27,8 +27,6 @@ double mix_many_params(int n, int i1, double d1, int i2, double d2, int i3, doub
 
 TEST(mix) {
 #ifndef USE_SINGLE
-  begin_test_suite("mix");
-
   EXPECT_NEAR(0.2734375, mix_params(1, 2, 3, 4, 5, 6, 7, 8));
   EXPECT_NEAR(322.0, mix_many_params(20, 1, 2.0, 3, 4.0f, 5, 6.0, 7, 8.0f, 9, 10.0, 11, 12.0f));
 
@@ -46,13 +44,7 @@ TEST(mix) {
     EXPECT_STREQ("ulltof", "f123456789012000", buf);
   }
 #endif
-} END_TEST()
-
-int main(void) {
-  return RUN_ALL_TESTS(
-    test_number,
-    test_nan,
-    test_mix,
-  );
 }
+
+XTEST_MAIN();
 #endif

@@ -125,15 +125,10 @@ TEST(parse_full_type) {
   expect_parse_type("float", &tyFloat, NULL, "float");
   expect_parse_type("long double", &tyLDouble, NULL, "long double");
 #endif
-} END_TEST()
-
-void runtest(void) {
 }
 
 int main(void) {
   init_lexer();
 
-  return RUN_ALL_TESTS(
-    test_parse_full_type,
-  );
+  xtest_main();
 }

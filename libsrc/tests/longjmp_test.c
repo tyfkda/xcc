@@ -11,7 +11,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "./xtest.h"
+#include "../../tests/xtest.h"
 
 jmp_buf env;
 
@@ -34,7 +34,7 @@ TEST(simple) {
   } else {
     EXPECT_EQ(510, result);
   }
-} END_TEST()
+}
 
 TEST(zero) {
   int result = setjmp(env);
@@ -42,7 +42,7 @@ TEST(zero) {
     longjmp(env, 0);
   }
   EXPECT_TRUE(result != 0);
-} END_TEST()
+}
 
 TEST(multiple_times) {
   int result;
@@ -56,7 +56,7 @@ TEST(multiple_times) {
       simple(result);
     EXPECT_EQ(32, result);
   }
-} END_TEST()
+}
 
 void nested(jmp_buf env2) {
   if (!setjmp(env))
@@ -71,13 +71,6 @@ TEST(nested) {
     nested(env2);
     fail("nested, unreachable");
   }
-} END_TEST()
-
-int main(void) {
-  return RUN_ALL_TESTS(
-    test_simple,
-    test_zero,
-    test_multiple_times,
-    test_nested,
-  );
 }
+
+XTEST_MAIN();

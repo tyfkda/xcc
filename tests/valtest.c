@@ -878,8 +878,7 @@ TEST(all) {
     EXPECT("wide string 3", L'\0', ws[2]);
   }
 #endif
-
-} END_TEST()
+}
 
 int e_val = 789;
 
@@ -1193,7 +1192,7 @@ TTT:;
     EXPECT("return str", 111, retstr()[2]);
     EXPECT("deref str", 48, *"0");
   }
-} END_TEST()
+}
 
 int oldstylefunc(int x) {
   return x * 3;
@@ -1404,7 +1403,7 @@ TEST(struct) {
     EXPECT("sizeof(x) with flexible is not actual", sizeof(struct FlexibleArrayMember), sizeof(local));
 #endif
   }
-} END_TEST()
+}
 
 //
 
@@ -1618,7 +1617,7 @@ TEST(bitfield) {
     // Bit width zero breaks bit packing.
     EXPECT_TRUE(sizeof(struct S1) < sizeof(struct S2));
   }
-} END_TEST()
+}
 #endif
 
 //
@@ -1757,7 +1756,7 @@ TEST(initializer) {
     struct T *t = &(struct T){"xyz"};
     EXPECT_STREQ("String in initializer with compound literal", "xyz", t->str);
   }
-} END_TEST()
+}
 
 //
 
@@ -1921,7 +1920,7 @@ TEST(function) {
 
   EXPECT_STREQ("__FUNCTION__", "get_FUNCTION", get_FUNCTION());
   EXPECT_STREQ("__func__", "get_func", get_func());
-} END_TEST()
+}
 
 long extern_in_func;
 int extern_array_wo_size[] = {11, 22, 33};
@@ -2003,23 +2002,9 @@ TEST(vla) {
     int (*p)[2] = a;
     EXPECT("vla size", 2468, vla_funparam(2, a, p));
   }
-} END_TEST()
+}
 #endif
 
 //
 
-int main(void) {
-  return RUN_ALL_TESTS(
-    test_all,
-    test_basic,
-    test_struct,
-#ifndef __NO_BITFIELD
-    test_bitfield,
-#endif
-    test_initializer,
-    test_function,
-#if !defined(__NO_VLA) && !defined(__STDC_NO_VLA__)
-    test_vla,
-#endif
-  );
-}
+XTEST_MAIN();

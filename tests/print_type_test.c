@@ -104,10 +104,6 @@ TEST(print_type) {
 
     check_print_type("void(*(int, void(*)(int)))(int)", functype);
   }
-} END_TEST()
-
-int main(void) {
-  return RUN_ALL_TESTS(
-    test_print_type,
-  );
 }
+
+XTEST_MAIN();

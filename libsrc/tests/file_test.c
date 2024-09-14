@@ -3,7 +3,7 @@
 
 #include <string.h>
 
-#include "./xtest.h"
+#include "../../tests/xtest.h"
 
 TEST(basic_access) {
   const char fn[] = "tmp_file_test.txt";
@@ -44,7 +44,7 @@ TEST(basic_access) {
 
   // remove
   EXPECT_EQ(0, remove(fn));
-} END_TEST()
+}
 
 TEST(stat) {
   // Test regular file.
@@ -80,11 +80,6 @@ TEST(stat) {
     }
   }
   // EXPECT_EQ(0, rmdir());
-} END_TEST()
-
-int main() {
-  return RUN_ALL_TESTS(
-    test_basic_access,
-    test_stat,
-  );
 }
+
+XTEST_MAIN();

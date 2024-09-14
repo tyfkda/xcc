@@ -79,7 +79,7 @@ TEST(number) {
     uint64_t ul = (uint64_t)-1L;
     expecti64("from unsigned max", 1, (x = ul, x >= 0));
   }
-} END_TEST()
+}
 
 TEST(nan) {
   const int X = 0x4567, Y = 0x9abc;
@@ -133,4 +133,4 @@ TEST(nan) {
   EXPECT_FALSE(nan >= -inf);
   EXPECT_FALSE(nan < -inf);
   EXPECT_FALSE(nan <= -inf);
-} END_TEST()
+}

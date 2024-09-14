@@ -2,7 +2,7 @@
 
 #include <limits.h>
 
-#include "./xtest.h"
+#include "../../tests/xtest.h"
 
 TEST(atoi) {
   EXPECT_EQ(123, atoi("123"));
@@ -12,7 +12,7 @@ TEST(atoi) {
   EXPECT_EQ(-591751050, atoi("1094624909430"));  // 0xfedcba9876: Value not clammped.
 
   EXPECT_EQ(0, atoi("+ 333"));
-} END_TEST()
+}
 
 TEST(atol) {
   EXPECT_EQ(123, atol("123"));
@@ -24,7 +24,7 @@ TEST(atol) {
 #endif
 
   EXPECT_EQ(0, atol("+ 333"));
-} END_TEST()
+}
 
 TEST(atoll) {
   EXPECT_EQ(123, atoll("123"));
@@ -34,7 +34,7 @@ TEST(atoll) {
   EXPECT_EQ(0x7fffffffffffffffLL, atoll("98765432109876543210"));  // Value clamped.
 
   EXPECT_EQ(0, atoll("+ 333"));
-} END_TEST()
+}
 
 TEST(atof) {
 #ifndef __NO_FLONUM
@@ -45,7 +45,7 @@ TEST(atof) {
 
   EXPECT_DEQ(0.0, atof("+ 333.33"));
 #endif
-} END_TEST()
+}
 
 TEST(strtoll) {
   char *p, *s;
@@ -69,7 +69,7 @@ TEST(strtoll) {
   EXPECT_EQ(0, strtoll(s="+ 333", &p, 10));
   EXPECT_PTREQ(s, p);
   EXPECT_EQ(987, strtoll(s="987", NULL, 10));  // Null accepted
-} END_TEST()
+}
 
 TEST(strtoull) {
   char *p, *s;
@@ -91,7 +91,7 @@ TEST(strtoull) {
   EXPECT_EQ(0, strtoull(s="+ 333", &p, 10));
   EXPECT_PTREQ(s, p);
   EXPECT_EQ(987, strtoull(s="987", NULL, 10));  // Null accepted
-} END_TEST()
+}
 
 TEST(strtod) {
 #ifndef __NO_FLONUM
@@ -114,16 +114,6 @@ TEST(strtod) {
   u.d = strtod("-0.0", NULL);
   EXPECT_EQ(0x8000000000000000LL, u.x);
 #endif
-} END_TEST()
-
-int main() {
-  return RUN_ALL_TESTS(
-    test_atoi,
-    test_atol,
-    test_atoll,
-    test_atof,
-    test_strtoll,
-    test_strtoull,
-    test_strtod,
-  );
 }
+
+XTEST_MAIN();

@@ -234,10 +234,6 @@ TEST(flatten) {
 
     expect2("{{98, 76}}", "{.s=98, 76}", type2);
   }
-} END_TEST()
-
-int main(void) {
-  return RUN_ALL_TESTS(
-    test_flatten,
-  );
 }
+
+XTEST_MAIN();

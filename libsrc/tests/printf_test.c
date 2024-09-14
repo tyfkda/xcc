@@ -10,7 +10,7 @@
 #include <math.h>
 #endif
 
-#include "./xtest.h"
+#include "../../tests/xtest.h"
 
 #define SSIZE  (64)
 #define MARKER  (0xbd)
@@ -54,7 +54,7 @@ TEST(fmemopen) {
     fclose(fp);
     memcmp(buf, str, sizeof(str));
   }
-} END_TEST()
+}
 
 TEST(open_memstream) {
   char *ptr = NULL;
@@ -69,7 +69,7 @@ TEST(open_memstream) {
     EXPECT_EQ(12 + 14, size);
     free(ptr);
   }
-} END_TEST()
+}
 
 TEST(sprintf) {
   char buf[16];
@@ -77,7 +77,7 @@ TEST(sprintf) {
   EXPECT_EQ(5, sprintf(buf, "%d", 12345));
   EXPECT_EQ('\0', buf[5]);
   EXPECT_EQ(0x7f, buf[6]);
-} END_TEST()
+}
 
 TEST(vsnprintf) {
 #define EXPECT(expected, fmt, ...)  expect_vsnprintf(expected, sizeof(expected)-1, fmt, __VA_ARGS__)
@@ -151,13 +151,6 @@ TEST(vsnprintf) {
   EXPECT("Scientific:nan", "Scientific:%g", NAN);
 #endif
 #undef EXPECT
-} END_TEST()
-
-int main() {
-  return RUN_ALL_TESTS(
-    test_fmemopen,
-    test_open_memstream,
-    test_sprintf,
-    test_vsnprintf,
-  );
 }
+
+XTEST_MAIN();

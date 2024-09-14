@@ -30,10 +30,6 @@ TEST(table) {
   EXPECT_TRUE(!table_try_get(&table, key, NULL));
   EXPECT_EQ(0, table.count);
   EXPECT_EQ(1, table.used);
-} END_TEST()
-
-int main(void) {
-  return RUN_ALL_TESTS(
-    test_table,
-  );
 }
+
+XTEST_MAIN();
