@@ -1,6 +1,8 @@
 #include "stdlib.h"
 #include "_exit.h"
 
+OnExitChain *__on_exit_chain;
+
 #if defined(__linux__) || defined(__WASM)
 #include "stdbool.h"
 
@@ -22,8 +24,6 @@ static void proc_exit(int code) {
     ;
 }
 #endif
-
-OnExitChain *__on_exit_chain;
 
 void exit(int code) {
   // TODO: Guard multiple calls

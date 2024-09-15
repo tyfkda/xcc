@@ -370,7 +370,9 @@ int emit_macho_obj(const char *ofn, Vector *sections, Table *label_table, Vector
     if (size <= 0)
       continue;
     uint32_t flags = 0;
-    if (section->flag & SF_EXECUTABLE)
+    if (section->flag & SF_INIT_FUNCS)
+      flags |= S_MOD_INIT_FUNC_POINTERS;
+    else if (section->flag & SF_EXECUTABLE)
       flags |= S_ATTR_PURE_INSTRUCTIONS | S_ATTR_SOME_INSTRUCTIONS;
     struct section_64 sect = {
       .addr = section->start_address,

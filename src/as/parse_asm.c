@@ -1047,9 +1047,25 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
         parse_error(info, ".section: section name expected");
         return;
       }
+
+      int flag = 0;
+      p = skip_whitespaces(info->p);
+      if (*p == ',') {
+        info->p = p + 1;
+        const Name *modname = parse_section_name(info);
+        if (modname != NULL) {
+          if (equal_name(modname, alloc_name("mod_init_funcs", NULL, false))) {
+            flag = SF_INIT_FUNCS;
+          }
+        }
+        if (flag == 0) {
+          parse_error(info, ".section: section name expected");
+          return;
+        }
+      }
+
       char *segname = strndup(name->chars, name->bytes);
       char *sectname = strndup(name2->chars, name2->bytes);
-      int flag = 0;  // TODO
       section = set_current_section(info, sectname, segname, flag);
 #endif
     }
