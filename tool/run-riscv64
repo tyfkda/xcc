@@ -8,7 +8,7 @@ pk="${RISCV}/${prefix}/bin/pk"
 
 # Eliminate "bbl loader" message
 first=1
-spike "$RISCV/$prefix/bin/pk" "$@" | while read LINE
+spike "$RISCV/$prefix/bin/pk" "$@" | while IFS= read LINE
 do
   if [[ $first -eq 1 ]]; then
     first=0
