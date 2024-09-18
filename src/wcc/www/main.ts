@@ -265,13 +265,19 @@ function start() {
     runMode: RUN,
     showRunModeDropdown: false,
 
-    init() {
+    async init() {
       wccRunner.setConsoleOutFunction((text, _isError) => Util.putTerminal(text))
       wccRunner.setUp()
         .then(() => this.loaded = true)
 
       const searchParams = new URLSearchParams(window.location.search)
-      if (searchParams.has('code')) {
+      if (searchParams.has('codez')) {
+        const compressed = searchParams.get('codez') || ''
+        const blob2 = await Util.base64ToBlob(compressed)
+        const decompressed = await Util.decompressText(blob2)
+        loadCodeToEditor(decompressed, '')
+        this.args = searchParams.get('args') || ''
+      } else if (searchParams.has('code')) {
         loadCodeToEditor(searchParams.get('code') || '', '')
         this.args = searchParams.get('args') || ''
       } else if (!loadCodeFromStorage()) {
@@ -309,11 +315,16 @@ function start() {
         this.fileHandle = null
       })
     },
-    onClickNavOpen() {
-      const code = editor.getValue().trim()
+    async onClickNavOpen() {
+      const code = (editor.getValue() as string).trim()
       if (code !== '') {
-        const params: Record<string, string> = {
-          code,
+        const params: Record<string, string> = {}
+        if (typeof(Response) === 'undefined') {
+          params.code = code
+        } else {
+          const blob = await Util.compressText(code)
+          const compressed = await Util.bolbToBase64(blob)
+          params.codez = compressed
         }
         const args = this.args.trim()
         if (args !== '')

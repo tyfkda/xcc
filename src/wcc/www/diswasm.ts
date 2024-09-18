@@ -1201,21 +1201,21 @@ export class DisWasm {
                     switch (kind) {
                     case SymInfoKind.SYMTAB_FUNCTION:
                       if (index < this.importFuncCount && !(flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
-                        symname = this.funcs.get(index)?.join('.')!
+                        symname = this.funcs.get(index)!.join('.')
                       } else {
                         symname = this.bufferReader.readString()
                       }
                       break
                     case SymInfoKind.SYMTAB_GLOBAL:
                         if (index < this.importGlobalCount && !(flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
-                        symname = this.globals.get(index)?.join('.')!
+                        symname = this.globals.get(index)!.join('.')
                       } else {
                         symname = this.bufferReader.readString()
                       }
                       break
                     case SymInfoKind.SYMTAB_TABLE:
                         if (index < this.importTableCount && !(flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
-                        symname = this.tables.get(index)?.join('.')!
+                        symname = this.tables.get(index)!.join('.')
                       } else {
                         symname = this.bufferReader.readString()
                       }

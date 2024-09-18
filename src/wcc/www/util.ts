@@ -15,18 +15,26 @@ export class Util {
     return x < min ? min : x > max ? max : x
   }
 
-  // Decode string in buffer to JS.
-  public static decodeString(buffer: ArrayBuffer, ptr: number, size: number|undefined = undefined): string {
-    const memoryImage = new Uint8Array(buffer, ptr, size)
-    let len: number
-    for (len = 0; len < memoryImage.length && memoryImage[len] !== 0x00; ++len)
-      ;
-    const arr = new Uint8Array(buffer, ptr, len)
-    return new TextDecoder('utf-8').decode(arr)
+  public static async bolbToBase64(blob: Blob): Promise<string> {
+    return await new Promise(resolve => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve((reader.result as string).replace(/data:.*\/.*;base64,/, ''))
+      reader.readAsDataURL(blob)
+    })
   }
 
-  public static encode(text: string): Uint8Array {
-    return new TextEncoder().encode(text)
+  public static async base64ToBlob(base64: string): Promise<Blob> {
+    return await fetch('data:application/octet-stream;base64,' + base64).then(res => res.blob())
+  }
+
+  public static async compressText(text: string): Promise<Blob> {
+    const readableStream = new Response(text).body!.pipeThrough(new CompressionStream('deflate'))
+    return await new Response(readableStream).blob()
+  }
+
+  public static async decompressText(blob: Blob): Promise<string> {
+    const readableStream = blob.stream().pipeThrough(new DecompressionStream('deflate'))
+    return new Response(readableStream).text()
   }
 
   public static setTerminal(terminal_: any): void {
