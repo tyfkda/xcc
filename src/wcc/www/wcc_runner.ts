@@ -71,6 +71,21 @@ export class WccRunner {
     await Promise.all([
       loadFromServer(PACKED_ZIP_PATH, {binary: true})
         .then((binary) => new Promise((resolve, reject) => {
+(async () => {
+          const blob = new Blob([binary], { type: 'application/zip' })
+console.log(blob)
+          const readableStream = blob.stream()
+          const decompressedStream = readableStream.pipeThrough(new DecompressionStream('deflate'))
+          const unzipped = new Response(decompressedStream)
+console.log(unzipped)
+try {
+            const ab = await unzipped.arrayBuffer()
+console.log(ab)
+} catch (e) {
+  console.error(e)
+}
+})()
+
           return unzip(new Uint8Array(binary as ArrayBuffer), (err, unzipped) => {
             if (err) {
               reject(err)
