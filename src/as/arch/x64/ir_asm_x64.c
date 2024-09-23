@@ -153,40 +153,20 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                 inst->opr[0].indirect.offset.expr->kind != EX_FIXNUM) {
               Value value = calc_expr(label_table, inst->opr[0].indirect.offset.expr);
               if (value.label != NULL) {
-                LabelInfo *label_info = table_get(label_table, value.label);
-                if (label_info != NULL && label_info->section != section) {
-                  Vector *irs2 = label_info->section->irs;
-                  uintptr_t dst_start_address = irs2->len > 0 ? ((IR *)irs2->data[0])->address : 0;
-
-                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
-                  info->kind = UNRES_OTHER_SECTION;
-                  info->label = value.label;
-                  info->src_section = section;
-                  info->offset = address + 3 - start_address;
-                  info->add = label_info->address + value.offset - dst_start_address - 4;
-                  vec_push(unresolved, info);
+                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                info->kind = UNRES_EXTERN_PC32;
+                info->label = value.label;
+                info->src_section = section;
+                info->offset = address + 3 - start_address;
+                info->add = value.offset - 4;
+                vec_push(unresolved, info);
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-                  put_value(ir->code.buf + 3, value.offset, sizeof(int32_t));
+                put_value(ir->code.buf + 3, value.offset, sizeof(int32_t));
 #endif
-                  break;
-                }
-                if (label_info == NULL || label_info->flag & LF_GLOBAL) {
-                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
-                  info->kind = UNRES_EXTERN_PC32;
-                  info->label = value.label;
-                  info->src_section = section;
-                  info->offset = address + 3 - start_address;
-                  info->add = value.offset - 4;
-                  vec_push(unresolved, info);
-#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-                  put_value(ir->code.buf + 3, value.offset, sizeof(int32_t));
-#endif
-                  break;
-                }
-                value.offset += label_info->address;
+              } else {
+                intptr_t offset = value.offset - (VOIDP2INT(address) + ir->code.len);
+                put_value(ir->code.buf + 3, offset, sizeof(int32_t));
               }
-              intptr_t offset = value.offset - (VOIDP2INT(address) + ir->code.len);
-              put_value(ir->code.buf + 3, offset, sizeof(int32_t));
             }
             break;
           case JMP_D:

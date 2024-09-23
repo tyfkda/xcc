@@ -21,7 +21,6 @@ typedef struct Vector Vector;
 enum UnresolvedKind {
   UNRES_EXTERN,
   UNRES_EXTERN_PC32,
-  UNRES_OTHER_SECTION,
   UNRES_ABS64,
   UNRES_CALL,
   UNRES_PCREL_HI,

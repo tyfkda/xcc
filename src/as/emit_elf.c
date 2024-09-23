@@ -180,16 +180,6 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         rela->r_addend = u->add;
       }
       break;
-    case UNRES_OTHER_SECTION:
-      {
-        LabelInfo *label = table_get(label_table, u->label);
-        assert(label != NULL);
-        int secidx = label->section->index;
-        rela->r_offset = u->offset;
-        rela->r_info = ELF64_R_INFO(secidx, R_X86_64_PC32);
-        rela->r_addend = u->add;
-      }
-      break;
 
     // case UNRES_X64_GOT_LOAD:
     //   assert(!"TODO");

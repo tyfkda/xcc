@@ -135,7 +135,6 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
 #if XCC_TARGET_ARCH == XCC_ARCH_X64
     case UNRES_EXTERN:
     case UNRES_EXTERN_PC32:
-    case UNRES_OTHER_SECTION:
       {
         int symidx = symtab_find(symtab, u->label);
         assert(symidx >= 0);
@@ -146,7 +145,7 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         rela->r_pcrel = 1;
         rela->r_length = 2;
         rela->r_extern = 1;
-        rela->r_type = u->kind == UNRES_OTHER_SECTION ? X86_64_RELOC_SIGNED : X86_64_RELOC_BRANCH;
+        rela->r_type = X86_64_RELOC_BRANCH;
       }
       break;
     case UNRES_X64_GOT_LOAD:
