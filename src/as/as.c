@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>  // qsort
+#include <string.h>
 #include <unistd.h>  // isatty
 
 #include "ir_asm.h"
@@ -154,22 +155,23 @@ int main(int argc, char *argv[]) {
   info.section_infos = &section_infos;
   info.label_table = &label_table;
 
-  if (iarg < argc) {
-    for (int i = iarg; i < argc; ++i) {
-      const char *filename = argv[i];
-      FILE *fp;
-      if (!is_file(filename) || (fp = fopen(filename, "r")) == NULL)
-        error("Cannot open %s\n", argv[i]);
+  if (iarg >= argc)
+    error("No input files");
 
-      info.filename = filename;
-      parse_file(fp, &info);
-      fclose(fp);
-      if (info.error_count != 0)
-        break;
+  for (int i = iarg; i < argc; ++i) {
+    const char *filename = argv[i];
+    FILE *fp;
+    if (strcmp(filename, "-") == 0) {
+      fp = stdin;
+    } else if (!is_file(filename) || (fp = fopen(filename, "r")) == NULL) {
+      error("Cannot open %s\n", argv[i]);
     }
-  } else {
-    info.filename = "*stdin*";
-    parse_file(stdin, &info);
+
+    info.filename = filename;
+    parse_file(fp, &info);
+    fclose(fp);
+    if (info.error_count != 0)
+      break;
   }
 
   if (info.error_count != 0) {

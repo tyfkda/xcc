@@ -101,7 +101,7 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
   }
 
   // When src is NULL, no input file is given and cpp read from stdin.
-  cpp_cmd->data[cpp_cmd->len - 2] = (void *)src;
+  cpp_cmd->data[cpp_cmd->len - 2] = strcmp(src, "-") == 0 ? NULL : (void*)src;
   pid_t cpp_pid = exec_with_ofd((char**)cpp_cmd->data, ofd2);
   ++running;
 
@@ -181,7 +181,7 @@ static int compile_csource(const char *source_fn, enum OutType out_type, const c
   pid_t as_pid = -1;
 
   if (out_type > OutAssembly) {
-    as_cmd->data[as_cmd->len - 2] = (void*)objfn;
+    as_cmd->data[as_cmd->len - 3] = (void*)objfn;
     as_pid = pipe_exec((char**)as_cmd->data, -1, as_fd);
     ofd = as_fd[1];
   }
@@ -220,7 +220,7 @@ static int compile_asm(const char *source_fn, enum OutType out_type, const char 
       strcpy(p + len, ".o");
       objfn = p;
     }
-    as_cmd->data[as_cmd->len - 2] = (void*)objfn;
+    as_cmd->data[as_cmd->len - 3] = (void*)objfn;
   }
 
   vec_pop(as_cmd);
@@ -502,7 +502,7 @@ static int do_compile(Options *opts, const char *root) {
     if (src != NULL) {
       if (*src == '\0')
         continue;
-      if (*src == '-') {
+      if (*src == '-' && src[1] != '\0') {
         assert(src[1] == 'l');
         // Pass to the linker.
         vec_push(opts->ld_cmd, src);
@@ -671,10 +671,11 @@ int main(int argc, char *argv[]) {
 
   vec_push(cpp_cmd, NULL);  // Buffer for src.
   vec_push(cpp_cmd, NULL);  // Terminator.
-  vec_push(cc1_cmd, NULL);  // Buffer for label prefix.
+  vec_push(cc1_cmd, "-");   // Read from cpp pipe.
   vec_push(cc1_cmd, NULL);  // Terminator.
   vec_push(as_cmd, "-o");
   vec_push(as_cmd, opts.ofn);
+  vec_push(as_cmd, "-");   // Receive from cc1 pipe.
   vec_push(as_cmd, NULL);  // Terminator.
 
   if (opts.use_ld) {

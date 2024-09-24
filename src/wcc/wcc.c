@@ -102,7 +102,7 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
 static void preprocess_and_compile(FILE *ppout, const char *filename, Vector *toplevel) {
   // Preprocess.
   FILE *ifp;
-  if (filename != NULL) {
+  if (strcmp(filename, "-") != 0) {
     if (!is_file(filename) || (ifp = fopen(filename, "r")) == NULL)
       error("Cannot open file: %s\n", filename);
   } else {
@@ -490,7 +490,7 @@ static int do_compile(Options *opts) {
     if (src != NULL) {
       if (*src == '\0')
         continue;
-      if (*src == '-') {
+      if (*src == '-' && src[1] != '\0') {
         assert(src[1] == 'l');
 #if USE_EMCC_AS_LINKER
         UNUSED(search_library);

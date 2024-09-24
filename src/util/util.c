@@ -683,7 +683,7 @@ int optparse(int argc, char *const argv[], const struct option *opts) {
 
   char *arg = argv[optind];
   char *p = arg;
-  if (*p != '-')
+  if (*p != '-' || p[1] == '\0')
     return -1;
 
   p += 1;

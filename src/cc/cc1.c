@@ -80,17 +80,20 @@ int main(int argc, char *argv[]) {
 
   Vector *toplevel = new_vector();
   int iarg = optind;
-  if (iarg < argc) {
-    for (int i = iarg; i < argc; ++i) {
-      const char *filename = argv[i];
-      FILE *ifp;
-      if (!is_file(filename) || (ifp = fopen(filename, "r")) == NULL)
-        error("Cannot open file: %s\n", filename);
-      compile1(ifp, filename, toplevel);
-      fclose(ifp);
+  if (iarg >= argc)
+    error("No input files");
+  for (int i = iarg; i < argc; ++i) {
+    const char *filename = argv[i];
+    FILE *ifp;
+    if (strcmp(filename, "-") == 0) {
+      ifp = stdin;
+      filename = "<stdin>";
+    } else if (!is_file(filename) || (ifp = fopen(filename, "r")) == NULL) {
+      error("Cannot open file: %s\n", filename);
     }
-  } else {
-    compile1(stdin, "*stdin*", toplevel);
+    compile1(ifp, filename, toplevel);
+    if (ifp != stdin)
+      fclose(ifp);
   }
   if (compile_error_count != 0)
     exit(1);
