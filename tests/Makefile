@@ -146,8 +146,8 @@ print_type_test:	$(TYPE_SRCS)
 	$(CC) -o $@ $(CFLAGS) $^
 
 link_test: link_main.c link_sub.c
-	$(XCC) -c -fcommon -olink_main.o -Wall -Werror link_main.c
-	$(CC) -fno-pie -fcommon -o $@ link_sub.c link_main.o
+	$(CC) -c -fcommon -olink_sub.o -Wall -Werror -fno-stack-protector -fno-asynchronous-unwind-tables -fno-pie link_sub.c
+	$(XCC) -fno-pie -o $@ link_main.c link_sub.o
 
 .PHONY: test-std-valtest
 test-std-valtest:
