@@ -63,7 +63,7 @@ int main(int argc, char *argv[]) {
       return 0;
     case OPT_WARNING:
       if (strcmp(optarg, "error") == 0) {
-        error_warning = true;
+        cc_flags.warn_as_error = true;
       } else {
         // Silently ignored.
         // fprintf(stderr, "Warning: unknown option for -W: %s\n", optarg);
@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
   }
   if (compile_error_count != 0)
     exit(1);
-  if (error_warning && compile_warning_count != 0)
+  if (cc_flags.warn_as_error && compile_warning_count != 0)
     exit(2);
 
   gen(toplevel);

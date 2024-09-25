@@ -18,9 +18,12 @@
 Function *curfunc;
 Scope *curscope;
 
-bool error_warning;
 int compile_warning_count;
 int compile_error_count;
+
+CcFlags cc_flags = {
+  .warn_as_error = false,
+};
 
 LoopScope loop_scope;
 
@@ -34,7 +37,7 @@ void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt
       fprintf(stderr, "%s(%d): ", token->line->filename, token->line->lineno);
     }
 
-    if (level == PE_WARNING && !error_warning)
+    if (level == PE_WARNING && !cc_flags.warn_as_error)
       fprintf(stderr, "warning: ");
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
@@ -248,7 +251,7 @@ bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, c
     if (dst->kind == TY_ARRAY || !is_prim_type(dst) ||
         !(is_prim_type(src) || (src->kind == TY_ARRAY && dst->kind == TY_PTR)))
       level = PE_NOFATAL;
-    else if (!error_warning)
+    else if (!cc_flags.warn_as_error)
       fprintf(stderr, "warning: ");
     fprintf(stderr, "cannot convert value from type `");
     print_type(stderr, src);

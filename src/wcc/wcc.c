@@ -168,7 +168,7 @@ int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vec
 
   if (compile_error_count != 0)
     return 1;
-  if (error_warning && compile_warning_count != 0)
+  if (cc_flags.warn_as_error && compile_warning_count != 0)
     return 2;
 
   FILE *ofp;
@@ -363,7 +363,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       break;
     case OPT_WARNING:
       if (strcmp(optarg, "error") == 0) {
-        error_warning = true;
+        cc_flags.warn_as_error = true;
       } else {
         // Silently ignored.
         // fprintf(stderr, "Warning: unknown option for -W: %s\n", optarg);

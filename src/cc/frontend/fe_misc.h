@@ -17,7 +17,6 @@ typedef struct Vector Vector;
 extern Function *curfunc;
 extern Scope *curscope;
 
-extern bool error_warning;
 extern int compile_warning_count;
 extern int compile_error_count;
 
@@ -26,6 +25,12 @@ enum ParseErrorLevel {
   PE_NOFATAL,
   PE_FATAL,
 };
+
+typedef struct {
+  bool warn_as_error;  // Treat warnings as errors
+} CcFlags;
+
+extern CcFlags cc_flags;
 
 typedef struct {
   Stmt *swtch;
