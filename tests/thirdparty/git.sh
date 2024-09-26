@@ -5,8 +5,6 @@ repo='https://github.com/git/git.git'
 . tests/thirdparty/thirdpartycommon
 git reset --hard 564d0252ca632e0264ed670534a51d18a689ef5d  # 2023/11/20 v2.43.0
 
-CFLAGS="-D__STDC_VERSION__=199901L"
-
 $make clean
-$make V=1 CC="$xcc $CFLAGS"
-$make V=1 CC="$xcc $CFLAGS" test
+$make V=1 CC="$xcc"
+$make V=1 CC="$xcc" test

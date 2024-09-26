@@ -614,6 +614,9 @@ int main(int argc, char *argv[]) {
   vec_push(cpp_cmd, "-D__linux__");
 #endif
 
+  vec_push(cpp_cmd, "-D__STDC__");
+  vec_push(cpp_cmd, "-D__STDC_VERSION__=201112L");
+
   vec_push(cpp_cmd, "-D__SIZEOF_POINTER__=" S(TARGET_POINTER_SIZE));
 #if XCC_TARGET_PROGRAMMING_MODEL == XCC_PROGRAMMING_MODEL_ILP32
   vec_push(cpp_cmd, "-D__SIZEOF_INT__=4");
