@@ -45,7 +45,7 @@ bool is_file(const char *path);
 
 void show_version(const char *exe);
 
-void error(const char *fmt, ...) __attribute__((noreturn));
+_Noreturn void error(const char *fmt, ...);
 
 void show_error_line(const char *line, const char *p, int len);
 

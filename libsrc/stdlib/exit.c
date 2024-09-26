@@ -14,7 +14,7 @@ OnExitChain *__on_exit_chain;
 #if defined(__GNUC__)
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #endif
-static void proc_exit(int code) __attribute__((noreturn));
+_Noreturn static void proc_exit(int code);
 static void proc_exit(int code) {
 #ifdef __NR_exit_group
   SYSCALL(__NR_exit_group);

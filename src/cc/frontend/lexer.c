@@ -73,6 +73,7 @@ static const struct {
   {"__FUNCTION__", TK_FUNCNAME},
   {"__func__", TK_FUNCNAME},
   {"__attribute__", TK_ATTRIBUTE},
+  {"_Noreturn", TK_NORETURN},
 };
 
 static const struct {

@@ -30,7 +30,7 @@ void unget_token(Token *token);
 const char *read_ident(const char *p);
 Token *alloc_dummy_ident(void);
 const char *get_lex_p(void);
-void lex_error(const char *p, const char *fmt, ...) __attribute__((noreturn));
+_Noreturn void lex_error(const char *p, const char *fmt, ...);
 
 typedef bool (*LexEofCallback)(void);
 LexEofCallback set_lex_eof_callback(LexEofCallback callback);

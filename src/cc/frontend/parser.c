@@ -673,6 +673,21 @@ static Table *parse_attribute(Table *attributes) {  // <Token*>
   return attributes;
 }
 
+static Table *parse_attributes(Table *attributes) {
+  for (;;) {
+    if (match(TK_ATTRIBUTE)) {
+      attributes = parse_attribute(attributes);
+    } else if (match(TK_NORETURN)) {
+      if (attributes == NULL)
+        attributes = alloc_table();
+      table_put(attributes, alloc_name("noreturn", NULL, false), NULL);
+    } else {
+      break;
+    }
+  }
+  return attributes;
+}
+
 static Function *define_func(Type *functype, const Token *ident, const Vector *param_vars,
                              int storage, Table *attributes) {
   int flag = 0;
@@ -819,8 +834,7 @@ static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type
                                           Table *attributes) {
   Vector *decls = NULL;
   for (;;) {
-    while (match(TK_ATTRIBUTE))
-      attributes = parse_attribute(attributes);
+    attributes = parse_attributes(attributes);
 
     if (!(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC) &&
         type->kind != TY_VOID)
@@ -906,9 +920,7 @@ static Declaration *parse_declaration(void) {
     return new_decl_asm(asm_->asm_.str);
   }
 
-  Table *attributes = NULL;
-  while (match(TK_ATTRIBUTE))
-    attributes = parse_attribute(attributes);
+  Table *attributes = parse_attributes(NULL);
 
   Type *rawtype = NULL;
   int storage;

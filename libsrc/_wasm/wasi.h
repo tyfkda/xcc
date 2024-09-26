@@ -101,7 +101,7 @@ enum Filetype {
 
 WASI_MODULE int args_sizes_get(int *pargc, int *plen);
 WASI_MODULE int args_get(char **pargv, char *pstr);
-WASI_MODULE void proc_exit(int) __attribute__((noreturn));
+WASI_MODULE _Noreturn void proc_exit(int);
 
 WASI_MODULE int fd_prestat_get(int fd, Prestat *prestat);
 WASI_MODULE int fd_prestat_dir_name(int fd, char *out, size_t size);

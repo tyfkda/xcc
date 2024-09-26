@@ -16,7 +16,7 @@ typedef uintptr_t jmp_buf[208 / 8];
 #endif
 
 int setjmp(jmp_buf env);
-void longjmp(jmp_buf env, int result) __attribute__((noreturn));
+_Noreturn void longjmp(jmp_buf env, int result);
 
 #define _setjmp   setjmp
 #define _longjmp  longjmp

@@ -144,6 +144,7 @@ enum TokenKind {
   TK_FUNCNAME,
   TK_ASM,
   TK_ATTRIBUTE,
+  TK_NORETURN,
 
   // For preprocessor.
   PPTK_CONCAT,       // ##
