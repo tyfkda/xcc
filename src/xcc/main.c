@@ -181,7 +181,9 @@ static int compile_csource(const char *source_fn, enum OutType out_type, const c
   pid_t as_pid = -1;
 
   if (out_type > OutAssembly) {
-    as_cmd->data[as_cmd->len - 3] = (void*)objfn;
+    assert(as_cmd->len >= 3);
+    as_cmd->data[as_cmd->len - 3] = (void*)objfn;  // Overwrite output filename.
+    as_cmd->data[as_cmd->len - 2] = "-";  // Overwrite source filename.
     as_pid = pipe_exec((char**)as_cmd->data, -1, as_fd);
     ofd = as_fd[1];
   }
@@ -220,20 +222,15 @@ static int compile_asm(const char *source_fn, enum OutType out_type, const char 
       strcpy(p + len, ".o");
       objfn = p;
     }
-    as_cmd->data[as_cmd->len - 3] = (void*)objfn;
-  }
 
-  vec_pop(as_cmd);
-  vec_push(as_cmd, source_fn);
-  vec_push(as_cmd, NULL);
+    assert(as_cmd->len >= 3);
+    as_cmd->data[as_cmd->len - 3] = (void*)objfn;  // Overwrite output filename.
+    as_cmd->data[as_cmd->len - 2] = (void*)source_fn;  // Overwrite source filename.
+  }
 
   int res = 0;
   pid_t as_pid = exec_with_ofd((char**)as_cmd->data, ofd);
   waitpid(as_pid, &res, 0);
-
-  vec_pop(as_cmd);
-  vec_pop(as_cmd);
-  vec_push(as_cmd, NULL);
 
   if (out_type >= OutExecutable)
     vec_push(ld_cmd, objfn);
@@ -382,7 +379,6 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       break;
     case 'c':
       opts->out_type = OutObject;
-      // vec_push(as_cmd, "-c");
       break;
     case 'E':
       opts->out_type = OutPreprocess;
@@ -678,8 +674,8 @@ int main(int argc, char *argv[]) {
   vec_push(cc1_cmd, NULL);  // Terminator.
   vec_push(as_cmd, "-o");
   vec_push(as_cmd, opts.ofn);
-  vec_push(as_cmd, "-");   // Receive from cc1 pipe.
-  vec_push(as_cmd, NULL);  // Terminator.
+  vec_push(as_cmd, NULL);   // Placeholder for source filename.
+  vec_push(as_cmd, NULL);   // Terminator.
 
   if (opts.use_ld) {
     // Pass through command line options.
