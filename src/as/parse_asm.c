@@ -38,6 +38,7 @@ static const char *kDirectiveTable[] = {
   "section",
   "text",
   "data",
+  "bss",
   "align",
   "p2align",
   "type",
@@ -46,6 +47,7 @@ static const char *kDirectiveTable[] = {
   "long",
   "quad",
   "comm",
+  "zero",
   "globl",
   "local",
   "extern",
@@ -883,12 +885,25 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
     }
     break;
 
+  case DT_ZERO:
+    {
+      int64_t num;
+      if (!immediate(&info->p, &num))
+        parse_error(info, ".zero: number expected");
+      vec_push(irs, new_ir_zero(num));
+    }
+    break;
+
   case DT_TEXT:
     set_current_section(info, kSecText, kSegText, SF_EXECUTABLE);
     break;
 
   case DT_DATA:
     set_current_section(info, kSecData, kSegData, SF_WRITABLE);
+    break;
+
+  case DT_BSS:
+    set_current_section(info, kSecBss, kSegBss, SF_BSS | SF_WRITABLE);
     break;
 
   case DT_ALIGN:

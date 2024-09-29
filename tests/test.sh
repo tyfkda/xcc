@@ -333,17 +333,43 @@ test_error_line() {
 test_link() {
   begin_test_suite "Link"
 
-  local exitcode
-  local err
-
   # Duplicate symbol error expected.
-  begin_test "Duplicate symbol"
+  begin_test "Duplicate function symbol"
   echo 'int foo() {return 1;} int main(){return 0;}' > tmp_link1.c
   echo 'int foo() {return 2;}' > tmp_link2.c
   eval "$XCC" $OPT -o "$AOUT" tmp_link1.c tmp_link2.c "$SILENT"
-  exitcode="$?"
-  err=''; [[ "$exitcode" -ne 0 ]] || err="Compile error expected, but succeeded"
+  local exitcode="$?"
+  local err=''; [[ "$exitcode" -ne 0 ]] || err="Compile error expected, but succeeded"
   end_test "$err"
+
+  begin_test "Duplicate variable symbol"
+  echo 'int foo; int main(){return 0;}' > tmp_link3.c
+  echo 'int foo;' > tmp_link4.c
+  eval "$XCC" $OPT -o "$AOUT" tmp_link3.c tmp_link4.c "$SILENT"
+  local exitcode="$?"
+  local err=''; [[ "$exitcode" -ne 0 ]] || err="Compile error expected, but succeeded"
+  end_test "$err"
+
+  local skip=''
+  if [[ -n "$RE_SKIP" ]]; then
+    echo -n "//-WCC" | grep "$RE_SKIP" > /dev/null && {
+      skip='skip'
+    };
+  fi
+  if [[ "$skip" == "" ]]; then
+    begin_test "Same variable symbol allowed with '-fcommon'"
+    local err=''
+    eval "$XCC" $OPT -fcommon -o "$AOUT" tmp_link3.c tmp_link4.c "$SILENT" ||  {
+      err='Compile failed'
+    }
+    if [[ "$err" == "" ]]; then
+      $RUN_AOUT
+      local actual="$?"
+      local expected=0
+      [[ "$actual" == "$expected" ]] || err="${expected} expected, but ${actual}"
+    fi
+    end_test "$err"
+  fi
 
   end_test_suite
 }

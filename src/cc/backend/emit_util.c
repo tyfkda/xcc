@@ -244,6 +244,10 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
       _RODATA();
     else
       _DATA();
+  } else {
+    if (!cc_flags.common) {
+      _BSS();
+    }
   }
 
   char *label = fmt_name(name);
@@ -268,7 +272,13 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
       size = 1;
 
     size_t align = align_size(varinfo->type);
-    _COMM(label, size, align);
+    if (cc_flags.common) {
+      _COMM(label, size, align);
+    } else {
+      EMIT_ALIGN(align_size(varinfo->type));
+      EMIT_LABEL(label);
+      _ZERO(num(size));
+    }
   }
 }
 

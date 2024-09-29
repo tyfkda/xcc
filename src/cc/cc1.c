@@ -45,14 +45,40 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
   parse(decls);
 }
 
+static bool parse_fopt(const char *optarg, bool value) {
+  static const struct {
+    const char *flag_name;
+    off_t flag_offset;
+  } kFlagTable[] = {
+    {"common", offsetof(CcFlags, common)},
+  };
+
+  for (size_t i = 0; i < ARRAY_SIZE(kFlagTable); ++i) {
+    if (strcmp(optarg, kFlagTable[i].flag_name) == 0) {
+      size_t len = strlen(kFlagTable[i].flag_name);
+      if (optarg[len] != '\0')
+        continue;
+      bool *p = (bool*)((char*)&cc_flags + kFlagTable[i].flag_offset);
+      *p = value;
+      return true;
+    }
+  }
+  return false;
+}
+
 int main(int argc, char *argv[]) {
   enum {
-    OPT_WARNING = 128,
+    OPT_FNO = 128,
   };
 
   static const struct option options[] = {
-    {"W", required_argument, OPT_WARNING},
     {"-version", no_argument, 'V'},
+
+    // Sub command
+    {"fno-", required_argument, OPT_FNO},
+    {"f", required_argument},
+    {"W", required_argument},
+
     {NULL},
   };
   int opt;
@@ -61,7 +87,16 @@ int main(int argc, char *argv[]) {
     case 'V':
       show_version("cc1");
       return 0;
-    case OPT_WARNING:
+
+    case 'f':
+    case OPT_FNO:
+      if (!parse_fopt(optarg, opt == 'f')) {
+        // Silently ignored.
+        // fprintf(stderr, "Warning: unknown option for -f: %s\n", optarg);
+      }
+      break;
+
+    case 'W':
       if (strcmp(optarg, "error") == 0) {
         cc_flags.warn_as_error = true;
       } else {
@@ -69,6 +104,7 @@ int main(int argc, char *argv[]) {
         // fprintf(stderr, "Warning: unknown option for -W: %s\n", optarg);
       }
       break;
+
     default:
       fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
       break;

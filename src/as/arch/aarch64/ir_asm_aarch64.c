@@ -65,6 +65,9 @@ bool calc_label_address(uintptr_t start_address, Vector *sections, Table *label_
       case IR_BSS:
         address += ir->bss;
         break;
+      case IR_ZERO:
+        address += ir->zero;
+        break;
       case IR_ALIGN:
         ir->address = address = ALIGN(address, ir->align);
         if ((size_t)ir->align > section->align) {
@@ -263,6 +266,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
       case IR_LABEL:
       case IR_DATA:
       case IR_BSS:
+      case IR_ZERO:
       case IR_ALIGN:
         break;
       }
@@ -289,6 +293,14 @@ void emit_irs(Vector *sections) {
         break;
       case IR_BSS:
         sec_add_bss(section, ir->bss);
+        break;
+      case IR_ZERO:
+        if (section->flag & SF_BSS) {
+          sec_add_bss(section, ir->zero);
+        } else {
+          void *buf = calloc_or_die(ir->zero);
+          sec_add_data(section, buf, ir->zero);
+        }
         break;
       case IR_ALIGN:
         sec_align_size(section, ir->align);

@@ -55,6 +55,7 @@ enum IrKind {
   IR_CODE,
   IR_DATA,
   IR_BSS,
+  IR_ZERO,
   IR_ALIGN,
   IR_EXPR_BYTE,
   IR_EXPR_SHORT,
@@ -73,6 +74,7 @@ typedef struct {
       int64_t addend;  // Calculated in `resolve_relative_address`
     } expr;
     size_t bss;
+    size_t zero;
     int align;
     int section;
   };
@@ -83,6 +85,7 @@ IR *new_ir_label(const Name *label);
 IR *new_ir_code(const Code *code);
 IR *new_ir_data(const void *data, size_t size);
 IR *new_ir_bss(size_t size);
+IR *new_ir_zero(size_t size);
 IR *new_ir_align(int align);
 IR *new_ir_expr(enum IrKind kind, const Expr *expr);
 

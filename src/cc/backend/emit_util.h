@@ -59,6 +59,8 @@ bool function_not_returned(FuncBackend *fnbe);
 #define _SECTION(x)    EMIT_ASM(".section", x)
 #define _TEXT()        EMIT_ASM(".text")
 #define _DATA()        EMIT_ASM(".data")
+#define _BSS()         EMIT_ASM(".bss")
+#define _ZERO(x)       EMIT_ASM(".zero", x)
 
 #define EMIT_ALIGN(x)  emit_align_p2(x)
 

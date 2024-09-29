@@ -32,6 +32,13 @@ IR *new_ir_bss(size_t size) {
   return ir;
 }
 
+IR *new_ir_zero(size_t size) {
+  IR *ir = calloc_or_die(sizeof(*ir));
+  ir->kind = IR_ZERO;
+  ir->zero = size;
+  return ir;
+}
+
 IR *new_ir_align(int align) {
   IR *ir = calloc_or_die(sizeof(*ir));
   ir->kind = IR_ALIGN;

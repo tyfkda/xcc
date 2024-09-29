@@ -321,11 +321,13 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"-version", no_argument, OPT_VERSION},
     {"dumpversion", no_argument, OPT_DUMP_VERSION},
 
-    // Suppress warnings
+    // Sub command
+    {"f", required_argument},
     {"W", required_argument},
+
+    // Suppress warnings
     {"O", optional_argument},
     {"g", optional_argument},  // Debug info
-    {"f", required_argument},
     {"ansi", no_argument, OPT_ANSI},
     {"std", optional_argument, OPT_STD},
     {"pedantic", no_argument, OPT_PEDANTIC},
@@ -397,17 +399,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
         error("language not recognized: %s", optarg);
       }
       break;
-    case 'W':
-      if (strncmp(argv[optind - 1], "-Wl,", 4) == 0) {
-        if (opts->use_ld)
-          vec_push(opts->linker_options, argv[optind - 1]);
-        else
-          vec_push(opts->ld_cmd, argv[optind - 1] + 4);
-      } else {
-        vec_push(opts->cc1_cmd, "-W");
-        vec_push(opts->cc1_cmd, optarg);
-      }
-      break;
+
     case OPT_NODEFAULTLIBS:
       opts->nodefaultlibs = true;
       vec_push(opts->linker_options, "-nodefaultlibs");
@@ -425,20 +417,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     case OPT_SHARED:
       vec_push(opts->linker_options, "-shared");
       break;
-    case 'f':
-      if (strncmp(optarg, "use-ld", 6) == 0) {
-        if (optarg[6] == '=') {
-          opts->ld_cmd->data[0] = &optarg[7];
-        } else if (optarg[6] == '\0' && optind < argc) {
-          opts->ld_cmd->data[0] = argv[optind++];
-        } else {
-          fprintf(stderr, "extra argument required for '-fuse-ld");
-        }
-        opts->use_ld = true;
-      } else {
-        vec_push(opts->linker_options, argv[optind - 1]);
-      }
-      break;
+
     case 'l':
       {
         char *p;
@@ -473,6 +452,35 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       break;
     case OPT_NO_PIE:
       vec_push(opts->ld_cmd, argv[optind - 1]);
+      break;
+
+    case 'f':
+      if (strncmp(optarg, "use-ld", 6) == 0) {
+        if (optarg[6] == '=') {
+          opts->ld_cmd->data[0] = &optarg[7];
+        } else if (optarg[6] == '\0' && optind < argc) {
+          opts->ld_cmd->data[0] = argv[optind++];
+        } else {
+          fprintf(stderr, "extra argument required for '-fuse-ld");
+        }
+        opts->use_ld = true;
+      } else {
+        const char *opt = argv[optind - 1];  // TODO:
+        vec_push(opts->cc1_cmd, opt);
+        vec_push(opts->linker_options, opt);
+      }
+      break;
+
+    case 'W':
+      if (strncmp(argv[optind - 1], "-Wl,", 4) == 0) {
+        if (opts->use_ld)
+          vec_push(opts->linker_options, argv[optind - 1]);
+        else
+          vec_push(opts->ld_cmd, argv[optind - 1] + 4);
+      } else {
+        vec_push(opts->cc1_cmd, "-W");
+        vec_push(opts->cc1_cmd, optarg);
+      }
       break;
 
     case 'O':
