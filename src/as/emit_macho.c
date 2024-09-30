@@ -236,12 +236,11 @@ int emit_macho_obj(const char *ofn, Vector *sections, Table *label_table, Vector
   uintptr_t start_address = 0;
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
-    if (section->ds == NULL || section->ds->len <= 0)
+    if ((section->ds == NULL || section->ds->len <= 0) && section->bss_size <= 0)
       continue;
     section->index = ++section_count;
-    if (start_address == 0) {
+    if (start_address == 0)
       start_address = section->start_address;
-    }
   }
 
   // Construct symtab and strtab.
@@ -281,13 +280,20 @@ int emit_macho_obj(const char *ofn, Vector *sections, Table *label_table, Vector
   uint64_t addr = 0, off_p = section_start_off;
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
-    if (section->ds == NULL)
+    uint64_t size = section->ds != NULL ? section->ds->len : section->bss_size;
+    if (size <= 0)
       continue;
-    uint64_t size = section->ds->len, align = section->align;
+    uint64_t align = section->align;
     section->start_address = addr = ALIGN(addr, align);
-    section->offset = off_p = ALIGN(off_p, align);
+    off_p = ALIGN(off_p, align);
+    if (section->ds != NULL) {
+      section->offset = off_p;
+      off_p += size;
+    } else {
+      section->offset = 0;
+      addr += size;
+    }
     addr += size;
-    off_p += size;
   }
   uint64_t reloc_start_off = off_p;
   for (int sec = 0; sec < sections->len; ++sec) {
@@ -320,14 +326,20 @@ int emit_macho_obj(const char *ofn, Vector *sections, Table *label_table, Vector
     .sizeofcmds = size_of_cmds,
     .flags = MH_SUBSECTIONS_VIA_SYMBOLS,
   };
-  uint64_t vmsize = 0;
+  uint64_t vmsize = 0, filesize = 0;
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
-    if (section->ds == NULL)
-      continue;
-    size_t size = section->ds->len;
-    if (size > 0)
+    if (section->ds != NULL) {
+      size_t size = section->ds->len;
+      if (size <= 0)
+        continue;
       vmsize = ALIGN(vmsize, section->align) + size;
+      filesize = ALIGN(filesize, section->align) + size;
+    } else {
+      size_t size = section->bss_size;
+      assert(size > 0);
+      vmsize = ALIGN(vmsize, section->align) + size;
+    }
   }
   struct segment_command_64 segmentcmd = {
     .cmd = LC_SEGMENT_64,
@@ -336,7 +348,7 @@ int emit_macho_obj(const char *ofn, Vector *sections, Table *label_table, Vector
     .vmaddr = 0,
     .vmsize = vmsize,
     .fileoff = section_start_off,
-    .filesize = vmsize,
+    .filesize = filesize,
     .maxprot = 7,   // rwx
     .initprot = 7,  // rwx
     .nsects = section_count,
@@ -363,14 +375,14 @@ int emit_macho_obj(const char *ofn, Vector *sections, Table *label_table, Vector
   fwrite(&segmentcmd, sizeof(segmentcmd), 1, ofp);
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
-    if (section->ds == NULL)
-      continue;
-    size_t size = section->ds->len;
+    size_t size = section->ds != NULL ? section->ds->len : section->bss_size;
     if (size <= 0)
       continue;
     uint32_t flags = 0;
     if (section->flag & SF_INIT_FUNCS)
       flags |= S_MOD_INIT_FUNC_POINTERS;
+    else if (section->flag & SF_BSS)
+      flags |= S_ZEROFILL;
     else if (section->flag & SF_EXECUTABLE)
       flags |= S_ATTR_PURE_INSTRUCTIONS | S_ATTR_SOME_INSTRUCTIONS;
     struct section_64 sect = {

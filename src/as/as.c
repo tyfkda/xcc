@@ -98,7 +98,7 @@ inline int section_key(const SectionInfo *p) {
   // return 2;
 
   // .text(0), .rodata(1), .data(2), .bss(6)
-  return flag /*& (SF_BSS | SF_WRITABLE | SF_EXECUTABLE)*/ ^ SF_EXECUTABLE;
+  return (flag & (SF_BSS | SF_WRITABLE | SF_EXECUTABLE)) ^ SF_EXECUTABLE;
 }
 
 static int cmp_section(const void *pa, const void *pb) {
