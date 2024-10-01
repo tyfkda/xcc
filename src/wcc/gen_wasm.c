@@ -300,14 +300,14 @@ static void gen_funcall(Expr *expr) {
   assert(functype != NULL);
   int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
 
-  int sarg_siz = 0;
+  size_t sarg_siz = 0;
   for (int i = 0; i < param_count; ++i) {
     Expr *arg = args->data[i];
     if (is_stack_param(arg->type))
       sarg_siz += ALIGN(type_size(arg->type), 4);
   }
 
-  int vaarg_bufsiz = 0;
+  size_t vaarg_bufsiz = 0;
   if (functype->func.vaargs) {
     int d = arg_count - param_count;
     if (d > 0) {
@@ -321,14 +321,12 @@ static void gen_funcall(Expr *expr) {
     }
   }
 
-  Expr *spvar = NULL;
-  if (sarg_siz > 0 || vaarg_bufsiz > 0) {
-    spvar = get_sp_var();
-    // global.sp -= ALIGN(sarg_siz + vaarg_bufsiz, 8);
-    gen_expr_stmt(new_expr_bop(
-        EX_ASSIGN, &tyVoid, NULL, spvar,
-        new_expr_bop(EX_SUB, &tySize, NULL, spvar,
-                     new_expr_fixlit(&tySize, NULL, ALIGN(sarg_siz + vaarg_bufsiz, 8)))));
+  size_t work_size = sarg_siz + vaarg_bufsiz;
+  Expr *lspvar = NULL;
+  if (work_size > 0) {
+    FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
+    assert(finfo != NULL && finfo->lspname != NULL);
+    lspvar = new_expr_variable(finfo->lspname, &tyVoidPtr, NULL, curfunc->scopes->data[0]);
   }
 
   bool ret_param = functype->func.ret->kind != TY_VOID && !is_prim_type(functype->func.ret);
@@ -350,25 +348,25 @@ static void gen_funcall(Expr *expr) {
     gen_lval(e);
   }
 
-  int sarg_offset = 0;
-  int vaarg_offset = 0;
+  size_t sarg_offset = 0;
+  size_t vaarg_offset = 0;
   for (int i = 0; i < arg_count; ++i) {
     Expr *arg = args->data[i];
     if (i < param_count) {
       if (!is_stack_param(arg->type)) {
         gen_expr(arg, true);
       } else {
-        assert(spvar != NULL);
+        assert(lspvar != NULL);
         size_t size = type_size(arg->type);
         if (size > 0) {
           sarg_offset = ALIGN(sarg_offset, align_size(arg->type));
           // _memcpy(global.sp + sarg_offset, &arg, size);
           if (sarg_offset != 0) {
-            gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, spvar,
+            gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, lspvar,
                                   new_expr_fixlit(&tySize, NULL, sarg_offset)),
                      true);
           } else {
-            gen_expr(spvar, true);
+            gen_expr(lspvar, true);
           }
           gen_expr(arg, true);
 
@@ -381,13 +379,13 @@ static void gen_funcall(Expr *expr) {
     } else {
       assert(!is_stack_param(arg->type));
       // *(global.sp + sarg_siz + vaarg_offset) = arg
-      int offset = sarg_siz + vaarg_offset;
+      size_t offset = sarg_siz + vaarg_offset;
       if (offset != 0) {
-        gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, spvar,
+        gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, lspvar,
                               new_expr_fixlit(&tySize, NULL, offset)),
                  true);
       } else {
-        gen_expr(spvar, true);
+        gen_expr(lspvar, true);
       }
       const Type *t = arg->type;
       assert(!(t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT));
@@ -400,7 +398,7 @@ static void gen_funcall(Expr *expr) {
   if (functype->func.vaargs) {
     // Top of vaargs.
     if (vaarg_bufsiz > 0) {
-      gen_expr(spvar, true);
+      gen_expr(lspvar, true);
     } else {
       ADD_CODE(OP_I32_CONST, 0);  // NULL
     }
@@ -423,14 +421,6 @@ static void gen_funcall(Expr *expr) {
 
     ADD_VARUINT32(index);
     ADD_ULEB128(0);      // table index
-  }
-
-  if (sarg_siz > 0 || vaarg_bufsiz > 0) {
-    // global.sp += ALIGN(sarg_siz + vaarg_bufsiz, 8);
-    gen_expr_stmt(new_expr_bop(
-        EX_ASSIGN, &tyVoid, NULL, spvar,
-        new_expr_bop(EX_ADD, &tySize, NULL, spvar,
-                     new_expr_fixlit(&tySize, NULL, ALIGN(sarg_siz + vaarg_bufsiz, 8)))));
   }
 }
 
@@ -1526,13 +1516,13 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
       }
     }
   }
+  FuncInfo *finfo = table_get(&func_info_table, func->name);
+  assert(finfo != NULL);
   if (frame_size > 0 || param_count != pparam_count || (func->flag & FUNCF_STACK_MODIFIED)) {
     frame_size = ALIGN(frame_size, 8);  // TODO:
 
     // Allocate a variable for base pointer in function top scope.
     const Name *bpname = alloc_label();
-    FuncInfo *finfo = table_get(&func_info_table, func->name);
-    assert(finfo != NULL);
     finfo->bpname = bpname;
 
     scope_add(func->scopes->data[0], bpname, &tySize, 0);
@@ -1606,7 +1596,8 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
     }
   }
 
-  return frame_size;
+  assert((finfo->stack_work_size & 7) == 0);
+  return frame_size + finfo->stack_work_size;
 }
 
 static void gen_defun(Function *func) {
@@ -1645,17 +1636,26 @@ static void gen_defun(Function *func) {
   FuncInfo *finfo = table_get(&func_info_table, func->name);
   assert(finfo != NULL);
   const Name *bpname = finfo->bpname;
-  Expr *bpvar = NULL, *spvar = NULL;
-  if (bpname != NULL) {
-    bpvar = new_expr_variable(bpname, &tySize, NULL, func->scopes->data[0]);
-    spvar = get_sp_var();
+  Expr *bpvar = bpname == NULL ? NULL : new_expr_variable(bpname, &tyVoidPtr, NULL, func->scopes->data[0]);
+  const Name *lspname = finfo->lspname;
+  Expr *lspvar = lspname == NULL ? NULL : new_expr_variable(lspname, &tyVoidPtr, NULL, func->scopes->data[0]);
+  Expr *gspvar = NULL;
+  if (bpname != NULL || lspname != NULL) {
+    gspvar = get_sp_var();
     // local.bp = global.sp;
-    gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, bpvar, spvar));
+    if (bpvar != NULL)
+      gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, bpvar, gspvar));
     // global.sp = local.bp - frame_size;
     if (frame_size > 0) {
-      gen_expr_stmt(new_expr_bop(
-          EX_ASSIGN, &tyVoid, NULL, spvar,
-          new_expr_bop(EX_SUB, &tySize, NULL, bpvar, new_expr_fixlit(&tySize, NULL, frame_size))));
+      Expr *result = new_expr_bop(EX_SUB, &tyVoidPtr, NULL, bpvar != NULL ? bpvar : gspvar, new_expr_fixlit(&tySize, NULL, frame_size));
+      if (lspvar == NULL) {
+        result = new_expr_bop(EX_ASSIGN, &tyVoid, NULL, gspvar, result);
+      } else {
+        result = new_expr_bop(EX_COMMA, &tyVoid, NULL,
+                              new_expr_bop(EX_ASSIGN, &tyVoid, NULL, lspvar, result),
+                              new_expr_bop(EX_ASSIGN, &tyVoid, NULL, gspvar, lspvar));
+      }
+      gen_expr_stmt(result);
     }
   }
   // Store ref-taken parameters to stack frame.
@@ -1692,15 +1692,20 @@ static void gen_defun(Function *func) {
     }
   }
 
+  // Epilogue
   if (bpname != NULL) {
     ADD_CODE(OP_END);
     cur_depth -= 1;
 
-    // Epilogue
-
-    // Restore stack pointer.
-    // global.sp = bp;
-    gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar, bpvar));
+    // Restore stack pointer: global.sp = bp;
+    gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, gspvar, bpvar));
+  } else if (lspname != NULL) {
+    assert(!(func->flag & FUNCF_STACK_MODIFIED));
+    assert(frame_size > 0);
+    // Restore stack pointer: global.sp = local.sp + frame_size;
+    gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, gspvar,
+                               new_expr_bop(EX_ADD, &tyVoidPtr, NULL, lspvar,
+                                            new_expr_fixlit(&tySize, NULL, frame_size))));
   }
 
   ADD_CODE(OP_END);
@@ -2011,10 +2016,32 @@ static void gen_alloca(Expr *expr, enum BuiltinFunctionPhase phase) {
                       new_expr_fixlit(&tySSize, token, stack_align - 1)),
       new_expr_fixlit(&tySSize, token, -stack_align));
 
-  Expr *spvar = get_sp_var();
-  gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, spvar,
-                             new_expr_bop(EX_SUB, &tySize, NULL, spvar, aligned_size)));
-  gen_expr(spvar, true);
+  assert(curfunc != NULL);
+  FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
+  assert(finfo != NULL);
+  Expr *lspvar = NULL;
+  if (finfo->lspname != NULL)
+    lspvar = new_expr_variable(finfo->lspname, &tyVoidPtr, NULL, curfunc->scopes->data[0]);
+
+  Expr *gspvar = get_sp_var();
+  Expr *modify_sp;
+  Expr *updated = new_expr_bop(EX_SUB, &tySize, NULL, gspvar, aligned_size);
+  if (lspvar == NULL) {
+    modify_sp = new_expr_bop(EX_ASSIGN, &tyVoid, NULL, gspvar, updated);
+  } else {
+    modify_sp = new_expr_bop(EX_COMMA, &tyVoid, NULL,
+                              new_expr_bop(EX_ASSIGN, &tyVoid, NULL, lspvar, updated),
+                              new_expr_bop(EX_ASSIGN, &tyVoid, NULL, gspvar, lspvar));
+  }
+  gen_expr_stmt(modify_sp);
+
+  Expr *result = lspvar != NULL ? lspvar : gspvar;
+  size_t stack_work_size = finfo->stack_work_size;
+  if (stack_work_size > 0) {
+    result = new_expr_bop(EX_ADD, gspvar->type, NULL, result,
+                          new_expr_fixlit(&tySize, NULL, stack_work_size));
+  }
+  gen_expr(result, true);
 }
 
 static void gen_builtin_memory_size(Expr *expr, enum BuiltinFunctionPhase phase) {

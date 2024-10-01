@@ -38,10 +38,12 @@ typedef struct {
   const Name *module_name;
   const Name *func_name;
   const Name *bpname;
+  const Name *lspname;
   uint32_t index;  // also represents symbol_index (because functions are put first in symbol table.)
   int flag;
   uint32_t type_index;
   uint32_t indirect_index;
+  size_t stack_work_size;  // Work size for funcall, etc.
 } FuncInfo;
 
 #define GVF_EXPORT      (1 << 0)
