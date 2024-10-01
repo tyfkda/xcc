@@ -299,6 +299,8 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
   }
 }
 
+#define ELF_MIN_ALIGN  0x08
+
 int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *unresolved) {
   int out_section_count = 0;
   for (int sec = 0; sec < sections->len; ++sec) {
@@ -319,12 +321,10 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
   uintptr_t addr = sizeof(Elf64_Ehdr);
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
-    section->offset = addr;
-    size_t size = section->ds != NULL ? section->ds->len : section->bss_size;
-    if (size <= 0)
+    size_t size;
+    if (section->ds == NULL || (size = section->ds->len) <= 0)
       continue;
-    section->offset = addr = ALIGN(addr, 0x08);
-    if (!(section->flag & SF_BSS))
+    section->offset = addr = ALIGN(addr, ELF_MIN_ALIGN);
     addr += size;
   }
 
@@ -332,11 +332,11 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
     SectionInfo *section = sections->data[sec];
     if (section->rela_count <= 0)
       continue;
-    section->rela_ofs = addr = ALIGN(addr, 0x08);
+    section->rela_ofs = addr = ALIGN(addr, ELF_MIN_ALIGN);
     addr += sizeof(Elf64_Rela) * section->rela_count;
   }
 
-  uintptr_t symtab_ofs = addr;
+  uintptr_t symtab_ofs = addr = ALIGN(addr, ELF_MIN_ALIGN);
   addr += sizeof(*symtab.buf) * symtab.count;
   uintptr_t strtab_ofs = addr;
   addr += symtab.strtab.size;
@@ -496,6 +496,7 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
     }
   }
 
+  put_padding(ofp, symtab_ofs);
   fwrite(symtab.buf, sizeof(*symtab.buf), symtab.count, ofp);
   fwrite(strtab_dump(&symtab.strtab), symtab.strtab.size, 1, ofp);
 
