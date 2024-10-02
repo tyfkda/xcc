@@ -1214,6 +1214,7 @@ static void out_global_section(WasmLinker *linker) {
         data_leb128(&globals_section, -1, sym->global.ivalue);
         data_push(&globals_section, OP_END);
         break;
+#ifndef __NO_FLONUM
       case WT_F32:
         data_push(&globals_section, OP_F32_CONST);
         data_append(&globals_section, &sym->global.f32value, sizeof(sym->global.f32value));  // !Endian
@@ -1224,6 +1225,7 @@ static void out_global_section(WasmLinker *linker) {
         data_append(&globals_section, &sym->global.f64value, sizeof(sym->global.f64value));  // !Endian
         data_push(&globals_section, OP_END);
         break;
+#endif
       default: assert(false); break;
       }
       ++globals_count;

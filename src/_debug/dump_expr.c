@@ -110,8 +110,8 @@ void dump_expr(FILE *fp, Expr *expr) {
       }
     }
     break;
-#ifndef __NO_FLONUM
   case EX_FLONUM:
+#ifndef __NO_FLONUM
     {
       char buf[64];
       snprintf(buf, sizeof(buf) - 4, "%Lg", expr->flonum);
@@ -124,8 +124,10 @@ void dump_expr(FILE *fp, Expr *expr) {
       }
       fputs(buf, fp);
     }
-    break;
+#else
+    assert(false);
 #endif
+    break;
   case EX_STR:
     {
       StringBuffer sb;

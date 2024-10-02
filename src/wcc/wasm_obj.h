@@ -91,8 +91,10 @@ typedef struct {
       uint8_t mut;
       union {
         int64_t ivalue;
+#ifndef __NO_FLONUM
         float f32value;
         double f64value;
+#endif
       };
     } global;
     struct {

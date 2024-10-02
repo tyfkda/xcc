@@ -25,6 +25,24 @@
 #include "table.h"
 #include "util.h"
 
+#if !defined(__NO_BITFIELD) || !defined(__XCC)
+#define SET_RELOCATION_INFO(rela, adr, sym, pcr, len, ext, typ) \
+  do { \
+    (rela)->r_address = (adr); \
+    (rela)->r_symbolnum = (sym); \
+    (rela)->r_pcrel = (pcr); \
+    (rela)->r_length = (len); \
+    (rela)->r_extern = (ext); \
+    (rela)->r_type = (typ); \
+  } while (0)
+#else
+#define SET_RELOCATION_INFO(rela, adr, sym, pcr, len, ext, typ) \
+  do { \
+    (rela)->r_address = (adr); \
+    (rela)->r_pack = (((sym) & ((1U<<24)-1U)) | (((pcr) & 1U) << 24) | (((len) & 3U) << 25) | (((ext) & 1U) << 27) | (((typ) & 0x0f) << 28)); \
+  } while (0)
+#endif
+
 typedef struct {
   Strtab strtab;
   Table indices;
@@ -117,18 +135,15 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         int symidx = symtab_find(symtab, u->label);
         assert(symidx >= 0);
 
-        rela->r_address = u->offset;
-        rela->r_symbolnum = symidx;
-        rela->r_pcrel = 0;
-        rela->r_length = 3;
-        rela->r_extern = 1;
+        uint32_t type = 0;
 #if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-        rela->r_type = ARM64_RELOC_UNSIGNED;
+        type = ARM64_RELOC_UNSIGNED;
 #elif XCC_TARGET_ARCH == XCC_ARCH_X64
-        rela->r_type = X86_64_RELOC_UNSIGNED;
+        type = X86_64_RELOC_UNSIGNED;
 #else
         assert(false);
 #endif
+        SET_RELOCATION_INFO(rela, u->offset, symidx, 0, 3, 1, type);
       }
       break;
 
@@ -170,12 +185,7 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         assert(symidx >= 0);
 
         assert(u->add == 0);
-        rela->r_address = u->offset;
-        rela->r_symbolnum = symidx;
-        rela->r_pcrel = 1;
-        rela->r_length = 2;
-        rela->r_extern = 1;
-        rela->r_type = ARM64_RELOC_BRANCH26;
+        SET_RELOCATION_INFO(rela, u->offset, symidx, 1, 2, 1, ARM64_RELOC_BRANCH26);
       }
       break;
 
@@ -188,12 +198,8 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         assert(symidx >= 0);
 
         assert(u->add == 0);
-        rela->r_address = u->offset;
-        rela->r_symbolnum = symidx;
-        rela->r_pcrel = u->kind == UNRES_GOT_HI ? 1 : 0;
-        rela->r_length = 2;
-        rela->r_extern = 1;
-        rela->r_type = u->kind == UNRES_GOT_HI ? ARM64_RELOC_GOT_LOAD_PAGE21 : ARM64_RELOC_GOT_LOAD_PAGEOFF12;
+        uint32_t type = u->kind == UNRES_GOT_HI ? ARM64_RELOC_GOT_LOAD_PAGE21 : ARM64_RELOC_GOT_LOAD_PAGEOFF12;
+        SET_RELOCATION_INFO(rela, u->offset, symidx, u->kind == UNRES_GOT_HI ? 1 : 0, 2, 1, type);
       }
       break;
 
@@ -203,24 +209,15 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         int symidx = symtab_find(symtab, u->label);
         assert(symidx >= 0);
 
-        rela->r_address = u->offset;
-        rela->r_symbolnum = symidx;
-        rela->r_pcrel = u->kind == UNRES_PCREL_HI ? 1 : 0;
-        rela->r_length = 2;
-        rela->r_extern = 1;
-        rela->r_type = u->kind == UNRES_PCREL_HI ? ARM64_RELOC_PAGE21 : ARM64_RELOC_PAGEOFF12;
+        uint32_t type = u->kind == UNRES_PCREL_HI ? ARM64_RELOC_PAGE21 : ARM64_RELOC_PAGEOFF12;
+        SET_RELOCATION_INFO(rela, u->offset, symidx, u->kind == UNRES_PCREL_HI ? 1 : 0, 2, 1, type);
 
         if (u->add != 0) {
           struct relocation_info *rela2;
           section->rela_buf = rela2 = realloc_or_die(section->rela_buf, ++section->rela_count * sizeof(*rela2));
           rela2 += section->rela_count - 1;
 
-          rela2->r_address = u->offset;
-          rela2->r_symbolnum = u->add;
-          rela2->r_pcrel = 0;
-          rela2->r_length = 2;
-          rela2->r_extern = 0;
-          rela2->r_type = ARM64_RELOC_ADDEND;
+          SET_RELOCATION_INFO(rela2, u->offset, u->add, 0, 2, 0, ARM64_RELOC_ADDEND);
         }
       }
       break;
