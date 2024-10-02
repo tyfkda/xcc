@@ -579,31 +579,11 @@ static int do_compile(Options *opts, const char *root) {
   return res == 0 ? 0 : 1;
 }
 
-int main(int argc, char *argv[]) {
-  const char *xccpath = argv[0];
-  const char *root = dirname(strdup(xccpath));
-  const char *prefix = get_exe_prefix(xccpath);
-  char *cpp_path = join_exe_prefix(xccpath, prefix, "cpp");
-  char *cc1_path = join_exe_prefix(xccpath, prefix, "cc1");
-#define S(x)   S2(x)
-#define S2(x)  #x
-#if !defined(USE_SYS_AS)
-  char *as_path = join_exe_prefix(xccpath, prefix, "as");
-#elif defined(HOST_CC_PREFIX)
-  char *as_path = S(HOST_CC_PREFIX) "as";
-#else
-  char *as_path = "/usr/bin/as";
-#endif
-#if !defined(USE_SYS_LD)
-  char *ld_path = join_exe_prefix(xccpath, prefix, "ld");
-#elif defined(HOST_CC_PREFIX)
-  char *ld_path = S(HOST_CC_PREFIX) "gcc";
-#else
-  char *ld_path = "/usr/bin/cc";
-#endif
+#define STR(x)   STR2(x)
+#define STR2(x)  #x
 
-  Vector *cpp_cmd = new_vector();
-  vec_push(cpp_cmd, cpp_path);
+static void append_predefined_macros(Vector *cpp_cmd) {
+  vec_push(cpp_cmd, "-D__XCC");
   vec_push(cpp_cmd, "-D__LP64__");  // Memory model.
 #if XCC_TARGET_ARCH == XCC_ARCH_X64
   vec_push(cpp_cmd, "-D__x86_64__");
@@ -621,7 +601,7 @@ int main(int argc, char *argv[]) {
   vec_push(cpp_cmd, "-D__STDC__");
   vec_push(cpp_cmd, "-D__STDC_VERSION__=201112L");
 
-  vec_push(cpp_cmd, "-D__SIZEOF_POINTER__=" S(TARGET_POINTER_SIZE));
+  vec_push(cpp_cmd, "-D__SIZEOF_POINTER__=" STR(TARGET_POINTER_SIZE));
 #if XCC_TARGET_PROGRAMMING_MODEL == XCC_PROGRAMMING_MODEL_ILP32
   vec_push(cpp_cmd, "-D__SIZEOF_INT__=4");
   vec_push(cpp_cmd, "-D__SIZEOF_LONG__=4");
@@ -636,8 +616,45 @@ int main(int argc, char *argv[]) {
 # error "Unsupported programming model"
 #endif
 
-#undef S2
-#undef S
+#if defined(__NO_FLONUM)
+  vec_push(cpp_cmd, "-D__NO_FLONUM");
+#endif
+#if defined(__NO_BITFIELD)
+  vec_push(cpp_cmd, "-D__NO_BITFIELD");
+#endif
+#if defined(__NO_VLA)
+  vec_push(cpp_cmd, "-D__NO_VLA");
+  vec_push(cpp_cmd, "-D__STDC_NO_VLA__");
+#endif
+#if defined(__NO_WCHAR)
+  vec_push(cpp_cmd, "-D__NO_WCHAR");
+#endif
+}
+
+int main(int argc, char *argv[]) {
+  const char *xccpath = argv[0];
+  const char *root = dirname(strdup(xccpath));
+  const char *prefix = get_exe_prefix(xccpath);
+  char *cpp_path = join_exe_prefix(xccpath, prefix, "cpp");
+  char *cc1_path = join_exe_prefix(xccpath, prefix, "cc1");
+#if !defined(USE_SYS_AS)
+  char *as_path = join_exe_prefix(xccpath, prefix, "as");
+#elif defined(HOST_CC_PREFIX)
+  char *as_path = STR(HOST_CC_PREFIX) "as";
+#else
+  char *as_path = "/usr/bin/as";
+#endif
+#if !defined(USE_SYS_LD)
+  char *ld_path = join_exe_prefix(xccpath, prefix, "ld");
+#elif defined(HOST_CC_PREFIX)
+  char *ld_path = STR(HOST_CC_PREFIX) "gcc";
+#else
+  char *ld_path = "/usr/bin/cc";
+#endif
+
+  Vector *cpp_cmd = new_vector();
+  vec_push(cpp_cmd, cpp_path);
+  append_predefined_macros(cpp_cmd);
 
   Vector *cc1_cmd = new_vector();
   vec_push(cc1_cmd, cc1_path);

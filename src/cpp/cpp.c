@@ -9,22 +9,6 @@ int main(int argc, char *argv[]) {
   FILE *ofp = stdout;
   init_preprocessor(ofp);
 
-  // Predefeined macros.
-  define_macro("__XCC");
-#if defined(__NO_FLONUM)
-  define_macro("__NO_FLONUM");
-#endif
-#if defined(__NO_BITFIELD)
-  define_macro("__NO_BITFIELD");
-#endif
-#if defined(__NO_VLA)
-  define_macro("__NO_VLA");
-  define_macro("__STDC_NO_VLA__");
-#endif
-#if defined(__NO_WCHAR)
-  define_macro("__NO_WCHAR");
-#endif
-
   enum {
     OPT_ISYSTEM = 128,
     OPT_IDIRAFTER,
