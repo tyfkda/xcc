@@ -103,6 +103,7 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope);
 Vector *extract_varinfo_types(const Vector *vars);  // <VarInfo*> => <Type*>
 Type *choose_ternary_result_type(Expr *tval, Expr *fval);
 Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs);
+Expr *simplify_funcall(Expr *funcall);
 
 void check_func_reachability(Function *func);
 bool check_funcend_return(Stmt *stmt);

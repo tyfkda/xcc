@@ -1308,6 +1308,134 @@ Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
                             : new_expr_bop(EX_COMMA, result->type, tok, tmp_assign, result);
 }
 
+static Expr *unnest_arg(Expr *arg, Expr *funcall) {
+  Type *type = arg->type;
+  assert(type->kind != TY_VOID);
+  Expr *tmp = alloc_tmp_var(curscope, type);
+  Expr *assign = new_expr_bop(EX_ASSIGN, type, arg->token, tmp, arg);
+  assert(assign->kind == EX_ASSIGN && assign->bop.lhs->kind == EX_VAR);
+  Vector *unnested = funcall->funcall.unnested;
+  if (unnested == NULL)
+    funcall->funcall.unnested = unnested = new_vector();
+  vec_push(unnested, assign);
+  return tmp;
+}
+
+// If an argument is complex expression,
+// precalculate it and make function argument simple.
+static Expr *simplify_funarg_recur(Expr *arg, Expr *funcall) {
+  switch (arg->kind) {
+  case EX_PREINC:
+  case EX_PREDEC:
+  case EX_POSTINC:
+  case EX_POSTDEC:
+  case EX_ASSIGN:
+  case EX_TERNARY:
+  case EX_FUNCALL:
+  case EX_INLINED:
+  case EX_BLOCK:
+  case EX_LOGAND:  // Shortcut must be handled properly.
+  case EX_LOGIOR:
+    return unnest_arg(arg, funcall);
+
+  case EX_COMMA:
+    {
+      Vector *unnested = funcall->funcall.unnested;
+      if (unnested == NULL)
+        funcall->funcall.unnested = unnested = new_vector();
+      vec_push(unnested, arg->bop.lhs);
+      return simplify_funarg_recur(arg->bop.rhs, funcall);
+    }
+
+  case EX_COMPLIT:
+    {
+      Vector *unnested = funcall->funcall.unnested;
+      if (unnested == NULL)
+        funcall->funcall.unnested = unnested = new_vector();
+      vec_push(unnested, arg);
+      return arg->complit.var;
+    }
+
+  // Binary operators
+  case EX_MUL:
+  case EX_DIV:
+  case EX_MOD:
+  case EX_LSHIFT:
+  case EX_RSHIFT:
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+    // On x64, MUL, DIV and MOD instruction implicitly uses (breaks) %rdx
+    // and %rdx is used as 3rd argument.
+    // Similary, Shift instructions (SHL, SHR) uses %cl which is 4th argument.
+    // so must be precalculated.
+    return unnest_arg(arg, funcall);
+#else
+    // Except x64, these opcodes can be used in function argument.
+    // Fallthrough
+#endif
+  case EX_ADD:
+  case EX_SUB:
+  case EX_BITAND:
+  case EX_BITOR:
+  case EX_BITXOR:
+  case EX_EQ:
+  case EX_NE:
+  case EX_LT:
+  case EX_LE:
+  case EX_GE:
+  case EX_GT:
+    arg->bop.lhs = simplify_funarg_recur(arg->bop.lhs, funcall);
+    arg->bop.rhs = simplify_funarg_recur(arg->bop.rhs, funcall);
+    break;
+
+  // Unary operators
+  case EX_POS:
+  case EX_NEG:
+  case EX_BITNOT:
+  case EX_REF:
+  case EX_DEREF:
+  case EX_CAST:
+    arg->unary.sub = simplify_funarg_recur(arg->unary.sub, funcall);
+    break;
+
+  case EX_MEMBER:
+    arg->member.target = simplify_funarg_recur(arg->member.target, funcall);
+    break;
+
+  // Literals
+  case EX_FIXNUM:
+  case EX_FLONUM:
+  case EX_STR:
+  case EX_VAR:
+    break;
+  }
+  return arg;
+}
+
+Expr *simplify_funcall(Expr *funcall) {
+  assert(funcall->kind == EX_FUNCALL);
+
+  Vector *args = funcall->funcall.args;
+  int arg_count = args->len;
+  // To avoid nested funcall,
+  // simplify funargs and precalculate complex expression before funcall.
+  for (int i = 0; i < arg_count; ++i) {
+    Expr *arg = args->data[i];
+    args->data[i] = simplify_funarg_recur(arg, funcall);
+  }
+  funcall->funcall.func = simplify_funarg_recur(funcall->funcall.func, funcall);
+
+  if (funcall->funcall.unnested == NULL)
+    return funcall;
+
+  const Token *token = funcall->token;
+  Expr *comma = funcall->funcall.unnested->data[0];
+  for (int i = 1; i < funcall->funcall.unnested->len; ++i) {
+    Expr *rhs = funcall->funcall.unnested->data[i];
+    comma = new_expr_bop(EX_COMMA, rhs->type, token, comma, rhs);
+  }
+  return new_expr_bop(EX_COMMA, funcall->type, token, comma, funcall);
+}
+
 //
 
 static void check_reachability_stmt(Stmt *stmt);

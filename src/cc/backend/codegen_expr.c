@@ -329,102 +329,6 @@ static VReg *gen_ternary(Expr *expr) {
   return result;
 }
 
-//
-static Expr *gen_expr_as_tmpvar(Expr *arg) {
-  // Precalculate expr and store the result to temporary variable.
-  Type *type = arg->type;
-  if (type->kind == TY_STRUCT)
-    type = ptrof(type);
-  Scope *scope = curscope;
-  const Name *name = alloc_label();
-  VarInfo *varinfo = scope_add(scope, name, type, 0);
-  varinfo->local.vreg = gen_expr(arg);
-  // Replace the argument to temporary variable reference.
-  return new_expr_variable(name, type, NULL, scope);
-}
-
-// If an argument is complex expression,
-// precalculate it and make function argument simple.
-static Expr *simplify_funarg(Expr *arg) {
-  switch (arg->kind) {
-  case EX_PREINC:
-  case EX_PREDEC:
-  case EX_POSTINC:
-  case EX_POSTDEC:
-  case EX_ASSIGN:
-  case EX_TERNARY:
-  case EX_FUNCALL:
-  case EX_INLINED:
-  case EX_BLOCK:
-  case EX_LOGAND:  // Shortcut must be handled properly.
-  case EX_LOGIOR:
-    return gen_expr_as_tmpvar(arg);
-
-  case EX_COMPLIT:
-    // Precalculate compound literal, and returns its stored variable name.
-    gen_expr(arg);
-    return arg->complit.var;
-
-  case EX_COMMA:
-    // Precalculate first expression in comma.
-    gen_expr(arg->bop.lhs);
-    return simplify_funarg(arg->bop.rhs);
-
-  // Binary operators
-  case EX_MUL:
-  case EX_DIV:
-  case EX_MOD:
-  case EX_LSHIFT:
-  case EX_RSHIFT:
-#if XCC_TARGET_ARCH == XCC_ARCH_X64
-    // On x64, MUL, DIV and MOD instruction implicitly uses (breaks) %rdx
-    // and %rdx is used as 3rd argument.
-    // Similary, Shift instructions (SHL, SHR) uses %cl which is 4th argument.
-    // so must be precalculated.
-    return gen_expr_as_tmpvar(arg);
-#else
-    // Except x64, these opcodes can be used in function argument.
-    // Fallthrough
-#endif
-  case EX_ADD:
-  case EX_SUB:
-  case EX_BITAND:
-  case EX_BITOR:
-  case EX_BITXOR:
-  case EX_EQ:
-  case EX_NE:
-  case EX_LT:
-  case EX_LE:
-  case EX_GE:
-  case EX_GT:
-    arg->bop.lhs = simplify_funarg(arg->bop.lhs);
-    arg->bop.rhs = simplify_funarg(arg->bop.rhs);
-    break;
-
-  // Unary operators
-  case EX_POS:
-  case EX_NEG:
-  case EX_BITNOT:
-  case EX_REF:
-  case EX_DEREF:
-  case EX_CAST:
-    arg->unary.sub = simplify_funarg(arg->unary.sub);
-    break;
-
-  case EX_MEMBER:
-    arg->member.target = simplify_funarg(arg->member.target);
-    break;
-
-  // Literals
-  case EX_FIXNUM:
-  case EX_FLONUM:
-  case EX_STR:
-  case EX_VAR:
-    break;
-  }
-  return arg;
-}
-
 static VReg *gen_funcall(Expr *expr) {
   Expr *func = expr->funcall.func;
   if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
@@ -434,18 +338,6 @@ static VReg *gen_funcall(Expr *expr) {
   }
   const Type *functype = get_callee_type(func->type);
   assert(functype != NULL);
-
-  Vector *args = expr->funcall.args;
-  int arg_count = args->len;
-  // To avoid nested funcall,
-  // simplify funargs and precalculate complex expression before funcall.
-  for (int i = 0; i < arg_count; ++i) {
-    Expr *arg = args->data[i];
-    args->data[i] = simplify_funarg(arg);
-  }
-  func = simplify_funarg(func);
-
-  int offset = 0;
 
   VarInfo *ret_varinfo = NULL;  // Return value is on the stack.
   if (is_stack_param(expr->type)) {
@@ -473,6 +365,9 @@ static VReg *gen_funcall(Expr *expr) {
   int reg_arg_count = 0;
   int freg_arg_count = 0;
   int arg_start = ret_varinfo != NULL ? 1 : 0;
+  int offset = 0;
+  Vector *args = expr->funcall.args;
+  int arg_count = args->len;
   {
     int ireg_index = arg_start;
     int freg_index = 0;
