@@ -1526,7 +1526,7 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
       }
     }
   }
-  if (frame_size > 0 || param_count != pparam_count) {
+  if (frame_size > 0 || param_count != pparam_count || (func->flag & FUNCF_STACK_MODIFIED)) {
     frame_size = ALIGN(frame_size, 8);  // TODO:
 
     // Allocate a variable for base pointer in function top scope.
@@ -1992,8 +1992,11 @@ static Expr *proc_builtin_va_copy(const Token *ident) {
 }
 
 static void gen_alloca(Expr *expr, enum BuiltinFunctionPhase phase) {
-  if (phase != BFP_GEN)
+  if (phase != BFP_GEN) {
+    assert(curfunc != NULL);
+    curfunc->flag |= FUNCF_STACK_MODIFIED;
     return;
+  }
 
   const int stack_align = 8;  // TODO
   assert(expr->kind == EX_FUNCALL);
