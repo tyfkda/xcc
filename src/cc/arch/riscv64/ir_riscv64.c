@@ -646,8 +646,9 @@ static void ei_precall(IR *ir) {
   int align_stack = (16 - (ir->precall.stack_args_size)) & 15;
   ir->precall.stack_aligned = align_stack;
 
-  if (align_stack > 0) {
-    ADDI(SP, SP, IM(-align_stack));
+  int total = align_stack + ir->precall.stack_args_size;
+  if (total > 0) {
+    ADDI(SP, SP, IM(-total));
   }
 }
 
@@ -691,9 +692,9 @@ static void ei_call(IR *ir) {
   }
 
   IR *precall = ir->call.precall;
-  int align_stack = precall->precall.stack_aligned + precall->precall.stack_args_size;
-  if (align_stack != 0) {
-    ADDI(SP, SP, IM(align_stack));
+  int total = precall->precall.stack_aligned + precall->precall.stack_args_size;
+  if (total != 0) {
+    ADDI(SP, SP, IM(total));
   }
 
   // Resore caller save registers.

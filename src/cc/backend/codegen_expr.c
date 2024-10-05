@@ -410,12 +410,8 @@ static VReg *gen_funcall(Expr *expr) {
       }
     }
   }
-  offset = ALIGN(offset, 16);
 
   IR *precall = new_ir_precall(arg_count - stack_arg_count, offset);
-
-  if (offset > 0)
-    new_ir_subsp(new_const_vreg(offset, to_vsize(&tySSize)), NULL);
 
   int total_arg_count = arg_count + (ret_varinfo != NULL ? 1 : 0);
   VReg **arg_vregs = total_arg_count == 0 ? NULL : calloc_or_die(total_arg_count * sizeof(*arg_vregs));

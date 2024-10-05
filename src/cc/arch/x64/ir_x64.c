@@ -16,8 +16,6 @@
 static Vector *push_caller_save_regs(unsigned long living);
 static void pop_caller_save_regs(Vector *saves);
 
-int stackpos = 8;
-
 // Register allocator
 
 const char *kRegSizeTable[][PHYSICAL_REG_MAX] = {
@@ -715,12 +713,12 @@ static void ei_precall(IR *ir) {
   // so safely saved before calculating argument values.
   ir->precall.caller_saves = push_caller_save_regs(ir->precall.living_pregs);
 
-  int align_stack = (16 - (stackpos + ir->precall.stack_args_size)) & 15;
+  int align_stack = (16 - (ir->precall.caller_saves->len * TARGET_POINTER_SIZE + ir->precall.stack_args_size)) & 15;
   ir->precall.stack_aligned = align_stack;
 
-  if (align_stack > 0) {
-    SUB(IM(align_stack), RSP);
-    stackpos += align_stack;
+  int total = align_stack + ir->precall.stack_args_size;
+  if (total > 0) {
+    SUB(IM(total), RSP);
   }
 }
 
@@ -775,10 +773,9 @@ static void ei_call(IR *ir) {
   }
 
   IR *precall = ir->call.precall;
-  int align_stack = precall->precall.stack_aligned + precall->precall.stack_args_size;
-  if (align_stack != 0) {
-    ADD(IM(align_stack), RSP);
-    stackpos -= precall->precall.stack_aligned;
+  int total = precall->precall.stack_aligned + precall->precall.stack_args_size;
+  if (total != 0) {
+    ADD(IM(total), RSP);
   }
 
   // Resore caller save registers.
@@ -834,7 +831,6 @@ static void ei_subsp(IR *ir) {
       SUB(IM(ir->opr1->fixnum), RSP);
     else if (ir->opr1->fixnum < 0)
       ADD(IM(-ir->opr1->fixnum), RSP);
-    // stackpos += ir->opr1->fixnum;
   } else {
     SUB(kReg64s[ir->opr1->phys], RSP);
   }
@@ -1008,7 +1004,6 @@ int push_callee_save_regs(unsigned long used, unsigned long fused) {
     int ireg = kCalleeSaveRegs[i];
     if (used & (1 << ireg)) {
       PUSH(kReg64s[ireg]);
-      PUSH_STACK_POS();
       ++count;
     }
   }
@@ -1023,7 +1018,6 @@ void pop_callee_save_regs(unsigned long used, unsigned long fused) {
     int ireg = kCalleeSaveRegs[i];
     if (used & (1 << ireg)) {
       POP(kReg64s[ireg]);
-      POP_STACK_POS();
     }
   }
 }
@@ -1044,7 +1038,6 @@ static Vector *push_caller_save_regs(unsigned long living) {
     if (living & (1UL << ireg)) {
       const char *reg = kReg64s[ireg];
       PUSH(reg);
-      PUSH_STACK_POS();
       vec_push(saves, reg);
     }
   }
@@ -1062,7 +1055,6 @@ static Vector *push_caller_save_regs(unsigned long living) {
     if (n > 0) {
       int ofs = n * TARGET_POINTER_SIZE;
       SUB(IM(ofs), RSP);
-      stackpos += ofs;
       for (int i = 0; i < n; ++i) {
         ofs -= TARGET_POINTER_SIZE;
         MOVSD(saves->data[i + fstart], OFFSET_INDIRECT(ofs, RSP, NULL, 1));
@@ -1085,14 +1077,12 @@ static void pop_caller_save_regs(Vector *saves) {
   }
   if (ofs > 0) {
     ADD(IM(ofs), RSP);
-    stackpos -= ofs;
   }
   ++i;
 
   while (--i >= 0) {
     const char *reg = saves->data[i];
     POP(reg);
-    POP_STACK_POS();
   }
 }
 

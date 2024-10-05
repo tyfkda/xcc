@@ -270,7 +270,7 @@ IR *new_ir_precall(int arg_count, int stack_args_size) {
   IR *ir = new_ir(IR_PRECALL);
   ir->precall.arg_count = arg_count;
   ir->precall.stack_args_size = stack_args_size;
-  ir->precall.stack_aligned = false;
+  ir->precall.stack_aligned = 0;
   ir->precall.living_pregs = 0;
   ir->precall.caller_saves = NULL;
   return ir;

@@ -153,8 +153,6 @@ void emit_defun(Function *func) {
       func->extra == NULL)     // Code emission is omitted.
     return;
 
-  assert(stackpos == 8);
-
   emit_comment(NULL);
   _TEXT();
 
@@ -197,16 +195,17 @@ void emit_defun(Function *func) {
   FuncBackend *fnbe = func->extra;
   size_t frame_size = 0;
   bool rbp_saved = false;
+  int callee_saved_count = 0;
   if (!no_stmt) {
     // Callee save.
-    int callee_saved_count = push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
+    callee_saved_count = push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
 
     // When function is called, return address is pused onto the stack by caller,
     // so default offset is 8.
     size_t frame_offset = 8;
 
     if (fnbe->frame_size > 0 || fnbe->ra->flag & RAF_STACK_FRAME) {
-      PUSH(RBP); PUSH_STACK_POS();
+      PUSH(RBP);
       MOV(RSP, RBP);
       rbp_saved = true;
       // RBP is pushed so the 16-bytes-align offset becomes 0.
@@ -215,13 +214,12 @@ void emit_defun(Function *func) {
 
     size_t callee_saved_size = callee_saved_count * TARGET_POINTER_SIZE;
     frame_size = fnbe->frame_size;
-    if (func->flag & FUNCF_HAS_FUNCALL) {
+    if (func->flag & (FUNCF_HAS_FUNCALL | FUNCF_STACK_MODIFIED)) {
       // Align frame size to 16 only it contains funcall.
       frame_size += -(fnbe->frame_size + callee_saved_size + frame_offset) & 15;
     }
     if (frame_size > 0) {
       SUB(IM(frame_size), RSP);
-      stackpos += frame_size;
     }
 
     move_params_to_assigned(func);
@@ -234,21 +232,15 @@ void emit_defun(Function *func) {
     if (!no_stmt) {
       if (rbp_saved) {
         MOV(RBP, RSP);
-        stackpos -= frame_size;
-        POP(RBP); POP_STACK_POS();
+        POP(RBP);
       } else if (frame_size > 0) {
         ADD(IM(frame_size), RSP);
-        stackpos -= frame_size;
       }
 
       pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
     }
 
     RET();
-
-    assert(stackpos == 8);
-  } else {
-    stackpos = 8;
   }
 
   // Static variables are emitted through global variables.
