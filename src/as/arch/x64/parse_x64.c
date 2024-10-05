@@ -49,8 +49,9 @@ enum RawOpcode {
   R_MOVSS, R_ADDSS, R_SUBSS, R_MULSS, R_DIVSS, R_XORPS,
   R_COMISS, R_UCOMISS,
   R_CVTSI2SS, R_CVTTSS2SI,
-
   R_CVTSD2SS, R_CVTSS2SD,
+
+  R_ENDBR64,
 };
 
 const char *kRawOpTable[] = {
@@ -93,6 +94,8 @@ const char *kRawOpTable[] = {
   "comiss", "ucomiss",
   "cvtsi2ss",  "cvttss2si",
   "cvtsd2ss",  "cvtss2sd",
+
+  "endbr64",
   NULL,
 };
 
@@ -685,4 +688,6 @@ const ParseInstTable kParseInstTable[] = {
   [R_CVTSD2SS] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CVTSD2SS, {XMM, XMM}}, } },
   [R_CVTSS2SD] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CVTSS2SD, {XMM, XMM}}, } },
   [R_SQRTSD] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){SQRTSD, {XMM, XMM}}, } },
+
+  [R_ENDBR64] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){ENDBR64}, } },
 };

@@ -177,6 +177,7 @@
 #define CWTL()         EMIT_ASM("cwtl")
 #define CLTD()         EMIT_ASM("cltd")
 #define CQTO()         EMIT_ASM("cqto")
+#define ENDBR64()      EMIT_ASM("endbr64")
 
 
 // SIMD

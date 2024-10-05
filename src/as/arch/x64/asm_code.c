@@ -670,6 +670,16 @@ static unsigned char *asm_sqrtsd_xx(Inst *inst, Code *code) {
   return p;
 }
 
+static unsigned char *asm_endbr64(Inst *inst, Code *code) {
+  UNUSED(inst);
+  static const short buf[] = {
+    0xf3, 0x0f, 0x1e, 0xfa,
+  };
+  unsigned char *p = code->buf;
+  p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+  return p;
+}
+
 static long signed_immediate(long value, enum RegSize size) {
   switch (size) {
   case REG8:   return (int8_t)value;
@@ -1605,6 +1615,7 @@ static const AsmInstFunc table[] = {
   [CVTSD2SS] = asm_cvtsd2ss_xx,
   [CVTSS2SD] = asm_cvtss2sd_xx,
   [SQRTSD] = asm_sqrtsd_xx,
+  [ENDBR64] = asm_endbr64,
 };
 
 void assemble_inst(Inst *inst, ParseInfo *info, Code *code) {

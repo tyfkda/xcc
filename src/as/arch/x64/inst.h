@@ -57,6 +57,8 @@ enum Opcode {
   COMISS, UCOMISS,
   CVTSI2SS, CVTTSS2SI,
   CVTSD2SS, CVTSS2SD,
+
+  ENDBR64,
 };
 
 enum RegType {

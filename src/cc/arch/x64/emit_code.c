@@ -176,6 +176,7 @@ void emit_defun(Function *func) {
 #endif
     EMIT_LABEL(label);
   }
+  ENDBR64();
 
   bool no_stmt = true;
   if (func->body_block != NULL) {
