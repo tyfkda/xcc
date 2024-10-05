@@ -113,7 +113,9 @@ static void ei_sofs(IR *ir) {
   assert(ir->opr1->flag & VRF_CONST);
   const char *dst = kReg64s[ir->dst->phys];
   int64_t ofs = ir->opr1->fixnum;
-  if (is_im12(ofs)) {
+  if (ofs == 0) {
+    MV(dst, SP);
+  } else if (is_im12(ofs)) {
     ADDI(dst, SP, IM(ofs));
   } else {
     LI(dst, IM(ofs));
@@ -910,7 +912,8 @@ static Vector *push_caller_save_regs(unsigned long living) {
   }
 
   int space = ALIGN(saves->len * TARGET_POINTER_SIZE, 16);
-  ADDI(SP, SP, IM(-space));
+  if (space != 0)
+    ADDI(SP, SP, IM(-space));
   for (int i = 0, n = saves->len; i < n; ++i) {
     const char *reg = saves->data[i];
     if (is_freg(reg))
@@ -933,7 +936,8 @@ static void pop_caller_save_regs(Vector *saves) {
       LD(saves->data[i], IMMEDIATE_OFFSET((n - 1 - i) * TARGET_POINTER_SIZE, SP));
   }
   int space = ALIGN(saves->len * TARGET_POINTER_SIZE, 16);
-  ADDI(SP, SP, IM(space));
+  if (space != 0)
+    ADDI(SP, SP, IM(space));
 }
 
 void emit_bb_irs(BBContainer *bbcon) {

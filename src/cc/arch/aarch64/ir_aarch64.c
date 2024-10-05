@@ -188,7 +188,9 @@ static void ei_sofs(IR *ir) {
   assert(ir->opr1->flag & VRF_CONST);
   const char *dst = kReg64s[ir->dst->phys];
   int ofs = ir->opr1->fixnum;
-  if (is_im13(ofs)) {
+  if (ofs == 0) {
+    MOV(dst, SP);
+  } else if (is_im13(ofs)) {
     ADD(dst, SP, IM(ofs));
   } else {
     mov_immediate(dst, ofs, true, false);
