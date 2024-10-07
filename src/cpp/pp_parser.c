@@ -265,8 +265,20 @@ static PpResult pp_mul(void) {
     PpResult rhs = pp_cast_expr();
     switch (tok->kind) {
     case TK_MUL:  result *= rhs; break;
-    case TK_DIV:  result /= rhs; break;
-    case TK_MOD:  result %= rhs; break;
+    case TK_DIV:
+      if (rhs != 0) {
+        result /= rhs;
+      } else {
+        // pp_parse_error(tok, "Division by zero");
+      }
+      break;
+    case TK_MOD:
+      if (rhs != 0) {
+        result %= rhs;
+      } else {
+        // pp_parse_error(tok, "Modulo by zero");
+      }
+      break;
     default:  assert(false); break;
     }
   }
