@@ -398,6 +398,7 @@ typedef struct Stmt {
     struct {
       struct Stmt *swtch;
       Expr *value;  // NULL => default
+      struct Stmt *stmt;
       //
       BB *bb;
     } case_;

@@ -1558,6 +1558,10 @@ static void check_reachability_stmt(Stmt *stmt) {
     stmt->break_.parent->reach &= ~REACH_STOP;
     stmt->reach |= REACH_STOP;
     break;
+  case ST_CASE:
+    check_reachability_stmt(stmt->case_.stmt);
+    stmt->reach = stmt->case_.stmt->reach;
+    break;
   case ST_GOTO:
     // TODO:
     stmt->reach |= REACH_STOP;
@@ -1585,7 +1589,7 @@ static void check_reachability_stmt(Stmt *stmt) {
       }
     }
     break;
-  case ST_EMPTY: case ST_CASE: case ST_VARDECL: case ST_ASM:
+  case ST_EMPTY: case ST_VARDECL: case ST_ASM:
     stmt->reach = 0;
     break;
   }
@@ -1968,6 +1972,8 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
         // Value is constant so reuse.
         assert(is_const(stmt->case_.value));
       }
+      dup->case_.stmt = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->case_.stmt);
+
       // Find index.
       Stmt *org_swtch = stmt->case_.swtch;
       Vector *org_cases = org_swtch->switch_.cases;

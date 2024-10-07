@@ -1202,11 +1202,11 @@ static void gen_switch(Stmt *stmt) {
   break_depth = save_depth;
 }
 
-static void gen_case(Stmt *stmt) {
-  UNUSED(stmt);
+static void gen_case(Stmt *stmt, bool is_last) {
   ADD_CODE(OP_END);
   --cur_depth;
   assert(cur_depth >= 0);
+  gen_stmt(stmt->case_.stmt, is_last);
 }
 
 static void gen_while(Stmt *stmt) {
@@ -1445,7 +1445,7 @@ static void gen_stmt(Stmt *stmt, bool is_last) {
   case ST_BLOCK:  gen_block(stmt, is_last); break;
   case ST_IF:  gen_if(stmt, is_last); break;
   case ST_SWITCH:  gen_switch(stmt); break;
-  case ST_CASE:  gen_case(stmt); break;
+  case ST_CASE:  gen_case(stmt, is_last); break;
   case ST_WHILE:  gen_while(stmt); break;
   case ST_DO_WHILE:  gen_do_while(stmt); break;
   case ST_FOR:  gen_for(stmt); break;

@@ -426,6 +426,13 @@ TEST(all) {
     EXPECT("switch fallthrough", 11, x);
   }
   {
+    int x = 44;
+    switch (x)
+      case 1:
+        x = 55;
+    EXPECT("switch w/o bracket", 44, x);
+  }
+  {
     int x = 10, *p = &x;
     ++(*p);
     EXPECT("pointer", 11, x);

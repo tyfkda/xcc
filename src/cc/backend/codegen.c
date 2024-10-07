@@ -22,6 +22,7 @@
 static void gen_expr_stmt(Expr *expr);
 
 void set_curbb(BB *bb) {
+  assert(bb != NULL);
   assert(curfunc != NULL);
   if (curbb != NULL)
     curbb->next = bb;
@@ -510,6 +511,7 @@ static void gen_switch(Stmt *stmt) {
 
 inline void gen_case(Stmt *stmt) {
   set_curbb(stmt->case_.bb);
+  gen_stmt(stmt->case_.stmt);
 }
 
 static void gen_while(Stmt *stmt) {

@@ -351,6 +351,14 @@ static Stmt *parse_case(const Token *tok) {
   vec_push(swtch->switch_.cases, stmt);
   if (tok->kind == TK_DEFAULT)
     swtch->switch_.default_ = stmt;
+
+  Stmt *next = parse_stmt();
+  if (next == NULL) {
+    parse_error(PE_NOFATAL, tok, "statement expected");
+    next = new_stmt(ST_EMPTY, tok);  // Dummy
+  }
+  stmt->case_.stmt = next;
+
   return stmt;
 }
 
