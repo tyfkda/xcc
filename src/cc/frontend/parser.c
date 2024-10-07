@@ -328,37 +328,33 @@ extern inline int find_case(Stmt *swtch, Fixnum v) {
 }
 
 static Stmt *parse_case(const Token *tok) {
-  Expr *value = parse_const_fixnum();
+  Expr *value = NULL;
+  if (tok->kind == TK_CASE)
+    value = parse_const_fixnum();
   consume(TK_COLON, "`:' expected");
 
   Stmt *stmt = NULL;
   Stmt *swtch = loop_scope.swtch;
   if (swtch == NULL) {
-    parse_error(PE_NOFATAL, tok, "`case' cannot use outside of `switch`");
-  } else if (find_case(swtch, value->fixnum) >= 0) {
-    parse_error(PE_NOFATAL, tok, "Case value `%" PRId64 "' already defined", value->fixnum);
+    parse_error(PE_NOFATAL, tok, "`%s' cannot use outside of `switch`", tok->kind == TK_CASE ? "case" : "default");
   } else {
-    value = make_cast(swtch->switch_.value->type, value->token, value, false);
-    stmt = new_stmt_case(tok, swtch, value);
-    vec_push(swtch->switch_.cases, stmt);
+    if (value != NULL) {
+      if (find_case(swtch, value->fixnum) >= 0) {
+        parse_error(PE_NOFATAL, tok, "Case value `%" PRId64 "' already defined", value->fixnum);
+      } else {
+        value = make_cast(swtch->switch_.value->type, value->token, value, false);
+      }
+    } else {
+      if (swtch->switch_.default_ != NULL) {
+        parse_error(PE_NOFATAL, tok, "`default' already defined in `switch'");
+      }
+
+    }
   }
-  return stmt;
-}
-
-extern inline Stmt *parse_default(const Token *tok) {
-  consume(TK_COLON, "`:' expected");
-
-  Stmt *stmt = NULL;
-  Stmt *swtch = loop_scope.swtch;
-  if (swtch == NULL) {
-    parse_error(PE_NOFATAL, tok, "`default' cannot use outside of `switch'");
-  } else if (swtch->switch_.default_ != NULL) {
-    parse_error(PE_NOFATAL, tok, "`default' already defined in `switch'");
-  } else {
-    stmt = new_stmt_default(tok, swtch);
+  stmt = new_stmt_case(tok, swtch, value);
+  vec_push(swtch->switch_.cases, stmt);
+  if (tok->kind == TK_DEFAULT)
     swtch->switch_.default_ = stmt;
-    vec_push(swtch->switch_.cases, stmt);
-  }
   return stmt;
 }
 
@@ -585,9 +581,8 @@ static Stmt *parse_stmt(void) {
       return parse_label(tok);
     break;
   case TK_CASE:
-    return parse_case(tok);
   case TK_DEFAULT:
-    return parse_default(tok);
+    return parse_case(tok);
   case TK_SEMICOL:
     return new_stmt(ST_EMPTY, tok);
   case TK_LBRACE:
