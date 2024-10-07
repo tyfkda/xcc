@@ -601,8 +601,8 @@ extern inline void gen_goto(Stmt *stmt) {
 }
 
 extern inline void gen_label(Stmt *stmt) {
-  assert(stmt->label.bb != NULL);
-  set_curbb(stmt->label.bb);
+  if (stmt->label.bb != NULL)  // This case happens when the label is not used.
+    set_curbb(stmt->label.bb);
   gen_stmt(stmt->label.stmt);
 }
 
@@ -902,7 +902,6 @@ bool gen_defun(Function *func) {
     const Name *name;
     Stmt *label;
     for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&label)) != -1; ) {
-      assert(label->label.used);
       label->label.bb = new_bb();
     }
   }

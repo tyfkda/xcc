@@ -242,6 +242,7 @@ test_error() {
 
   compile_error 'goto no-label' 'void main(){ goto label; }  //-WCC'
   compile_error 'goto dup-label' 'void main(){ label: goto label; label:; }  //-WCC'
+  compile_error 'label without next statement' 'void main(){ label: }'
   compile_error 'unused label' 'void main(){ label:; }'
 
   # Reachability check.

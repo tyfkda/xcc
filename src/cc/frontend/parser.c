@@ -65,12 +65,8 @@ extern inline void check_goto_labels(Function *func) {
     const Name *name;
     Stmt *label;
     for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&label)) != -1; ) {
-      if (!label->label.used) {
+      if (!label->label.used)
         parse_error(PE_WARNING, label->token, "`%.*s' not used", NAMES(name));
-        // Remove label in safely.
-        table_delete(label_table, name);
-        *label = *label->label.stmt;
-      }
     }
   }
 }
@@ -471,7 +467,12 @@ extern inline Stmt *parse_goto(const Token *tok) {
 }
 
 static Stmt *parse_label(const Token *tok) {
-  Stmt *stmt = new_stmt_label(tok, parse_stmt());
+  Stmt *next = parse_stmt();
+  if (next == NULL) {
+    parse_error(PE_NOFATAL, NULL, "statement expected");
+    next = new_stmt(ST_EMPTY, tok);  // Dummy
+  }
+  Stmt *stmt = new_stmt_label(tok, next);
   add_func_label(tok, stmt);
   return stmt;
 }
