@@ -370,24 +370,41 @@ static void handle_pragma(const char **pp, const char *filename) {
   }
 }
 
-static const char *handle_line_directive(const char **pp, const char *filename, int *plineno) {
-  const char *p = *pp;
-  const char *next = p;
-  unsigned long num = strtoul(next, (char**)&next, 10);
-  if (next > p) {
-    *plineno = num;
-    if (isspace(*next) && (p = skip_whitespaces(next), *p == '"')) {
+static void handle_line_directive(const char **pp, Stream *stream) {
+  size_t size;
+  char *expanded = preprocess_one_line(*pp, stream, &size);
+
+  PpResult num;
+  {
+    FILE *memfp = fmemopen(expanded, size, "r");
+    assert(memfp != NULL);
+
+    Stream tmp_stream;
+    tmp_stream.fp = memfp;
+    tmp_stream.filename = stream->filename;
+    tmp_stream.lineno = stream->lineno;
+    Stream *bak_stream = set_pp_stream(&tmp_stream);
+    set_source_file(memfp, stream->filename);
+    num = pp_expr();
+    set_pp_stream(bak_stream);
+    fclose(memfp);
+  }
+  stream->lineno = num;
+
+  const char *next = get_lex_p();
+  if (next != NULL) {
+    const char *p = next;
+    if (*p == '"') {
       p += 1;
       const char *q = strchr(p, '"');
       if (q != NULL) {
-        filename = strndup(p, q - p);
+        stream->filename = strndup(p, q - p);
         p = q + 1;
       }
       next = p;
     }
   }
   *pp = next;
-  return filename;
 }
 
 static Vector *parse_macro_body(const char *p, Stream *stream) {
@@ -719,8 +736,7 @@ static const char *process_directive(PreprocessFile *ppf, const char *line) {
       fprintf(stderr, "%s(%d): error\n", ppf->stream.filename, ppf->stream.lineno);
       error("%s", line);
     } else if ((next = keyword(directive, "line")) != NULL) {
-      ppf->stream.filename = handle_line_directive(&next, ppf->stream.filename,
-                                                   &ppf->stream.lineno);
+      handle_line_directive(&next, &ppf->stream);
       int flag = 1;
       fprintf(pp_ofp, "# %d \"%s\" %d\n", ppf->stream.lineno, ppf->stream.filename, flag);
       define_file_macro(ppf->stream.filename);
