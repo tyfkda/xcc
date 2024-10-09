@@ -82,11 +82,10 @@ static void move_params_to_assigned(Function *func) {
   extern const int ArchRegParamMapping[];
   extern const char *kFReg32s[], *kFReg64s[];
 
-  static const char *kRegParam32s[] = {W0, W1, W2, W3, W4, W5, W6, W7};
-  static const char *kRegParam64s[] = {X0, X1, X2, X3, X4, X5, X6, X7};
-  static const char **kRegParamTable[] = {kRegParam32s, kRegParam32s, kRegParam32s, kRegParam64s};
-  const char *kFRegParam32s[] = {S0, S1, S2, S3, S4, S5, S6, S7};
-  const char *kFRegParam64s[] = {D0, D1, D2, D3, D4, D5, D6, D7};
+  // Assume fp-parameters are arranged from index 0.
+  #define kFRegParam32s  kFReg32s
+  #define kFRegParam64s  kFReg64s
+
   static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 #define kPow2TableSize ((int)ARRAY_SIZE(kPow2Table))
 
@@ -104,7 +103,7 @@ static void move_params_to_assigned(Function *func) {
     size_t size = type_size(p->type);
     assert(0 < size && size < kPow2TableSize && kPow2Table[size] >= 0);
     int pow = kPow2Table[size];
-    const char *src = kRegParamTable[pow][p->index];
+    const char *src = kRegSizeTable[pow][ArchRegParamMapping[p->index]];
     if (vreg->flag & VRF_SPILLED) {
       int offset = vreg->frame.offset;
       assert(offset != 0);
@@ -150,7 +149,7 @@ static void move_params_to_assigned(Function *func) {
   if (vaargs) {
     for (int i = iparam_count; i < MAX_REG_ARGS; ++i) {
       int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
-      STR(kRegParam64s[i], IMMEDIATE_OFFSET(FP, offset));
+      STR(kRegSizeTable[3][ArchRegParamMapping[i]], IMMEDIATE_OFFSET(FP, offset));
     }
 #ifndef __NO_FLONUM
     for (int i = fparam_count; i < MAX_FREG_ARGS; ++i) {
@@ -159,6 +158,9 @@ static void move_params_to_assigned(Function *func) {
     }
 #endif
   }
+
+  #undef kFRegParam32s
+  #undef kFRegParam64s
 }
 
 void emit_defun(Function *func) {

@@ -66,7 +66,9 @@ static void move_params_to_assigned(Function *func) {
   extern const int ArchRegParamMapping[];
   extern const char *kFReg64s[];
 
-  const char *kFRegParam64s[] = {FA0, FA1, FA2, FA3, FA4, FA5, FA6, FA7};
+  // Assume fp-parameters are arranged from index 0.
+  #define kFRegParam64s  kFReg64s
+
   static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
 #define kPow2TableSize ((int)ARRAY_SIZE(kPow2Table))
 
@@ -84,7 +86,7 @@ static void move_params_to_assigned(Function *func) {
     size_t size = type_size(p->type);
     assert(0 < size && size < kPow2TableSize && kPow2Table[size] >= 0);
     int pow = kPow2Table[size];
-    const char *src = kReg64s[p->index];
+    const char *src = kReg64s[ArchRegParamMapping[p->index]];
     if (vreg->flag & VRF_SPILLED) {
       int offset = vreg->frame.offset;
       assert(offset != 0);
@@ -117,6 +119,8 @@ static void move_params_to_assigned(Function *func) {
       }
     }
   }
+
+  #undef kFRegParam64s
 }
 
 void emit_defun(Function *func) {
