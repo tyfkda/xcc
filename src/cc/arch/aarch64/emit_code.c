@@ -86,9 +86,6 @@ static void move_params_to_assigned(Function *func) {
   #define kFRegParam32s  kFReg32s
   #define kFRegParam64s  kFReg64s
 
-  static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
-#define kPow2TableSize ((int)ARRAY_SIZE(kPow2Table))
-
   RegParamInfo iparams[MAX_REG_ARGS];
   RegParamInfo fparams[MAX_FREG_ARGS];
   int iparam_count = 0;
@@ -101,8 +98,8 @@ static void move_params_to_assigned(Function *func) {
     RegParamInfo *p = &iparams[i];
     VReg *vreg = p->vreg;
     size_t size = type_size(p->type);
-    assert(0 < size && size < kPow2TableSize && kPow2Table[size] >= 0);
-    int pow = kPow2Table[size];
+    int pow = most_significant_bit(size);
+    assert(IS_POWER_OF_2(size) && pow < 4);
     const char *src = kRegSizeTable[pow][ArchRegParamMapping[p->index]];
     if (vreg->flag & VRF_SPILLED) {
       int offset = vreg->frame.offset;

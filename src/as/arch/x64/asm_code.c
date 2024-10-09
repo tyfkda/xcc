@@ -13,8 +13,6 @@
 #define PUT_CODE(p, ...)  do { unsigned char buf[] = {__VA_ARGS__}; memcpy(p, buf, sizeof(buf)); } while (0)
 #endif
 
-static const int kPow2Table[] = {-1, 0, 1, -1, 2, -1, -1, -1, 3};
-
 static unsigned char *put_code_filtered(unsigned char *p, const short *buf, size_t count) {
   for (size_t i = 0; i < count; ++i) {
     short c = *buf++;
@@ -215,7 +213,11 @@ static unsigned char *asm_mov_iir(Inst *inst, Code *code) {
     int ino = opr_regno(&inst->opr[0].indirect_with_index.index_reg);
     int dno = opr_regno(&inst->opr[1].reg);
     Expr *scale_expr = inst->opr[0].indirect_with_index.scale;
-    char scale_bit = scale_expr != NULL ? kPow2Table[scale_expr->fixnum] : 0;
+    char scale_bit = 0;
+    if (scale_expr != NULL) {
+      scale_bit = most_significant_bit(scale_expr->fixnum);
+      assert(IS_POWER_OF_2(scale_expr->fixnum) && scale_bit < 4);
+    }
     short x = ((bno & 8) >> 3) | ((ino & 8) >> 2) | ((dno & 8) >> 1);
     short prefix = size == REG16 ? 0x66 : size == REG64 || x != 0 ? 0x48 | x : -1;
     short buf[] = {
@@ -732,11 +734,13 @@ static unsigned char *asm_lea_iir(Inst *inst, Code *code) {
       int ireg = opr_regno(&inst->opr[0].indirect_with_index.index_reg);
       int dreg = opr_regno(&inst->opr[1].reg);
       bool noofs = offset == 0 && breg != RBP - RAX;
+      int pow = most_significant_bit(scale);
+      assert(IS_POWER_OF_2(scale) && pow < 4);
       short buf[] = {
         0x48 | ((breg & 8) >> 3) | ((ireg & 8) >> 2) | ((dreg & 8) >> 1),
         0x8d,
         (noofs ? 0x00 : is_im8(offset) ? 0x40 : 0x80) | ((dreg & 7) << 3) | 0x04,
-        (breg & 7) | ((ireg & 7) << 3) | (kPow2Table[scale] << 6),
+        (breg & 7) | ((ireg & 7) << 3) | (pow << 6),
         breg == RSP - RAX ? 0x24 : -1,
       };
 
@@ -819,8 +823,8 @@ static unsigned char *asm_add_iir(Inst *inst, Code *code) {
   if (inst->opr[0].indirect_with_index.scale != NULL) {
     assert(inst->opr[0].indirect_with_index.scale->kind == EX_FIXNUM);
     int s = inst->opr[0].indirect_with_index.scale->fixnum;
-    assert(s == 1 || s == 2 || s == 4 || s == 8);
-    scale = kPow2Table[s];
+    scale = most_significant_bit(s);
+    assert(IS_POWER_OF_2(scale) && scale < 4);
   }
 
   unsigned char bno = inst->opr[0].indirect_with_index.base_reg.no;
@@ -937,8 +941,8 @@ static unsigned char *asm_sub_iir(Inst *inst, Code *code) {
   if (inst->opr[0].indirect_with_index.scale != NULL) {
     assert(inst->opr[0].indirect_with_index.scale->kind == EX_FIXNUM);
     int s = inst->opr[0].indirect_with_index.scale->fixnum;
-    assert(s == 1 || s == 2 || s == 4 || s == 8);
-    scale = kPow2Table[s];
+    scale = most_significant_bit(s);
+    assert(IS_POWER_OF_2(scale) && scale < 4);
   }
 
   unsigned char bno = inst->opr[0].indirect_with_index.base_reg.no;
@@ -1450,7 +1454,8 @@ static unsigned char *asm_jmp_deii(Inst *inst, Code *code) {
     long scale = scale_expr != NULL ? scale_expr->fixnum : 1;
     if (is_im32(offset) && 1 <= scale && scale <= 8 && IS_POWER_OF_2(scale)) {
       short b = inst->opr[0].indirect_with_index.base_reg.no;
-      short scale_bit = kPow2Table[scale];
+      short scale_bit = most_significant_bit(scale);
+      assert(IS_POWER_OF_2(scale) && scale_bit < 4);
       short i = inst->opr[0].indirect_with_index.index_reg.no;
       short prefix = inst->opr[0].indirect_with_index.base_reg.x | (inst->opr[0].indirect_with_index.index_reg.x << 1);
       short offset_bit = offset == 0 && b != RBP - RAX ? 0x20 : is_im8(offset) ? 0x60 : 0xa0;
