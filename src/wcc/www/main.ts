@@ -4,10 +4,10 @@ import {Util} from './util'
 import {WccRunner} from './wcc_runner'
 import Alpine from 'alpinejs'
 
-import hello from './examples/hello.c'
-import sieve from './examples/sieve.c'
-import qsort from './examples/qsort.c'
-import aobench from './examples/aobench.c'
+import hello from './examples/hello.c?raw'
+import sieve from './examples/sieve.c?raw'
+import qsort from './examples/qsort.c?raw'
+import aobench from './examples/aobench.c?raw'
 
 const FONT_SIZE = 16
 

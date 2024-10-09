@@ -1,7 +1,7 @@
 import path from 'path-browserify'
 import {unzip} from 'fflate'
 
-const WASI_WORKER_PATH = 'wasi_worker.js'
+import WasiWorker from './wasi_worker.ts?worker'
 
 const PACKED_ZIP_PATH = 'wccfiles.zip'
 
@@ -40,7 +40,7 @@ export class WccRunner {
         console.log(text)
     }
 
-    this.worker = new Worker(WASI_WORKER_PATH)
+    this.worker = new WasiWorker()
     this.worker.onmessage = (ev: MessageEvent<any>) => {
       const data = ev.data
       if (data.messageId != null && this.actionHandlerMap.has(data.messageId)) {

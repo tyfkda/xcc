@@ -5,16 +5,12 @@
   "main": "index.js",
   "scripts": {
     "start": "npm run default",
-    "default": "npm run build-assets && gulp",
-    "build": "gulp build",
+    "default": "npm run build-assets && npx vite --port=3000",
     "build-assets": "make assets",
-    "watch": "gulp watch",
-    "server": "webpack-dev-server --content-base public",
-    "test": "gulp test",
-    "lint": "gulp lint",
-    "lint:fix": "eslint --fix src/www/**/*.ts",
-    "release": "gulp release",
-    "clean": "gulp clean"
+    "lint": "eslint src/wcc/www/**/*.ts",
+    "lint:fix": "eslint --fix src/wcc/www/**/*.ts",
+    "release": "npx vite build",
+    "clean": "rm -rf public release"
   },
   "author": "tyfkda",
   "repository": {
@@ -25,55 +21,16 @@
   "engines": {
     "node": ">=20.0"
   },
-  "jest": {
-    "transform": {
-      "^.+\\.tsx?$": "ts-jest"
-    },
-    "testRegex": "(/__tests__/.*|(\\.|/)(test|spec))\\.(jsx?|tsx?)$",
-    "moduleFileExtensions": [
-      "ts",
-      "tsx",
-      "js",
-      "jsx",
-      "json",
-      "node"
-    ]
-  },
-  "sideEffects": [
-    "./src/wcc/www/main.ts",
-    "./src/wcc/www/wasi_woker.ts"
-  ],
   "devDependencies": {
-    "@babel/core": "~7.24.0",
-    "@babel/preset-env": "~7.24.0",
-    "@babel/register": "~7.23.7",
     "@types/alpinejs": "~3.13.6",
-    "@types/jest": "~29.5.12",
     "@types/node": "~20.11.24",
     "@types/path-browserify": "~1.0.2",
     "@typescript-eslint/eslint-plugin": "~6.6.0",
     "@typescript-eslint/parser": "~6.6.0",
-    "browser-sync": "~3.0.2",
-    "clone": "~2.1.2",
     "commander": "~12.0.0",
-    "eslint": "~8.57.0",
-    "gulp": "~5.0.0",
-    "gulp-cssnano": "~2.1.3",
-    "gulp-ejs": "~5.1.0",
-    "gulp-eslint": "~6.0.0",
-    "gulp-htmlmin": "~5.0.1",
-    "gulp-jest": "~4.0.4",
-    "gulp-sass": "~5.1.0",
-    "gulp-util": "~3.0.8",
-    "jest": "~29.7.0",
-    "jest-cli": "~29.7.0",
     "sass": "~1.71.1",
-    "ts-jest": "~29.1.2",
-    "ts-loader": "~9.5.1",
     "ts-node": "~10.9.2",
-    "typescript": "~5.2.2",
-    "webpack": "~5.94.0",
-    "webpack-stream": "~7.0.0"
+    "vite": "~5.4.8"
   },
   "dependencies": {
     "@wasmer/wasi": "~0.12.0",
