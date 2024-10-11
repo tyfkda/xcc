@@ -94,12 +94,7 @@ static void init_compiler(void) {
   install_builtins();
 }
 
-static void compile1(FILE *ifp, const char *filename, Vector *decls) {
-  set_source_file(ifp, filename);
-  parse(decls);
-}
-
-static void preprocess_and_compile(FILE *ppout, const char *filename, Vector *toplevel) {
+static void do_preprocess(const char *filename) {
   // Preprocess.
   FILE *ifp;
   if (strcmp(filename, "-") != 0) {
@@ -109,27 +104,29 @@ static void preprocess_and_compile(FILE *ppout, const char *filename, Vector *to
     ifp = stdin;
     filename = "*stdin*";
   }
-  fprintf(ppout, "# 1 \"%s\" 1\n", filename);
   preprocess(ifp, filename);
   if (ifp != stdin)
     fclose(ifp);
-  if (fseek(ppout, 0, SEEK_SET) != 0) {
-    error("fseek failed");
-  }
+}
 
+static void compilec(FILE *ppin, const char *filename, Vector *toplevel) {
   // Set lexer for compiler.
   init_lexer();
 
   // Compile.
-  FILE *ppin = ppout;
-  compile1(ppin, "*", toplevel);
+  set_source_file(ppin, filename);
+  parse(toplevel);
   if (compile_error_count != 0)
     exit(1);
 }
 
 int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vector *ld_cmd,
                     const char *import_module_name) {
-  FILE *ppout = tmpfile();
+  FILE *ppout;
+  if (out_type == OutPreprocess)
+    ppout = ofn != NULL ? fopen(ofn, "w") : stdout;
+  else
+    ppout = tmpfile();
   if (ppout == NULL)
     error("cannot open temporary file");
 
@@ -156,11 +153,20 @@ int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vec
   define_macro("__NO_WCHAR");
 #endif
 
+  do_preprocess(src);
+  if (out_type == OutPreprocess) {
+    if (ppout != stdout)
+      fclose(ppout);
+    return 0;
+  }
+
+  if (fseek(ppout, 0, SEEK_SET) != 0) {
+    error("fseek failed");
+  }
+
   init_compiler();
-
   Vector *toplevel = new_vector();
-
-  preprocess_and_compile(ppout, src, toplevel);
+  compilec(ppout, src, toplevel);
 
   fclose(ppout);
 
@@ -255,6 +261,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
   };
   static const struct option kOptions[] = {
     {"c", no_argument},  // Output .o
+    {"E", no_argument},  // Output preprocess result
     {"I", required_argument},  // Add include path
     {"isystem", required_argument, OPT_ISYSTEM},  // Add system include path
     {"idirafter", required_argument, OPT_IDIRAFTER},  // Add include path (after)
@@ -312,6 +319,11 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       break;
     case 'c':
       opts->out_type = OutObject;
+      break;
+    case 'E':
+      opts->out_type = OutPreprocess;
+      if (opts->src_type == UnknownSource)
+        opts->src_type = Clanguage;
       break;
     case 'e':
       if (*optarg != '\0') {

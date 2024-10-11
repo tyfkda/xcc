@@ -121,8 +121,7 @@ void emit_tag_section(EmitWasm *ew);
 
 // wcc_util
 enum OutType {
-  // OutPreprocess,
-  // OutAssembly,
+  OutPreprocess,
   OutObject,
   OutExecutable,
 };
