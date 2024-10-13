@@ -268,6 +268,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"l", required_argument},  // Library
     {"L", required_argument},  // Add library path
     {"D", required_argument},  // Define macro
+    {"C", no_argument},  // Do not discard comments
     {"o", required_argument},  // Specify output filename
     {"x", required_argument},  // Specify code type
     {"e", required_argument},  // Export names
@@ -349,6 +350,9 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       break;
     case 'D':
       define_macro(optarg);
+      break;
+    case 'C':
+      set_preserve_comment(true);
       break;
     case 'l':
       {

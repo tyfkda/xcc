@@ -308,6 +308,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"isystem", required_argument, OPT_ISYSTEM},  // Add system include path
     {"idirafter", required_argument, OPT_IDIRAFTER},  // Add include path (after)
     {"D", required_argument},  // Define macro
+    {"C", no_argument},  // Do not discard comments
     {"o", required_argument},  // Specify output filename
     {"x", required_argument},  // Specify code type
     {"l", required_argument},  // Library
@@ -373,6 +374,9 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     case 'D':
       vec_push(opts->cpp_cmd, "-D");
       vec_push(opts->cpp_cmd, optarg);
+      break;
+    case 'C':
+      vec_push(opts->cpp_cmd, "-C");
       break;
     case 'o':
       opts->ofn = optarg;

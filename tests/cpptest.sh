@@ -15,11 +15,12 @@ try() {
   local expected
   expected=$(echo -e "$2")
   local input="$3"
+  local ppflags="$4"
 
   begin_test "$title"
 
   local actual
-  actual=$(echo -e "$input" | $CPP 2>/dev/null | $REMOVE_TOP_LINEMARKER | tr -d '\n' | sed 's/ $//')
+  actual=$(echo -e "$input" | $CPP $ppflags 2>/dev/null | $REMOVE_TOP_LINEMARKER | tr -d '\n' | sed 's/ $//')
   local exitcode=$?
   if [ $exitcode -ne 0 ]; then
     end_test "CPP failed: exitcode=${exitcode}"
@@ -54,7 +55,7 @@ pp_error() {
 
   begin_test "$title"
 
-  echo -e "$input" | $CPP > /dev/null 2>&1 | tr -d '\n'
+  echo -e "$input" | $CPP $ppflags > /dev/null 2>&1 | tr -d '\n'
   local result="$?"
 
   local err=''; [[ "$result" -ne 0 ]] || err="Compile error expected, but succeeded"
@@ -85,8 +86,8 @@ test_basic() {
   try '__LINE__' "3" "\n\n__LINE__"
   try '#line' "# 123 \"foobar.p\" 1\"foobar.p\":123" "#line  123\t\"foobar.p\"\n__FILE__:__LINE__"
   try '#line number only' "# 123 \"*stdin*\" 1\"dummy\"\"*stdin*\":124" "#line  123\n\"dummy\"\n__FILE__:__LINE__"
-  try 'Block comment' '/*block comment*/' "/*\nblock comment\n*/"
-  try 'Quote in comment' "/*I'm fine*/" "/*\nI'm fine\n*/"
+  try 'Block comment' '/*block comment*/' "/*\nblock comment\n*/" '-C'
+  try 'Quote in comment' "/*I'm fine*/" "/*\nI'm fine\n*/" '-C'
 
   try 'hash only' '' "#\n/* */ #"
   try 'through illegal char' '\`@$#🤔' '\\`@$#🤔'
@@ -107,16 +108,16 @@ test_if() {
   try '#if VAR expr2' 'equal' "#define UNIT 5\n#define NUM 3\n#define X  (UNIT * NUM)\n#if X / UNIT != NUM\nnot-equal\n#else\nequal\n#endif"
   try 'Macro in #if' '111' "#define FOO(x) x/2\n#if FOO(2)==1\n111\n#else\n222\n#endif"
   try 'func-macro in unmet' '' "#ifdef FOO\n#if FOO(123)\nfoo-123\n#endif\n#endif"
-  try 'Direct comment' '/*comment*///comment' "#if 0\n#else/*comment*/\n#endif//comment"
-  try '#if w/ block comment' 'AAA' '#if 1==2/*\n*/-1\nAAA\n#else\nBBB\n#endif'
-  try '#else w/ block comment' '/**/BBB' '#if 0\nAAA\n#else/*\n*/\nBBB\n#endif'
-  try '#endif w/ block comment' '/**/CCC' '#if 0\nAAA\n#endif/*\n*/CCC'
-  try 'block comment in #if 0' '' "#if 0\n/**/\n#endif"
+  try 'Direct comment' '/*comment*///comment' "#if 0\n#else/*comment*/\n#endif//comment" '-C'
+  try '#if w/ block comment' 'AAA' '#if 1==2/*\n*/-1\nAAA\n#else\nBBB\n#endif' '-C'
+  try '#else w/ block comment' '/**/BBB' '#if 0\nAAA\n#else/*\n*/\nBBB\n#endif' '-C'
+  try '#endif w/ block comment' '/**/CCC' '#if 0\nAAA\n#endif/*\n*/CCC' '-C'
+  try 'block comment in #if 0' '' "#if 0\n/**/\n#endif" '-C'
   try 'quote char in #if 0' '' "#if 0\nchar c='\"';\n#endif"
 
-  try 'Block comment hide #else' 'AAA /*#elseBBB */' '#if 1\nAAA /*\n#else\nBBB */\n#endif'
-  try 'Line omment hide #else' '' '#if 0\nAAA\n//#else\nBBB\n#endif'
-  try 'Double quote in #if' '' "#if 0\n// \"str not closed, but in comment'\n#endif"
+  try 'Block comment hide #else' 'AAA /*#elseBBB */' '#if 1\nAAA /*\n#else\nBBB */\n#endif' '-C'
+  try 'Line comment hide #else' '' '#if 0\nAAA\n//#else\nBBB\n#endif' '-C'
+  try 'Double quote in #if' '' "#if 0\n// \"str not closed, but in comment'\n#endif" '-C'
 
   end_test_suite
 }

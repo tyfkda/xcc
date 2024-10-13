@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdio.h>  // FILE*
 
 enum IncludeOrder {
@@ -9,6 +10,7 @@ enum IncludeOrder {
 };
 
 void init_preprocessor(FILE *ofp);
+void set_preserve_comment(bool enable);
 void preprocess(FILE *fp, const char *filename);
 
 void define_macro(const char *arg);  // "FOO" or "BAR=QUX"

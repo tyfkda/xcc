@@ -21,6 +21,7 @@
 #define CF_SATISFY_MASK   (3 << CF_SATISFY_SHIFT)
 
 static FILE *pp_ofp;
+static bool preserve_comment;
 
 // Is `#if` condition satisfied?
 enum Satisfy {
@@ -42,6 +43,7 @@ typedef struct PreprocessFile {
 static PreprocessFile *curpf;
 
 #define OUTPUT_PPLINE(...)  do { fprintf(pp_ofp, __VA_ARGS__); ++curpf->out_lineno; } while (0)
+#define OUTPUT_COMMENT(...)  do { if (preserve_comment) OUTPUT_PPLINE(__VA_ARGS__); } while (0)
 
 static char *cat_path_cwd(const char *dir, const char *path) {
   char *cwd = getcwd(NULL, 0);
@@ -91,8 +93,9 @@ static const char *find_directive(const char *line) {
   return hash ? p : NULL;
 }
 
-static bool handle_block_comment(const char *begin, const char **pp, Stream *stream) {
+static bool handle_block_comment(const char **pp, Stream *stream) {
   const char *p = *pp;
+  const char *begin = p;
   for (;;) {
     p = skip_whitespaces(p);
     if (*p != '\0')
@@ -112,12 +115,13 @@ static bool handle_block_comment(const char *begin, const char **pp, Stream *str
   for (;;) {
     const char *q = block_comment_end(p);
     if (q != NULL) {
-      fwrite(begin, q - begin, 1, pp_ofp);
+      if (preserve_comment)
+        fwrite(begin, q - begin, 1, pp_ofp);
       *pp = q;
       break;
     }
 
-    OUTPUT_PPLINE("%s\n", begin);
+    OUTPUT_COMMENT("%s\n", begin);
 
     char *line = NULL;
     size_t capa = 0;
@@ -139,10 +143,21 @@ static void process_line(const char *line, Stream *stream) {
   for (;;) {
     const char *p = get_lex_p();
     if (p != NULL) {
-      if (handle_block_comment(begin, &p, stream)) {
+      p = skip_whitespaces(p);
+      if (begin < p) {
+        OUTPUT_PPLINE("%.*s", (int)(p - begin), begin);
+        --curpf->out_lineno;
+        begin = p;
+      }
+
+      if (handle_block_comment(&p, stream)) {
         begin = p;
         set_source_string(begin, stream->filename, stream->lineno);
         continue;
+      }
+      if (*p == '/' && p[1] == '/') {
+        OUTPUT_COMMENT("%s\n", p);
+        return;
       }
     }
 
@@ -192,10 +207,8 @@ static void process_line(const char *line, Stream *stream) {
 // Preprocess one line and receive result into memory.
 static char *preprocess_one_line(const char *line, Stream *stream, size_t *psize) {
   char *expanded;
-  size_t sizebuf;
-  if (psize == NULL)
-    psize = &sizebuf;
-  FILE *memfp = open_memstream(&expanded, psize);
+  size_t size;
+  FILE *memfp = open_memstream(&expanded, &size);
   if (memfp == NULL)
     error("open_memstream failed");
   FILE *bak_fp = pp_ofp;
@@ -206,6 +219,14 @@ static char *preprocess_one_line(const char *line, Stream *stream, size_t *psize
   pp_ofp = bak_fp;
   curpf->out_lineno = bak_lineno;
   fclose(memfp);
+
+  assert(expanded[size] == '\0');
+  // Chomp.
+  if (size > 0 && expanded[size - 1] == '\n')
+    expanded[--size] = '\0';
+
+  if (psize != NULL)
+    *psize = size;
   return expanded;
 }
 
@@ -555,7 +576,7 @@ static const char *find_block_comment_end(const char *comment_start, Stream *str
       lex_error(comment_start, "Block comment not closed");
     }
     p = line;
-    OUTPUT_PPLINE("\n");
+    OUTPUT_COMMENT("\n");
   }
 }
 
@@ -657,6 +678,10 @@ void init_preprocessor(FILE *ofp) {
   init_lexer_for_preprocessor();
 }
 
+void set_preserve_comment(bool enable) {
+  preserve_comment = enable;
+}
+
 static const char *process_directive(PreprocessFile *ppf, const char *line) {
   // Find '#'
   const char *directive = find_directive(line);
@@ -665,7 +690,7 @@ static const char *process_directive(PreprocessFile *ppf, const char *line) {
 
   if (isdigit(*directive)) {
     // Assume linemarkers: output as is.
-    fprintf(pp_ofp, "%s\n", line);
+    OUTPUT_PPLINE("%s\n", line);
     return NULL;
   }
 
@@ -740,7 +765,8 @@ static const char *process_directive(PreprocessFile *ppf, const char *line) {
       int flag = 1;
       fprintf(pp_ofp, "# %d \"%s\" %d\n", ppf->stream.lineno, ppf->stream.filename, flag);
       define_file_macro(ppf->stream.filename);
-      ppf->out_lineno = --ppf->stream.lineno - 1;
+      ppf->out_lineno = --ppf->stream.lineno;
+      next = NULL;
     } else {
       if (*directive != '\0')
         error("unknown directive: [%s]", directive);
@@ -752,8 +778,16 @@ static const char *process_directive(PreprocessFile *ppf, const char *line) {
 
 static void adjust_output_lineno(PreprocessFile *ppf) {
   assert(ppf->out_lineno <= ppf->stream.lineno);
-  for (; ppf->out_lineno < ppf->stream.lineno; ++ppf->out_lineno)
-    fprintf(pp_ofp, "\n");
+  int d = ppf->stream.lineno - ppf->out_lineno;
+  if (d > 0) {
+    if (d >= 5) {
+      fprintf(pp_ofp, "# %d \"%s\"\n", ppf->stream.lineno, ppf->stream.filename);
+    } else {
+      for (int i = 0; i < d; ++i)
+        fprintf(pp_ofp, "\n");
+    }
+    ppf->out_lineno = ppf->stream.lineno;
+  }
 }
 
 const char *get_processed_next_line(void) {

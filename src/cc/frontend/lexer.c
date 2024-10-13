@@ -346,9 +346,10 @@ static bool read_next_line(void) {
     char *fn;
     int flag = -1;
     int n = scan_linemarker(line, &num, &fn, &flag);
-    if (n >= 2) {
+    if (n >= 1) {
       lexer.lineno = num - 1;
-      lexer.filename = fn;
+      if (n >= 2)
+        lexer.filename = fn;
     }
   }
 
