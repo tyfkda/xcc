@@ -101,6 +101,9 @@ struct stat {
 };
 #endif
 
+int mkdir(const char *pathname, mode_t mode);
+int mkdirat(int dirfd, const char *pathname, mode_t mode);
+
 int chmod(const char *pathname, mode_t mode);
 int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags);
 

@@ -27,7 +27,17 @@
 
 #define AT_SYMLINK_NOFOLLOW  0x100
 #define AT_SYMLINK_FOLLOW    0x400
+
+/* Flag for faccessat(2). */
 #define AT_EACCESS           0x200
+
+/* Flag for unlinkat(2). */
+#if defined(__APPLE__) || defined(__riscv)
+#define AT_REMOVEDIR         0x080
+
+#else
+#define AT_REMOVEDIR         0x200
+#endif
 
 int open(const char *fn, int flag, ...);
 int openat(int dirfd, const char *fn, int flag, ...);
