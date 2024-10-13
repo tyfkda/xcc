@@ -34,6 +34,7 @@ int close(int fd);
 ssize_t read(int fd, void *buf, size_t size);
 off_t lseek(int fd, off_t offset, int whence);
 int unlink(const char *pathname);
+int rmdir(const char *pathname);
 char *getcwd(char *buffer, size_t size);
 
 int brk(void *addr);

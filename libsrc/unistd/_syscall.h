@@ -35,10 +35,13 @@
 #define __NR_kill    62
 #define __NR_getcwd  79
 #define __NR_chdir   80
+#define __NR_mkdir   83
+#define __NR_rmdir   84
 #define __NR_unlink  87
 #define __NR_chmod   90
 #define __NR_time    201
 #define __NR_clock_gettime  228
+#define __NR_mkdirat     258
 #define __NR_newfstatat  262
 
 #elif defined(__aarch64__)
@@ -77,6 +80,7 @@
 #define __NR_unlinkat  35
 #define __NR_fchmodat   53
 #define __NR_clock_gettime  113
+#define __NR_mkdirat     34
 #define __NR_newfstatat  79
 
 #elif defined(__riscv)
@@ -107,6 +111,7 @@
 #define __NR_wait4     260
 #define __NR_fstat     80
 #define __NR_fstatat   79
+#define __NR_mkdirat   34
 #define __NR_unlinkat  35
 
 #else

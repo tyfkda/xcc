@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <string.h>
 
@@ -44,6 +45,17 @@ TEST(basic_access) {
 
   // remove
   EXPECT_EQ(0, remove(fn));
+
+  // mkdir
+  {
+    const char dn[] = "tmp_ddd";
+    int r;
+    EXPECT_EQ(0, r = mkdir(dn, 0755));
+    if (r == 0) {
+      // rmdir
+      EXPECT_EQ(0, rmdir(dn));
+    }
+  }
 }
 
 TEST(stat) {
@@ -63,13 +75,11 @@ TEST(stat) {
       EXPECT_FALSE(S_ISDIR(st.st_mode));
     }
 
-    // remove(fn);
+    remove(fn);
   }
 
   // Test directory.
-  // TODO: Add `mkdir`
   const char dn[] = "tests";
-  // EXPECT_EQ(0, mkdir(dn, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH));
   {
     struct stat st;
     int r;
@@ -79,7 +89,6 @@ TEST(stat) {
       EXPECT_FALSE(S_ISREG(st.st_mode));
     }
   }
-  // EXPECT_EQ(0, rmdir());
 }
 
 TEST(ungetc) {

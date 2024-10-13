@@ -16,6 +16,11 @@
 
 #include "util.h"
 
+  // Hack: AT_REMOVEDIR defined in riscv-gnu-toolchain differs on MacOS and Linux?
+#if defined(__APPLE__) && !defined(__AT_REMOVEDIR)
+#define __AT_REMOVEDIR  0x080
+#endif
+
 static pid_t fork1(void) {
   pid_t pid = fork();
   if (pid < 0)
@@ -634,6 +639,10 @@ static void append_predefined_macros(Vector *cpp_cmd) {
 #endif
 #if defined(__NO_WCHAR)
   vec_push(cpp_cmd, "-D__NO_WCHAR");
+#endif
+
+#if defined(__AT_REMOVEDIR)
+  vec_push(cpp_cmd, "-D__AT_REMOVEDIR=" STR(__AT_REMOVEDIR));
 #endif
 }
 

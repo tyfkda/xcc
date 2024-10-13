@@ -110,6 +110,8 @@ WASI_MODULE int path_open(int fd, int dirflags, const char *path, size_t path_le
                          uint64_t fs_rights_base, uint64_t fs_rights_inherting, uint16_t fdflags,
                          uint32_t *opend_fd);
 WASI_MODULE int path_unlink_file(int fd, const char *path, size_t path_len);
+WASI_MODULE int path_create_directory(int fd, const char *path, size_t path_len);
+WASI_MODULE int path_remove_directory(int fd, const char *path, size_t path_len);
 WASI_MODULE int path_filestat_get(int fd, int flags, const char *path, size_t path_len, Filestat *out);
 
 WASI_MODULE int fd_read(int fd, const void *iov, int count, size_t *out);
