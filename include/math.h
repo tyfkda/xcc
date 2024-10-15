@@ -62,7 +62,7 @@ double frexp(double x, int *p);
 int finite(double x);
 
 inline int signbit(double x) {
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__riscv)
   extern int __signbitd(double);
   return __signbitd(x);
 #else

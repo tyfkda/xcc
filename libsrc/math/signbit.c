@@ -3,7 +3,12 @@
 #include "_ieee.h"
 
 #ifndef __NO_FLONUM
-#undef signbit
+extern inline int signbit(double x);
+
+#if defined(__APPLE__) || defined(__riscv)
+#define __signbit  __signbitd
+#endif
+
 int __signbit(double x) {
   return ((*(uint64_t*)&x) >> (EXPO_POS + EXPO_BIT));
 }

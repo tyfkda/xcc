@@ -3,8 +3,6 @@
 #include "_ieee.h"
 
 #ifndef __NO_FLONUM
-#undef isinf
-
 extern inline int isinf(double x);
 
 int __isinf(double x) {

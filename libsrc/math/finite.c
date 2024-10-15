@@ -3,7 +3,6 @@
 #include "_ieee.h"
 
 #ifndef __NO_FLONUM
-#undef finite
 extern inline int isfinite(double x);
 
 int finite(double x) {

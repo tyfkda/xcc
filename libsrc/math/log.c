@@ -1,8 +1,6 @@
 #include "math.h"
 
 #ifndef __NO_FLONUM
-#define LOG2  0.693147180559945
-
 double log(double x) {
   if (x <= 0)
     return x < 0 ? NAN : -HUGE_VAL;
@@ -20,6 +18,6 @@ double log(double x) {
     total += y / (i * 2 - 1);
     y *= yy;
   }
-  return 2 * total + n * LOG2;
+  return 2 * total + n * M_LN2;
 }
 #endif

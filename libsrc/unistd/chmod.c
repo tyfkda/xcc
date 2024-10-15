@@ -11,8 +11,8 @@ int chmod(const char *pathname, mode_t mode) {
   SYSCALL_RET(__NR_chmod, ret);
   return ret;
 }
-#else
 
+#elif defined(__NR_fchmodat)
 #include "fcntl.h"  // AT_FDCWD
 
 int chmod(const char *pathname, mode_t mode) {

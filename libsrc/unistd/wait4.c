@@ -10,7 +10,7 @@
 pid_t wait4(pid_t pid, int* status, int options, struct rusage *usage) {
   int ret;
 #if defined(__x86_64__)
-  __asm("mov %rcx, %r10");  // 4th parameter for syscall is `%r10`. `%r10` is caller save so no need to save/restore
+  SYSCALL_ARGCOUNT(4);
 #endif
   SYSCALL_RET(__NR_wait4, ret);
   if (ret < 0) {

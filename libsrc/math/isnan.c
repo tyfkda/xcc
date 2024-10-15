@@ -3,8 +3,6 @@
 #include "_ieee.h"
 
 #ifndef __NO_FLONUM
-#undef isnan
-
 extern inline int isnan(double x);
 
 int __isnan(double x) {

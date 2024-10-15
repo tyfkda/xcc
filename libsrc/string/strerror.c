@@ -39,7 +39,7 @@ static char *strerrors[] = {
 };
 
 char *strerror(int no) {
-  if (no < 0 || no >= sizeof(strerrors) / sizeof(*strerrors))
+  if ((unsigned int)no >= (unsigned int)(sizeof(strerrors) / sizeof(*strerrors)))
     return "Unknown error";
   return strerrors[no];
 }

@@ -2,6 +2,10 @@
 #include "_syscall.h"
 #include "errno.h"
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#endif
+
 #if defined(__NR_pipe2)
 int pipe2(int *pipefd, int flag) {
   int ret;

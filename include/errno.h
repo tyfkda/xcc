@@ -1,6 +1,9 @@
 #pragma once
 
-#ifdef __APPLE__
+#if defined(__riscv)
+extern int errno;
+
+#elif defined(__APPLE__)
 extern int * __error(void);
 #define errno (*__error())
 

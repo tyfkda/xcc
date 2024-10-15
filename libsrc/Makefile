@@ -80,8 +80,10 @@ clean-test:
 
 TESTS=printf file stdlib math longjmp
 
-printf_SRCS:=$(wildcard stdio/*.c)
-file_SRCS:=$(wildcard stdio/*.c)
+printf_SRCS:=$(wildcard stdio/*.c) \
+	math/finite.c math/signbit.c
+file_SRCS:=$(wildcard stdio/*.c) \
+	math/finite.c math/signbit.c
 stdlib_SRCS:=$(wildcard stdlib/*.c)
 math_SRCS:=$(wildcard math/*.c)
 longjmp_SRCS:=misc/setjmp.c misc/longjmp.c

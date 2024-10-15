@@ -13,6 +13,9 @@
           "syscall" \
           : "=r"(ret))
 
+// 4th parameter for syscall is `%r10`. `%r10` is caller save so no need to save/restore
+#define SYSCALL_ARGCOUNT(n)  do { if ((n) >= 4) __asm("mov %rcx, %r10"); } while (0)
+
 #define __NR_read    0
 #define __NR_write   1
 #define __NR_open    2

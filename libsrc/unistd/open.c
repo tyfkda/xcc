@@ -19,7 +19,8 @@ int open(const char *fn, int flag, mode_t mode) {
 }
 #elif defined(__NR_openat)
 
-#define AT_FDCWD  -100
+// #include "fcntl.h"  // AT_FDCWD
+#define AT_FDCWD  -100  // Avoid conflicting with prototype definition.
 
 int open(const char *fn, int flag, mode_t mode) {
   extern int openat(int dirfd, const char *fn, int flag, mode_t mode);
