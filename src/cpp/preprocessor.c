@@ -630,7 +630,7 @@ static bool handle_ifdef(const char **pp) {
   return macro_get(name) != NULL;
 }
 
-static bool handle_if(const char **pp, Stream *stream) {
+static bool handle_if(const char **pp, Stream *stream, bool enable) {
   size_t size;
   char *expanded = preprocess_one_line(*pp, stream, &size);
 
@@ -647,6 +647,11 @@ static bool handle_if(const char **pp, Stream *stream) {
     Stream *bak_stream = set_pp_stream(&tmp_stream);
     set_source_file(memfp, stream->filename);
     result = pp_expr();
+
+    const char *p = get_lex_p();
+    if (p != NULL && enable)
+      error("illegal expression");
+
     set_pp_stream(bak_stream);
     fclose(memfp);
     *pp = get_lex_p();
@@ -707,7 +712,7 @@ static const char *process_directive(PreprocessFile *ppf, const char *line) {
     ppf->enable = ppf->enable && ppf->satisfy == Satisfied;
   } else if ((next = keyword(directive, "if")) != NULL) {
     vec_push(ppf->condstack, INT2VOIDP(cond_value(ppf->enable, ppf->satisfy)));
-    bool cond = handle_if(&next, &ppf->stream);
+    bool cond = handle_if(&next, &ppf->stream, ppf->enable);
     ppf->satisfy = cond ? Satisfied : NotSatisfied;
     ppf->enable = ppf->enable && ppf->satisfy == Satisfied;
   } else if ((next = keyword(directive, "else")) != NULL) {
@@ -728,7 +733,7 @@ static const char *process_directive(PreprocessFile *ppf, const char *line) {
       error("Illegal #elif");
 
     bool cond = false;
-    bool cond2 = handle_if(&next, &ppf->stream);
+    bool cond2 = handle_if(&next, &ppf->stream, ppf->enable);
     if (ppf->satisfy == NotSatisfied) {
       cond = cond2;
       if (cond)

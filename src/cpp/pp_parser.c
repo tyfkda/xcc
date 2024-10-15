@@ -13,7 +13,6 @@
 #include "table.h"
 #include "util.h"
 
-static PpResult pp_prim(void);
 static PpResult pp_cast_expr(void);
 
 //

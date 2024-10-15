@@ -206,6 +206,7 @@ test_error() {
   pp_error '#if not closed' '#if 1'
   pp_error '#elif not closed' '#if 0\n#elif 1'
   pp_error 'Duplicate #else' '#if 0\n#else\n#else\n#endif'
+  pp_error 'undefiled func-like' '#if define(XXX)\n2\n#else\n3\n#endif'  # Confirm misspelled 'defined'
   pp_error 'less params' '#define FOO(x, y) x+y\nFOO(1)'
   pp_error 'more params' '#define FOO(x, y) x+y\nFOO(1, 2, 3)'
   pp_error 'Block comment not closed' 'AAA /* BBB'
