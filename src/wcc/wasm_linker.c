@@ -23,6 +23,8 @@
 #define ADD_ULEB128(x) data_uleb128(CODE, -1, x)
 #define ADD_VARUINT32(x)  data_varuint32(CODE, -1, x)
 
+static const char LINKER_GENERATED_FILENAME[] = "*linker-generated*";
+
 static int64_t read_leb128(unsigned char *p, unsigned char **next) {
   int64_t result = 0;
   int shift = 0;
@@ -642,6 +644,58 @@ static int resolve_symbols_archive(WasmLinker *linker, Archive *ar) {
   return 0;
 }
 
+static void resolve_symbols_auto_fill(WasmLinker *linker) {
+  const Name *call_ctors_name = alloc_name("__wasm_call_ctors", NULL, false);
+  WasmObj *obj = NULL;
+  if (table_get(&linker->unresolved, call_ctors_name) != NULL) {
+    // Prepare linker generated wasmobj.
+    obj = calloc_or_die(sizeof(*obj));
+    obj->linking.symtab = new_vector();
+
+    // Funcion type.
+    obj->types = new_vector();
+    {
+      static const unsigned char functype[] = {0x00, 0x00};
+      unsigned char *dup = malloc_or_die(sizeof(functype));
+      memcpy(dup, functype, sizeof(functype));
+      int index = getsert_func_type(dup, sizeof(functype), true);
+      vec_push(obj->types, INT2VOIDP(index));
+    }
+
+    File *file = calloc_or_die(sizeof(*file));
+    file->filename = LINKER_GENERATED_FILENAME;
+    file->kind = FK_WASMOBJ;
+    file->wasmobj = obj;
+    vec_push(linker->files, file);
+
+    // Register symbol `__wasm_call_ctors`.
+    SymbolInfo *sym = calloc_or_die(sizeof(*sym));
+    sym->kind = SIK_SYMTAB_FUNCTION;
+    sym->module_name = NULL;
+    sym->name = call_ctors_name;
+    vec_push(obj->linking.symtab, sym);
+
+    // Function
+    int section_count = 1;
+    WasmSection *sections = calloc_or_die(sizeof(*sections) * section_count);
+    obj->section_count = section_count;
+    obj->sections = sections;
+    {
+      WasmSection *p = &sections[0];
+      p->id = SEC_CODE;
+      p->start = NULL;
+      p->size = 0;
+    }
+    obj->func.count = 1;
+  }
+
+  if (obj != NULL) {
+    int err_count = resolve_symbols_wasmobj(linker, obj);
+    UNUSED(err_count);
+    assert(err_count == 0);
+  }
+}
+
 static bool resolve_symbols(WasmLinker *linker) {
   int err_count = 0;
 
@@ -657,6 +711,8 @@ static bool resolve_symbols(WasmLinker *linker) {
       break;
     }
   }
+
+  resolve_symbols_auto_fill(linker);
 
   // Enumerate unresolved: import
   const Name *wasi_module_name = alloc_name(WASI_MODULE_NAME, NULL, false);
@@ -705,6 +761,14 @@ static bool resolve_symbols(WasmLinker *linker) {
 }
 
 static void generate_init_funcs(WasmLinker *linker) {
+  if (linker->files->len <= 0)
+    return;
+
+  // Assume the linker generated wasmobj is the last one.
+  File *generated = linker->files->data[linker->files->len - 1];
+  if (strcmp(generated->filename, LINKER_GENERATED_FILENAME) != 0)
+    return;
+
   Vector *init_funcs = new_vector();
   for (int i = 0; i < linker->files->len; ++i) {
     File *file = linker->files->data[i];
@@ -729,7 +793,8 @@ static void generate_init_funcs(WasmLinker *linker) {
   }
 
   // Generate
-  WasmObj *wasmobj = ((File*)linker->files->data[0])->wasmobj;
+  assert(generated->kind == FK_WASMOBJ);
+  WasmObj *wasmobj = generated->wasmobj;
   WasmSection *codesec = &wasmobj->sections[0];
   assert(codesec->id == SEC_CODE);
   DataStorage ds;
@@ -1412,46 +1477,6 @@ void linker_init(WasmLinker *linker) {
 
   linker->sp_name = alloc_name(SP_NAME, NULL, false);
   linker->curbrk_name = alloc_name(BREAK_ADDRESS_NAME, NULL, false);
-
-  // Prepare linker generated wasmobj.
-  WasmObj *obj = calloc_or_die(sizeof(*obj));
-  obj->linking.symtab = new_vector();
-
-  // Funcion type.
-  obj->types = new_vector();
-  {
-    static const unsigned char functype[] = {0x00, 0x00};
-    unsigned char *dup = malloc_or_die(sizeof(functype));
-    memcpy(dup, functype, sizeof(functype));
-    int index = getsert_func_type(dup, sizeof(functype), true);
-    vec_push(obj->types, INT2VOIDP(index));
-  }
-
-  File *file = calloc_or_die(sizeof(*file));
-  file->filename = "*linker-generated*";
-  file->kind = FK_WASMOBJ;
-  file->wasmobj = obj;
-  vec_push(linker->files, file);
-
-  // Register symbol `__wasm_call_ctors`.
-  SymbolInfo *sym = calloc_or_die(sizeof(*sym));
-  sym->kind = SIK_SYMTAB_FUNCTION;
-  sym->module_name = NULL;
-  sym->name = alloc_name("__wasm_call_ctors", NULL, false);
-  vec_push(obj->linking.symtab, sym);
-
-  // Function
-  int section_count = 1;
-  WasmSection *sections = calloc_or_die(sizeof(*sections) * section_count);
-  obj->section_count = section_count;
-  obj->sections = sections;
-  {
-    WasmSection *p = &sections[0];
-    p->id = SEC_CODE;
-    p->start = NULL;
-    p->size = 0;
-  }
-  obj->func.count = 1;
 }
 
 bool read_wasm_obj(WasmLinker *linker, const char *filename) {
