@@ -49,6 +49,7 @@ double atanh(double);
 double sqrt(double);
 double log(double x);
 double log10(double x);
+double log2(double x);
 double exp(double x);
 double pow(double base, double x);
 double fabs(double);
@@ -58,6 +59,7 @@ double round(double x);
 double modf(double x, double *pint);
 double fmod(double x, double m);
 double frexp(double x, int *p);
+double ldexp(double x, int exp);
 
 int finite(double x);
 

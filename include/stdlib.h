@@ -4,6 +4,9 @@
 
 #define RAND_MAX  (0x7fffffff)
 
+#define EXIT_SUCCESS  0
+#define EXIT_FAILURE  1
+
 int atoi(const char* s);
 long atol(const char* s);
 long long atoll(const char* s);
@@ -19,6 +22,10 @@ long strtol(const char *p, char **pp, int base);
 unsigned long strtoul(const char *p, char **pp, int base);
 long long strtoll(const char *p, char **pp, int base);
 unsigned long long strtoull(const char *p, char **pp, int base);
+
+int abs(int x);
+long labs(long x);
+long long llabs(long long x);
 
 void qsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *));
 void *bsearch(const void *key, const void *base, size_t nmemb, size_t size,
