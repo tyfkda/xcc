@@ -590,6 +590,12 @@ int main(int argc, char *argv[]) {
     .nostdinc = false,
   };
   parse_options(argc, argv, &opts);
+  
+  // when given -c and -e, treat as OutExecutable && entry_point, since otherwise exports wont be generated
+  if (opts.entry_point == NULL && opts.exports->len != 0 && opts.out_type == OutObject) {
+    opts.entry_point = "";
+    opts.out_type = OutExecutable;
+  }
 
   if (opts.sources->len == 0) {
     fprintf(stderr, "No input files\n\n");
