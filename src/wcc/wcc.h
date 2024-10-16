@@ -106,6 +106,7 @@ void install_builtins(void);
 typedef struct {
   FILE *ofp;
   const char *import_module_name;
+  Vector *exports;
   Vector *data_segments;
   uint32_t section_index;
   uint32_t function_count;
@@ -114,7 +115,7 @@ typedef struct {
   uint32_t import_global_count;
 } EmitWasm;
 
-void emit_wasm(FILE *ofp, const char *import_module_name);
+void emit_wasm(FILE *ofp, const char *import_module_name, Vector *exports);
 
 void emit_type_section(EmitWasm *ew);
 void emit_tag_section(EmitWasm *ew);

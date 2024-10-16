@@ -403,6 +403,32 @@ static void emit_global_section(EmitWasm *ew) {
   }
 }
 
+static void emit_export_section(EmitWasm *ew) {
+  Vector *exports = ew->exports;
+  if (exports == NULL || exports->len <= 0)
+    return;
+
+  DataStorage exports_section;
+  data_init(&exports_section);
+  data_open_chunk(&exports_section);
+  data_open_chunk(&exports_section);
+  for (int i = 0; i < exports->len; ++i) {
+    const Name *name = exports->data[i];
+
+    FuncInfo *info = table_get(&func_info_table, name);
+    assert(info != NULL);
+
+    data_string(&exports_section, name->chars, name->bytes);  // export name
+    data_uleb128(&exports_section, -1, IMPORT_FUNC);  // export kind
+    data_uleb128(&exports_section, -1, info->index);  // export func index
+  }
+  data_close_chunk(&exports_section, exports->len);  // num exports
+  data_close_chunk(&exports_section, -1);
+
+  fputc(SEC_EXPORT, ew->ofp);
+  fwrite(exports_section.buf, exports_section.len, 1, ew->ofp);
+}
+
 static void emit_elems_section(EmitWasm *ew) {
   int count = indirect_function_table.count;
   if (count == 0)
@@ -774,12 +800,13 @@ static void emit_reloc_data_section(EmitWasm *ew, Vector *reloc_data) {
   emit_reloc_section(ew, ew->data_section_index, reloc_data, kRelocData);
 }
 
-void emit_wasm(FILE *ofp, const char *import_module_name) {
+void emit_wasm(FILE *ofp, const char *import_module_name, Vector *exports) {
   write_wasm_header(ofp);
 
   EmitWasm ew_body = {
     .ofp = ofp,
     .import_module_name = import_module_name,
+    .exports = exports,
   };
   EmitWasm *ew = &ew_body;
 
@@ -797,6 +824,9 @@ void emit_wasm(FILE *ofp, const char *import_module_name) {
 
   // Globals.
   emit_global_section(ew);
+
+  // Exports.
+  emit_export_section(ew);
 
   // Elements.
   emit_elems_section(ew);

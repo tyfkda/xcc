@@ -121,7 +121,7 @@ static void compilec(FILE *ppin, const char *filename, Vector *toplevel) {
 }
 
 int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vector *ld_cmd,
-                    const char *import_module_name) {
+                    const char *import_module_name, Vector *exports) {
   FILE *ppout;
   if (out_type == OutPreprocess)
     ppout = ofn != NULL ? fopen(ofn, "w") : stdout;
@@ -181,6 +181,19 @@ int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vec
   if (cc_flags.warn_as_error && compile_warning_count != 0)
     return 2;
 
+  if (exports != NULL) {
+    int undef = 0;
+    for (int i = 0; i < exports->len; ++i) {
+      const Name *name = exports->data[i];
+      if (!table_try_get(&func_info_table, name, NULL)) {
+        fprintf(stderr, "Export: `%.*s' not defined\n", NAMES(name));
+        ++undef;
+      }
+    }
+    if (undef > 0)
+      return 3;
+  }
+
   FILE *ofp;
   const char *outfn = NULL;
   if (out_type >= OutExecutable) {
@@ -205,7 +218,7 @@ int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vec
   if (ofp == NULL) {
     error("Cannot open output file");
   } else {
-    emit_wasm(ofp, import_module_name);
+    emit_wasm(ofp, import_module_name, exports);
     assert(compile_error_count == 0);
     fclose(ofp);
   }
@@ -547,7 +560,8 @@ static int do_compile(Options *opts) {
       return 1;  // exit
     case Clanguage:
       {
-        int res = compile_csource(src, opts->out_type, outfn, obj_files, opts->import_module_name);
+        Vector *exports = opts->out_type < OutExecutable ? opts->exports : NULL;
+        int res = compile_csource(src, opts->out_type, outfn, obj_files, opts->import_module_name, exports);
         if (res != 0)
           return 1;  // exit
       }
@@ -564,6 +578,16 @@ static int do_compile(Options *opts) {
 
   if (opts->out_type < OutExecutable)
     return 0;
+
+  if (opts->entry_point == NULL) {
+    opts->entry_point = "_start";
+  }
+  if (opts->entry_point != NULL && *opts->entry_point != '\0') {
+    vec_push(opts->exports, alloc_name(opts->entry_point, NULL, false));
+  } else if (opts->exports->len == 0) {
+    error("no exports (require -e<xxx>)\n");
+  }
+
   return do_link(obj_files, opts);
 }
 
@@ -603,15 +627,6 @@ int main(int argc, char *argv[]) {
 
   if (!opts.nostdinc) {
     add_inc_path(INC_AFTER, JOIN_PATHS(root, "include"));
-  }
-
-  if (opts.out_type >= OutExecutable && opts.entry_point == NULL) {
-    opts.entry_point = "_start";
-  }
-  if (opts.entry_point != NULL && *opts.entry_point != '\0')
-    vec_push(opts.exports, alloc_name(opts.entry_point, NULL, false));
-  if (opts.exports->len == 0 && opts.out_type >= OutExecutable) {
-    error("no exports (require -e<xxx>)\n");
   }
 
   VERBOSES("### Exports\n");
