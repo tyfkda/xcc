@@ -16,55 +16,27 @@ void expect_parse_type(const char *title, const Type *expected, const char *iden
                        const char *source) {
   begin_test(title);
 
-  pid_t pid = fork();
-  if (pid < 0) {
-    fail("fork failed");
-    return;
+  set_source_file(NULL, title);
+  set_source_string(source, "*test*", 1);
+  int storage;
+  Token *ident;
+  const Type *actual = parse_var_def(NULL, &storage, &ident);
+  if (actual == NULL && expected != NULL) {
+    fail("parsing type failed");
+  } else if (!same_type(expected, actual)) {
+    fail("type different");
+  } else if (ident_expected == NULL && ident != NULL) {
+    fail("ident is not NULL (%.*s)", NAMES(ident->ident));
+  } else if (ident_expected != NULL && ident == NULL) {
+    fail("ident(%s) expected, but NULL", ident_expected);
+  } else if (ident_expected != NULL && ident != NULL &&
+             (ident->ident->bytes != (int)strlen(ident_expected) ||
+              strncmp(ident->ident->chars, ident_expected, strlen(ident_expected)))) {
+    fail("ident(%s) expected, but (%.*s)", ident_expected, NAMES(ident->ident));
+  } else if (fetch_token()->kind != TK_EOF) {
+    fail("EOF expected");
   }
-  if (pid == 0) {
-    set_source_file(NULL, title);
-    set_source_string(source, "*test*", 1);
-    int storage;
-    Token *ident;
-    const Type *actual = parse_var_def(NULL, &storage, &ident);
-    if (actual == NULL && expected != NULL) {
-      fail("parsing type failed");
-      exit(1);
-    }
-
-    const Token *end = fetch_token();
-    if (end->kind != TK_EOF) {
-      fail("EOF expected");
-      exit(1);
-    }
-
-    if (!same_type(expected, actual)) {
-      fail("type different");
-      exit(1);
-    }
-    if (ident_expected == NULL && ident != NULL) {
-      fail("ident is not NULL (%.*s)", NAMES(ident->ident));
-      exit(1);
-    }
-    if (ident_expected != NULL && ident == NULL) {
-      fail("ident(%s) expected, but NULL", ident_expected);
-      exit(1);
-    }
-    if (ident_expected != NULL && ident != NULL &&
-        (ident->ident->bytes != (int)strlen(ident_expected) ||
-         strncmp(ident->ident->chars, ident_expected, strlen(ident_expected)))) {
-      fail("ident(%s) expected, but (%.*s)", ident_expected, NAMES(ident->ident));
-      exit(1);
-    }
-    exit(0);
-  }
-
-  int ec = -1;
-  if (waitpid(pid, &ec, 0) < 0)
-    fail("wait failed");
-  if (ec != 0) {
-    ++error_count;
-  }
+  // OK.
 }
 
 TEST(parse_full_type) {
@@ -77,6 +49,13 @@ TEST(parse_full_type) {
   expect_parse_type("long long", get_fixnum_type(FX_LLONG, false, 0), NULL, "long long");
   expect_parse_type("int long", get_fixnum_type(FX_LONG, false, 0), NULL, "int long");
   expect_parse_type("void ptr", ptrof(&tyVoid), NULL, "void*");
+
+#ifndef __NO_FLONUM
+  expect_parse_type("double", &tyDouble, NULL, "double");
+  expect_parse_type("float", &tyFloat, NULL, "float");
+  expect_parse_type("long double", &tyLDouble, NULL, "long double");
+#endif
+
   expect_parse_type("int array", arrayof(&tyInt, 3), "a", "int a[3]");
   expect_parse_type("array w/o size", arrayof(&tyChar, -1), NULL, "char[]");
   expect_parse_type("2d array", arrayof(arrayof(&tyInt, 3), 2), NULL, "int[2][3]");
@@ -119,16 +98,10 @@ TEST(parse_full_type) {
     const Type *functype = new_func_type(param_funcptr, params, false);
     expect_parse_type("signal", functype, "signal", "void(*signal(int, void(*)(int)))(int)");
   }
-
-#ifndef __NO_FLONUM
-  expect_parse_type("double", &tyDouble, NULL, "double");
-  expect_parse_type("float", &tyFloat, NULL, "float");
-  expect_parse_type("long double", &tyLDouble, NULL, "long double");
-#endif
 }
 
 int main(void) {
   init_lexer();
 
-  xtest_main();
+  return xtest_main();
 }
