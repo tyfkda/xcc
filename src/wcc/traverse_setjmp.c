@@ -172,7 +172,8 @@ static bool traverse_ast_stmt(Stmt **pstmt, LexicalStack *parent, TraverseAstPar
   case ST_CONTINUE:  break;
   case ST_RETURN:  return traverse_ast_expr(&stmt->return_.val, &lstack, param);
   case ST_CASE:
-    return traverse_ast_expr(&stmt->case_.value, &lstack, param);
+    return traverse_ast_expr(&stmt->case_.value, &lstack, param) ||
+           traverse_ast_stmt(&stmt->case_.stmt, &lstack, param);
   case ST_GOTO:  break;
   case ST_LABEL:  return traverse_ast_stmt(&stmt->label.stmt, &lstack, param);
   case ST_VARDECL:
