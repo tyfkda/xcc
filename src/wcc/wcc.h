@@ -126,6 +126,9 @@ enum OutType {
   OutExecutable,
 };
 
+#define CUF_LINEAR_MEMORY  (1 << 0)
+#define CUF_USE_SP         (1 << 1)
+
 extern const char SP_NAME[];
 extern const char BREAK_ADDRESS_NAME[];
 
@@ -135,6 +138,7 @@ extern Table gvar_info_table;
 extern Table indirect_function_table;  // <FuncInfo*>
 extern Vector *tags;  // <TagInfo*>
 extern Vector *init_funcs;  // <Function*>
+extern int compile_unit_flag;
 
 #define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)
 #define VERBOSE(fmt, ...)  do { if (verbose) printf(fmt, __VA_ARGS__); } while (0)

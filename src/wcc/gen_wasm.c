@@ -1604,6 +1604,10 @@ static void gen_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
+  VarInfo *funcvi = scope_find(global_scope, func->name, NULL);
+  if (funcvi != NULL && satisfy_inline_criteria(funcvi) && !(funcvi->storage & VS_STATIC))
+    return;
+
   DataStorage *code = malloc_or_die(sizeof(*code));
   data_init(code);
   data_open_chunk(code);

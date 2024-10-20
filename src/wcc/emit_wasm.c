@@ -250,7 +250,7 @@ static void emit_import_section(EmitWasm *ew) {
   uint32_t imports_count = 0;
   uint32_t global_count = 0;
 
-  {
+  if (compile_unit_flag & CUF_LINEAR_MEMORY) {
     static const char kMemoryName[] = "__linear_memory";
     data_string(&imports_section, env_module_name, sizeof(env_module_name) - 1);  // import module name
     data_string(&imports_section, kMemoryName, sizeof(kMemoryName) - 1);  // import name

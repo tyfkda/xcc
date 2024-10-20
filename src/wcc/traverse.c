@@ -745,11 +745,6 @@ static void traverse_defun(Function *func) {
   register_func_info(func->name, func, NULL, 0);
   curfunc = func;
   traverse_stmt(func->body_block);
-  if (compile_error_count == 0) {
-    int count = ((FuncExtra*)func->extra)->setjmp_count;
-    if (count > 0)
-      modify_ast_for_setjmp(count);
-  }
   curfunc = NULL;
 
   // Static variables are traversed through global variables.
@@ -790,13 +785,9 @@ static void traverse_decl(Declaration *decl) {
   }
 }
 
-static void add_builtins(void) {
-  const Name *names[2];
-  names[0] = alloc_name(SP_NAME, NULL, false);
-  int n = 1;
-
-  for (int i = 0; i < n; ++i) {
-    const Name *name = names[i];
+static void add_builtins(int flag) {
+  if (flag & CUF_USE_SP) {
+    const Name *name = alloc_name(SP_NAME, NULL, false);
     VarInfo *varinfo = scope_find(global_scope, name, NULL);
     if (varinfo == NULL) {
       varinfo = add_global_var(&tyVoidPtr, name);
@@ -811,7 +802,93 @@ static void add_builtins(void) {
   }
 }
 
+static bool detect_compile_unit_sp(Function *func) {
+  if (func->flag & FUNCF_STACK_MODIFIED)
+    return true;
+  FuncExtra *extra = func->extra;
+  assert(extra != NULL);
+  if (extra->setjmp_count > 0)
+    return true;
+  FuncInfo *finfo = table_get(&func_info_table, func->name);
+  assert(finfo != NULL);
+  if (finfo->lspname != NULL)
+    return true;
+
+  Vector *scopes = func->scopes;
+  if (scopes == NULL)  // Prototype definition
+    return false;
+
+  const Type *functype = func->type;
+  unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
+  unsigned int pparam_count = 0;  // Primitive parameter count
+
+  for (int i = 0; i < scopes->len; ++i) {
+    Scope *scope = scopes->data[i];
+    if (scope->vars == NULL)
+      continue;
+    for (int j = 0; j < scope->vars->len; ++j) {
+      VarInfo *varinfo = scope->vars->data[j];
+      if (!is_local_storage(varinfo)) {
+        // Static entity is allocated in global, not on stack.
+        // Extern doesn't have its entity.
+        // Enum members are replaced to constant value.
+        continue;
+      }
+
+      int param_index = -1;
+      if (i == 0 && param_count > 0) {
+        int k = get_funparam_index(func, varinfo->name);
+        if (k >= 0) {
+          param_index = k;
+          if (!is_stack_param(varinfo->type))
+            ++pparam_count;
+        }
+      }
+      if ((varinfo->storage & VS_REF_TAKEN) || (is_stack_param(varinfo->type) && param_index < 0)) {
+        return true;
+      }
+    }
+  }
+  return pparam_count != param_count;
+}
+
+static int detect_compile_unit_memory(void) {
+  for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
+    VarInfo *varinfo = global_scope->vars->data[i];
+    if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
+      continue;
+    if (is_global_datsec_var(varinfo, global_scope))
+      return CUF_LINEAR_MEMORY;
+  }
+  return 0;
+}
+
+static int detect_compile_unit_flags(Vector *decls) {
+  int flag = detect_compile_unit_memory();
+
+  for (int i = 0, len = decls->len; i < len; ++i) {
+    Declaration *decl = decls->data[i];
+    if (decl->kind != DCL_DEFUN)
+      continue;
+
+    Function *func = decl->defun.func;
+    VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
+    assert(varinfo != NULL);
+    if (satisfy_inline_criteria(varinfo) && !(varinfo->storage & VS_STATIC))
+      continue;
+
+    if (detect_compile_unit_sp(func)) {
+      flag |= CUF_USE_SP;
+      break;
+    }
+  }
+
+  return flag;
+}
+
 void traverse_ast(Vector *decls) {
+  compile_unit_flag = 0;
+
   // Global scope
   for (int k = 0; k < 2; ++k) {  // 0=register, 1=traverse
     for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
@@ -825,11 +902,27 @@ void traverse_ast(Vector *decls) {
     }
   }
 
-  add_builtins();
-
   for (int i = 0, len = decls->len; i < len; ++i) {
     Declaration *decl = decls->data[i];
     traverse_decl(decl);
+  }
+
+  compile_unit_flag = detect_compile_unit_flags(decls);
+
+  add_builtins(compile_unit_flag);
+
+  // traverse_ast_for_setjmp();
+  for (int i = 0, len = decls->len; i < len; ++i) {
+    Declaration *decl = decls->data[i];
+    if (decl->kind != DCL_DEFUN)
+      continue;
+    Function *func = decl->defun.func;
+    int count = ((FuncExtra*)func->extra)->setjmp_count;
+    if (count > 0) {
+      curfunc = func;
+      modify_ast_for_setjmp(count);
+      curfunc = NULL;
+    }
   }
 
   // Indirect functions.

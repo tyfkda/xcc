@@ -21,6 +21,7 @@ Vector *functypes;  // <DataStorage*>
 Table indirect_function_table;
 Vector *tags;
 Vector *init_funcs;
+int compile_unit_flag;
 
 uint32_t get_indirect_function_index(const Name *name) {
   FuncInfo *info = table_get(&indirect_function_table, name);
