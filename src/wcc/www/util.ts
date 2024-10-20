@@ -67,7 +67,7 @@ export class Util {
       const line = lines[i]
       if (line === '')
         continue
-      let m = line.match(/^main\.c\((\d+)\):\s?(.*)$/)
+      let m = line.match(/^main\.c\((\d+)\):\s?(.*)(\s*)$/)
       if (m) {
         const lineNo = parseInt(m[1])
         const message = m[2]
