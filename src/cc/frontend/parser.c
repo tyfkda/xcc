@@ -329,25 +329,25 @@ static Stmt *parse_case(const Token *tok) {
     value = parse_const_fixnum();
   consume(TK_COLON, "`:' expected");
 
-  Stmt *stmt = NULL;
   Stmt *swtch = loop_scope.swtch;
   if (swtch == NULL) {
     parse_error(PE_NOFATAL, tok, "`%s' cannot use outside of `switch`", tok->kind == TK_CASE ? "case" : "default");
-  } else {
-    if (value != NULL) {
-      if (find_case(swtch, value->fixnum) >= 0) {
-        parse_error(PE_NOFATAL, tok, "Case value `%" PRId64 "' already defined", value->fixnum);
-      } else {
-        value = make_cast(swtch->switch_.value->type, value->token, value, false);
-      }
-    } else {
-      if (swtch->switch_.default_ != NULL) {
-        parse_error(PE_NOFATAL, tok, "`default' already defined in `switch'");
-      }
+    return parse_stmt();  // Expecting next statement.
+  }
 
+  if (value != NULL) {
+    if (find_case(swtch, value->fixnum) >= 0) {
+      parse_error(PE_NOFATAL, tok, "Case value `%" PRId64 "' already defined", value->fixnum);
+    } else {
+      value = make_cast(swtch->switch_.value->type, value->token, value, false);
+    }
+  } else {
+    if (swtch->switch_.default_ != NULL) {
+      parse_error(PE_NOFATAL, tok, "`default' already defined in `switch'");
     }
   }
-  stmt = new_stmt_case(tok, swtch, value);
+
+  Stmt *stmt = new_stmt_case(tok, swtch, value);
   vec_push(swtch->switch_.cases, stmt);
   if (tok->kind == TK_DEFAULT)
     swtch->switch_.default_ = stmt;
