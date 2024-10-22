@@ -866,8 +866,7 @@ static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type
         if (ident == NULL) {
           parse_error(PE_NOFATAL, NULL, "ident expected");
         } else {
-          Function *func = define_func(type, ident, type->func.param_vars, storage | VS_EXTERN,
-                                       attributes);
+          Function *func = define_func(type, ident, type->func.param_vars, storage, attributes);
           VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
           assert(varinfo != NULL);
 
