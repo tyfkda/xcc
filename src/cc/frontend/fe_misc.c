@@ -1999,11 +1999,11 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
   case ST_VARDECL:
     {
       VarDecl *d = stmt->vardecl;
-      VarInfo *varinfo = scope_find(original_scope, d->ident, NULL);
-      assert(varinfo != NULL);
-      if (varinfo->storage & VS_STATIC)
+      if (d->varinfo->storage & VS_STATIC)
         return NULL;
-      VarDecl *decl = new_vardecl(d->ident);
+      VarInfo *varinfo = scope_find(curscope, d->varinfo->name, NULL);
+      assert(varinfo != NULL);
+      VarDecl *decl = new_vardecl(varinfo);
       decl->init_stmt = duplicate_inline_function_stmt(targetfunc, targetscope, d->init_stmt);
       return new_stmt_vardecl(decl);
     }

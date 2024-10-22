@@ -644,9 +644,7 @@ static void traverse_scope(Scope *scope) {
 }
 
 static void traverse_vardecl(VarDecl *decl) {
-  VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
-  assert(varinfo != NULL);
-  traverse_varinfo(varinfo);
+  traverse_varinfo(decl->varinfo);
   traverse_stmt(decl->init_stmt);
 }
 

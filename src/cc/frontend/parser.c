@@ -214,7 +214,9 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
         Expr *size_var = e->bop.lhs;
         assert(size_var->kind == EX_VAR);
 
-        VarDecl *decl = new_vardecl(size_var->var.name);
+        VarInfo *varinfo = scope_find(size_var->var.scope, size_var->var.name, NULL);
+        assert(varinfo != NULL);
+        VarDecl *decl = new_vardecl(varinfo);
         decl->init_stmt = new_stmt_expr(assign_sizevar);
         if (decls == NULL)
           decls = new_vector();
@@ -238,7 +240,10 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
           var = var->bop.lhs;
         }
         assert(var->kind == EX_VAR);
-        VarDecl *decl = new_vardecl(var->var.name);
+        VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
+        assert(varinfo != NULL);
+
+        VarDecl *decl = new_vardecl(varinfo);
         decl->init_stmt = new_stmt_expr(size);
 
         if (decls == NULL)
@@ -253,7 +258,7 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     init = check_vardecl(&type, ident, tmp_storage, init);
     varinfo->type = type;  // type might be changed.
     if (init != NULL && !(tmp_storage & (VS_STATIC | VS_EXTERN))) {
-      VarDecl *decl = new_vardecl(ident->ident);
+      VarDecl *decl = new_vardecl(varinfo);
       if (decls == NULL)
         decls = new_vector();
       vec_push(decls, decl);

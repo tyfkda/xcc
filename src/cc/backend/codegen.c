@@ -618,7 +618,7 @@ void gen_clear_local_var(const VarInfo *varinfo) {
 
 static void gen_vardecl(VarDecl *decl) {
   assert(decl->init_stmt != NULL);
-  VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
+  VarInfo *varinfo = decl->varinfo;
   assert(varinfo != NULL);
   gen_clear_local_var(varinfo);
   gen_stmt(decl->init_stmt);

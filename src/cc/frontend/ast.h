@@ -14,6 +14,7 @@ typedef struct Name Name;
 typedef struct Scope Scope;
 typedef struct Table Table;
 typedef struct Type Type;
+typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 
 // Num
@@ -359,11 +360,11 @@ enum StmtKind {
 };
 
 typedef struct VarDecl {
-  const Name *ident;
+  VarInfo *varinfo;
   struct Stmt *init_stmt;  // Local variable only.
 } VarDecl;
 
-VarDecl *new_vardecl(const Name *ident);
+VarDecl *new_vardecl(VarInfo *varinfo);
 
 enum {
   REACH_STOP = 1 << 0,
