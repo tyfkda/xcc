@@ -381,8 +381,6 @@ void emit_code(Vector *decls) {
     case DCL_DEFUN:
       emit_defun(decl->defun.func);
       break;
-    case DCL_VARDECL:
-      break;
     case DCL_ASM:
       emit_asm(decl->asmstr);
       break;

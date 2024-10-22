@@ -178,15 +178,10 @@ static bool traverse_ast_stmt(Stmt **pstmt, LexicalStack *parent, TraverseAstPar
   case ST_LABEL:  return traverse_ast_stmt(&stmt->label.stmt, &lstack, param);
   case ST_VARDECL:
     {
-      Vector *decls = stmt->vardecl.decls;
-      if (decls != NULL) {
-        for (int i = 0, n = decls->len; i < n; ++i) {
-          VarDecl *decl = decls->data[i];
-          // traverse_initializer(decl->init);
-          if (traverse_ast_stmt(&decl->init_stmt, &lstack, param))
-            return true;
-        }
-      }
+      VarDecl *decl = stmt->vardecl;
+      // traverse_initializer(decl->init);
+      if (traverse_ast_stmt(&decl->init_stmt, &lstack, param))
+        return true;
     }
     break;
   case ST_EMPTY: case ST_ASM:  break;

@@ -308,9 +308,9 @@ Stmt *new_stmt_label(const Token *label, Stmt *follow) {
   return stmt;
 }
 
-Stmt *new_stmt_vardecl(Vector *decls) {
+Stmt *new_stmt_vardecl(VarDecl *vardecl) {
   Stmt *stmt = new_stmt(ST_VARDECL, NULL);
-  stmt->vardecl.decls = decls;
+  stmt->vardecl = vardecl;
   return stmt;
 }
 
@@ -332,12 +332,6 @@ static Declaration *new_decl(enum DeclKind kind) {
 Declaration *new_decl_defun(Function *func) {
   Declaration *decl = new_decl(DCL_DEFUN);
   decl->defun.func = func;
-  return decl;
-}
-
-Declaration *new_decl_vardecl(Vector *decls) {
-  Declaration *decl = new_decl(DCL_VARDECL);
-  decl->vardecl.decls = decls;
   return decl;
 }
 

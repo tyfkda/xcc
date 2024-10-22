@@ -617,31 +617,37 @@ static void traverse_for(Stmt *stmt) {
   branching_stmt = saved;
 }
 
-static void traverse_vardecl(Stmt *stmt) {
-  Vector *decls = stmt->vardecl.decls;
-  if (decls != NULL) {
-    for (int i = 0, n = decls->len; i < n; ++i) {
-      VarDecl *decl = decls->data[i];
-      if (decl->ident != NULL) {
-        VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
-        assert(varinfo != NULL);
-        if (varinfo->type->kind == TY_FUNC) {
-          // Local extern function declaration.
-          register_func_info(decl->ident, NULL, varinfo, 0);
-        } else if (varinfo->storage & VS_EXTERN) {
-          assert(!is_global_scope(curscope));
-          if (scope_find(global_scope, decl->ident, NULL) == NULL) {
-            // Register into global to output linking information.
-            GVarInfo *info = register_gvar_info(decl->ident, varinfo);
-            info->flag |= GVF_UNRESOLVED;
-          }
-        }
-        if (!(varinfo->storage & (VS_EXTERN | VS_STATIC)))
-          traverse_initializer(varinfo->local.init);
-      }
-      traverse_stmt(decl->init_stmt);
+static void traverse_varinfo(VarInfo *varinfo) {
+  if (varinfo->type->kind == TY_FUNC) {
+    // Local extern function declaration.
+    register_func_info(varinfo->name, NULL, varinfo, 0);
+  } else if (varinfo->storage & VS_EXTERN) {
+    assert(!is_global_scope(curscope));
+    if (scope_find(global_scope, varinfo->name, NULL) == NULL) {
+      // Register into global to output linking information.
+      GVarInfo *info = register_gvar_info(varinfo->name, varinfo);
+      info->flag |= GVF_UNRESOLVED;
     }
   }
+  if (!(varinfo->storage & (VS_EXTERN | VS_STATIC | VS_ENUM_MEMBER)))
+    traverse_initializer(varinfo->local.init);
+}
+
+static void traverse_scope(Scope *scope) {
+  Vector *vars = scope->vars;
+  if (vars == NULL)
+    return;
+  for (int i = 0, len = vars->len; i < len; ++i) {
+    VarInfo *varinfo = vars->data[i];
+    traverse_varinfo(varinfo);
+  }
+}
+
+static void traverse_vardecl(VarDecl *decl) {
+  VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
+  assert(varinfo != NULL);
+  traverse_varinfo(varinfo);
+  traverse_stmt(decl->init_stmt);
 }
 
 static void traverse_stmt(Stmt *stmt) {
@@ -659,6 +665,7 @@ static void traverse_stmt(Stmt *stmt) {
       if (stmt->block.scope != NULL) {
         bak = curscope;
         curscope = stmt->block.scope;
+        traverse_scope(curscope);
       }
       traverse_stmts(stmt->block.stmts);
       if (bak != NULL)
@@ -677,7 +684,7 @@ static void traverse_stmt(Stmt *stmt) {
     parse_error(PE_FATAL, stmt->token, "cannot use goto");
     break;
   case ST_LABEL:  traverse_stmt(stmt->label.stmt); break;
-  case ST_VARDECL:  traverse_vardecl(stmt); break;
+  case ST_VARDECL:  traverse_vardecl(stmt->vardecl); break;
   case ST_ASM:  break;
   }
 }
@@ -797,8 +804,6 @@ static void traverse_decl(Declaration *decl) {
   switch (decl->kind) {
   case DCL_DEFUN:
     traverse_defun(decl->defun.func);
-    break;
-  case DCL_VARDECL:
     break;
   case DCL_ASM:
     parse_error(PE_NOFATAL, decl->asmstr->token, "`__asm` not allowed");

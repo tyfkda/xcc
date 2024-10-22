@@ -231,10 +231,18 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
       if (size != NULL) {
         // If the type has VLA, assign its size to the temporary variable
         // adding dummy declaration (decl.ident = NULL).
+        Expr *var = size;
+        for (; var->kind == EX_COMMA; var = var->bop.rhs)
+          ;
+        if (var->kind == EX_ASSIGN) {
+          var = var->bop.lhs;
+        }
+        assert(var->kind == EX_VAR);
+        VarDecl *decl = new_vardecl(var->var.name);
+        decl->init_stmt = new_stmt_expr(size);
+
         if (decls == NULL)
           decls = new_vector();
-        VarDecl *decl = new_vardecl(NULL);
-        decl->init_stmt = new_stmt_expr(size);
         vec_push(decls, decl);
       }
     }
@@ -244,15 +252,17 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     Initializer *init = (type->kind != TY_FUNC && match(TK_ASSIGN)) ? parse_initializer() : NULL;
     init = check_vardecl(&type, ident, tmp_storage, init);
     varinfo->type = type;  // type might be changed.
-    VarDecl *decl = new_vardecl(ident->ident);
-    if (decls == NULL)
-      decls = new_vector();
-    vec_push(decls, decl);
+    if (init != NULL && !(tmp_storage & (VS_STATIC | VS_EXTERN))) {
+      VarDecl *decl = new_vardecl(ident->ident);
+      if (decls == NULL)
+        decls = new_vector();
+      vec_push(decls, decl);
+    }
   } while (match(TK_COMMA));
   return decls;
 }
 
-static bool parse_vardecl(Stmt **pstmt) {
+static bool parse_vardecl(Vector *stmts) {
   Type *rawType = NULL;
   int storage;
   Token *ident;
@@ -260,7 +270,6 @@ static bool parse_vardecl(Stmt **pstmt) {
   if (type == NULL)
     return false;
 
-  *pstmt = NULL;
   if (ident == NULL) {
     if ((type->kind == TY_STRUCT ||
          (type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM)) &&
@@ -275,7 +284,11 @@ static bool parse_vardecl(Stmt **pstmt) {
       if (decls != NULL) {
         if (!is_global_scope(curscope))
           construct_initializing_stmts(decls);
-        *pstmt = new_stmt_vardecl(decls);
+        for (int i = 0, len = decls->len; i < len; ++i) {
+          VarDecl *vardecl = decls->data[i];
+          Stmt *stmt = new_stmt_vardecl(vardecl);
+          vec_push(stmts, stmt);
+        }
       }
     }
   }
@@ -440,10 +453,15 @@ static Stmt *parse_for(const Token *tok) {
     return stmt;
   }
 
-  assert(decls != NULL);
   Vector *stmts = new_vector();
-  construct_initializing_stmts(decls);
-  vec_push(stmts, new_stmt_vardecl(decls));
+  if (decls != NULL) {
+    construct_initializing_stmts(decls);
+    for (int i = 0, len = decls->len; i < len; ++i) {
+      VarDecl *vardecl = decls->data[i];
+      Stmt *stmt = new_stmt_vardecl(vardecl);
+      vec_push(stmts, stmt);
+    }
+  }
 
   exit_scope();
 
@@ -547,16 +565,12 @@ extern inline Stmt *parse_asm(const Token *tok) {
 static Vector *parse_stmts(const Token **prbrace) {
   Vector *stmts = new_vector();
   for (;;) {
-    Stmt *stmt;
-    Token *tok;
-    if (parse_vardecl(&stmt)) {
-      if (stmt == NULL)
-        continue;
-    } else {
-      stmt = parse_stmt();
-    }
+    if (parse_vardecl(stmts))
+      continue;
 
+    Stmt *stmt = parse_stmt();
     if (stmt == NULL) {
+      Token *tok;
       if ((tok = match(TK_RBRACE)) != NULL) {
         if (prbrace != NULL)
           *prbrace = tok;
@@ -834,9 +848,9 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
   return decl;
 }
 
-static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type, Token *ident,
-                                          Table *attributes) {
-  Vector *decls = NULL;
+static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token *ident,
+                                  Table *attributes, Vector *decls) {
+  UNUSED(decls);
   for (;;) {
     attributes = parse_attributes(attributes);
 
@@ -875,14 +889,11 @@ static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type
         }
         // Check LBRACE?
       } else {
-        bool reg = false;
         VarInfo *varinfo = NULL;
         if (ident != NULL) {
           varinfo = find_var_from_scope(curscope, ident, type, storage);
-          if (varinfo == NULL) {
+          if (varinfo == NULL)
             varinfo = add_var_to_scope(global_scope, ident, type, storage);
-            reg = true;
-          }
         }
 
         Initializer *init = NULL;
@@ -892,12 +903,6 @@ static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type
         if (ident != NULL) {
           varinfo->global.init = check_vardecl(&type, ident, storage, init);
           varinfo->type = type;  // type might be changed.
-          if (reg) {
-            VarDecl *vardecl = new_vardecl(ident->ident);
-            if (decls == NULL)
-              decls = new_vector();
-            vec_push(decls, vardecl);
-          }
         }
       }
     }
@@ -911,10 +916,9 @@ static Declaration *parse_global_var_decl(Type *rawtype, int storage, Type *type
     type = parse_declarator(rawtype, &ident);
   }
   consume(TK_SEMICOL, "`;' or `,' expected");
-  return decls == NULL ? NULL : new_decl_vardecl(decls);
 }
 
-static Declaration *parse_declaration(void) {
+static Declaration *parse_declaration(Vector *decls) {
   Token *tok;
   if ((tok = match(TK_ASM)) != NULL) {
     Stmt *asm_ = parse_asm(tok);
@@ -956,7 +960,8 @@ static Declaration *parse_declaration(void) {
       // Join with global variable declaration to handle multiple prototype declarations.
     }
 
-    return parse_global_var_decl(rawtype, storage, type, ident, attributes);
+    parse_global_var_decl(rawtype, storage, type, ident, attributes, decls);
+    return NULL;
   }
   parse_error(PE_NOFATAL, NULL, "Unexpected token");
   match(-1);  // Drop the token.
@@ -1113,7 +1118,7 @@ void parse(Vector *decls) {
   curscope = global_scope;
 
   while (!match(TK_EOF)) {
-    Declaration *decl = parse_declaration();
+    Declaration *decl = parse_declaration(decls);
     if (decl != NULL)
       vec_push(decls, decl);
   }

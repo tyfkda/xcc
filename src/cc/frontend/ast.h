@@ -426,9 +426,7 @@ typedef struct Stmt {
     struct {
       Expr *val;
     } return_;
-    struct {
-      Vector *decls;  // <VarDecl*>
-    } vardecl;
+    VarDecl *vardecl;
     struct {
       Expr *str;
       Expr *arg;
@@ -447,7 +445,7 @@ Stmt *new_stmt_for(const Token *token, Expr *pre, Expr *cond, Expr *post, Stmt *
 Stmt *new_stmt_return(const Token *token, Expr *val);
 Stmt *new_stmt_goto(const Token *tok, const Token *label);
 Stmt *new_stmt_label(const Token *label, Stmt *follow);
-Stmt *new_stmt_vardecl(Vector *decls);
+Stmt *new_stmt_vardecl(VarDecl *vardecl);
 Stmt *new_stmt_asm(const Token *token, Expr *str, Expr *arg);
 
 // ================================================
@@ -478,7 +476,6 @@ Function *new_func(Type *type, const Name *name, const Vector *params, Table *at
 
 enum DeclKind {
   DCL_DEFUN,
-  DCL_VARDECL,
   DCL_ASM,
 };
 
@@ -488,13 +485,9 @@ typedef struct Declaration {
     struct {
       Function *func;
     } defun;
-    struct {
-      Vector *decls;  // <VarDecl*>
-    } vardecl;
     Expr *asmstr;
   };
 } Declaration;
 
 Declaration *new_decl_defun(Function *func);
-Declaration *new_decl_vardecl(Vector *decls);
 Declaration *new_decl_asm(Expr *str);

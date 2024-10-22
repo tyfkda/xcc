@@ -1398,18 +1398,12 @@ static void gen_if(Stmt *stmt, bool is_last) {
   --cur_depth;
 }
 
-static void gen_vardecl(Vector *decls) {
-  assert(curfunc != NULL);
-  for (int i = 0; i < decls->len; ++i) {
-    VarDecl *decl = decls->data[i];
-    if (decl->init_stmt != NULL) {
-      if (decl->ident != NULL) {
-        VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
-        gen_clear_local_var(varinfo);
-      }
-      gen_stmt(decl->init_stmt, false);
-    }
-  }
+static void gen_vardecl(VarDecl *decl) {
+  assert(decl->init_stmt != NULL);
+  VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
+  assert(varinfo != NULL);
+  gen_clear_local_var(varinfo);
+  gen_stmt(decl->init_stmt, false);
 }
 
 void gen_expr_stmt(Expr *expr) {
@@ -1452,7 +1446,7 @@ static void gen_stmt(Stmt *stmt, bool is_last) {
   case ST_BREAK:  gen_break(); break;
   case ST_CONTINUE:  gen_continue(); break;
   case ST_LABEL: gen_stmt(stmt->label.stmt, is_last); break;
-  case ST_VARDECL:  gen_vardecl(stmt->vardecl.decls); break;
+  case ST_VARDECL:  gen_vardecl(stmt->vardecl); break;
   case ST_ASM:  gen_asm(stmt); break;
   case ST_GOTO: assert(false); break;
   }
@@ -1730,8 +1724,6 @@ static void gen_decl(Declaration *decl) {
   switch (decl->kind) {
   case DCL_DEFUN:
     gen_defun(decl->defun.func);
-    break;
-  case DCL_VARDECL:
     break;
   case DCL_ASM:
     assert(false);

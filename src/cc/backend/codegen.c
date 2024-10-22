@@ -616,17 +616,12 @@ void gen_clear_local_var(const VarInfo *varinfo) {
   gen_clear(varinfo->type, vreg);
 }
 
-static void gen_vardecl(Vector *decls) {
-  for (int i = 0; i < decls->len; ++i) {
-    VarDecl *decl = decls->data[i];
-    if (decl->init_stmt != NULL) {
-      if (decl->ident != NULL) {
-        VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
-        gen_clear_local_var(varinfo);
-      }
-      gen_stmt(decl->init_stmt);
-    }
-  }
+static void gen_vardecl(VarDecl *decl) {
+  assert(decl->init_stmt != NULL);
+  VarInfo *varinfo = scope_find(curscope, decl->ident, NULL);
+  assert(varinfo != NULL);
+  gen_clear_local_var(varinfo);
+  gen_stmt(decl->init_stmt);
 }
 
 extern inline void gen_expr_stmt(Expr *expr) {
@@ -652,7 +647,7 @@ void gen_stmt(Stmt *stmt) {
   case ST_CONTINUE:  gen_continue(); break;
   case ST_GOTO:  gen_goto(stmt); break;
   case ST_LABEL:  gen_label(stmt); break;
-  case ST_VARDECL:  gen_vardecl(stmt->vardecl.decls); break;
+  case ST_VARDECL:  gen_vardecl(stmt->vardecl); break;
   case ST_ASM:  gen_asm(stmt); break;
   }
 }
@@ -954,8 +949,6 @@ static void gen_decl(Declaration *decl) {
       if (gen_defun(func))
         gen_defun_after(func);
     }
-    break;
-  case DCL_VARDECL:
     break;
   case DCL_ASM:
     break;

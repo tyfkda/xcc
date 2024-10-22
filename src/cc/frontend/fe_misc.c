@@ -1995,19 +1995,14 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
     }
   case ST_VARDECL:
     {
-      Vector *decls = new_vector();
-      Vector *src_decls = stmt->vardecl.decls;
-      for (int i = 0; i < src_decls->len; ++i) {
-        VarDecl *d = src_decls->data[i];
-        VarInfo *varinfo = scope_find(original_scope, d->ident, NULL);
-        assert(varinfo != NULL);
-        if (varinfo->storage & VS_STATIC)
-          continue;
-        VarDecl *decl = new_vardecl(d->ident);
-        decl->init_stmt = duplicate_inline_function_stmt(targetfunc, targetscope, d->init_stmt);
-        vec_push(decls, decl);
-      }
-      return new_stmt_vardecl(decls);
+      VarDecl *d = stmt->vardecl;
+      VarInfo *varinfo = scope_find(original_scope, d->ident, NULL);
+      assert(varinfo != NULL);
+      if (varinfo->storage & VS_STATIC)
+        return NULL;
+      VarDecl *decl = new_vardecl(d->ident);
+      decl->init_stmt = duplicate_inline_function_stmt(targetfunc, targetscope, d->init_stmt);
+      return new_stmt_vardecl(decl);
     }
   case ST_EMPTY: case ST_GOTO: case ST_ASM:
     return stmt;

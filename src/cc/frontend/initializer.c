@@ -847,14 +847,11 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
 void construct_initializing_stmts(Vector *decls) {
   for (int i = 0; i < decls->len; ++i) {
     VarDecl *decl = decls->data[i];
-    if (decl->ident == NULL)
-      continue;
-
+    assert(decl->ident != NULL);
     Scope *scope;
     VarInfo *varinfo = scope_find(curscope, decl->ident, &scope);
     assert(scope == curscope);
-    if (varinfo->storage & (VS_STATIC | VS_EXTERN))
-      continue;
+    assert(!(varinfo->storage & (VS_STATIC | VS_EXTERN)));
     Expr *var = new_expr_variable(decl->ident, varinfo->type, NULL, curscope);
     assert(!is_global_scope(curscope));
     if (varinfo->local.init != NULL) {
