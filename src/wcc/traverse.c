@@ -656,8 +656,10 @@ static void traverse_stmt(Stmt *stmt) {
   case ST_BLOCK:
     {
       Scope *bak = NULL;
-      if (stmt->block.scope != NULL)
-        curscope = bak = stmt->block.scope;
+      if (stmt->block.scope != NULL) {
+        bak = curscope;
+        curscope = stmt->block.scope;
+      }
       traverse_stmts(stmt->block.stmts);
       if (bak != NULL)
         curscope = bak;
