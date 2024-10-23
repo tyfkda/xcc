@@ -688,6 +688,60 @@ static void traverse_stmts(Vector *stmts) {
   }
 }
 
+static void modify_func_name(Function *func) {
+  static const Name *main_name;
+  if (main_name == NULL)
+    main_name = alloc_name("main", NULL, false);
+  if (!equal_name(func->name, main_name))
+    return;
+
+  assert(func->params != NULL);
+  Type *functype = func->type;
+  const Name *newname = NULL;
+  switch (func->params->len) {
+  case 0:
+    {  // Add two parameters.
+      assert(func->scopes->len > 0);
+      Scope *scope = func->scopes->data[0];
+      const Name *name1 = alloc_label();
+      Type *type1 = &tyInt;
+      vec_push((Vector*)func->params, scope_add(scope, name1, type1, 0));
+      vec_push((Vector*)functype->func.params, type1);
+
+      Type *type2 = ptrof(ptrof(&tyChar));
+      const Name *name2 = alloc_label();
+      vec_push((Vector*)func->params, scope_add(scope, name2, type2, 0));
+      vec_push((Vector*)functype->func.params, type2);
+    }
+    // Fallthrough.
+  case 2:
+    {
+      newname = alloc_name("__main_argc_argv", NULL, false);
+      VarInfo *vi = scope_find(global_scope, newname, NULL);
+      if (vi != NULL) {
+        const Token *token = func->body_block != NULL ? func->body_block->token : NULL;
+        parse_error(PE_NOFATAL, token, "`%.*s' function already defined", NAMES(newname));
+        return;
+      }
+    }
+    break;
+  default:
+    error("main function must take no argument or two arguments");
+    break;
+  }
+
+  // Rename two arguments `main` to `__main_argc_argv`.
+  VarInfo *org_varinfo = scope_find(global_scope, main_name, NULL);
+  assert(org_varinfo != NULL);
+  func->name = newname;
+  VarInfo *varinfo = scope_add(global_scope, newname, functype, org_varinfo->storage);
+  varinfo->global.func = func;
+
+  // Clear `main` function.
+  assert(org_varinfo->global.func == func);
+  org_varinfo->global.func = NULL;
+}
+
 static void traverse_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
@@ -696,44 +750,9 @@ static void traverse_defun(Function *func) {
   extra->reloc_code = new_vector();
   func->extra = extra;
 
+  modify_func_name(func);
+
   Type *functype = func->type;
-  assert(func->params != NULL);
-  const Name *main_name = alloc_name("main", NULL, false);
-  if (equal_name(func->name, main_name)) {
-    const Name *newname = NULL;
-    switch (func->params->len) {
-    case 0:
-      {  // Add two parameters.
-        assert(func->scopes->len > 0);
-        Scope *scope = func->scopes->data[0];
-        const Name *name1 = alloc_label();
-        Type *type1 = &tyInt;
-        vec_push((Vector*)func->params, scope_add(scope, name1, type1, 0));
-        vec_push((Vector*)functype->func.params, type1);
-
-        Type *type2 = ptrof(ptrof(&tyChar));
-        const Name *name2 = alloc_label();
-        vec_push((Vector*)func->params, scope_add(scope, name2, type2, 0));
-        vec_push((Vector*)functype->func.params, type2);
-      }
-      // Fallthrough.
-    case 2:  newname = alloc_name("__main_argc_argv", NULL, false);  break;
-    default:
-      error("main function must take no argument or two arguments");
-      break;
-    }
-
-    // Rename two arguments `main` to `__main_argc_argv`.
-    VarInfo *org_varinfo = scope_find(global_scope, main_name, NULL);
-    assert(org_varinfo != NULL);
-    func->name = newname;
-    VarInfo *varinfo = scope_add(global_scope, newname, functype, org_varinfo->storage);
-    varinfo->global.func = func;
-
-    // Clear `main` function.
-    assert(org_varinfo->global.func == func);
-    org_varinfo->global.func = NULL;
-  }
   if (functype->func.vaargs) {
     Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
     assert(tyvalist != NULL);
