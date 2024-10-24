@@ -900,7 +900,7 @@ static int detect_compile_unit_flags(Vector *decls) {
     Function *func = decl->defun.func;
     VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
     assert(varinfo != NULL);
-    if (satisfy_inline_criteria(varinfo) && !(varinfo->storage & VS_STATIC))
+    if (satisfy_inline_criteria(varinfo, varinfo->storage))
       continue;
 
     if (detect_compile_unit_sp(func)) {
@@ -968,7 +968,7 @@ void traverse_ast(Vector *decls) {
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
       if (info->flag == 0 && info->func == NULL)
         continue;
-      if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
+      if (satisfy_inline_criteria(info->varinfo, info->varinfo->storage))
         continue;
       ++symbol_index;
     }
@@ -1017,7 +1017,7 @@ void traverse_ast(Vector *decls) {
         if ((k == 0 && (info->func != NULL || info->flag == 0)) ||  // Put external function first.
             (k == 1 && info->func == NULL))                         // Defined function later.
           continue;
-        if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
+        if (satisfy_inline_criteria(info->varinfo, info->varinfo->storage))
           continue;
         info->index = index++;
         VERBOSE("%2d: %.*s%s\n", info->index, NAMES(name), k == 0 ? "  (import)" : "");

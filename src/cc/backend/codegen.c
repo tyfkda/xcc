@@ -874,7 +874,7 @@ bool gen_defun(Function *func) {
     return false;
 
   VarInfo *funcvi = scope_find(global_scope, func->name, NULL);
-  if (funcvi != NULL && satisfy_inline_criteria(funcvi) && !(funcvi->storage & VS_STATIC)) {
+  if (funcvi != NULL && satisfy_inline_criteria(funcvi, funcvi->storage)) {
     // Omit inline function: func->extra preserves the value (NULL).
     return false;
   }

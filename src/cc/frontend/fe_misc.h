@@ -110,5 +110,5 @@ bool check_funcend_return(Stmt *stmt);
 
 int get_funparam_index(Function *func, const Name *name);  // -1: Not funparam.
 
-bool satisfy_inline_criteria(const VarInfo *varinfo);
+bool satisfy_inline_criteria(const VarInfo *varinfo, int storage);
 Stmt *embed_inline_funcall(VarInfo *varinfo);

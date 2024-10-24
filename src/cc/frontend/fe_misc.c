@@ -1680,7 +1680,10 @@ int get_funparam_index(Function *func, const Name *name) {
 
 //
 
-bool satisfy_inline_criteria(const VarInfo *varinfo) {
+bool satisfy_inline_criteria(const VarInfo *varinfo, int storage) {
+  if (storage & (VS_STATIC | VS_EXTERN))
+    return false;
+
   // TODO: Check complexity or length of function body statements.
   const Type *type = varinfo->type;
   if (type->kind == TY_FUNC && (varinfo->storage & VS_INLINE) && !type->func.vaargs) {
@@ -1798,7 +1801,7 @@ static Expr *duplicate_inline_function_expr(Function *targetfunc, Scope *targets
       // Duplicate from original to receive function parameters correctly.
       VarInfo *varinfo = scope_find(global_scope, expr->inlined.funcname, NULL);
       assert(varinfo != NULL);
-      assert(satisfy_inline_criteria(varinfo));
+      assert(satisfy_inline_criteria(varinfo, 0));
       return new_expr_inlined(expr->token, varinfo->name, expr->type, args,
                               embed_inline_funcall(varinfo));
     }

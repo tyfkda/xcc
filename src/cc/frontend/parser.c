@@ -886,6 +886,15 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
 
           Declaration *decl = new_decl_defun(func);
           varinfo->global.funcdecl = decl;
+
+          if ((storage & (VS_INLINE | VS_EXTERN)) == (VS_INLINE | VS_EXTERN)) {
+            // To make inline function output, add to declarations.
+            VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
+            if (varinfo != NULL && varinfo->type->kind == TY_FUNC &&
+                (varinfo->storage & (VS_INLINE | VS_STATIC | VS_EXTERN)) == VS_INLINE) {
+              varinfo->storage |= VS_EXTERN;
+            }
+          }
         }
         // Check LBRACE?
       } else {

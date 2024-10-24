@@ -390,6 +390,12 @@ test_link() {
   link_error 'Duplicate comm symbol'                     tmp_link_dupcomm1.c tmp_link_dupcomm2.c
   link_success "allowed with '-fcommon' //-WCC" -fcommon tmp_link_dupcomm1.c tmp_link_dupcomm2.c
 
+  # extern inline function can be called.
+  echo -e 'inline int sq(int x){return x * x;} \n#ifdef EXTERN\n extern inline int sq(int x);\n#endif' > tmp_link_inline1.c
+  echo 'int sq(int x); int main(void){return !(sq(7) == 49);}' > tmp_link_inline2.c
+  link_error 'Non-extern inline function cannot be linked'     tmp_link_inline1.c tmp_link_inline2.c
+  link_success 'Extern inline function can be linked' -DEXTERN tmp_link_inline1.c tmp_link_inline2.c
+
   end_test_suite
 }
 

@@ -64,7 +64,7 @@ static Expr *parse_funcall(Expr *func) {
   if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
     VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
     assert(varinfo != NULL);
-    if (satisfy_inline_criteria(varinfo))
+    if (satisfy_inline_criteria(varinfo, 0))
       return new_expr_inlined(token, varinfo->name, rettype, args,
                               embed_inline_funcall(varinfo));
   }

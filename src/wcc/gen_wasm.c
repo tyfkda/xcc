@@ -1599,7 +1599,8 @@ static void gen_defun(Function *func) {
     return;
 
   VarInfo *funcvi = scope_find(global_scope, func->name, NULL);
-  if (funcvi != NULL && satisfy_inline_criteria(funcvi) && !(funcvi->storage & VS_STATIC))
+  assert(funcvi != NULL);
+  if (satisfy_inline_criteria(funcvi, funcvi->storage))
     return;
 
   DataStorage *code = malloc_or_die(sizeof(*code));

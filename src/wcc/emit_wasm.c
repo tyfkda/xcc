@@ -349,7 +349,7 @@ static void emit_function_section(EmitWasm *ew) {
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
       if (info->func == NULL)
         continue;
-      if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
+      if (satisfy_inline_criteria(info->varinfo, info->varinfo->storage))
         continue;
       ++function_count;
       int type_index = info->type_index;
@@ -497,7 +497,7 @@ static void emit_code_section(EmitWasm *ew) {
       Function *func = info->func;
       if (func == NULL)
         continue;
-      if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
+      if (satisfy_inline_criteria(info->varinfo, info->varinfo->storage))
         continue;
       FuncExtra* extra = func->extra;
       DataStorage *code = extra->code;
@@ -583,7 +583,7 @@ static void emit_linking_section(EmitWasm *ew) {
       if ((k == 0 && (info->func != NULL || info->flag == 0)) ||  // Put external function first.
           (k == 1 && info->func == NULL))                         // Defined function later.
         continue;
-      if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
+      if (satisfy_inline_criteria(info->varinfo, info->varinfo->storage))
         continue;
 
       int flags = 0;
@@ -763,7 +763,7 @@ static void emit_reloc_code_section(EmitWasm *ew) {
     Function *func = info->func;
     if (func == NULL)
       continue;
-    if (satisfy_inline_criteria(info->varinfo) && !(info->varinfo->storage & VS_STATIC))
+    if (satisfy_inline_criteria(info->varinfo, info->varinfo->storage))
       continue;
 
     FuncExtra *extra = func->extra;
