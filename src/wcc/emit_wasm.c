@@ -591,6 +591,8 @@ static void emit_linking_section(EmitWasm *ew) {
         flags |= WASM_SYM_UNDEFINED;
       if (info->varinfo->storage & VS_STATIC)
         flags |= WASM_SYM_BINDING_LOCAL | WASM_SYM_VISIBILITY_HIDDEN;
+      if (info->flag & FF_WEAK)
+        flags |= WASM_SYM_BINDING_WEAK;
 
       data_push(&linking_section, SIK_SYMTAB_FUNCTION);  // kind
       data_uleb128(&linking_section, -1, flags);

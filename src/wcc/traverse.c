@@ -116,6 +116,8 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, VarInf
       else
         info->func_name = alloc_name(token->str.buf, token->str.buf + token->str.len - 1, false);
     }
+    if (table_try_get(attributes, alloc_name("weak", NULL, false), (void**)&params))
+      info->flag |= FF_WEAK;
   }
 
   return info;
