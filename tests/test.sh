@@ -93,6 +93,52 @@ check_error_line() {
   end_test "$err"
 }
 
+link_success() {
+  local title="$1"
+  shift
+  local input="$@"
+
+  begin_test "${title}"
+
+  if [[ -n "$RE_SKIP" ]]; then
+    echo -n "$title" | grep "$RE_SKIP" > /dev/null && {
+      end_test
+      return
+    };
+  fi
+
+  local err=''
+  eval "$XCC" -o "$AOUT" -Werror ${input} "$SILENT" || {
+    end_test 'Compile failed'
+    return
+  }
+
+  $RUN_AOUT
+  local actual="$?"
+  local err=''; [[ "$actual" == "0" ]] || err="exit with ${actual}"
+  end_test "$err"
+}
+
+link_error() {
+  local title="$1"
+  shift
+  local input="$@"
+
+  begin_test "${title}"
+
+  if [[ -n "$RE_SKIP" ]]; then
+    echo -n "$title" | grep "$RE_SKIP" > /dev/null && {
+      end_test
+      return
+    };
+  fi
+
+  eval "$XCC" -o "$AOUT" -Werror ${input} "$SILENT"
+  local exitcode="$?"
+  local err=''; [[ "$exitcode" -ne 0 ]] || err="Compile error expected, but succeeded"
+  end_test "$err"
+}
+
 test_basic() {
   begin_test_suite "Basic"
 
@@ -335,42 +381,14 @@ test_link() {
   begin_test_suite "Link"
 
   # Duplicate symbol error expected.
-  begin_test "Duplicate function symbol"
-  echo 'int foo() {return 1;} int main(){return 0;}' > tmp_link1.c
-  echo 'int foo() {return 2;}' > tmp_link2.c
-  eval "$XCC" $OPT -o "$AOUT" tmp_link1.c tmp_link2.c "$SILENT"
-  local exitcode="$?"
-  local err=''; [[ "$exitcode" -ne 0 ]] || err="Compile error expected, but succeeded"
-  end_test "$err"
+  echo 'int foo() {return 1;} int main(){return 0;}' > tmp_link_dupsym1.c
+  echo 'int foo() {return 2;}' > tmp_link_dupsym2.c
+  link_error 'Duplicate function symbol' tmp_link_dupsym1.c tmp_link_dupsym2.c
 
-  begin_test "Duplicate variable symbol"
-  echo 'int foo; int main(){return 0;}' > tmp_link3.c
-  echo 'int foo;' > tmp_link4.c
-  eval "$XCC" $OPT -o "$AOUT" tmp_link3.c tmp_link4.c "$SILENT"
-  local exitcode="$?"
-  local err=''; [[ "$exitcode" -ne 0 ]] || err="Compile error expected, but succeeded"
-  end_test "$err"
-
-  local skip=''
-  if [[ -n "$RE_SKIP" ]]; then
-    echo -n "//-WCC" | grep "$RE_SKIP" > /dev/null && {
-      skip='skip'
-    };
-  fi
-  if [[ "$skip" == "" ]]; then
-    begin_test "Same variable symbol allowed with '-fcommon'"
-    local err=''
-    eval "$XCC" $OPT -fcommon -o "$AOUT" tmp_link3.c tmp_link4.c "$SILENT" ||  {
-      err='Compile failed'
-    }
-    if [[ "$err" == "" ]]; then
-      $RUN_AOUT
-      local actual="$?"
-      local expected=0
-      [[ "$actual" == "$expected" ]] || err="${expected} expected, but ${actual}"
-    fi
-    end_test "$err"
-  fi
+  echo 'int foo; int main(){return 0;}' > tmp_link_dupcomm1.c
+  echo 'int foo;' > tmp_link_dupcomm2.c
+  link_error 'Duplicate comm symbol'                     tmp_link_dupcomm1.c tmp_link_dupcomm2.c
+  link_success "allowed with '-fcommon' //-WCC" -fcommon tmp_link_dupcomm1.c tmp_link_dupcomm2.c
 
   end_test_suite
 }
