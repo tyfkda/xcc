@@ -489,7 +489,7 @@ static int do_link(Vector *obj_files, Options *opts) {
   return 1;
 #else
   if (!opts->nostdlib)
-    vec_insert(obj_files, 0, JOIN_PATHS(opts->root, "lib/wcrt0.a"));
+    add_lib(opts->lib_paths, "wcrt0.a", obj_files);
   if (!opts->nodefaultlibs && !opts->nostdlib)
     add_lib(opts->lib_paths, "wlibc.a", obj_files);
 
