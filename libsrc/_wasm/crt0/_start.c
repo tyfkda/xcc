@@ -5,22 +5,6 @@
 
 extern void __wasm_call_ctors(void);
 
-int __max_preopen_fd = 3;
-
-static int find_preopens(void) {
-  for (int fd = 3; ; ++fd) {
-    Prestat prestat;
-    int result = fd_prestat_get(fd, &prestat);
-    if (result != 0)
-      return fd;
-
-    // char buf[256];
-    // fd_prestat_dir_name(fd, buf, prestat.u.dir.pr_name_len);  // TODO: Confirm prestat.u.dir.pr_name_len < sizeof(buf)
-    // buf[prestat.u.dir.pr_name_len] = '\0';
-    // fprintf(stderr, "preopens: %d, %s\n", fd, buf);
-  }
-}
-
 void _start(void) {
 #define main  __main_argc_argv
   extern int main(int, char**);
@@ -37,8 +21,6 @@ void _start(void) {
     argv[0] = "*";
   }
   argv[argc] = NULL;
-
-  __max_preopen_fd = find_preopens();
 
   __wasm_call_ctors();
 
