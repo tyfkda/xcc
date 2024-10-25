@@ -6,6 +6,6 @@
 #undef putchar
 // Result: Success => c, Failure => EOF
 int putchar(int c) {
-  return FPUTC(c, stdout);
+  return _fputc(c, stdout);
 }
 #endif

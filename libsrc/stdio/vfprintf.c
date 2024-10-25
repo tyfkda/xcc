@@ -8,7 +8,7 @@
 #include "string.h"
 #include "sys/types.h"
 
-#include "_file.h"  // FPUTC
+#include "_file.h"  // _fputc
 
 #define PRINTF_BUFSIZ  (32)
 #define MIN(a, b)  ((a) < (b) ? (a) : (b))
@@ -90,10 +90,10 @@ static int snprintstr(FILE *fp, const char* s,
 static int sprintsign(FILE *fp, bool negative, bool force, int *porder) {
   int o = 0;
   if (negative) {
-    FPUTC('-', fp);
+    _fputc('-', fp);
     ++o;
   } else if (force) {
-    FPUTC('+', fp);
+    _fputc('+', fp);
     ++o;
   }
   if (*porder > 1 && o > 0)
@@ -139,7 +139,7 @@ static int printfloat(FILE *fp, long double x,
     fraction -= one;
   }
   o += snprintullong(fp, int_part, 10, kHexDigits, order, padding);
-  FPUTC('.', fp); ++o;
+  _fputc('.', fp); ++o;
   o += snprintullong(fp, fraction, 10, kHexDigits, suborder, '0');
   return o;
 }
@@ -188,12 +188,12 @@ static int printscientific(FILE *fp, long double x, int order, int suborder, boo
   }
   o += snprintullong(fp, int_part, 10, kHexDigits, order, padding);
   if (fraction != 0) {
-    FPUTC('.', fp); ++o;
+    _fputc('.', fp); ++o;
     o += snprintullong(fp, fraction, 10, kHexDigits, suborder, '0');
   }
 
   if (e != 0) {
-    FPUTC('e', fp); ++o;
+    _fputc('e', fp); ++o;
     o += sprintsign(fp, e < 0, true, &order);
     e = e < 0 ? -e : e;
     o += snprintullong(fp, e, 10, kHexDigits, 2, '0');
@@ -214,7 +214,7 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
   for (i = o = 0; fmt[i] != '\0'; i++) {
     c = fmt[i];
     if (c != '%') {
-      FPUTC(c, fp);
+      _fputc(c, fp);
       ++o;
       continue;
     }
@@ -345,11 +345,11 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       }
       break;
     case 'c':
-      FPUTC(va_arg(ap, unsigned int), fp);
+      _fputc(va_arg(ap, unsigned int), fp);
       ++o;
       break;
     case '%':
-      FPUTC(c, fp);
+      _fputc(c, fp);
       ++o;
       break;
 #ifndef __NO_FLONUM
@@ -376,10 +376,10 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
 #endif
     default:
       // Unknown % sequence.  Print it to draw attention.
-      FPUTC('%', fp);
+      _fputc('%', fp);
       ++o;
       if (c != '\0') {
-        FPUTC(c, fp);
+        _fputc(c, fp);
         ++o;
       }
       break;
