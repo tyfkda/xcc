@@ -26,6 +26,29 @@
 
 static const char DEFAULT_IMPORT_MODULE_NAME[] = "env";
 
+enum SourceType {
+  UnknownSource,
+  // Assembly,
+  Clanguage,
+  ObjectFile,
+  ArchiveFile,
+};
+
+typedef struct {
+  Vector *exports;
+  Vector *lib_paths;
+  Vector *defines;
+  Vector *sources;
+  const char *root;
+  const char *ofn;
+  const char *import_module_name;
+  const char *entry_point;
+  enum OutType out_type;
+  enum SourceType src_type;
+  uint32_t stack_size;
+  bool nodefaultlibs, nostdlib, nostdinc;
+} Options;
+
 static Vector remove_on_exit;
 
 static void usage(FILE *fp) {
@@ -120,9 +143,9 @@ static void compilec(FILE *ppin, const char *filename, Vector *toplevel) {
     exit(1);
 }
 
-int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vector *ld_cmd,
-                    const char *import_module_name, Vector *exports) {
+int compile_csource(const char *src, const char *ofn, Vector *obj_files, Options *opts) {
   FILE *ppout;
+  enum OutType out_type = opts->out_type;
   if (out_type == OutPreprocess)
     ppout = ofn != NULL ? fopen(ofn, "w") : stdout;
   else
@@ -153,6 +176,11 @@ int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vec
   define_macro("__NO_WCHAR");
 #endif
 
+  for (int i = 0; i < opts->defines->len; ++i) {
+    const char *def = opts->defines->data[i];
+    define_macro(def);
+  }
+
   do_preprocess(src);
   if (out_type == OutPreprocess) {
     if (ppout != stdout)
@@ -181,6 +209,7 @@ int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vec
   if (cc_flags.warn_as_error && compile_warning_count != 0)
     return 2;
 
+  Vector *exports = opts->out_type < OutExecutable ? opts->exports : NULL;
   if (exports != NULL) {
     int undef = 0;
     for (int i = 0; i < exports->len; ++i) {
@@ -209,45 +238,21 @@ int compile_csource(const char *src, enum OutType out_type, const char *ofn, Vec
     vec_push(&remove_on_exit, tmpfn);
   } else {
     outfn = ofn;
-    if (outfn == NULL) {
-      // char *src = sources->data[0];  // TODO:
+    if (outfn == NULL)
       outfn = src != NULL ? change_ext(basename((char*)src), "o") : "a.o";
-    }
     ofp = fopen(outfn, "wb");
   }
   if (ofp == NULL) {
     error("Cannot open output file");
   } else {
-    emit_wasm(ofp, import_module_name, exports);
+    emit_wasm(ofp, opts->import_module_name, exports);
     assert(compile_error_count == 0);
     fclose(ofp);
   }
 
-  vec_push(ld_cmd, outfn);
+  vec_push(obj_files, outfn);
   return 0;
 }
-
-enum SourceType {
-  UnknownSource,
-  // Assembly,
-  Clanguage,
-  ObjectFile,
-  ArchiveFile,
-};
-
-typedef struct {
-  Vector *exports;
-  Vector *lib_paths;
-  Vector *sources;
-  const char *root;
-  const char *ofn;
-  const char *import_module_name;
-  const char *entry_point;
-  enum OutType out_type;
-  enum SourceType src_type;
-  uint32_t stack_size;
-  bool nodefaultlibs, nostdlib, nostdinc;
-} Options;
 
 static void parse_options(int argc, char *argv[], Options *opts) {
   enum {
@@ -362,7 +367,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       add_inc_path(INC_AFTER, optarg);
       break;
     case 'D':
-      define_macro(optarg);
+      vec_push(opts->defines, optarg);
       break;
     case 'C':
       set_preserve_comment(true);
@@ -560,8 +565,7 @@ static int do_compile(Options *opts) {
       return 1;  // exit
     case Clanguage:
       {
-        Vector *exports = opts->out_type < OutExecutable ? opts->exports : NULL;
-        int res = compile_csource(src, opts->out_type, outfn, obj_files, opts->import_module_name, exports);
+        int res = compile_csource(src, outfn, obj_files, opts);
         if (res != 0)
           return 1;  // exit
       }
@@ -605,6 +609,7 @@ int main(int argc, char *argv[]) {
   Options opts = {
     .exports = new_vector(),
     .lib_paths = new_vector(),
+    .defines = new_vector(),
     .sources = new_vector(),
     .root = root,
     .ofn = NULL,
