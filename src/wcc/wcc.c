@@ -254,6 +254,27 @@ int compile_csource(const char *src, const char *ofn, Vector *obj_files, Options
   return 0;
 }
 
+static bool parse_fopt(const char *optarg, bool value) {
+  static const struct {
+    const char *flag_name;
+    off_t flag_offset;
+  } kFlagTable[] = {
+    {"common", offsetof(CcFlags, common)},
+  };
+
+  for (size_t i = 0; i < ARRAY_SIZE(kFlagTable); ++i) {
+    if (strcmp(optarg, kFlagTable[i].flag_name) == 0) {
+      size_t len = strlen(kFlagTable[i].flag_name);
+      if (optarg[len] != '\0')
+        continue;
+      bool *p = (bool*)((char*)&cc_flags + kFlagTable[i].flag_offset);
+      *p = value;
+      return true;
+    }
+  }
+  return false;
+}
+
 static void parse_options(int argc, char *argv[], Options *opts) {
   enum {
     OPT_HELP = 128,
@@ -268,6 +289,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     OPT_NOSTDINC,
     OPT_ISYSTEM,
     OPT_IDIRAFTER,
+    OPT_FNO,
 
     OPT_WARNING,
     OPT_OPTIMIZE,
@@ -290,7 +312,6 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"o", required_argument},  // Specify output filename
     {"x", required_argument},  // Specify code type
     {"e", required_argument},  // Export names
-    {"W", required_argument, OPT_WARNING},
     {"nodefaultlibs", no_argument, OPT_NODEFAULTLIBS},
     {"nostdlib", no_argument, OPT_NOSTDLIB},
     {"nostdinc", no_argument, OPT_NOSTDINC},
@@ -301,6 +322,11 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"-help", no_argument, OPT_HELP},
     {"-version", no_argument, OPT_VERSION},
     {"dumpversion", no_argument, OPT_DUMP_VERSION},
+
+    // Sub command
+    {"fno-", required_argument, OPT_FNO},
+    {"f", required_argument},
+    {"W", required_argument},
 
     // Suppress warnings
     {"O", required_argument, OPT_OPTIMIZE},
@@ -399,14 +425,6 @@ static void parse_options(int argc, char *argv[], Options *opts) {
         error("language not recognized: %s", optarg);
       }
       break;
-    case OPT_WARNING:
-      if (strcmp(optarg, "error") == 0) {
-        cc_flags.warn_as_error = true;
-      } else {
-        // Silently ignored.
-        // fprintf(stderr, "Warning: unknown option for -W: %s\n", optarg);
-      }
-      break;
     case OPT_NODEFAULTLIBS:
       opts->nodefaultlibs = true;
       break;
@@ -442,6 +460,23 @@ static void parse_options(int argc, char *argv[], Options *opts) {
         vec_push(opts->sources, NULL);
       } else {
         fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
+      }
+      break;
+
+    case 'f':
+    case OPT_FNO:
+      if (!parse_fopt(optarg, opt == 'f')) {
+        // Silently ignored.
+        // fprintf(stderr, "Warning: unknown option for -f: %s\n", optarg);
+      }
+      break;
+
+    case 'W':
+      if (strcmp(optarg, "error") == 0) {
+        cc_flags.warn_as_error = true;
+      } else {
+        // Silently ignored.
+        // fprintf(stderr, "Warning: unknown option for -W: %s\n", optarg);
       }
       break;
 

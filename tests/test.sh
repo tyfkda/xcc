@@ -387,8 +387,8 @@ test_link() {
 
   echo 'int foo; int main(){return 0;}' > tmp_link_dupcomm1.c
   echo 'int foo;' > tmp_link_dupcomm2.c
-  link_error 'Duplicate comm symbol'                     tmp_link_dupcomm1.c tmp_link_dupcomm2.c
-  link_success "allowed with '-fcommon' //-WCC" -fcommon tmp_link_dupcomm1.c tmp_link_dupcomm2.c
+  link_error 'Duplicate comm symbol'              tmp_link_dupcomm1.c tmp_link_dupcomm2.c
+  link_success "allowed with '-fcommon'" -fcommon tmp_link_dupcomm1.c tmp_link_dupcomm2.c
 
   # extern inline function can be called.
   echo -e 'inline int sq(int x){return x * x;} \n#ifdef EXTERN\n extern inline int sq(int x);\n#endif' > tmp_link_inline1.c

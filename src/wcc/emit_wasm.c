@@ -170,7 +170,7 @@ typedef struct {
   uint32_t p2align;
 } DataSegment;
 
-static Vector *construct_data_segment(void) {
+static Vector *construct_data_segment(void) {  // <DataSegment*>
   // Enumerate global variables.
   Vector *segments = new_vector();
 #ifndef NDEBUG
@@ -515,7 +515,7 @@ static void emit_code_section(EmitWasm *ew) {
 }
 
 static Vector *emit_data_section(EmitWasm *ew) {
-  Vector *segments = construct_data_segment();
+  Vector *segments = construct_data_segment();  // <DataSegment*>
   ew->data_segments = segments;
   Vector *reloc_data = NULL;
   if (segments->len > 0) {
@@ -606,6 +606,7 @@ static void emit_linking_section(EmitWasm *ew) {
   for (int k = 0; k < 3; ++k) {  // 0=unresolved, 1=resolved(data), 2=resolved(bss)
     const Name *name;
     GVarInfo *info;
+    int flags_bss = k != 2 ? 0 : cc_flags.common ? WASM_SYM_BINDING_WEAK : 0;
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
       if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
@@ -617,7 +618,7 @@ static void emit_linking_section(EmitWasm *ew) {
           (k != 0 && ((info->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
         continue;
 
-      int flags = 0;
+      int flags = flags_bss;
       if (info->flag & GVF_UNRESOLVED)
         flags |= WASM_SYM_UNDEFINED;
       if (varinfo->storage & VS_STATIC)
@@ -671,14 +672,14 @@ static void emit_linking_section(EmitWasm *ew) {
       VarInfo *varinfo = segment->gvarinfo->varinfo;
       int flags = 0;
       if (varinfo->global.init != NULL && varinfo->global.init->kind == IK_SINGLE) {
-        Expr *e = varinfo->global.init->single;
-        if (e->kind == EX_STR && e->str.kind == STR_CHAR) {
-          const Type *type = varinfo->type;
-          if (type->kind == TY_ARRAY && type->pa.length > 0 &&
-              type->pa.length == (ssize_t)e->str.len && e->str.buf[type->pa.length - 1] == '\0')
-            flags |= WASM_SEG_FLAG_STRINGS;
+          Expr *e = varinfo->global.init->single;
+          if (e->kind == EX_STR && e->str.kind == STR_CHAR) {
+            const Type *type = varinfo->type;
+            if (type->kind == TY_ARRAY && type->pa.length > 0 &&
+                type->pa.length == (ssize_t)e->str.len && e->str.buf[type->pa.length - 1] == '\0')
+              flags |= WASM_SEG_FLAG_STRINGS;
+          }
         }
-      }
       data_string(&linking_section, varinfo->name->chars, varinfo->name->bytes);
       data_uleb128(&linking_section, -1, segment->p2align);
       data_uleb128(&linking_section, -1, flags);

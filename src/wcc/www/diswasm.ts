@@ -1184,11 +1184,22 @@ export class DisWasm {
             {
               this.log(`${this.addr(subsecOffset0)};;   (symtab`)
 
+              const countTable = new Map<SymInfoKind, number>([
+                [SymInfoKind.SYMTAB_FUNCTION,  this.importFuncCount],
+                [SymInfoKind.SYMTAB_GLOBAL,    this.importGlobalCount],
+                [SymInfoKind.SYMTAB_TABLE,     this.importTableCount],
+              ])
+
               const count = this.bufferReader.readUleb128()
               for (let i = 0; i < count; ++i) {
                 const offset = this.bufferReader.getOffset()
                 const kind = this.bufferReader.readu8()
                 const flags = this.bufferReader.readUleb128()
+
+                const flagStr = Array.from(kSymFlagNames.keys())
+                  .filter(key => (flags & key) !== 0)
+                  .map(key => kSymFlagNames.get(key))
+                  .join(' ')
 
                 switch (kind) {
                 case SymInfoKind.SYMTAB_FUNCTION:
@@ -1198,37 +1209,13 @@ export class DisWasm {
                     const index = this.bufferReader.readUleb128()
                     let symname = ''
 
-                    switch (kind) {
-                    case SymInfoKind.SYMTAB_FUNCTION:
-                      if (index < this.importFuncCount && !(flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
-                        symname = this.funcs.get(index)!.join('.')
-                      } else {
-                        symname = this.bufferReader.readString()
-                      }
-                      break
-                    case SymInfoKind.SYMTAB_GLOBAL:
-                        if (index < this.importGlobalCount && !(flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
-                        symname = this.globals.get(index)!.join('.')
-                      } else {
-                        symname = this.bufferReader.readString()
-                      }
-                      break
-                    case SymInfoKind.SYMTAB_TABLE:
-                        if (index < this.importTableCount && !(flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
-                        symname = this.tables.get(index)!.join('.')
-                      } else {
-                        symname = this.bufferReader.readString()
-                      }
-                      break
-                    default: break
+                    if (index < countTable.get(kind)! && !(flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
+                      symname = this.funcs.get(index)!.join('.')
+                    } else {
+                      symname = this.bufferReader.readString()
                     }
 
-                    const flagNames: Array<string> = []
-                    kSymFlagNames.forEach((value, key) => {
-                      if ((flags & key) !== 0)
-                        flagNames.push(value)
-                    })
-                    this.log(`${this.addr(offset)};;     (${kSymInfoKindNames[kind]} (index ${index}) (name "${symname}") (flags ${flagNames.join(' ')}))`)
+                    this.log(`${this.addr(offset)};;     (${kSymInfoKindNames[kind]} (index ${index}) (name "${symname}") (flags ${flagStr}))`)
                     symbols.push(symname)
                   }
                   break
@@ -1236,12 +1223,12 @@ export class DisWasm {
                   {
                     const symname = this.bufferReader.readString()
                     if (flags & SymFlags.WASM_SYM_UNDEFINED) {
-                      this.log(`${this.addr(offset)};;     (${kSymInfoKindNames[kind]} (name "${symname}"))`)
+                      this.log(`${this.addr(offset)};;     (${kSymInfoKindNames[kind]} (name "${symname}") (flags ${flagStr}))`)
                     } else {
                       const index = this.bufferReader.readUleb128()
                       const suboffset = this.bufferReader.readUleb128()
                       const size = this.bufferReader.readUleb128()
-                      this.log(`${this.addr(offset)};;     (${kSymInfoKindNames[kind]} (name "${symname}") (index ${index}) (offset ${suboffset}) (size ${size}))`)
+                      this.log(`${this.addr(offset)};;     (${kSymInfoKindNames[kind]} (name "${symname}") (index ${index}) (offset ${suboffset}) (size ${size}) (flags ${flagStr}))`)
                     }
                     symbols.push(symname)
                   }
@@ -1250,7 +1237,7 @@ export class DisWasm {
                   {
                     const typeindex = this.bufferReader.readUleb128()
                     const symname = this.bufferReader.readString()
-                    this.log(`${this.addr(offset)};;     (${kSymInfoKindNames[kind]} (name "${symname}") (typeindex ${typeindex}))`)
+                    this.log(`${this.addr(offset)};;     (${kSymInfoKindNames[kind]} (name "${symname}") (typeindex ${typeindex}) (flags ${flagStr}))`)
                     symbols.push(symname)
                   }
                   break
