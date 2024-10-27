@@ -55,7 +55,6 @@ bool function_not_returned(FuncBackend *fnbe);
 #define _FLOAT(x)      EMIT_ASM(".float", x)
 #define _DOUBLE(x)     EMIT_ASM(".double", x)
 #define _GLOBL(x)      EMIT_ASM(".globl", x)
-#define _WEAK(x)       EMIT_ASM(".weak", x)
 #define _ASCII(x)      EMIT_ASM(".ascii", x)
 #define _STRING(x)     EMIT_ASM(".string", x)
 #define _SECTION(x)    EMIT_ASM(".section", x)
@@ -69,9 +68,11 @@ bool function_not_returned(FuncBackend *fnbe);
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
 #define _RODATA()      _SECTION("__DATA,__const")
 #define _LOCAL(x)      emit_comment(".local %s", x)
+#define _WEAK(x)       EMIT_ASM(".weak_definition", x)
 #else
 #define _RODATA()      _SECTION(".rodata")
 #define _LOCAL(x)      EMIT_ASM(".local", x)
+#define _WEAK(x)       EMIT_ASM(".weak", x)
 #endif
 
 #define _COMM(label, size, align)  emit_comm(label, size, align)

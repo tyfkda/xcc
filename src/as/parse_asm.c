@@ -32,6 +32,12 @@ const char kSecData[] = ".data";
 const char kSecBss[] = ".bss";
 #endif
 
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+#define WEAK  "weak_definition"
+#else
+#define WEAK  "weak"
+#endif
+
 static const char *kDirectiveTable[] = {
   "ascii",
   "string",
@@ -50,7 +56,7 @@ static const char *kDirectiveTable[] = {
   "zero",
   "globl",
   "local",
-  "weak",
+  WEAK,
   "extern",
 #ifndef __NO_FLONUM
   "float",

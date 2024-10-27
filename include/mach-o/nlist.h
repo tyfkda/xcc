@@ -13,6 +13,8 @@
 #define N_PBUD  0xc
 #define N_INDR  0xa
 
+#define N_WEAK_DEF  0x0080
+
 struct nlist_64 {
   union {
     uint32_t n_strx;
