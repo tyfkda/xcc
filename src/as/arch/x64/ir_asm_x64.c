@@ -219,19 +219,14 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
             if (inst->opr[0].type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr[0].direct.expr);
               if (value.label != NULL) {
-                LabelInfo *label_info = table_get(label_table, value.label);
-                if (label_info == NULL) {
-                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
-                  info->kind = UNRES_EXTERN;
-                  info->label = value.label;
-                  info->src_section = section;
-                  info->offset = address + 1 - start_address;
-                  info->add = value.offset - 4;
-                  vec_push(unresolved, info);
-                  if (label_info == NULL)
-                    break;
-                }
-                value.offset += label_info->address;
+                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                info->kind = UNRES_EXTERN;
+                info->label = value.label;
+                info->src_section = section;
+                info->offset = address + 1 - start_address;
+                info->add = value.offset - 4;
+                vec_push(unresolved, info);
+                break;
               }
               intptr_t offset = value.offset - (VOIDP2INT(address) + ir->code.len);
               put_value(ir->code.buf + 1, offset, sizeof(int32_t));
