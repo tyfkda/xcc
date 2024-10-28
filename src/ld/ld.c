@@ -201,6 +201,7 @@ static uintptr_t calc_rela_sym_address(LinkEditor *ld, ElfObj *elfobj, const Elf
     }
     break;
   case STB_GLOBAL:
+  case STB_WEAK:
     {
       const char *label = &strinfo->strtab.buf[sym->st_name];
       address = ld_symbol_address(ld, alloc_name(label, NULL, false));
@@ -413,15 +414,15 @@ static int resolve_symbols_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unresol
     if (table_try_get(defined, name, (void**)&prev) || table_try_get(generated, name, NULL)) {
       if (sym->st_shndx != SHN_UNDEF) {
         if (prev != NULL) {
+          if (ELF64_ST_BIND(sym->st_info) == STB_WEAK || sym->st_shndx == SHN_COMMON)
+            continue;
+
           Elf64_Sym *prev_sym = table_get(prev->symbol_table, name);
           assert(prev_sym != NULL);
-          if (prev_sym->st_shndx == SHN_COMMON) {
-            if (sym->st_shndx != SHN_COMMON)
-              table_put(defined, name, elfobj);  // Overwrite common symbol with defined symbol.
+          if (ELF64_ST_BIND(prev_sym->st_info) == STB_WEAK || prev_sym->st_shndx == SHN_COMMON) {
+            table_put(defined, name, elfobj);  // Overwrite common symbol with defined symbol.
             continue;
           }
-          if (sym->st_shndx == SHN_COMMON)
-            continue;  // Skip common symbol to overwrite.
         }
         fprintf(stderr, "Duplicate symbol: %.*s\n", NAMES(name));
         ++error_count;
@@ -709,8 +710,9 @@ static bool output_exe(const char *ofn, uintptr_t entry_address, SectionGroup se
   return true;
 }
 
-#define DSF_LOCAL      (1 << 0)
-#define DSF_GENERATED  (1 << 1)
+#define DSF_WEAK       (1 << 0)
+#define DSF_LOCAL      (1 << 1)
+#define DSF_GENERATED  (1 << 2)
 
 typedef struct {
   const char *filename;
@@ -731,8 +733,10 @@ static void dump_map_elfobj(LinkEditor *ld, ElfObj *elfobj, File *file, ArConten
     const char *name = &strbuf[sym->st_name];
     uintptr_t address = 0;
     int flag = 0;
-    switch (ELF64_ST_BIND(sym->st_info)) {
+    unsigned char bind = ELF64_ST_BIND(sym->st_info);
+    switch (bind) {
     case STB_LOCAL:
+    case STB_WEAK:
       {
         Elf64_Word type = ELF64_ST_TYPE(sym->st_info);
         if (type != STT_FUNC && type != STT_OBJECT) {
@@ -740,7 +744,7 @@ static void dump_map_elfobj(LinkEditor *ld, ElfObj *elfobj, File *file, ArConten
         }
         const ElfSectionInfo *s = &elfobj->section_infos[sym->st_shndx];
         address = s->progbits.address + sym->st_value;
-        flag |= DSF_LOCAL;
+        flag |= bind == STB_WEAK ? DSF_WEAK : DSF_LOCAL;
       }
       break;
     case STB_GLOBAL:
@@ -819,7 +823,14 @@ static bool output_map_file(LinkEditor *ld, const char *outmapfn, uintptr_t entr
 
   for (int i = 0; i < symbols->len; ++i) {
     DumpSymbol *ds = symbols->data[i];
-    fprintf(mapfp, "%9lx: %c %s  (%s)\n", ds->address, ds->flag & DSF_LOCAL ? 'L' : 'G', ds->name, ds->filename);
+    static const char kFlagChars[] = {
+      [DSF_WEAK] = 'w',
+      [DSF_LOCAL] = 'L',
+    };
+    char fc = kFlagChars[ds->flag & (DSF_WEAK | DSF_LOCAL)];
+    if (fc == '\0')
+      fc = 'G';
+    fprintf(mapfp, "%9lx: %c %s  (%s)\n", ds->address, fc, ds->name, ds->filename);
   }
 
   fprintf(mapfp, "\n### Entry point\n");

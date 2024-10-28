@@ -113,6 +113,7 @@ static int construct_symtab(Symtab *symtab, Table *label_table, uintptr_t start_
     } else if (sect) {
       type |= N_SECT;
       sym->n_sect = info->section->index;
+      sym->n_desc = info->flag & LF_WEAK ? N_WEAK_DEF : 0;
       sym->n_value = (info->flag & LF_DEFINED) ? info->address - start_address : 0;
     }
     sym->n_type = type;

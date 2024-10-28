@@ -32,9 +32,12 @@ enum DirectiveType {
   DT_ZERO,
   DT_GLOBL,
   DT_LOCAL,
+  DT_WEAK,
   DT_EXTERN,
+#ifndef __NO_FLONUM
   DT_FLOAT,
   DT_DOUBLE,
+#endif
 };
 
 #define SF_EXECUTABLE  (1 << 0)
@@ -175,6 +178,7 @@ bool is_label_chr(char c);
 #define LF_DEFINED   (1 << 1)
 #define LF_REFERRED  (1 << 2)
 #define LF_COMM      (1 << 3)
+#define LF_WEAK      (1 << 4)
 
 enum LabelKind {
   LK_NONE,

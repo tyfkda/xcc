@@ -79,9 +79,13 @@ static int construct_symtab(Symtab *symtab, Vector *sections, Table *label_table
   Symtab symtab_global;
   symtab_init(&symtab_global);
 
+  Symtab symtab_weak;
+  symtab_init(&symtab_weak);
+
   Symtab *symtabs[] = {
     [STB_LOCAL] = symtab,
     [STB_GLOBAL] = &symtab_global,
+    [STB_WEAK] = &symtab_weak,
   };
 
   const Name *nulname = alloc_name("", NULL, false);
@@ -103,7 +107,9 @@ static int construct_symtab(Symtab *symtab, Vector *sections, Table *label_table
   LabelInfo *info;
   for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&info)) != -1; ) {
     int bind;
-    if (info->flag & LF_GLOBAL) {
+    if (info->flag & LF_WEAK) {
+      bind = STB_WEAK;
+    } else if (info->flag & LF_GLOBAL) {
       bind = STB_GLOBAL;
     } else if (info->flag & LF_REFERRED || info->kind == LK_FUNC) {
       bind = STB_LOCAL;
@@ -134,6 +140,7 @@ static int construct_symtab(Symtab *symtab, Vector *sections, Table *label_table
 
   int local_symbol_count = symtab->count;
   // Append global symbols after locals;
+  symtab_concat(symtab, &symtab_weak);
   symtab_concat(symtab, &symtab_global);
 
   return local_symbol_count;

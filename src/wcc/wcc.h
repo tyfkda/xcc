@@ -31,6 +31,7 @@ extern Vector *functypes;  // <DataStorage*>
 #define FF_REFERRED  (1 << 0)
 #define FF_INDIRECT  (1 << 1)
 #define FF_INLINING  (1 << 2)
+#define FF_WEAK      (1 << 3)
 
 typedef struct {
   Function *func;

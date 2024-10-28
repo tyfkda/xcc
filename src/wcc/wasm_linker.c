@@ -589,25 +589,28 @@ static int resolve_symbols_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
   for (int i = 0; i < symtab->len; ++i) {
     SymbolInfo *sym = symtab->data[i];
     if (sym->flags & WASM_SYM_UNDEFINED) {
-      SymbolInfo *pre;
-      if (!table_try_get(&linker->defined, sym->name, (void**)&pre) || pre == NULL) {
+      SymbolInfo *prev;
+      if (!table_try_get(&linker->defined, sym->name, (void**)&prev) || prev == NULL) {
         table_put(&linker->unresolved, sym->name, sym);
-      } else if (sym->kind != pre->kind) {
+      } else if (sym->kind != prev->kind) {
         fprintf(stderr, "different symbol type: %.*s\n", NAMES(sym->name));
         ++err_count;
       }
     } else if (!(sym->flags & (WASM_SYM_BINDING_LOCAL | WASM_SYM_VISIBILITY_HIDDEN))) {
-      SymbolInfo *sym2;
-      if ((sym2 = table_get(&linker->defined, sym->name)) != NULL &&
-          !(sym2->flags & WASM_SYM_BINDING_WEAK) && !(sym->flags & WASM_SYM_BINDING_WEAK)) {
+      SymbolInfo *prev, *unre;
+      if ((prev = table_get(&linker->defined, sym->name)) != NULL &&
+          !(prev->flags & WASM_SYM_BINDING_WEAK) && !(sym->flags & WASM_SYM_BINDING_WEAK)) {
         fprintf(stderr, "duplicate symbol: %.*s\n", NAMES(sym->name));
         ++err_count;
-      } else if ((sym2 = table_get(&linker->unresolved, sym->name)) != NULL &&
-                 sym2->kind != sym->kind) {
+      } else if ((unre = table_get(&linker->unresolved, sym->name)) != NULL &&
+                 unre->kind != sym->kind) {
         fprintf(stderr, "different symbol type: %.*s\n", NAMES(sym->name));
         ++err_count;
       } else {
-        table_put(&linker->defined, sym->name, sym);
+        if (prev == NULL || !(sym->flags & WASM_SYM_BINDING_WEAK)) {
+          assert(prev == NULL || prev->flags & WASM_SYM_BINDING_WEAK);
+          table_put(&linker->defined, sym->name, sym);
+        }
         table_delete(&linker->unresolved, sym->name);
       }
     }

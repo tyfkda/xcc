@@ -10,6 +10,7 @@ typedef struct BBContainer BBContainer;
 typedef struct Function Function;
 typedef struct FuncBackend FuncBackend;
 typedef struct Initializer Initializer;
+typedef struct Table Table;
 typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 
@@ -67,9 +68,11 @@ bool function_not_returned(FuncBackend *fnbe);
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
 #define _RODATA()      _SECTION("__DATA,__const")
 #define _LOCAL(x)      emit_comment(".local %s", x)
+#define _WEAK(x)       EMIT_ASM(".weak_definition", x)
 #else
 #define _RODATA()      _SECTION(".rodata")
 #define _LOCAL(x)      EMIT_ASM(".local", x)
+#define _WEAK(x)       EMIT_ASM(".weak", x)
 #endif
 
 #define _COMM(label, size, align)  emit_comm(label, size, align)
@@ -80,6 +83,7 @@ bool function_not_returned(FuncBackend *fnbe);
 
 bool is_fall_path_only(BBContainer *bbcon, int i);
 char *format_func_name(const Name *funcname, bool global);
+bool is_weak_attr(Table *attributes);
 
 void emit_code(Vector *decls);
 extern void emit_defun(Function *func);
