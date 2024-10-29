@@ -568,7 +568,7 @@ static int do_compile(Options *opts, const char *root) {
     if (!opts->use_ld) {
 #if !defined(USE_SYS_LD)
       if (!opts->nostdlib) {
-        vec_insert(opts->ld_cmd, 1, JOIN_PATHS(root, "lib/crt0.a"));
+        vec_push(opts->ld_cmd, JOIN_PATHS(root, "lib/crt0.a"));
         if (!opts->nodefaultlibs)
           vec_push(opts->ld_cmd, "-lc");
       }
