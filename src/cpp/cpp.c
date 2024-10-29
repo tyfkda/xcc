@@ -1,5 +1,6 @@
 #include "../config.h"
 
+#include <assert.h>
 #include <string.h>
 
 #include "preprocessor.h"
@@ -27,6 +28,7 @@ int main(int argc, char *argv[]) {
   int opt;
   while ((opt = optparse(argc, argv, options)) != -1) {
     switch (opt) {
+    default: assert(false); break;
     case 'V':
       show_version("cpp");
       return 0;
@@ -44,6 +46,9 @@ int main(int argc, char *argv[]) {
       break;
     case 'C':
       set_preserve_comment(true);
+      break;
+    case '?':
+      fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
       break;
     }
   }

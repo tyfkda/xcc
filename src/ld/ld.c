@@ -898,6 +898,7 @@ static Vector *parse_options(int argc, char *argv[], Options *opts) {
     }
 
     switch (opt) {
+    default: assert(false); break;
     case 'V':
       show_version("ld");
       break;
@@ -927,7 +928,7 @@ static Vector *parse_options(int argc, char *argv[], Options *opts) {
     case OPT_NO_PIE:
       // Silently ignored.
       break;
-    default:
+    case '?':
       fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
       break;
     }

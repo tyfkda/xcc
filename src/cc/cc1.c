@@ -84,6 +84,7 @@ int main(int argc, char *argv[]) {
   int opt;
   while ((opt = optparse(argc, argv, options)) != -1) {
     switch (opt) {
+    default: assert(false); break;
     case 'V':
       show_version("cc1");
       return 0;
@@ -105,7 +106,7 @@ int main(int argc, char *argv[]) {
       }
       break;
 
-    default:
+    case '?':
       fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
       break;
     }
