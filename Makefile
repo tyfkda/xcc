@@ -138,8 +138,8 @@ $(foreach D, $(XCC_SRC_DIRS), $(eval $(call DEFINE_OBJ_TARGET,$(D))))
 
 .PHONY: test
 test:	all
-	$(MAKE) -C tests clean && $(MAKE) $(TEST_OPT) -C tests all && \
-		$(MAKE) test-libs
+	$(MAKE) -C tests clean && $(MAKE) $(TEST_OPT) -C tests all
+	$(MAKE) test-libs
 
 .PHONY: test-all
 test-all: test test-gen2 diff-gen23 test-wcc test-wcc-gen2
@@ -159,9 +159,8 @@ clean:
 # Run tests on RISC-V simulator.
 .PHONY: test-riscv64
 test-riscv64:	cross-compile-riscv64
-	$(MAKE) -C tests clean && \
-		$(MAKE) RUN_EXE="$(CURDIR)/tool/run-riscv64" NO_LINK_TEST=1 -C tests all && \
-		$(MAKE) -C libsrc clean-test && $(MAKE) CC=../xcc RUN_EXE="$(CURDIR)/tool/run-riscv64" -C libsrc test
+	$(MAKE) -C tests clean && $(MAKE) RUN_EXE="$(CURDIR)/tool/run-riscv64" NO_LINK_TEST=1 -C tests all
+	$(MAKE) -C libsrc clean-test && $(MAKE) CC=../xcc RUN_EXE="$(CURDIR)/tool/run-riscv64" -C libsrc test
 
 .PHONY: cross-compile-riscv64
 cross-compile-riscv64:
