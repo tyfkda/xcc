@@ -712,9 +712,9 @@ int main(int argc, char *argv[]) {
     // Pass through command line options.
     for (int i = 0; i < opts.linker_options->len; ++i)
       vec_push(ld_cmd, opts.linker_options->data[i]);
-  } else {
+  } else if (opts.ofn != NULL) {
     vec_push(ld_cmd, "-o");
-    vec_push(ld_cmd, opts.ofn != NULL ? opts.ofn : "a.out");
+    vec_push(ld_cmd, opts.ofn);
   }
 
   if (opts.out_type >= OutExecutable && !opts.use_ld) {
