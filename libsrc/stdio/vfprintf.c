@@ -15,8 +15,8 @@
 #define SIGN(p)  ((p) ? '+' : '-')
 #define STATIC_ASSERT(cond)  char __dummy[(cond) ? 0 : -1]; (void)__dummy
 
-static char kHexDigits[] = "0123456789abcdef";
-static char kUpperHexDigits[] = "0123456789ABCDEF";
+static const char kHexDigits[] = "0123456789abcdef";
+static const char kUpperHexDigits[] = "0123456789ABCDEF";
 
 static int putnstr(FILE *fp, int n, const char *s) {
   int i;
