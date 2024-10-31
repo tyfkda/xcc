@@ -119,6 +119,7 @@ int _fseek(void *cookie, off_t *offset, int origin) {
     return -1;
   fp->flag &= ~FF_EOF;
   fp->rp = fp->rs = 0;
+  fp->unget_char = EOF;
   *offset = result;
   return 0;
 }

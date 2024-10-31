@@ -51,6 +51,7 @@ FILE *fdopen(int fd, const char *mode) {
     fp->rbuf = NULL;
     fp->wbuf = NULL;
     fp->flag = flag;
+    fp->unget_char = EOF;
 
     unsigned char *p = (unsigned char*)(fp + 1);
     if (flag & FF_READ) {

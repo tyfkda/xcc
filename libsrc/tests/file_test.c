@@ -82,4 +82,27 @@ TEST(stat) {
   // EXPECT_EQ(0, rmdir());
 }
 
+TEST(ungetc) {
+  static char buf[] = "12345";
+  FILE *fp = fmemopen(buf, sizeof(buf) - 1, "r");
+  EXPECT_NOT_NULL(fp);
+  if (fp != NULL) {
+    int c;
+    EXPECT_EQ('1', fgetc(fp));
+    EXPECT_EQ('2', c = fgetc(fp));
+    EXPECT_EQ('2', ungetc(c, fp));
+    EXPECT_EQ('2', fgetc(fp));
+
+    for (int c2; (c2 = fgetc(fp)) != EOF; c = c2)
+      ;
+    EXPECT_EQ('5', c);
+    EXPECT_TRUE(feof(fp));
+    ungetc(c, fp);
+    EXPECT_FALSE(feof(fp));
+    EXPECT_EQ('5', fgetc(fp));
+
+    fclose(fp);
+  }
+}
+
 XTEST_MAIN();

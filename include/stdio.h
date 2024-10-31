@@ -60,6 +60,7 @@ int fputc(int c, FILE *fp);
 char *fgets(char *s, int n, FILE *fp);
 int fputs(const char *s, FILE *fp);
 int puts(const char *s);
+int ungetc(int c, FILE *fp);
 
 #define getc(fp)     fgetc(fp)
 #define getchar()    fgetc(stdin)

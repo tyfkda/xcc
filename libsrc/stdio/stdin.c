@@ -34,9 +34,9 @@ static const cookie_io_functions_t kIof = {
 };
 #define IOF  &kIof
 
-static INFILE  _stdin  = {.file={.iof = IOF, .flush = FFLUSH, .fd = STDIN_FILENO,  .flag = FF_READ, .rbuf = _stdin.rwork, .rcapa = sizeof(_stdin.rwork)}};
-static OUTFILE _stdout = {.file={.iof = IOF, .flush = FFLUSH, .fd = STDOUT_FILENO, .flag = FF_WRITE, .wbuf = _stdout.wwork, .wcapa = sizeof(_stdout.wwork)}};
-static OUTFILE _stderr = {.file={.iof = IOF, .flush = FFLUSH, .fd = STDERR_FILENO, .flag = FF_WRITE, .wbuf = _stderr.wwork, .wcapa = sizeof(_stderr.wwork)}};
+static INFILE  _stdin  = {.file={.iof = IOF, .flush = FFLUSH, .fd = STDIN_FILENO,  .flag = FF_READ, .rbuf = _stdin.rwork, .rcapa = sizeof(_stdin.rwork), .unget_char=EOF}};
+static OUTFILE _stdout = {.file={.iof = IOF, .flush = FFLUSH, .fd = STDOUT_FILENO, .flag = FF_WRITE, .wbuf = _stdout.wwork, .wcapa = sizeof(_stdout.wwork), .unget_char=EOF}};
+static OUTFILE _stderr = {.file={.iof = IOF, .flush = FFLUSH, .fd = STDERR_FILENO, .flag = FF_WRITE, .wbuf = _stderr.wwork, .wcapa = sizeof(_stderr.wwork), .unget_char=EOF}};
 
 #if defined(__riscv)
 static struct _reent _impure_entity = {

@@ -25,6 +25,10 @@ static ssize_t _memread(void *cookie, char *buf, size_t size) {
   FILE *fp = cookie;
   unsigned char *p = (unsigned char*)buf;
   unsigned int sz = fp->wcapa - fp->wp;
+  if (sz <= 0) {
+    fp->flag |= FF_EOF;
+    return 0;
+  }
   if (sz > size)
     sz = size;
 
@@ -69,6 +73,7 @@ static int _memseek(void *cookie, off_t *offset, int origin) {
     fp->wp = fp->wcapa + *offset;
     break;
   }
+  fp->unget_char = EOF;
   return 0;
 }
 
@@ -95,6 +100,7 @@ void _fmemopen2(void *buf, size_t size, const char *mode, FILE *fp) {
   fp->wp = 0;
   fp->wbuf = buf;
   fp->wcapa = size;
+  fp->unget_char = EOF;
 
   int flag = 0;
   int oflag = _detect_open_flag(mode);

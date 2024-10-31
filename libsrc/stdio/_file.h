@@ -33,6 +33,7 @@ struct FILE {
   unsigned int rp, rs, rcapa;
   unsigned int wp, wcapa;
   unsigned int flag;
+  int unget_char;
 };
 
 extern ssize_t _fread(void *cookie, char *buf, size_t total);
