@@ -507,7 +507,7 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
   fwrite(symtab.buf, sizeof(*symtab.buf), symtab.count, ofp);
   fwrite(strtab_dump(&symtab.strtab), symtab.strtab.size, 1, ofp);
 
-  assert(ftell(ofp) == (long)shstrtab_ofs);
+  assert(ofp == stdout || ftell(ofp) == (long)shstrtab_ofs);
   fwrite(strtab_dump(&shstrtab), shstrtab.size, 1, ofp);
 
   put_padding(ofp, sh_ofs);
