@@ -273,6 +273,7 @@ int fmt_x(FILE *stream, const struct printf_info *info, const void *const *args)
   int base = info->spec == 'o' ? 8 : 16;
   return snprintullong(stream, x, base, digits, info->width, info->pad);
 }
+#define fmt_X  fmt_x
 
 int fmt_p(FILE *stream, const struct printf_info *info, const void *const *args) {
   void *x = *(void**)args[0];
@@ -308,7 +309,7 @@ int fmt_percent(FILE *stream, const struct printf_info *info, const void *const 
 }
 
 #ifndef __NO_FLONUM
-int fmt_f(FILE *stream, const struct printf_info *info, const void *const *args) {
+int fmt_g(FILE *stream, const struct printf_info *info, const void *const *args) {
   long double x;
   switch (info->nlong) {
   case 0:  x = *(double*)args[0]; break;
@@ -319,24 +320,29 @@ int fmt_f(FILE *stream, const struct printf_info *info, const void *const *args)
   else
     return printscientific(stream, x, info->width, info->prec, info->showsign, info->left, info->pad);
 }
+#define fmt_f  fmt_g
 #endif
 
-// static printf_function table[('z' + 1) - 'A'] = {
-//   ['d' - 'A'] = fmt_d,
-//   ['u' - 'A'] = fmt_u,
-//   ['x' - 'A'] = fmt_x,
-//   ['X' - 'A'] = fmt_X,
-//   ['p' - 'A'] = fmt_p,
-//   ['s' - 'A'] = fmt_s,
-//   ['c' - 'A'] = fmt_c,
-//   ['%' - 'A'] = fmt_percent,
-// #ifndef __NO_FLONUM
-//   ['f' - 'A'] = fmt_f,
-//   ['g' - 'A'] = fmt_g,
-// #endif
-// };
+static printf_function table[('z' + 1) - 'A'] = {
+  ['d' - 'A'] = fmt_d,
+  ['i' - 'A'] = fmt_d,
+  ['u' - 'A'] = fmt_u,
+  ['x' - 'A'] = fmt_x,
+  ['X' - 'A'] = fmt_X,
+  ['o' - 'A'] = fmt_x,
+  ['p' - 'A'] = fmt_p,
+  ['s' - 'A'] = fmt_s,
+  ['c' - 'A'] = fmt_c,
+  // ['%' - 'A'] = fmt_percent,
+#ifndef __NO_FLONUM
+  ['f' - 'A'] = fmt_f,
+  ['g' - 'A'] = fmt_g,
+#endif
+};
 
 int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
+  (void)table;
+
   char buf[PRINTF_BUFSIZ];
 #define bufend  (buf + sizeof(buf))
   STATIC_ASSERT(sizeof(buf) >= (sizeof(long long) * CHAR_BIT + 2) / 3);
@@ -505,9 +511,9 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
         o += fmt_c(fp, &info, (const void**)args);
       }
       break;
-    case '%':
-      o += fmt_percent(fp, &info, NULL);
-      break;
+    // case '%':
+    //   o += fmt_percent(fp, &info, NULL);
+    //   break;
 #ifndef __NO_FLONUM
     case 'f':
     case 'g':
@@ -526,12 +532,14 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       break;
 #endif
     default:
-      // Unknown % sequence.  Print it to draw attention.
       _fputc('%', fp);
       ++o;
-      if (c != '\0') {
-        _fputc(c, fp);
-        ++o;
+      if (c != '%') {
+        // Unknown % sequence.  Print it to draw attention.
+        if (c != '\0') {
+          _fputc(c, fp);
+          ++o;
+        }
       }
       break;
     }
