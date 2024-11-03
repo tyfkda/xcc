@@ -211,6 +211,7 @@ test_error() {
   pp_error 'more params' '#define FOO(x, y) x+y\nFOO(1, 2, 3)'
   pp_error 'Block comment not closed' 'AAA /* BBB'
   pp_error 'Double quote not closed' 'CCC " DDD'
+  pp_error 'Duplicate macro' '#define FOO 1\n#define FOO 2'
 
   end_test_suite
 }

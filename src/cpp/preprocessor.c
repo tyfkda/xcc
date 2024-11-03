@@ -529,6 +529,9 @@ static void handle_define(const char *p, Stream *stream) {
   }
 
   Vector *tokens = parse_macro_body(p, stream);
+  if (macro_get(name) != NULL) {
+    lex_error(p, "redefined: %.*s", NAMES(name));
+  }
   macro_add(name, new_macro(params, vaargs_ident, tokens));
 }
 
@@ -861,7 +864,11 @@ void preprocess(FILE *fp, const char *filename) {
 void define_macro(const char *arg) {
   char *p = strchr(arg, '=');
   Macro *macro = new_macro(NULL, NULL, parse_macro_body(p != NULL ? p + 1 : "1", NULL));
-  macro_add(alloc_name(arg, p, true), macro);
+  const Name *name = alloc_name(arg, p, true);
+  if (macro_get(name) != NULL) {
+    error("redefined: %.*s", NAMES(name));
+  }
+  macro_add(name, macro);
 }
 
 void add_inc_path(enum IncludeOrder order, const char *path) {
