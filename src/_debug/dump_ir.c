@@ -15,6 +15,8 @@
 #include "util.h"
 #include "var.h"
 
+static bool keep_virtual_register;
+
 ////////////////////////////////////////////////
 
 extern void install_builtins(void);
@@ -174,11 +176,11 @@ static void dump_func_ir(Function *func) {
       switch (li->state) {
       case LI_NORMAL:
         {
-          char regtype = 'R';
-          if (vreg->flag & VRF_FLONUM)
-            regtype = 'F';
-          fprintf(fp, "  V%3d (flag=%x): live %3d - %3d, => %c%3d", li->virt, vreg->flag, li->start,
-                  li->end, regtype, li->phys);
+          fprintf(fp, "  V%3d (flag=%x): live %3d - %3d", li->virt, vreg->flag, li->start, li->end);
+          if (!keep_virtual_register) {
+            char regtype = vreg->flag & VRF_FLONUM ? 'F' : 'R';
+            fprintf(fp, ", => %c%3d", regtype, li->phys);
+          }
           if (li->occupied_reg_bit != 0)
             fprintf(fp, ", occupied=%lx", li->occupied_reg_bit);
           fprintf(fp, "\n");
@@ -255,7 +257,8 @@ void do_dump_ir(Vector *decls) {
     analyze_reg_flow(fnbe->bbcon);
 
     alloc_physical_registers(fnbe->ra, fnbe->bbcon);
-    map_virtual_to_physical_registers(fnbe->ra);
+    if (!keep_virtual_register)
+      map_virtual_to_physical_registers(fnbe->ra);
     detect_living_registers(fnbe->ra, fnbe->bbcon);
 
     alloc_stack_variables_onto_stack_frame(func);
@@ -286,12 +289,36 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
 }
 
 int main(int argc, char *argv[]) {
-  int iarg = 1;
+  enum {
+    OPT_KEEP_VIRTUAL_REGISTER = 128,
+  };
+
+  static const struct option options[] = {
+    {"-keep-virtual", no_argument, OPT_KEEP_VIRTUAL_REGISTER},
+
+    {NULL},
+  };
+
+  int opt;
+  while ((opt = optparse(argc, argv, options)) != -1) {
+    switch (opt) {
+    default: assert(false); break;
+    case OPT_KEEP_VIRTUAL_REGISTER:
+      keep_virtual_register = true;
+      break;
+
+    case '?':
+      fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
+      break;
+    }
+  }
+
 
   // Compile.
   init_compiler();
 
   Vector *toplevel = new_vector();
+  int iarg = optind;
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {
       const char *filename = argv[i];
