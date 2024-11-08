@@ -24,6 +24,7 @@ int compile_error_count;
 CcFlags cc_flags = {
   .warn_as_error = false,
   .common = false,
+  .optimize_level = 0,
 };
 
 LoopScope loop_scope;

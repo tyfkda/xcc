@@ -1,5 +1,6 @@
 #include "../config.h"
 
+#include <ctype.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -74,6 +75,8 @@ int main(int argc, char *argv[]) {
   static const struct option options[] = {
     {"-version", no_argument, 'V'},
 
+    {"O", optional_argument},  // Optimization level
+
     // Sub command
     {"fno-", required_argument, OPT_FNO},
     {"f", required_argument},
@@ -88,6 +91,25 @@ int main(int argc, char *argv[]) {
     case 'V':
       show_version("cc1");
       return 0;
+
+    case 'O':
+      {
+        char c = optarg[0];
+        switch (c) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case 's':
+        case 'z':
+          cc_flags.optimize_level = isdigit(c) ? c - '0' : c;
+          break;
+        default:
+          fprintf(stderr, "Warning: unknown optimization level: %c\n", c);
+          break;
+        }
+      }
+      break;
 
     case 'f':
     case OPT_FNO:

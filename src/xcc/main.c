@@ -316,6 +316,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"C", no_argument},  // Do not discard comments
     {"o", required_argument},  // Specify output filename
     {"x", required_argument},  // Specify code type
+    {"O", optional_argument},  // Optimization level
     {"l", required_argument},  // Library
     {"L", required_argument},  // Add library path
     {"nodefaultlibs", no_argument, OPT_NODEFAULTLIBS},
@@ -332,7 +333,6 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"W", required_argument},
 
     // Suppress warnings
-    {"O", optional_argument},
     {"g", optional_argument},  // Debug info
     {"ansi", no_argument, OPT_ANSI},
     {"std", optional_argument, OPT_STD},
@@ -407,6 +407,9 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       } else {
         error("language not recognized: %s", optarg);
       }
+      break;
+    case 'O':
+      vec_push(opts->cc1_cmd, argv[optind - 1]);
       break;
 
     case OPT_NODEFAULTLIBS:
@@ -492,7 +495,6 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       }
       break;
 
-    case 'O':
     case 'g':
     case OPT_ANSI:
     case OPT_STD:

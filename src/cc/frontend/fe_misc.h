@@ -29,6 +29,7 @@ enum ParseErrorLevel {
 typedef struct {
   bool warn_as_error;  // Treat warnings as errors
   bool common;
+  int optimize_level;
 } CcFlags;
 
 extern CcFlags cc_flags;
