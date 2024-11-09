@@ -123,7 +123,6 @@ typedef struct IR {
   VReg *dst;
   VReg *opr1;
   VReg *opr2;
-  int64_t value;
 
   union {
     struct {

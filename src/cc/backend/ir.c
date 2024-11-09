@@ -31,7 +31,6 @@ static IR *new_ir(enum IrKind kind) {
   ir->kind = kind;
   ir->flag = 0;
   ir->dst = ir->opr1 = ir->opr2 = NULL;
-  ir->value = 0;
   if (curbb != NULL)
     vec_push(curbb->irs, ir);
   return ir;
