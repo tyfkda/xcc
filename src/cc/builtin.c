@@ -75,8 +75,8 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   }
 
   Expr *var = strip_cast(args->data[1]);
-  if (var->kind == EX_REF)
-    var = var->unary.sub;
+  // if (var->kind == EX_REF)
+  //   var = var->unary.sub;
 
   const Vector *params = curfunc->params;
   assert(params != NULL);
@@ -135,8 +135,8 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   assert(args->len == 2);
   assert(curfunc != NULL);
   Expr *var = strip_cast(args->data[1]);
-  if (var->kind == EX_REF)
-    var = var->unary.sub;
+  // if (var->kind == EX_REF)
+  //   var = var->unary.sub;
 
   const Vector *params = curfunc->params;
   assert(params != NULL);
@@ -317,8 +317,8 @@ void install_builtins(void) {
     Type *rettype = &tyVoid;
     Vector *params = new_vector();
     vec_push(params, tyVaList);
-    vec_push(params, &tyVoidPtr);
-    Type *type = new_func_type(rettype, params, false);
+    // vec_push(params, &tyVoidPtr);
+    Type *type = new_func_type(rettype, params, true);  // To accept any types, pretend the function as variadic.
 
     add_builtin_function("__builtin_va_start", type, &p_va_start, true);
   }
