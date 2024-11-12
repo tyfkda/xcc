@@ -369,10 +369,10 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
           int64_t offset = address - pc;
 
           if (ELF64_R_TYPE(rela->r_info) == R_RISCV_RVC_BRANCH) {
-            assert(offset < (1 << 7) && offset >= -(1 << 7));
+            assert(offset < (1 << 8) && offset >= -(1 << 8));
             // c.beqz, c.bnez
             uint16_t *q = (uint16_t*)p;
-            assert((*q & 0xc003) == 0xc001);
+            assert((*q & 0xc003) == 0xc001);  // c.beqz or c.bnez
             *q = (*q & 0xe383) | SWIZZLE_C_BXX(offset);
           } else {
             assert(offset < (1 << 13) && offset >= -(1 << 13));

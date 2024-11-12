@@ -9,6 +9,8 @@
 #include "riscv64_code.h"
 #include "util.h"
 
+static unsigned char *asm_mv(Inst *inst, Code *code);
+
 void make_code16(Inst *inst, Code *code, unsigned short *buf, int len) {
   assert(code->len + len <= (int)sizeof(code->buf));
   code->inst = inst;
@@ -48,14 +50,11 @@ static unsigned char *asm_3r(Inst *inst, Code *code) {
   int rd = inst->opr[0].reg.no;
   int rs1 = inst->opr[1].reg.no;
   int rs2 = inst->opr[2].reg.no;
-  if (rd == rs1) {
-    if (inst->op == ADD) {
-      C_ADD(rd, rs2);
-      return code->buf;
-    }
 
+  if (rd == rs1) {
     if (is_rvc_reg(rd) && is_rvc_reg(rs2)) {
       switch (inst->op) {
+      case ADD:   C_ADD(rd, rs2); return code->buf;
       case ADDW:  C_ADDW(rd, rs2); return code->buf;
       case SUB:   C_SUB(rd, rs2); return code->buf;
       case SUBW:  C_SUBW(rd, rs2); return code->buf;
@@ -65,10 +64,25 @@ static unsigned char *asm_3r(Inst *inst, Code *code) {
       default: break;
       }
     }
+  } else if (rd == rs2) {
+    if (is_rvc_reg(rd) && is_rvc_reg(rs1)) {
+      switch (inst->op) {
+      case ADD:   C_ADD(rd, rs1); return code->buf;
+      case ADDW:  C_ADDW(rd, rs1); return code->buf;
+      default: break;
+      }
+    }
   }
 
   switch (inst->op) {
-  case ADD:    W_ADD(rd, rs1, rs2); break;
+  case ADD:
+    if (rd == rs1)
+      C_ADD(rd, rs2);
+    else if (rd == rs2)
+      C_ADD(rd, rs1);
+    else
+      W_ADD(rd, rs1, rs2);
+    break;
   case ADDW:   W_ADDW(rd, rs1, rs2); break;
   case SUB:    W_SUB(rd, rs1, rs2); break;
   case SUBW:   W_SUBW(rd, rs1, rs2); break;
@@ -102,6 +116,13 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
   int rd = inst->opr[0].reg.no;
   int rs = inst->opr[1].reg.no;
   int64_t imm =inst->opr[2].immediate;
+
+  if (inst->op == ADDI && imm == 0) {
+    if (rd != rs)
+      return asm_mv(inst, code);
+    return code->buf;
+  }
+
   if (rd == rs) {
     if (is_im6(imm)) {
       switch (inst->op) {
@@ -381,7 +402,7 @@ static unsigned char *asm_jalr(Inst *inst, Code *code) {
 #define _BLTU  0x6
 #define _BGEU  0x7
 
-static unsigned char *asm_bxx(Inst *inst, Code *code) {
+unsigned char *asm_bxx(Inst *inst, Code *code) {
   int rs1 = inst->opr[0].reg.no;
   int rs2 = inst->opr[1].reg.no;
   if (rs2 == ZERO && is_rvc_reg(rs1)) {
@@ -514,7 +535,7 @@ static unsigned char *asm_fsd(Inst *inst, Code *code) {
     int64_t ofs = offset != NULL ? offset->fixnum : 0;
     int rs2 = inst->opr[0].freg;
     int rs1 = inst->opr[1].indirect.reg.no;
-    if (inst->op == FLD) {
+    if (inst->op == FSD) {
       if (ofs >= 0 && ofs < (1 << 9) && (ofs & 7) == 0 && rs1 == SP) {
         C_FSDSP(rs2, ofs);
         return code->buf;

@@ -2,7 +2,10 @@
 #include "ir_asm.h"
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "inst.h"
 #include "parse_asm.h"
@@ -102,7 +105,7 @@ static bool make_bxx_long(IR *ir) {
   Code *code = &ir->code;
   assert(code->len == 2);
   uint16_t *buf = (uint16_t*)code->buf;
-  assert((*buf & 0xc003) == 0xc001);
+  assert((*buf & 0xc003) == 0xc001);  // c.beqz or c.bnez
   uint16_t s = *buf;
 
   Inst *inst = code->inst;
@@ -234,7 +237,8 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                       (IMM(offset, 11, 11) << 20) | (IMM(offset, 19, 12) << 12);
                   } else {
                     // Linker extends the branch instruction to long offset?
-                    assert(false);
+                    fprintf(stderr, "jump offset too large: %+" PRId64 "\n", offset);
+                    exit(1);
                   }
                 }
               }
@@ -253,7 +257,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                 int64_t offset = target_address - address;
                 comp = inst->opr[1].reg.no == 0 && is_rvc_reg(inst->opr[0].reg.no) &&
                   (inst->op == BEQ || inst->op == BNE) &&
-                  offset < (1 << 7) && offset >= -(1 << 7);
+                  offset < (1 << 8) && offset >= -(1 << 8);
 
                 assert(inst->opr[1].type == REG);
                 // Put rela even if the label is defined in the same object file.
@@ -265,6 +269,8 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                 info->offset = address - start_address;
                 info->add = value.offset;
                 vec_push(unresolved, info);
+              } else {
+                target_address = address + value.offset;
               }
 
               if (target_address != 0) {
@@ -273,22 +279,50 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                 bool is_long = ir->code.flag & INST_LONG_OFFSET;
                 if (!is_long) {
                   assert(code->len == 2);
-                  if (offset < (1 << 7) && offset >= -(1 << 7)) {
+                  if (offset < (1 << 8) && offset >= -(1 << 8)) {
                     uint16_t *buf = (uint16_t*)code->buf;
-                    assert((*buf & 0xc003) == 0xc001);
+                    assert((*buf & 0xc003) == 0xc001);  // c.beqz or c.bnez
                     *buf = (*buf & 0xe383) | SWIZZLE_C_BXX(offset);
                   } else {
                     size_upgraded |= make_bxx_long(ir);
                   }
                 } else {
-                  if (offset < (1 << 11) && offset >= -(1 << 11)) {
+                  if (offset < (1 << 12) && offset >= -(1 << 12)) {
                     assert(code->len == 4);
                     uint32_t *buf = (uint32_t*)code->buf;
                     // STYPE
                     buf[0] = (buf[0] & 0x01fff07f) | SWIZZLE_BXX(offset);
                   } else {
-                    // Linker extends the branch instruction to long offset?
-                    // assert(false);
+                    extern unsigned char *asm_bxx(Inst *inst, Code *code);
+
+                    // Insert `j` instruction and skip it with inverted conditional branch.
+                    Expr *destination = inst->opr[2].direct.expr;
+                    enum Opcode inv = ((inst->op - BEQ) ^ 1) + BEQ;  // BEQ <=> BNE, BLT <=> BGE, BLTU <=> BGEU
+                    inst->op = inv;
+
+                    Expr *skip = new_expr(EX_FIXNUM);
+                    inst->opr[2].direct.expr = skip;
+                    ir->code.flag &= ~INST_LONG_OFFSET;
+                    ir->code.len = 0;
+                    asm_bxx(inst, &ir->code);  // Reassemble the instruction.
+
+                    // `J`
+                    Code jcode, *code = &jcode;
+                    {
+                      Inst *inst = calloc_or_die(sizeof(*inst));
+                      inst->op = J;
+                      inst->opr[0].type = DIRECT;
+                      inst->opr[0].direct.expr = destination;
+                      memset(code, 0, sizeof(*code));
+                      W_JAL(ZERO, 0);
+                      code->flag = INST_LONG_OFFSET;  // Start with long offset.
+                    }
+                    skip->fixnum = 4 + jcode.len;  // Skip `J` instruction.
+
+                    IR *jmp = new_ir_code(code);
+                    jmp->address = address;  // Temporary address.
+                    vec_insert(irs, i + 1, jmp);
+                    size_upgraded = true;
                   }
                 }
               }

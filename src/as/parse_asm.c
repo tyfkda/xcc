@@ -643,9 +643,12 @@ void parse_inst(ParseInfo *info, Line *line) {
       }
 
       Operand *opr = &opr_table[i];
+      const char *before = info->p;
       unsigned int result = parse_operand(info, opr_flags, opr);
-      if (result == 0)
+      if (result == 0) {
+        info->p = before;
         return;  // Error
+      }
 
       for (int j = 0; j < n; ++j) {
         if ((candidates[j]->opr_flags[i] & result) == 0) {
