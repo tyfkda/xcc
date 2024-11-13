@@ -52,15 +52,15 @@ typedef struct SectionInfo {
   int flag;
 
   int index;
-  uintptr_t start_address;
+  uint64_t start_address;
   DataStorage *ds;
   size_t align;
   size_t bss_size;
-  uintptr_t offset;  // File offset.
+  uint64_t offset;  // File offset.
 
   int rela_count;
   void *rela_buf;
-  uintptr_t rela_ofs;
+  uint64_t rela_ofs;
 } SectionInfo;
 
 typedef struct ParseInfo {
@@ -189,7 +189,7 @@ enum LabelKind {
 typedef struct {
   SectionInfo *section;
   int flag;
-  uintptr_t address;
+  uint64_t address;
   enum LabelKind kind;
   int size;
   int align;

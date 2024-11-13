@@ -34,9 +34,9 @@ static void sec_align_size(SectionInfo *section, size_t align) {
     data_align(section->ds, align);
 }
 
-bool calc_label_address(uintptr_t start_address, Vector *sections, Table *label_table) {
+bool calc_label_address(uint64_t start_address, Vector *sections, Table *label_table) {
   bool settle = true;
-  uintptr_t address = start_address;
+  uint64_t address = start_address;
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
     address = ALIGN(address, section->align);
@@ -139,10 +139,10 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
     Vector *irs = section->irs;
-    uintptr_t start_address = irs->len > 0 ? ((IR*)irs->data[0])->address : 0;
+    uint64_t start_address = irs->len > 0 ? ((IR*)irs->data[0])->address : 0;
     for (int i = 0, len = irs->len; i < len; ++i) {
       IR *ir = irs->data[i];
-      uintptr_t address = ir->address;
+      uint64_t address = ir->address;
       switch (ir->kind) {
       case IR_CODE:
         {
@@ -153,7 +153,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
             if (inst->opr[1].type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr[1].direct.expr);
               if (value.label != NULL) {
-                uintptr_t offset = address - start_address;
+                uint64_t offset = address - start_address;
                 UnresolvedInfo *info;
                 info = calloc_or_die(sizeof(*info));
                 info->kind = UNRES_PCREL_HI;
@@ -195,7 +195,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
             break;
           case J:
             if (inst->opr[0].type == DIRECT) {
-              int64_t target_address = 0;
+              uint64_t target_address = 0;
               Value value = calc_expr(label_table, inst->opr[0].direct.expr);
               if (value.label != NULL) {
                 // Put rela even if the label is defined in the same object file.
@@ -215,7 +215,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
 
               if (target_address != 0) {
                 Code *code = &ir->code;
-                int64_t offset = target_address - VOIDP2INT(address);
+                int64_t offset = target_address - address;
                 bool is_long = ir->code.flag & INST_LONG_OFFSET;
                 if (!is_long) {
                   assert(code->len == 2);
@@ -243,14 +243,14 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
           case BEQ: case BNE: case BLT: case BGE: case BLTU: case BGEU:
             if (inst->opr[2].type == DIRECT) {
               bool comp = false;
-              int64_t target_address = 0;
+              uint64_t target_address = 0;
               Value value = calc_expr(label_table, inst->opr[2].direct.expr);
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
                 if (label_info != NULL)
                   target_address = label_info->address + value.offset;
 
-                int64_t offset = target_address - VOIDP2INT(address);
+                int64_t offset = target_address - address;
                 comp = inst->opr[1].reg.no == 0 && is_rvc_reg(inst->opr[0].reg.no) &&
                   (inst->op == BEQ || inst->op == BNE) &&
                   offset < (1 << 7) && offset >= -(1 << 7);
@@ -269,7 +269,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
 
               if (target_address != 0) {
                 Code *code = &ir->code;
-                int64_t offset = target_address - VOIDP2INT(address);
+                int64_t offset = target_address - address;
                 bool is_long = ir->code.flag & INST_LONG_OFFSET;
                 if (!is_long) {
                   assert(code->len == 2);

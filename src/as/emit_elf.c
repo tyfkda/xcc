@@ -2,7 +2,7 @@
 
 #if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
 #include <assert.h>
-#include <stdint.h>  // uintptr_t
+#include <stdint.h>  // uint64_t
 #include <stdio.h>
 #include <string.h>
 
@@ -325,7 +325,7 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
   // Construct relas.
   construct_relas(unresolved, &symtab, label_table);
 
-  uintptr_t addr = sizeof(Elf64_Ehdr);
+  uint64_t addr = sizeof(Elf64_Ehdr);
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
     size_t size;
@@ -343,9 +343,9 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
     addr += sizeof(Elf64_Rela) * section->rela_count;
   }
 
-  uintptr_t symtab_ofs = addr = ALIGN(addr, ELF_MIN_ALIGN);
+  uint64_t symtab_ofs = addr = ALIGN(addr, ELF_MIN_ALIGN);
   addr += sizeof(*symtab.buf) * symtab.count;
-  uintptr_t strtab_ofs = addr;
+  uint64_t strtab_ofs = addr;
   addr += symtab.strtab.size;
 
   // Section headers.
@@ -448,7 +448,7 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
   };
   data_append(&section_headers, &symtabsec, sizeof(symtabsec));
 
-  uintptr_t shstrtab_ofs = addr;  // ALIGN(addr, 0x10);
+  uint64_t shstrtab_ofs = addr;  // ALIGN(addr, 0x10);
   size_t shstrtab_name = strtab_add(&shstrtab, alloc_name(".shstrtab", NULL, false));
   Elf64_Shdr shstrtabsec = {
     .sh_name = shstrtab_name,
@@ -460,7 +460,7 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
   data_append(&section_headers, &shstrtabsec, sizeof(shstrtabsec));
   addr += shstrtab.size;
 
-  uintptr_t sh_ofs = addr = ALIGN(addr, 0x10);
+  uint64_t sh_ofs = addr = ALIGN(addr, 0x10);
   // addr += section_headers.len;
 
   //
@@ -476,7 +476,7 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
     }
   }
 
-  uintptr_t entry = 0;
+  uint64_t entry = 0;
   int phnum = 0;
 #if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
   const int flags = EF_RISCV_RVC | EF_RISCV_FLOAT_ABI_DOUBLE;

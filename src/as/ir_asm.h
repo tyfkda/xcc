@@ -3,7 +3,7 @@
 #pragma once
 
 #include <stddef.h>  // size_t
-#include <stdint.h>  // uintptr_t
+#include <stdint.h>  // uint64_t
 
 #include "asm_code.h"  // Code
 
@@ -78,7 +78,7 @@ typedef struct {
     int align;
     int section;
   };
-  uintptr_t address;
+  uint64_t address;
 } IR;
 
 IR *new_ir_label(const Name *label);
@@ -89,6 +89,6 @@ IR *new_ir_zero(size_t size);
 IR *new_ir_align(int align);
 IR *new_ir_expr(enum IrKind kind, const Expr *expr);
 
-bool calc_label_address(uintptr_t start_address, Vector *sections, Table *label_table);
+bool calc_label_address(uint64_t start_address, Vector *sections, Table *label_table);
 bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unresolved);
 void emit_irs(Vector *sections);

@@ -32,9 +32,9 @@ static void sec_align_size(SectionInfo *section, size_t align) {
     data_align(section->ds, align);
 }
 
-bool calc_label_address(uintptr_t start_address, Vector *sections, Table *label_table) {
+bool calc_label_address(uint64_t start_address, Vector *sections, Table *label_table) {
   bool settle = true;
-  uintptr_t address = start_address;
+  uint64_t address = start_address;
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
     address = ALIGN(address, section->align);
@@ -100,10 +100,10 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
     Vector *irs = section->irs;
-    uintptr_t start_address = irs->len > 0 ? ((IR*)irs->data[0])->address : 0;
+    uint64_t start_address = irs->len > 0 ? ((IR*)irs->data[0])->address : 0;
     for (int i = 0, len = irs->len; i < len; ++i) {
       IR *ir = irs->data[i];
-      uintptr_t address = ir->address;
+      uint64_t address = ir->address;
       switch (ir->kind) {
       case IR_CODE:
         {
@@ -208,7 +208,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                 }
               }
 
-              intptr_t offset = value.offset - VOIDP2INT(address);
+              int64_t offset = value.offset - address;
               if (inst->op == B) {
                 if (offset >= (1L << 27) || offset < -(1L << 27) || (offset & 3) != 0)
                   error("Jump offset too far (over 32bit)");

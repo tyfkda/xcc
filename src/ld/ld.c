@@ -59,7 +59,7 @@ typedef struct {
       Vector *list;  // <ElfSectionInfo*>
     } section;
     struct {
-      uintptr_t address;
+      uint64_t address;
     } symbol;
     Elf64_Xword align;
   };
@@ -73,7 +73,7 @@ static LinkElem *new_link_elem(enum LinkElemKind kind) {
 
 typedef struct {
   size_t align;
-  uintptr_t start_address;
+  uint64_t start_address;
   DataStorage *ds;
   size_t bss_size;
 } SectionGroup;
@@ -121,7 +121,7 @@ void ld_load(LinkEditor *ld, int i, const char *filename) {
   }
 }
 
-static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
+static uint64_t ld_symbol_address(LinkEditor *ld, const Name *name) {
   ElfObj *elfobj = table_get(ld->symbol_table, name);
   if (elfobj != NULL) {
     Elf64_Sym *sym = elfobj_find_symbol(elfobj, name);
@@ -130,7 +130,7 @@ static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
     if (shndx == SHN_COMMON) {
       if (elfobj->nobit_shndx < 0) {
         // Error.
-        return (uintptr_t)-1;
+        return (uint64_t)-1;
       }
       shndx = elfobj->nobit_shndx;
     }
@@ -151,7 +151,7 @@ static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
       return elem->symbol.address;
     }
   }
-  return (uintptr_t)-1;
+  return (uint64_t)-1;
 }
 
 // RISC-V
@@ -179,8 +179,8 @@ static uintptr_t ld_symbol_address(LinkEditor *ld, const Name *name) {
 #define W_ADDI(rd, rs, imm)       ITYPE(imm, rs, 0x00, rd, 0x13)
 #define P_NOP()                   W_ADDI(ZERO, ZERO, 0)
 
-static uintptr_t calc_rela_sym_address(LinkEditor *ld, ElfObj *elfobj, const Elf64_Rela *rela, const Elf64_Sym *sym, const ElfSectionInfo *strinfo) {
-  uintptr_t address = 0;
+static uint64_t calc_rela_sym_address(LinkEditor *ld, ElfObj *elfobj, const Elf64_Rela *rela, const Elf64_Sym *sym, const ElfSectionInfo *strinfo) {
+  uint64_t address = 0;
   switch (ELF64_ST_BIND(sym->st_info)) {
   case STB_LOCAL:
     if (ELF64_ST_TYPE(sym->st_info) == STT_SECTION) {
@@ -192,11 +192,11 @@ static uintptr_t calc_rela_sym_address(LinkEditor *ld, ElfObj *elfobj, const Elf
       if (shndx == SHN_COMMON) {
         if (elfobj->nobit_shndx < 0) {
           // Error.
-          return (uintptr_t)-1;
+          return (uint64_t)-1;
         }
         shndx = elfobj->nobit_shndx;
       }
-      uintptr_t sectop = elfobj->section_infos[shndx].progbits.address;
+      uint64_t sectop = elfobj->section_infos[shndx].progbits.address;
       address = sectop + sym->st_value;
     }
     break;
@@ -205,7 +205,7 @@ static uintptr_t calc_rela_sym_address(LinkEditor *ld, ElfObj *elfobj, const Elf
     {
       const char *label = &strinfo->strtab.buf[sym->st_name];
       address = ld_symbol_address(ld, alloc_name(label, NULL, false));
-      assert(address != (uintptr_t)-1);
+      assert(address != (uint64_t)-1);
     }
     break;
   default: assert(false); break;
@@ -238,10 +238,10 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       const Elf64_Rela *rela = &relas[j];
       assert(ELF64_R_SYM(rela->r_info) < symbol_count);
       const Elf64_Sym *sym = &symhdrinfo->symtab.syms[ELF64_R_SYM(rela->r_info)];
-      uintptr_t address = calc_rela_sym_address(ld, elfobj, rela, sym, strinfo);
+      uint64_t address = calc_rela_sym_address(ld, elfobj, rela, sym, strinfo);
 
       void *p = dst_info->progbits.content + rela->r_offset;
-      uintptr_t pc = elfobj->section_infos[shdr->sh_info].progbits.address + rela->r_offset;
+      uint64_t pc = elfobj->section_infos[shdr->sh_info].progbits.address + rela->r_offset;
       switch (ELF64_R_TYPE(rela->r_info)) {
 #if XCC_TARGET_ARCH == XCC_ARCH_X64
       case R_X86_64_64:
@@ -333,8 +333,8 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
           assert((ELF64_R_TYPE(rela->r_info) == R_RISCV_PCREL_LO12_I && ELF64_R_TYPE(hirela->r_info) == R_RISCV_PCREL_HI20) ||
                  (ELF64_R_TYPE(rela->r_info) == R_RISCV_LO12_I && ELF64_R_TYPE(hirela->r_info) == R_RISCV_HI20));
           const Elf64_Sym *hisym = &symhdrinfo->symtab.syms[ELF64_R_SYM(hirela->r_info)];
-          uintptr_t hiaddress = calc_rela_sym_address(ld, elfobj, hirela, hisym, strinfo);
-          uintptr_t hipc = elfobj->section_infos[shdr->sh_info].progbits.address + hirela->r_offset;
+          uint64_t hiaddress = calc_rela_sym_address(ld, elfobj, hirela, hisym, strinfo);
+          uint64_t hipc = elfobj->section_infos[shdr->sh_info].progbits.address + hirela->r_offset;
 
           int64_t offset = hiaddress - (ELF64_R_TYPE(rela->r_info) == R_RISCV_PCREL_LO12_I ? hipc : 0);
           assert(offset < (1L << 31) && offset >= -(1L << 31));
@@ -568,8 +568,8 @@ static void ld_collect_sections(LinkEditor *ld, const char *name, Vector *seclis
   }
 }
 
-static void ld_calc_address(SectionGroup section_groups[SECTION_COUNT], Vector *section_lists[SECTION_COUNT], uintptr_t start_address) {
-  uintptr_t address = start_address;
+static void ld_calc_address(SectionGroup section_groups[SECTION_COUNT], Vector *section_lists[SECTION_COUNT], uint64_t start_address) {
+  uint64_t address = start_address;
   for (int secno = 0; secno < SECTION_COUNT; ++secno) {
     Vector *v = section_lists[secno];
     if (v->len <= 0)
@@ -661,7 +661,7 @@ static void output_section(FILE *fp, SectionGroup *secgroup) {
   fwrite(buf, ds->len, 1, fp);
 }
 
-static bool output_exe(const char *ofn, uintptr_t entry_address, SectionGroup section_groups[SECTION_COUNT]) {
+static bool output_exe(const char *ofn, uint64_t entry_address, SectionGroup section_groups[SECTION_COUNT]) {
   int phnum = section_groups[SEC_DATA].ds->len > 0 || section_groups[SEC_DATA].bss_size > 0 ? 2 : 1;
 
   FILE *fp;
@@ -689,13 +689,13 @@ static bool output_exe(const char *ofn, uintptr_t entry_address, SectionGroup se
   out_program_header(fp, 0, PROG_START, section_groups[SEC_TEXT].start_address, code_rodata_sz, code_rodata_sz);
   if (phnum > 1) {
     size_t datamemsz = section_groups[SEC_DATA].ds->len + section_groups[SEC_DATA].bss_size;
-    uintptr_t offset = PROG_START + code_rodata_sz;
+    uint64_t offset = PROG_START + code_rodata_sz;
     if (section_groups[SEC_DATA].ds->len > 0)
       offset = ALIGN(offset, DATA_ALIGN);
     out_program_header(fp, 1, offset, section_groups[SEC_DATA].start_address, section_groups[SEC_DATA].ds->len, datamemsz);
   }
 
-  uintptr_t addr = PROG_START;
+  uint64_t addr = PROG_START;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     addr = ALIGN(addr, section_groups[sec].align);
     size_t size = section_groups[sec].ds->len;
@@ -717,7 +717,7 @@ static bool output_exe(const char *ofn, uintptr_t entry_address, SectionGroup se
 typedef struct {
   const char *filename;
   const char *name;
-  uintptr_t address;
+  uint64_t address;
   int flag;
 } DumpSymbol;
 
@@ -731,7 +731,7 @@ static void dump_map_elfobj(LinkEditor *ld, ElfObj *elfobj, File *file, ArConten
       continue;
 
     const char *name = &strbuf[sym->st_name];
-    uintptr_t address = 0;
+    uint64_t address = 0;
     int flag = 0;
     unsigned char bind = ELF64_ST_BIND(sym->st_info);
     switch (bind) {
@@ -767,7 +767,7 @@ static void dump_map_file(LinkEditor *ld, Vector *symbols) {
   const Name *name;
   for (int it = 0; (it = table_iterate(ld->generated_symbol_table, it, &name, (void**)&elem)) != -1; ) {
     assert(elem->kind == LEK_SYMBOL);
-    uintptr_t address = elem->symbol.address;
+    uint64_t address = elem->symbol.address;
     DumpSymbol *ds = calloc_or_die(sizeof(*ds));
     ds->filename = "*generated*";
     ds->name = name->chars;  // TODO: Confirm nul-terminated.
@@ -802,7 +802,7 @@ static int sort_dump_symbol(const void *a, const void *b) {
   return a < b ? -1 : 1;
 }
 
-static bool output_map_file(LinkEditor *ld, const char *outmapfn, uintptr_t entry_address, const Name *entry_name) {
+static bool output_map_file(LinkEditor *ld, const char *outmapfn, uint64_t entry_address, const Name *entry_name) {
   Vector *symbols = new_vector();  // <DumpSymbol*>
   dump_map_file(ld, symbols);
   qsort(symbols->data, symbols->len, sizeof(*symbols->data), sort_dump_symbol);
@@ -830,11 +830,11 @@ static bool output_map_file(LinkEditor *ld, const char *outmapfn, uintptr_t entr
     char fc = kFlagChars[ds->flag & (DSF_WEAK | DSF_LOCAL)];
     if (fc == '\0')
       fc = 'G';
-    fprintf(mapfp, "%9lx: %c %s  (%s)\n", ds->address, fc, ds->name, ds->filename);
+    fprintf(mapfp, "%9" PRIx64 ": %c %s  (%s)\n", ds->address, fc, ds->name, ds->filename);
   }
 
   fprintf(mapfp, "\n### Entry point\n");
-  fprintf(mapfp, "%9lx: %.*s\n", entry_address, NAMES(entry_name));
+  fprintf(mapfp, "%9" PRIx64 ": %.*s\n", entry_address, NAMES(entry_name));
 
   if (mapfp != stdout)
     fclose(mapfp);
@@ -1130,8 +1130,8 @@ static int do_link(Vector *sources, const Options *opts) {
 
   collect_section_data(section_lists, section_groups);
 
-  uintptr_t entry_address = ld_symbol_address(ld, entry_name);
-  assert(entry_address != (uintptr_t)-1);
+  uint64_t entry_address = ld_symbol_address(ld, entry_name);
+  assert(entry_address != (uint64_t)-1);
 
   bool result = output_exe(opts->ofn, entry_address, section_groups);
 

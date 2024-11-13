@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdint.h>  // intptr_t
+#include <stdint.h>  // int64_t
 #include <stdio.h>  // FILE
 
 #include "lexer.h"  // TokenKind, Token
@@ -8,7 +8,7 @@
 typedef struct Macro Macro;
 typedef struct Vector Vector;
 
-typedef intptr_t PpResult;
+typedef int64_t PpResult;
 
 typedef struct {
   const char *filename;

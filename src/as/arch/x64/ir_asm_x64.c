@@ -33,9 +33,9 @@ static void sec_align_size(SectionInfo *section, size_t align) {
     data_align(section->ds, align);
 }
 
-bool calc_label_address(uintptr_t start_address, Vector *sections, Table *label_table) {
+bool calc_label_address(uint64_t start_address, Vector *sections, Table *label_table) {
   bool settle = true;
-  uintptr_t address = start_address;
+  uint64_t address = start_address;
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
     address = ALIGN(address, section->align);
@@ -94,7 +94,7 @@ bool calc_label_address(uintptr_t start_address, Vector *sections, Table *label_
   return settle;
 }
 
-static void put_value(unsigned char *p, intptr_t value, int size) {
+static void put_value(unsigned char *p, int64_t value, int size) {
   for (int i = 0; i < size; ++i) {
     *p++ = value;
     value >>= 8;
@@ -123,10 +123,10 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
     Vector *irs = section->irs;
-    uintptr_t start_address = irs->len > 0 ? ((IR*)irs->data[0])->address : 0;
+    uint64_t start_address = irs->len > 0 ? ((IR*)irs->data[0])->address : 0;
     for (int i = 0, len = irs->len; i < len; ++i) {
       IR *ir = irs->data[i];
-      uintptr_t address = ir->address;
+      uint64_t address = ir->address;
       switch (ir->kind) {
       case IR_CODE:
         {
@@ -167,7 +167,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                 put_value(ir->code.buf + 3, value.offset, sizeof(int32_t));
 #endif
               } else {
-                intptr_t offset = value.offset - (VOIDP2INT(address) + ir->code.len);
+                int64_t offset = value.offset - (address + ir->code.len);
                 put_value(ir->code.buf + 3, offset, sizeof(int32_t));
               }
             }
@@ -198,7 +198,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                 }
               }
 
-              intptr_t offset = value.offset - (VOIDP2INT(address) + ir->code.len);
+              int64_t offset = value.offset - (address + ir->code.len);
               bool long_offset = ir->code.flag & INST_LONG_OFFSET;
               if (!long_offset) {
                 if (!is_im8(offset)) {
@@ -228,7 +228,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                 vec_push(unresolved, info);
                 break;
               }
-              intptr_t offset = value.offset - (VOIDP2INT(address) + ir->code.len);
+              int64_t offset = value.offset - (address + ir->code.len);
               put_value(ir->code.buf + 1, offset, sizeof(int32_t));
             }
             break;

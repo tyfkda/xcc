@@ -298,15 +298,15 @@ void show_error_line(const char *line, const char *p, int len) {
   }
 }
 
-bool is_im8(intptr_t x) {
+bool is_im8(int64_t x) {
   return x <= ((1L << 7) - 1) && x >= -(1L << 7);
 }
 
-bool is_im16(intptr_t x) {
+bool is_im16(int64_t x) {
   return x <= ((1L << 15) - 1) && x >= -(1L << 15);
 }
 
-bool is_im32(intptr_t x) {
+bool is_im32(int64_t x) {
   return x <= ((1L << 31) - 1) && x >= -(1L << 31);
 }
 

@@ -105,15 +105,15 @@ const RegAllocSettings kArchRegAllocSettings = {
 
 //
 
-extern inline bool is_im9(intptr_t x) {
+extern inline bool is_im9(int64_t x) {
   return x <= ((1L << 8) - 1) && x >= -(1L << 8);
 }
 
-extern inline bool is_im13(intptr_t x) {
+extern inline bool is_im13(int64_t x) {
   return x <= ((1L << 12) - 1) && x >= -(1L << 12);
 }
 
-extern inline bool is_im48(intptr_t x) {
+extern inline bool is_im48(int64_t x) {
   return x <= ((1L << 47) - 1) && x >= -(1L << 47);
 }
 
