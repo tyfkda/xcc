@@ -7,7 +7,6 @@
 #define SP    2
 
 #define IMM(imm, t, b)  (((imm) >> (b)) & ((1 << (t - b + 1)) - 1))
-#define SWIZZLE_JAL(ofs)  ((IMM(ofs, 20, 20) << 31) | (IMM(ofs, 10, 1) << 21) | (IMM(ofs, 11, 11) << 20) | (IMM(ofs, 19, 12) << 12))
 
 // Instruction formats: 32bit=[7|5|5|3|5|7]
 #define RTYPE(funct7, rs2, rs1, funct3, rd, opcode)  (((funct7) << 25) | ((rs2) << 20) | ((rs1) << 15) | ((funct3) << 12) | ((rd) << 7) | (opcode))
@@ -66,7 +65,7 @@
 #define W_AUIPC(rd, imm)          MAKE_CODE32(inst, code, UTYPE(imm, rd, 0x17))
 #define W_JAL(rd, imm)            MAKE_CODE32(inst, code, UTYPE(SWIZZLE_JAL(imm), rd, 0x6f))
 #define W_JALR(rd, rs, imm)       MAKE_CODE32(inst, code, ITYPE(imm, rs, 0x00, rd, 0x67))
-#define W_BXX(xx, rs1, rs2, ofs)  MAKE_CODE32(inst, code, STYPE(ofs, rs2, rs1, xx, 0x63))
+#define W_BXX(xx, rs1, rs2, ofs)  MAKE_CODE32(inst, code, STYPE(0, rs2, rs1, xx, 0x63) | SWIZZLE_BXX(ofs))
 #define W_ECALL()                 MAKE_CODE32(inst, code, UTYPE(0, 0, 0x73))
 
 #define W_FADD_D(rd, rs1, rs2)    MAKE_CODE32(inst, code, RTYPE(0x01, rs2, rs1, 0x07, rd, 0x53))
@@ -186,6 +185,7 @@
 #define SWIZZLE_BXX(offset) \
     ((IMM(offset, 12, 12) << 31) | (IMM(offset, 10, 5) << 25) | \
      (IMM(offset, 4, 1) << 8) | (IMM(offset, 11, 11) << 7))
+#define SWIZZLE_JAL(ofs)  ((IMM(ofs, 20, 20) << 31) | (IMM(ofs, 10, 1) << 21) | (IMM(ofs, 11, 11) << 20) | (IMM(ofs, 19, 12) << 12))
 
 inline bool is_rvc_reg(int reg)  { return reg >= 8 && reg <= 15; }  // X8~X15
 inline int to_rvc_reg(int reg)  { return reg - 8; }
