@@ -173,10 +173,10 @@ static uint64_t ld_symbol_address(LinkEditor *ld, const Name *name) {
      (IMM(offset, 4, 1) << 8) | (IMM(offset, 11, 11) << 7))
 
 #define MAKE_CODE32(x)            (x)
-#define ITYPE(imm, rs1, funct3, rd, opcode)          MAKE_CODE32((IMM(imm, 11, 0) << 20) | ((rs1) << 15) | ((funct3) << 12) | ((rd) << 7) | (opcode))
-#define UTYPE(imm, rd, opcode)                       MAKE_CODE32((IMM(imm, 31, 12) << 12) | ((rd) << 7) | (opcode))
-#define W_JAL(rd, imm)            UTYPE(SWIZZLE_JAL(imm), rd, 0x6f)
-#define W_ADDI(rd, rs, imm)       ITYPE(imm, rs, 0x00, rd, 0x13)
+#define ITYPE(imm, rs1, funct3, rd, opcode)          ((IMM(imm, 11, 0) << 20) | ((rs1) << 15) | ((funct3) << 12) | ((rd) << 7) | (opcode))
+#define UTYPE(imm, rd, opcode)                       ((IMM(imm, 31, 12) << 12) | ((rd) << 7) | (opcode))
+#define W_JAL(rd, imm)            MAKE_CODE32(UTYPE(SWIZZLE_JAL(imm), rd, 0x6f))
+#define W_ADDI(rd, rs, imm)       MAKE_CODE32(ITYPE(imm, rs, 0x00, rd, 0x13))
 #define P_NOP()                   W_ADDI(ZERO, ZERO, 0)
 
 static uint64_t calc_rela_sym_address(LinkEditor *ld, ElfObj *elfobj, const Elf64_Rela *rela, const Elf64_Sym *sym, const ElfSectionInfo *strinfo) {
