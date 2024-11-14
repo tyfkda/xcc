@@ -93,7 +93,9 @@ int main(int argc, char *argv[]) {
       return 0;
 
     case 'O':
-      {
+      if (optarg == NULL) {
+        cc_flags.optimize_level = 2;
+      } else {
         char c = optarg[0];
         switch (c) {
         case '0':
