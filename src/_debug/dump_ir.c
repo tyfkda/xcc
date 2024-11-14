@@ -22,9 +22,11 @@ static bool keep_virtual_register;
 
 extern void install_builtins(void);
 
+static const char *kSize[] = {".b", ".w", ".d", ""};
+
 static void dump_vvreg(FILE *fp, VReg *vreg, RegAlloc *ra) {
   if (vreg->original == vreg) {
-    fprintf(fp, "V%d", vreg->virt);
+    fprintf(fp, "V%d%s", vreg->virt, kSize[vreg->vsize]);
   } else {
     Vector *versions = ra->vreg_table[vreg->original->virt];
     int version;
@@ -41,14 +43,13 @@ static void dump_vvreg(FILE *fp, VReg *vreg, RegAlloc *ra) {
       *(--p) = 'a' + (version % 26);
       version /= 26;
     } while (version > 0);
-    fprintf(fp, "v%d%s", vreg->original->virt, p);
+    fprintf(fp, "v%d%s%s", vreg->original->virt, p, kSize[vreg->vsize]);
   }
 }
 
 static void dump_vreg(FILE *fp, VReg *vreg, RegAlloc *ra) {
   assert(vreg != NULL);
   assert(!(vreg->flag & VRF_SPILLED));
-  static const char *kSize[] = {"b", "w", "d", ""};
   if (vreg->flag & VRF_CONST) {
 #ifndef __NO_FLONUM
     if (vreg->flag & VRF_FLONUM) {
@@ -97,17 +98,18 @@ static void dump_ir(FILE *fp, IR *ir, RegAlloc *ra) {
   static char *kCond[] = {NULL, "MP", "EQ", "NE", "LT", "LE", "GE", "GT", NULL, "MP", "EQ", "NE", "ULT", "ULE", "UGE", "UGT"};
   static char *kCond2[] = {NULL, "MP", "==", "!=", "<", "<=", ">=", ">", NULL, "MP", "==", "!=", "<", "<=", ">=", ">"};
 
+  const char *us = ir->flag & IRF_UNSIGNED ? "U" : "";
   switch (ir->kind) {
   case IR_DIV:
   case IR_MOD:
-    fprintf(fp, "%s%s\t", kOps[ir->kind], ir->flag & IRF_UNSIGNED ? "U" : "");
+    fprintf(fp, "%s%s\t", kOps[ir->kind], us);
     break;
   case IR_JMP:
-    fprintf(fp, "J%s\t", kCond[ir->jmp.cond & (COND_MASK | COND_UNSIGNED)]);
+    fprintf(fp, "J%s%s\t", kCond[ir->jmp.cond & (COND_MASK | COND_UNSIGNED)], us);
     break;
   default:
     assert(0 <= ir->kind && ir->kind <= IR_ASM);
-    fprintf(fp, "%s\t", kOps[ir->kind]);
+    fprintf(fp, "%s%s\t", kOps[ir->kind], us);
     break;
   }
 
