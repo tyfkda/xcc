@@ -314,6 +314,26 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
   if (is_bool(type))
     return make_cond(sub);
 
+#if XCC_TARGET_ARCH == XCC_ARCH_X64 && !defined(__NO_FLONUM)
+  // On x64, cannot cast from double to uint64_t directly.
+  size_t dst_size = type_size(type);
+  if (is_flonum(sub->type) &&
+      is_fixnum(type->kind) && type->fixnum.is_unsigned && dst_size >= 8) {
+    // Transform from (uint64_t)flonum
+    //   to: (flonum <= INT64_MAX) ? (int64_t)flonum
+    //                             : ((int64_t)(flonum - (INT64_MAX + 1UL)) ^ (1L << 63))
+    Type *i64t = get_fixnum_type_from_size(dst_size);
+    Expr *cond = new_expr_bop(EX_LE, &tyBool, token, sub,
+                              new_expr_flolit(sub->type, sub->token, INT64_MAX));
+    Expr *offsetted = new_expr_addsub(
+        EX_SUB, token, sub,
+        new_expr_flolit(sub->type, sub->token, (uint64_t)INT64_MAX + 1UL));
+    Expr *xorred = new_expr_bop(EX_BITXOR, i64t, token, make_cast(i64t, token, offsetted, false),
+                                new_expr_fixlit(i64t, token, (uint64_t)1 << 63));
+    sub = new_expr_ternary(token, cond, make_cast(i64t, token, sub, false), xorred, i64t);
+  }
+#endif
+
   return new_expr_cast(type, token, sub);
 }
 

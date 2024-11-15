@@ -156,28 +156,6 @@ static VReg *gen_cast(Expr *expr) {
   if (is_bool(dst_type))
     return gen_expr(make_cond(src));
 
-  int dst_size = type_size(dst_type);
-#if XCC_TARGET_ARCH == XCC_ARCH_X64 && !defined(__NO_FLONUM)
-  // On x64, cannot cast from double to uint64_t directly.
-  if (is_flonum(src->type) &&
-      is_fixnum(dst_type->kind) && dst_type->fixnum.is_unsigned && dst_size >= 8) {
-    // Transform from (uint64_t)flonum
-    //   to: (flonum <= INT64_MAX) ? (int64_t)flonum
-    //                             : ((int64_t)(flonum - (INT64_MAX + 1UL)) ^ (1L << 63))
-    const Token *token = expr->token;
-    Type *i64t = get_fixnum_type_from_size(dst_size);
-    Expr *cond = new_expr_bop(EX_LE, &tyBool, token, src,
-                              new_expr_flolit(src->type, src->token, INT64_MAX));
-    Expr *offsetted = new_expr_addsub(
-        EX_SUB, token, src,
-        new_expr_flolit(src->type, src->token, (uint64_t)INT64_MAX + 1UL));
-    Expr *xorred = new_expr_bop(EX_BITXOR, i64t, token, make_cast(i64t, token, offsetted, false),
-                                new_expr_fixlit(i64t, token, (uint64_t)1 << 63));
-    Expr *ternary = new_expr_ternary(token, cond, make_cast(i64t, token, src, false), xorred, i64t);
-    return gen_expr(make_cast(dst_type, token, ternary, false));
-  }
-#endif
-
   VReg *vreg = gen_expr(src);
   assert(!is_bool(dst_type));
 
@@ -188,10 +166,11 @@ static VReg *gen_cast(Expr *expr) {
   default: break;
   }
 
+  size_t dst_size = type_size(dst_type);
   if (vreg->flag & VRF_CONST) {
     assert(!(vreg->flag & VRF_FLONUM));  // No const vreg for flonum.
     Fixnum value = vreg->fixnum;
-    if (dst_size < (1 << vreg->vsize) && dst_size < (int)sizeof(Fixnum)) {
+    if (dst_size < (1U << vreg->vsize) && dst_size < sizeof(Fixnum)) {
       // Assume that integer is represented in Two's complement
       size_t bit = dst_size * TARGET_CHAR_BIT;
       UFixnum mask = (-1UL) << bit;
@@ -205,7 +184,7 @@ static VReg *gen_cast(Expr *expr) {
     return new_const_vreg(value, vsize);
   }
 
-  int src_size = 1 << vreg->vsize;
+  size_t src_size = 1U << vreg->vsize;
   if (dst_size == src_size &&
       is_flonum(dst_type) == ((vreg->flag & VRF_FLONUM) != 0))
     return vreg;
