@@ -599,6 +599,7 @@ static void ei_cond(IR *ir) {
 static void ei_jmp(IR *ir) {
   const char *label = fmt_name(ir->jmp.bb->label);
   int cond = ir->jmp.cond;
+  assert(cond != COND_NONE);
   if (cond == COND_ANY) {
     BRANCH(label);
     return;
