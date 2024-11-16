@@ -85,7 +85,7 @@ enum IrKind {
   IR_CALL,    // Call label or opr1
   IR_RESULT,  // retval = opr1  (Or mov to dst if set)
   IR_SUBSP,   // RSP -= value
-  IR_CAST,    // dst <= opr1
+  IR_CAST,    // dst <- opr1
   IR_MOV,     // dst = opr1
   IR_KEEP,    // To keep live vregs.
   IR_ASM,     // assembler code
@@ -109,11 +109,8 @@ enum {
   COND_FLONUM = 1 << 4,
 };
 
-inline enum ConditionKind swap_cond(enum ConditionKind cond) {
-  if (cond >= COND_LT)
-    cond = (COND_GT + COND_LT) - cond;
-  return cond;
-}
+enum ConditionKind swap_cond(enum ConditionKind cond);
+enum ConditionKind invert_cond(enum ConditionKind cond);
 
 #define IRF_UNSIGNED  (1 << 0)
 
@@ -161,7 +158,7 @@ typedef struct IR {
     struct {
       const Name *label;
       struct IR *precall;
-      VReg **args;
+      VReg **args;  // [total_arg_count]
       int total_arg_count;
       int reg_arg_count;
       int vaarg_start;
@@ -184,7 +181,7 @@ VReg *new_ir_iofs(const Name *label, bool global);
 VReg *new_ir_sofs(VReg *src);
 void new_ir_store(VReg *dst, VReg *src, int flag);
 VReg *new_ir_cond(VReg *opr1, VReg *opr2, enum ConditionKind cond);
-void new_ir_jmp(BB *bb);  // Non-conditional jump
+IR *new_ir_jmp(BB *bb);  // Non-conditional jump
 void new_ir_cjmp(VReg *opr1, VReg *opr2, enum ConditionKind cond, BB *bb);  // Conditional jump
 void new_ir_tjmp(VReg *val, BB **bbs, size_t len);
 IR *new_ir_precall(int arg_count, int stack_args_size);

@@ -9,14 +9,6 @@
 #include "table.h"
 #include "util.h"
 
-inline enum ConditionKind invert_cond(enum ConditionKind cond) {
-  int c = cond & COND_MASK;
-  assert(COND_EQ <= c && c <= COND_GT);
-  int ic = c <= COND_NE ? (COND_NE + COND_EQ) - c
-                        : (assert((COND_LT & 3) == 0), c ^ 2);  // COND_LT + ((c - COND_LT) ^ 2)
-  return ic | (cond & ~COND_MASK);
-}
-
 static IR *is_last_jmp(BB *bb) {
   int len;
   IR *ir;

@@ -8,10 +8,23 @@
 #include "table.h"
 #include "util.h"
 
-static enum VRegSize vtVoidPtr = VRegSize8;
-static enum VRegSize vtBool    = VRegSize4;
+static const enum VRegSize vtVoidPtr = VRegSize8;
+static const enum VRegSize vtBool    = VRegSize4;
 
-inline enum ConditionKind swap_cond(enum ConditionKind cond);
+enum ConditionKind swap_cond(enum ConditionKind cond) {
+  assert((cond & ~COND_MASK) == 0);
+  if (cond >= COND_LT)
+    cond = (COND_GT + COND_LT) - cond;
+  return cond;
+}
+
+enum ConditionKind invert_cond(enum ConditionKind cond) {
+  int c = cond & COND_MASK;
+  assert(COND_EQ <= c && c <= COND_GT);
+  int ic = c <= COND_NE ? (COND_NE + COND_EQ) - c
+                        : (assert((COND_LT & 3) == 0), c ^ 2);  // COND_LT + ((c - COND_LT) ^ 2)
+  return ic | (cond & ~COND_MASK);
+}
 
 // Virtual register
 
@@ -230,10 +243,11 @@ VReg *new_ir_cond(VReg *opr1, VReg *opr2, enum ConditionKind cond) {
   return ir->dst = reg_alloc_spawn(curra, vtBool, 0);
 }
 
-void new_ir_jmp(BB *bb) {
+IR *new_ir_jmp(BB *bb) {
   IR *ir = new_ir(IR_JMP);
   ir->jmp.bb = bb;
   ir->jmp.cond = COND_ANY;
+  return ir;
 }
 
 void new_ir_cjmp(VReg *opr1, VReg *opr2, enum ConditionKind cond, BB *bb) {
