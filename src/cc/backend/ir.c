@@ -386,35 +386,58 @@ BBContainer *new_func_blocks(void) {
 //
 
 void detect_from_bbs(BBContainer *bbcon) {
+  Vector *bbs = bbcon->bbs;
+  int count = bbs->len;
+  if (count <= 0)
+    return;
+
   // Clear all from_bbs
-  for (int i = 0; i < bbcon->bbs->len; ++i) {
-    BB *bb = bbcon->bbs->data[i];
+  for (int i = 0; i < count; ++i) {
+    BB *bb = bbs->data[i];
     vec_clear(bb->from_bbs);
   }
 
-  for (int i = 0; i < bbcon->bbs->len; ++i) {
-    BB *bb = bbcon->bbs->data[i];
+  Table checked;
+  table_init(&checked);
+  Vector unchecked;
+  vec_init(&unchecked);
+  vec_push(&unchecked, bbs->data[0]);
+
+  do {
+    BB *bb = vec_pop(&unchecked);
+    if (table_try_get(&checked, bb->label, NULL))
+      continue;
+    table_put(&checked, bb->label, bb);
+
     Vector *irs = bb->irs;
     if (irs->len > 0) {
-      IR *ir = irs->data[irs->len - 1];
+      IR *ir = irs->data[irs->len - 1];  // JMP must be the last IR.
       switch (ir->kind) {
       case IR_JMP:
-        vec_push(ir->jmp.bb->from_bbs, bb);
-        if (ir->jmp.cond == COND_ANY)
-          continue;
+        {
+          BB *dst = ir->jmp.bb;
+          vec_push(dst->from_bbs, bb);
+          vec_push(&unchecked, dst);
+          if (ir->jmp.cond == COND_ANY)
+            continue;  // Next BB is not reachable.
+        }
         break;
       case IR_TJMP:
         for (size_t j = 0; j < ir->tjmp.len; ++j) {
           BB *nbb = ir->tjmp.bbs[j];
           vec_push(nbb->from_bbs, bb);
+          vec_push(&unchecked, nbb);
         }
         continue;
       default: break;
       }
     }
-    if (bb->next != NULL)
-      vec_push(bb->next->from_bbs, bb);
-  }
+    BB *next = bb->next;
+    if (next != NULL) {
+      vec_push(next->from_bbs, bb);
+      vec_push(&unchecked, next);
+    }
+  } while (unchecked.len > 0);
 }
 
 static bool insert_vreg_into_vec(Vector *vregs, VReg *vreg) {
