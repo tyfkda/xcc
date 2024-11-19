@@ -927,10 +927,9 @@ static void ei_cast(IR *ir) {
       assert(0 <= pows && pows < 4);
       assert(0 <= powd && powd < 4);
       if (ir->flag & IRF_UNSIGNED) {
-        if (pows == 2 && powd == 3) {
-          // MOVZX %64bit, %32bit doesn't exist!
-          if (ir->dst->phys != ir->opr1->phys)
-            MOV(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[pows][ir->dst->phys]);
+        if (pows == 2) {
+          // MOVZX %32bit, %64bit doesn't exist!
+          MOV(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[pows][ir->dst->phys]);
         } else {
           MOVZX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]);
         }
