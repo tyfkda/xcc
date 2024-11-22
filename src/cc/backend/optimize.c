@@ -6,6 +6,7 @@
 
 #include "ir.h"
 #include "regalloc.h"
+#include "ssa.h"
 #include "table.h"
 #include "util.h"
 
@@ -248,6 +249,7 @@ void optimize(RegAlloc *ra, BBContainer *bbcon) {
     peephole(ra, bb);
   }
 
+  make_ssa(ra, bbcon);
   remove_unused_vregs(ra, bbcon);
   remove_unnecessary_bb(bbcon);
   detect_from_bbs(bbcon);

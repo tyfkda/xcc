@@ -21,6 +21,22 @@ static bool keep_virtual_register;
 
 extern void install_builtins(void);
 
+static void dump_vvreg(FILE *fp, VReg *vreg) {
+  if (vreg->version == 0) {
+    fprintf(fp, "V%d", vreg->virt);
+  } else {
+    char buf[16], *p = buf + sizeof(buf);
+    *(--p) = '\0';
+    int version = vreg->version;
+    do {
+      --version;
+      *(--p) = 'a' + (version % 26);
+      version /= 26;
+    } while (version > 0);
+    fprintf(fp, "v%d%s", vreg->orig_virt, p);
+  }
+}
+
 static void dump_vreg(FILE *fp, VReg *vreg) {
   assert(vreg != NULL);
   assert(!(vreg->flag & VRF_SPILLED));
@@ -33,8 +49,20 @@ static void dump_vreg(FILE *fp, VReg *vreg) {
       regtype = 'F';
     fprintf(fp, "%c%d%s<v%d>", regtype, vreg->phys, kSize[vreg->vsize], vreg->virt);
   } else {
-    fprintf(fp, "v%d", vreg->virt);
+    dump_vvreg(fp, vreg);
   }
+}
+
+static void dump_vregs(FILE *fp, const char *title, Vector *regs, bool newline) {
+  fprintf(fp, "%s=[", title);
+  for (int i = 0; i < regs->len; ++i) {
+    VReg *vreg = regs->data[i];
+    fprintf(fp, "%s%d", i==0?"":",", vreg->virt);
+  }
+  if (newline)
+    fprintf(fp, "]\n");
+  else
+    fprintf(fp, "]");
 }
 
 static void dump_ir(FILE *fp, IR *ir) {
@@ -192,6 +220,22 @@ static void dump_func_ir(Function *func) {
         break;
       }
     }
+  } else if (ra->vreg_table != NULL) {
+    for (int i = 0; i < ra->original_vreg_count; ++i) {
+      Vector *vregs = ra->vreg_table[i];
+      assert(vregs != NULL);
+      if (vregs->len <= 1)
+        continue;
+      fprintf(fp, "  V%3d: #%d [", i, vregs->len);
+      for (int j = 0; j < vregs->len; ++j) {
+        VReg *vreg = vregs->data[j];
+        if (j > 0)
+          fprintf(fp, ", ");
+        dump_vreg(fp, vreg);
+        fprintf(fp, "(%d)", vreg->virt);
+      }
+      fprintf(fp, "]\n");
+    }
   }
 
   fprintf(fp, "BB: #%d\n", bbcon->len);
@@ -208,22 +252,10 @@ static void dump_func_ir(Function *func) {
       }
       fprintf(fp, "]");
     }
-    if (bb->in_regs->len > 0) {
-      fprintf(fp, " in=[");
-      for (int j = 0; j < bb->in_regs->len; ++j) {
-        VReg *vreg = bb->in_regs->data[j];
-        fprintf(fp, "%s%d", (j > 0 ? ", " : ""), vreg->virt);
-      }
-      fprintf(fp, "]");
-    }
-    if (bb->out_regs->len > 0) {
-      fprintf(fp, " out=[");
-      for (int j = 0; j < bb->out_regs->len; ++j) {
-        VReg *vreg = bb->out_regs->data[j];
-        fprintf(fp, "%s%d", (j > 0 ? ", " : ""), vreg->virt);
-      }
-      fprintf(fp, "]");
-    }
+    if (bb->in_regs->len > 0)
+      dump_vregs(fp, " in", bb->in_regs, false);
+    if (bb->out_regs->len > 0)
+      dump_vregs(fp, " out", bb->out_regs, false);
     fprintf(fp, "\n");
 
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
