@@ -237,6 +237,13 @@ static void peephole(RegAlloc *ra, BB *bb) {
 }
 
 void optimize(RegAlloc *ra, BBContainer *bbcon) {
+  // Clean up unused IRs.
+  for (int i = 1; i < bbcon->bbs->len; ++i) {
+    BB *bb = bbcon->bbs->data[i];
+    if (bb->from_bbs->len == 0)
+      vec_clear(bb->irs);
+  }
+
   // Peephole
   for (int i = 0; i < bbcon->bbs->len; ++i) {
     BB *bb = bbcon->bbs->data[i];

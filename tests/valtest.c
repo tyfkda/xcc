@@ -383,7 +383,8 @@ TEST(all) {
   }
   {
     int x = 0;
-    switch (1) {
+    int y = 1;
+    switch (y) {
     case 1:
       x = 11;
       break;
@@ -395,7 +396,8 @@ TEST(all) {
   }
   {
     int x = 0;
-    switch (2) {
+    int y = 2;
+    switch (y) {
     case 1:
       x = 11;
       break;
@@ -407,7 +409,8 @@ TEST(all) {
   }
   {
     int x = 0;
-    switch (3) {
+    int y = 3;
+    switch (y) {
     case 1:
       x = 11;
       break;
@@ -416,7 +419,8 @@ TEST(all) {
   }
   {
     int x = 0;
-    switch (1) {
+    int y = 1;
+    switch (y) {
     case 1:
       x += 1;
       // Fallthrough
@@ -435,7 +439,7 @@ TEST(all) {
   {
     int x = 10, *p = &x;
     ++(*p);
-    EXPECT("pointer", 11, x);
+    EXPECT("inc pointee", 11, x);
   }
   {
     int a[3], *p = a;
@@ -614,13 +618,15 @@ TEST(all) {
   }
   {
     int x = 0;
-    if (!(1 && 0))
+    int a = 1, b = 0;
+    if (!(a && b))
       x = 1;
-    EXPECT("conditional !(t && t)", 1, x);
+    EXPECT("conditional !(t && f)", 1, x);
   }
   {
     int x = 0;
-    if (0 || 1)
+    int a = 0, b = 1;
+    if (a || b)
       x = 1;
     EXPECT("conditional (f || t)", 1, x);
   }
@@ -954,7 +960,8 @@ TEST(basic) {
     EXPECT("enum with assign and trailing comma", 11, Eleven);
 
     int x = 0;
-    switch (1) {
+    int y = 1;
+    switch (y) {
     case One: EXPECT_TRUE("enum can use in case"); break;
     default: fail("enum can use in case"); break;
     }
@@ -1074,20 +1081,21 @@ TTT:;
   {
     int x;
     x = 0;
-    switch (0) {
+    int z = 0;
+    switch (z) {
     default: x = 1; break;
     }
     EXPECT("switch w/o case", 1, x);
 
     x = 0;
-    switch (0) {
+    switch (z) {
       x = 1;
     }
     EXPECT("switch w/o case & default", 0, x);
 
 #if !defined(__WASM)
     x = 94;
-    switch (0) {
+    switch (z) {
       if (0) {
         default: x = 49;
       }
