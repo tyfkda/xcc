@@ -6,7 +6,7 @@
 #include <stdint.h>  // int64_t
 #include <stdio.h>
 
-typedef struct BBContainer BBContainer;
+typedef struct Vector BBContainer;
 typedef struct Function Function;
 typedef struct FuncBackend FuncBackend;
 typedef struct Initializer Initializer;

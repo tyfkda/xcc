@@ -221,9 +221,7 @@ extern BB *curbb;
 BB *new_bb(void);
 
 // Basic blocks in a function
-typedef struct BBContainer {
-  Vector *bbs;  // <BB*>
-} BBContainer;
+typedef struct Vector BBContainer;  // <BB*>
 
 BBContainer *new_func_blocks(void);
 void detect_from_bbs(BBContainer *bbcon);

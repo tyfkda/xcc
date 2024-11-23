@@ -160,8 +160,8 @@ static void check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval
   }
 
   int nip = 0;
-  for (int i = 0; i < bbcon->bbs->len; ++i) {
-    BB *bb = bbcon->bbs->data[i];
+  for (int i = 0; i < bbcon->len; ++i) {
+    BB *bb = bbcon->data[i];
 
     set_inout_interval(bb->in_regs, intervals, nip);
 
@@ -208,8 +208,8 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
   const RegAllocSettings *settings = ra->settings;
   int nip = 0;
   unsigned long iargset = 0, fargset = 0;
-  for (int i = 0; i < bbcon->bbs->len; ++i) {
-    BB *bb = bbcon->bbs->data[i];
+  for (int i = 0; i < bbcon->len; ++i) {
+    BB *bb = bbcon->data[i];
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
       IR *ir = bb->irs->data[j];
       if (settings->detect_extra_occupied != NULL) {
@@ -384,8 +384,8 @@ static int insert_load_store_spilled_irs(RegAlloc *ra, BBContainer *bbcon) {
   };
 
   int inserted = 0;
-  for (int i = 0; i < bbcon->bbs->len; ++i) {
-    BB *bb = bbcon->bbs->data[i];
+  for (int i = 0; i < bbcon->len; ++i) {
+    BB *bb = bbcon->data[i];
     Vector *irs = bb->irs;
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];

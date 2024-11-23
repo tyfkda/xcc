@@ -153,7 +153,7 @@ void init_emit(FILE *fp) {
 }
 
 bool function_not_returned(FuncBackend *fnbe) {
-  BB *bb = fnbe->bbcon->bbs->data[fnbe->bbcon->bbs->len - 1];
+  BB *bb = fnbe->bbcon->data[fnbe->bbcon->len - 1];
   if (bb->irs->len > 0) {
     IR *ir = bb->irs->data[bb->irs->len - 1];
     if (ir->kind == IR_JMP && ir->jmp.cond == COND_ANY && ir->jmp.bb != NULL) {
@@ -285,9 +285,9 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
 bool is_fall_path_only(BBContainer *bbcon, int i) {
   if (i == 0)
     return true;
-  BB *bb = bbcon->bbs->data[i], *pbb;
+  BB *bb = bbcon->data[i], *pbb;
   int len;
-  return bb->from_bbs->len == 1 && bb->from_bbs->data[0] == (pbb = bbcon->bbs->data[i - 1]) &&
+  return bb->from_bbs->len == 1 && bb->from_bbs->data[0] == (pbb = bbcon->data[i - 1]) &&
          ((len = pbb->irs->len) == 0 || ((IR*)pbb->irs->data[len - 1])->kind != IR_TJMP);
 }
 

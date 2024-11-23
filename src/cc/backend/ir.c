@@ -378,22 +378,19 @@ BB *new_bb(void) {
 }
 
 BBContainer *new_func_blocks(void) {
-  BBContainer *bbcon = malloc_or_die(sizeof(*bbcon));
-  bbcon->bbs = new_vector();
-  return bbcon;
+  return new_vector();
 }
 
 //
 
 void detect_from_bbs(BBContainer *bbcon) {
-  Vector *bbs = bbcon->bbs;
-  int count = bbs->len;
+  int count = bbcon->len;
   if (count <= 0)
     return;
 
   // Clear all from_bbs
   for (int i = 0; i < count; ++i) {
-    BB *bb = bbs->data[i];
+    BB *bb = bbcon->data[i];
     vec_clear(bb->from_bbs);
   }
 
@@ -401,7 +398,7 @@ void detect_from_bbs(BBContainer *bbcon) {
   table_init(&checked);
   Vector unchecked;
   vec_init(&unchecked);
-  vec_push(&unchecked, bbs->data[0]);
+  vec_push(&unchecked, bbcon->data[0]);
 
   do {
     BB *bb = vec_pop(&unchecked);
@@ -467,8 +464,8 @@ static void propagate_out_regs(VReg *vreg, Vector *froms) {
 
 void analyze_reg_flow(BBContainer *bbcon) {
   // Enumerate in and assigned regsiters for each BB.
-  for (int i = 0; i < bbcon->bbs->len; ++i) {
-    BB *bb = bbcon->bbs->data[i];
+  for (int i = 0; i < bbcon->len; ++i) {
+    BB *bb = bbcon->data[i];
     Vector *in_regs = bb->in_regs;
     Vector *assigned_regs = bb->assigned_regs;
     vec_clear(in_regs);
@@ -493,8 +490,8 @@ void analyze_reg_flow(BBContainer *bbcon) {
 
   // Propagate in_regs to out_regs to from_bbs recursively.
   Vector *dstbbs = new_vector();
-  for (int i = bbcon->bbs->len; --i >= 0; ) {
-    BB *bb = bbcon->bbs->data[i];
+  for (int i = bbcon->len; --i >= 0; ) {
+    BB *bb = bbcon->data[i];
     Vector *from_bbs = bb->from_bbs;
     Vector *in_regs = bb->in_regs;
     for (int j = 0; j < in_regs->len; ++j) {

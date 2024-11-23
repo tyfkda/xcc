@@ -31,9 +31,8 @@ static IR *is_last_jtable(BB *bb) {
 }
 
 static void replace_jmp_destination(BBContainer *bbcon, BB *src, BB *dst) {
-  Vector *bbs = bbcon->bbs;
-  for (int i = 0; i < bbs->len; ++i) {
-    BB *bb = bbs->data[i];
+  for (int i = 0; i < bbcon->len; ++i) {
+    BB *bb = bbcon->data[i];
     if (bb == src)
       continue;
 
@@ -53,14 +52,13 @@ static void replace_jmp_destination(BBContainer *bbcon, BB *src, BB *dst) {
 }
 
 static void remove_unnecessary_bb(BBContainer *bbcon) {
-  Vector *bbs = bbcon->bbs;
   Table keeptbl;
   for (;;) {
     table_init(&keeptbl);
-    assert(bbs->len > 0);
+    assert(bbcon->len > 0);
 
-    for (int i = 0; i < bbs->len; ++i) {
-      BB *bb = bbs->data[i];
+    for (int i = 0; i < bbcon->len; ++i) {
+      BB *bb = bbcon->data[i];
       bool remove = false;
       IR *ir_jmp = is_last_jmp(bb);
       if (bb->irs->len == 0 && bb->next != NULL) {  // Empty BB.
@@ -70,7 +68,7 @@ static void remove_unnecessary_bb(BBContainer *bbcon) {
                  !equal_name(bb->label, ir_jmp->jmp.bb->label)) {  // jmp only.
         replace_jmp_destination(bbcon, bb, ir_jmp->jmp.bb);
         if (i > 0) {
-          BB *pbb = bbs->data[i - 1];
+          BB *pbb = bbcon->data[i - 1];
           IR *ir0 = is_last_jmp(pbb);
           if (ir0 != NULL && ir0->jmp.cond != COND_ANY &&  // Fallthrough pass exists.
               ir0->jmp.bb == bb->next &&                   // Skip jmp: Fix bb connection.
@@ -100,15 +98,15 @@ static void remove_unnecessary_bb(BBContainer *bbcon) {
     }
 
     bool again = false;
-    for (int i = 1; i < bbs->len; ++i) {
-      BB *bb = bbs->data[i];
+    for (int i = 1; i < bbcon->len; ++i) {
+      BB *bb = bbcon->data[i];
       if (!table_try_get(&keeptbl, bb->label, NULL)) {
         if (i > 0) {
-          BB *pbb = bbs->data[i - 1];
+          BB *pbb = bbcon->data[i - 1];
           pbb->next = bb->next;
         }
 
-        vec_remove_at(bbs, i);
+        vec_remove_at(bbcon, i);
         --i;
         again = true;
       }
@@ -118,8 +116,8 @@ static void remove_unnecessary_bb(BBContainer *bbcon) {
   }
 
   // Remove jmp to next instruction.
-  for (int i = 0; i < bbs->len - 1; ++i) {  // Make last one keeps alive.
-    BB *bb = bbs->data[i];
+  for (int i = 0; i < bbcon->len - 1; ++i) {  // Make last one keeps alive.
+    BB *bb = bbcon->data[i];
     IR *ir = is_last_any_jmp(bb);
     if (ir != NULL && ir->jmp.bb == bb->next)
       vec_pop(bb->irs);
@@ -139,8 +137,8 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
     }
 
     // Check VReg usage.
-    for (int i = 0; i < bbcon->bbs->len; ++i) {
-      BB *bb = bbcon->bbs->data[i];
+    for (int i = 0; i < bbcon->len; ++i) {
+      BB *bb = bbcon->data[i];
       for (int j = 0; j < bb->irs->len; ++j) {
         IR *ir = bb->irs->data[j];
         VReg *operands[] = {ir->opr1, ir->opr2};
@@ -153,8 +151,8 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
     }
 
     // Remove instruction if the destination is unread.
-    for (int i = 0; i < bbcon->bbs->len; ++i) {
-      BB *bb = bbcon->bbs->data[i];
+    for (int i = 0; i < bbcon->len; ++i) {
+      BB *bb = bbcon->data[i];
       for (int j = 0; j < bb->irs->len; ++j) {
         IR *ir = bb->irs->data[j];
         if (ir->dst == NULL || vreg_read[ir->dst->virt])
@@ -238,15 +236,15 @@ static void peephole(RegAlloc *ra, BB *bb) {
 
 void optimize(RegAlloc *ra, BBContainer *bbcon) {
   // Clean up unused IRs.
-  for (int i = 1; i < bbcon->bbs->len; ++i) {
-    BB *bb = bbcon->bbs->data[i];
+  for (int i = 1; i < bbcon->len; ++i) {
+    BB *bb = bbcon->data[i];
     if (bb->from_bbs->len == 0)
       vec_clear(bb->irs);
   }
 
   // Peephole
-  for (int i = 0; i < bbcon->bbs->len; ++i) {
-    BB *bb = bbcon->bbs->data[i];
+  for (int i = 0; i < bbcon->len; ++i) {
+    BB *bb = bbcon->data[i];
     peephole(ra, bb);
   }
 

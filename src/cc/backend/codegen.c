@@ -27,7 +27,7 @@ void set_curbb(BB *bb) {
   if (curbb != NULL)
     curbb->next = bb;
   curbb = bb;
-  vec_push(((FuncBackend*)curfunc->extra)->bbcon->bbs, bb);
+  vec_push(((FuncBackend*)curfunc->extra)->bbcon, bb);
 }
 
 //
@@ -725,8 +725,8 @@ void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
   }
 
   int nip = 0, head = 0;
-  for (int i = 0; i < bbcon->bbs->len; ++i) {
-    BB *bb = bbcon->bbs->data[i];
+  for (int i = 0; i < bbcon->len; ++i) {
+    BB *bb = bbcon->data[i];
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
       // Eliminate deactivated registers.
       for (int k = 0; k < maxbit; ++k) {

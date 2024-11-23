@@ -7,7 +7,7 @@
 
 #include "ir.h"  // enum VRegSize
 
-typedef struct BBContainer BBContainer;
+typedef struct Vector BBContainer;
 typedef struct Function Function;
 typedef struct IR IR;
 typedef struct VReg VReg;

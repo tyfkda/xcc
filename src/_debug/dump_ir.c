@@ -194,10 +194,10 @@ static void dump_func_ir(Function *func) {
     }
   }
 
-  fprintf(fp, "BB: #%d\n", bbcon->bbs->len);
+  fprintf(fp, "BB: #%d\n", bbcon->len);
   int nip = 0;
-  for (int i = 0; i < bbcon->bbs->len; ++i) {
-    BB *bb = bbcon->bbs->data[i];
+  for (int i = 0; i < bbcon->len; ++i) {
+    BB *bb = bbcon->data[i];
     fprintf(fp, "// BB %d\n", i);
     fprintf(fp, "%.*s:", NAMES(bb->label));
     if (bb->from_bbs->len > 0) {
