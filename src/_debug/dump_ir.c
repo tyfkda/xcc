@@ -356,11 +356,13 @@ int main(int argc, char *argv[]) {
   enum {
     OPT_KEEP_VIRTUAL_REGISTER = 128,
     OPT_KEEP_PHI,
+    OPT_SSA,
   };
 
   static const struct option options[] = {
     {"-keep-virtual", no_argument, OPT_KEEP_VIRTUAL_REGISTER},
     {"-keep-phi", no_argument, OPT_KEEP_PHI},
+    {"-apply-ssa", no_argument, OPT_SSA},
 
     {NULL},
   };
@@ -375,6 +377,13 @@ int main(int argc, char *argv[]) {
 
     case OPT_KEEP_PHI:
       keep_phi = true;
+      break;
+
+    case OPT_SSA:
+      {
+        extern bool apply_ssa;
+        apply_ssa = true;
+      }
       break;
 
     case '?':

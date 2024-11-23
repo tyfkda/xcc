@@ -12,6 +12,7 @@
 #include "util.h"
 
 bool keep_phi;
+bool apply_ssa;
 
 static IR *is_last_jmp(BB *bb) {
   int len;
@@ -542,11 +543,16 @@ void optimize(RegAlloc *ra, BBContainer *bbcon) {
     peephole(ra, bb);
   }
 
-  make_ssa(ra, bbcon);
-  copy_propagation(ra, bbcon);
-  remove_unused_vregs(ra, bbcon);
-  if (!keep_phi) {
-    resolve_phis(ra, bbcon);
+  if (apply_ssa) {
+    make_ssa(ra, bbcon);
+    copy_propagation(ra, bbcon);
+    remove_unused_vregs(ra, bbcon);
+    if (!keep_phi) {
+      resolve_phis(ra, bbcon);
+      remove_unnecessary_bb(bbcon);
+    }
+  } else {
+    remove_unused_vregs(ra, bbcon);
     remove_unnecessary_bb(bbcon);
   }
   detect_from_bbs(bbcon);

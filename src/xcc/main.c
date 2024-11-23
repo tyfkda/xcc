@@ -303,6 +303,8 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     OPT_PEDANTIC,
     OPT_MMD,
     OPT_NO_PIE,
+
+    OPT_SSA,
   };
 
   static const struct option kOptions[] = {
@@ -339,6 +341,9 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"pedantic", no_argument, OPT_PEDANTIC},
     {"MMD", no_argument, OPT_MMD},
     {"no-pie", no_argument, OPT_NO_PIE},
+
+    // Feature flag.
+    {"-apply-ssa", no_argument, OPT_SSA},
 
     {NULL},
   };
@@ -502,6 +507,10 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     case OPT_MMD:
       // Silently ignored.
       vec_push(opts->linker_options, argv[optind - 1]);
+      break;
+
+    case OPT_SSA:
+      vec_push(opts->cc1_cmd, argv[optind - 1]);
       break;
     }
   }
