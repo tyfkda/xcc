@@ -126,7 +126,6 @@ static Vector **ssa_transform(RegAlloc *ra, BBContainer *bbcon) {
         VReg *newver = reg_alloc_with_version(ra, ra->vregs->data[virt], vt->len);
         bb->in_regs->data[i] = vregs[virt] = newver;
         vec_push(vt, newver);
-        bb->in_regs->data[i] = newver;
       }
     }
     assign_new_vregs(ra, vreg_table, bb, vregs);
@@ -336,7 +335,7 @@ static Vector *extract_cyclic_dependency(int ifb, Vector *phis) {
     }
     for (; n > 0 && phis->data[n - 1] == NULL; --n)
       ;
-    phis->len = n;  // Truncate.
+    phis->len = n;  // Truncate (Recovered in later).
   }
   return cyclics;
 }

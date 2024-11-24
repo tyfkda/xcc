@@ -27,7 +27,7 @@ jobs:
       run: make test-gen2
 
     - name: test ssa
-      run: make -C tests clean && make XCC="../xcc --apply-ssa" -C tests cc-tests test-examples
+      run: make test-ssa
 
     - name: setup
       run: |

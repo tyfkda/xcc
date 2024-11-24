@@ -486,7 +486,8 @@ void analyze_reg_flow(BBContainer *bbcon) {
         Phi *phi = phis->data[j];
         for (int k = 0; k < phi->params->len; ++k) {
           VReg *vreg = phi->params->data[k];
-          if (vreg == NULL || vreg->flag & VRF_CONST)
+          assert(vreg != NULL);
+          if (vreg->flag & VRF_CONST)
             continue;
           assert(!vec_contains(assigned_regs, vreg));
           insert_vreg_into_vec(in_regs, vreg);

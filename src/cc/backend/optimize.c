@@ -150,7 +150,8 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
           Phi *phi = phis->data[j];
           for (int k = 0; k < phi->params->len; ++k) {
             VReg *vreg = phi->params->data[k];
-            if (vreg != NULL && !(vreg->flag & VRF_CONST))
+            assert(vreg != NULL);
+            if (!(vreg->flag & VRF_CONST))
               vreg_read[vreg->virt] = true;
           }
         }

@@ -160,6 +160,11 @@ test-riscv64:	cross-compile-riscv64
 cross-compile-riscv64:
 	$(MAKE) ARCHTYPE:=riscv64 PLATFORM:=posix HOST_CC_PREFIX=$(shell ./tool/find-riscv-toolchain)-
 
+# Test SSA.
+.PHONY: test-ssa
+test-ssa:	all
+	make -C tests clean && make XCC="../xcc --apply-ssa" -C tests cc-tests test-examples
+
 ### Library
 
 .PHONY: libs

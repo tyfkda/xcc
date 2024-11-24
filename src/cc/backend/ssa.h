@@ -1,6 +1,6 @@
-#pragma once
+// Static Single Assignment
 
-// Single Static Assignment
+#pragma once
 
 typedef struct Vector BBContainer;
 typedef struct RegAlloc RegAlloc;
