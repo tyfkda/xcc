@@ -76,12 +76,6 @@ CC:=./$(HOST)xcc
 CFLAGS+=-DSELF_HOSTING
 endif
 
-ifeq ("$(ARCHTYPE)", "aarch64")
-  ifneq ("$(UNAME)", "Darwin")
-	TEST_OPT:=NO_LINK_TEST=1
-  endif
-endif
-
 EXES:=xcc cc1 cpp as ld
 
 xcc_SRCS:=$(wildcard $(XCC_DIR)/*.c) \
@@ -138,7 +132,7 @@ $(foreach D, $(XCC_SRC_DIRS), $(eval $(call DEFINE_OBJ_TARGET,$(D))))
 
 .PHONY: test
 test:	all
-	$(MAKE) -C tests clean && $(MAKE) $(TEST_OPT) -C tests all
+	$(MAKE) -C tests clean && $(MAKE) -C tests all
 	$(MAKE) test-libs
 
 .PHONY: test-all
