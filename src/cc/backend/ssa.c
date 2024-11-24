@@ -139,37 +139,57 @@ static Vector **ssa_transform(RegAlloc *ra, BBContainer *bbcon) {
   return vreg_table;
 }
 
-static void insert_phis(BBContainer *bbcon) {
+static void insert_phis(BBContainer *bbcon, int original_vreg_count) {
   assert(curbb == NULL);
+  VReg **from_vregs = calloc_or_die(sizeof(*from_vregs) * original_vreg_count);
   for (int ibb = 1; ibb < bbcon->len; ++ibb) {
     BB *bb = bbcon->data[ibb];
     if (bb->from_bbs->len < 2)
       continue;
-    for (int i = 0; i < bb->in_regs->len; ++i) {
+
+    int reg_count = bb->in_regs->len;  // Phi target only.
+    for (int i = 0; i < reg_count; ++i) {
       VReg *vreg = bb->in_regs->data[i];
-      if (vreg->flag & VRF_REF)
-        continue;
-      Vector *ins = new_vector();
-      for (int ifrom = 0; ifrom < bb->from_bbs->len; ++ifrom) {
-        BB *from = bb->from_bbs->data[ifrom];
-        VReg *fv = NULL;
-        for (int j = 0; j < from->out_regs->len; ++j) {
-          VReg *o = from->out_regs->data[j];
-          if (o->orig_virt == vreg->orig_virt) {
-            fv = o;
-            break;
-          }
-        }
-        assert(fv != NULL);
-        vec_push(ins, fv);
+      if (vreg->flag & VRF_REF) {
+        // Swap with the last one.
+        --reg_count;
+        bb->in_regs->data[i] = bb->in_regs->data[reg_count];
+        bb->in_regs->data[reg_count] = vreg;
+        if (i < reg_count)
+          --i;  // Recheck the swapped one.
+      }
+    }
+
+    Vector *phi_params = new_vector();  // <<VReg*>>
+    for (int i = 0; i < reg_count; ++i)
+      vec_push(phi_params, new_vector());
+
+    for (int ifrom = 0; ifrom < bb->from_bbs->len; ++ifrom) {
+      BB *from = bb->from_bbs->data[ifrom];
+      for (int j = 0; j < from->out_regs->len; ++j) {
+        VReg *oreg = from->out_regs->data[j];
+        assert(0 <= oreg->orig_virt && oreg->orig_virt < original_vreg_count);
+        from_vregs[oreg->orig_virt] = oreg;
       }
 
-      Vector *phis = bb->phis;
-      if (phis == NULL)
-        bb->phis = phis = new_vector();
-      vec_push(phis, new_phi(vreg, ins));
+      for (int j = 0; j < reg_count; ++j) {
+        VReg *vreg = bb->in_regs->data[j];
+        assert(0 <= vreg->orig_virt && vreg->orig_virt < original_vreg_count);
+        VReg *fv = from_vregs[vreg->orig_virt];
+        vec_push(phi_params->data[j], fv);
+      }
     }
+
+    Vector *phis = phi_params;  // Caution, reuse phi_params as phis:<Phi*>
+    for (int i = 0; i < reg_count; ++i) {
+      VReg *vreg = bb->in_regs->data[i];
+      Vector *params = phi_params->data[i];
+      Phi *phi = new_phi(vreg, params);
+      phis->data[i] = phi;
+    }
+    bb->phis = phis;
   }
+  free(from_vregs);
 }
 
 // To make BB merging flow only from unconditional transition, insert BB.
@@ -399,7 +419,7 @@ void make_ssa(RegAlloc *ra, BBContainer *bbcon) {
   analyze_reg_flow(bbcon);
   ra->original_vreg_count = ra->vregs->len;
   ra->vreg_table = ssa_transform(ra, bbcon);
-  insert_phis(bbcon);
+  insert_phis(bbcon, ra->original_vreg_count);
 }
 
 void resolve_phis(RegAlloc *ra, BBContainer *bbcon) {
