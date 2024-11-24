@@ -42,15 +42,18 @@ typedef struct RegAlloc {
   const RegAllocSettings *settings;
   Vector *vregs;   // <VReg*>, non-const vregs
   Vector *consts;  // <VReg*>, const vregs
+  Vector **vreg_table;  // [original_vreg_count]
   LiveInterval *intervals;  // size=vregs->len
   LiveInterval **sorted_intervals;
 
   unsigned long used_reg_bits;
   unsigned long used_freg_bits;
   int flag;
+  int original_vreg_count;
 } RegAlloc;
 
 RegAlloc *new_reg_alloc(const RegAllocSettings *settings);
 VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag);
+VReg *reg_alloc_with_version(RegAlloc *ra, VReg *parent, int version);
 VReg *reg_alloc_spawn_const(RegAlloc *ra, int64_t value, enum VRegSize vsize);
 void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon);

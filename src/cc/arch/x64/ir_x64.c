@@ -612,9 +612,11 @@ static void ei_cond(IR *ir) {
 }
 
 static void ei_jmp(IR *ir) {
+  int cond = ir->jmp.cond;
+  assert(cond != COND_NONE);
+
   const char *label = fmt_name(ir->jmp.bb->label);
   VReg *opr1 = ir->opr1, *opr2 = ir->opr2;
-  int cond = ir->jmp.cond;
   // On x64, flag for comparing flonum is same as unsigned.
   if (cond & COND_FLONUM) {
     cond &= COND_MASK;

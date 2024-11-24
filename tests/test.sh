@@ -407,6 +407,14 @@ test_link() {
   end_test_suite
 }
 
+test_ssa() {
+  begin_test_suite "SSA"
+
+  try 'swap variables' 74 'int a = 7, b = 4; for (int i = 0; i < 2; ++i) { int d = a; a = b; b = d; } return a*10 + b;'
+
+  end_test_suite
+}
+
 test_basic
 test_struct
 test_bitfield
@@ -415,6 +423,7 @@ test_function
 test_error
 test_error_line
 test_link
+test_ssa
 
 if [[ $FAILED_SUITE_COUNT -ne 0 ]]; then
   exit "$FAILED_SUITE_COUNT"

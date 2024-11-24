@@ -11,6 +11,13 @@
 static const enum VRegSize vtVoidPtr = VRegSize8;
 static const enum VRegSize vtBool    = VRegSize4;
 
+Phi *new_phi(VReg *dst, Vector *params) {
+  Phi *phi = malloc_or_die(sizeof(*phi));
+  phi->dst = dst;
+  phi->params = params;
+  return phi;
+}
+
 enum ConditionKind swap_cond(enum ConditionKind cond) {
   assert((cond & ~COND_MASK) == 0);
   if (cond >= COND_LT)
@@ -374,6 +381,7 @@ BB *new_bb(void) {
   bb->in_regs = new_vector();
   bb->out_regs = new_vector();
   bb->assigned_regs = new_vector();
+  bb->phis = NULL;
   return bb;
 }
 
@@ -471,6 +479,21 @@ void analyze_reg_flow(BBContainer *bbcon) {
     vec_clear(in_regs);
     vec_clear(assigned_regs);
     vec_clear(bb->out_regs);
+
+    Vector *phis = bb->phis;
+    if (phis != NULL) {
+      for (int j = 0; j < phis->len; ++j) {
+        Phi *phi = phis->data[j];
+        for (int k = 0; k < phi->params->len; ++k) {
+          VReg *vreg = phi->params->data[k];
+          if (vreg == NULL || vreg->flag & VRF_CONST)
+            continue;
+          assert(!vec_contains(assigned_regs, vreg));
+          insert_vreg_into_vec(in_regs, vreg);
+        }
+        insert_vreg_into_vec(assigned_regs, phi->dst);
+      }
+    }
 
     Vector *irs = bb->irs;
     for (int j = 0; j < irs->len; ++j) {

@@ -11,6 +11,7 @@
 #include "emit_code.h"
 #include "fe_misc.h"
 #include "lexer.h"
+#include "optimize.h"  // opt_flags
 #include "parser.h"
 #include "type.h"
 #include "util.h"
@@ -70,6 +71,7 @@ static bool parse_fopt(const char *optarg, bool value) {
 int main(int argc, char *argv[]) {
   enum {
     OPT_FNO = 128,
+    OPT_SSA,
   };
 
   static const struct option options[] = {
@@ -81,6 +83,9 @@ int main(int argc, char *argv[]) {
     {"fno-", required_argument, OPT_FNO},
     {"f", required_argument},
     {"W", required_argument},
+
+    // Feature flag.
+    {"-apply-ssa", no_argument, OPT_SSA},
 
     {NULL},
   };
@@ -127,6 +132,13 @@ int main(int argc, char *argv[]) {
       } else {
         // Silently ignored.
         // fprintf(stderr, "Warning: unknown option for -W: %s\n", optarg);
+      }
+      break;
+
+    case OPT_SSA:
+      {
+        extern bool apply_ssa;
+        apply_ssa = true;
       }
       break;
 

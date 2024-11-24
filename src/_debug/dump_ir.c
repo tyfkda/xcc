@@ -15,11 +15,28 @@
 #include "util.h"
 #include "var.h"
 
+extern bool keep_phi;
 static bool keep_virtual_register;
 
 ////////////////////////////////////////////////
 
 extern void install_builtins(void);
+
+static void dump_vvreg(FILE *fp, VReg *vreg) {
+  if (vreg->version == 0) {
+    fprintf(fp, "V%d", vreg->virt);
+  } else {
+    char buf[16], *p = buf + sizeof(buf);
+    *(--p) = '\0';
+    int version = vreg->version;
+    do {
+      --version;
+      *(--p) = 'a' + (version % 26);
+      version /= 26;
+    } while (version > 0);
+    fprintf(fp, "v%d%s", vreg->orig_virt, p);
+  }
+}
 
 static void dump_vreg(FILE *fp, VReg *vreg) {
   assert(vreg != NULL);
@@ -33,8 +50,28 @@ static void dump_vreg(FILE *fp, VReg *vreg) {
       regtype = 'F';
     fprintf(fp, "%c%d%s<v%d>", regtype, vreg->phys, kSize[vreg->vsize], vreg->virt);
   } else {
-    fprintf(fp, "v%d", vreg->virt);
+    dump_vvreg(fp, vreg);
   }
+}
+
+static void dump_vreg2(FILE *fp, VReg *vreg) {
+  if (vreg->flag & VRF_SPILLED) {
+    fprintf(fp, "spilled(v%d)", vreg->virt);
+  } else {
+    dump_vreg(fp, vreg);
+  }
+}
+
+static void dump_vregs(FILE *fp, const char *title, Vector *regs, bool newline) {
+  fprintf(fp, "%s=[", title);
+  for (int i = 0; i < regs->len; ++i) {
+    VReg *vreg = regs->data[i];
+    fprintf(fp, "%s%d", i==0?"":",", vreg->virt);
+  }
+  if (newline)
+    fprintf(fp, "]\n");
+  else
+    fprintf(fp, "]");
 }
 
 static void dump_ir(FILE *fp, IR *ir) {
@@ -43,7 +80,7 @@ static void dump_ir(FILE *fp, IR *ir) {
     "ADD", "SUB", "MUL", "DIV", "MOD", "BITAND", "BITOR", "BITXOR", "LSHIFT", "RSHIFT",
     "NEG", "BITNOT", "COND", "JMP", "TJMP",
     "PRECALL", "PUSHARG", "CALL", "RESULT", "SUBSP",
-    "CAST", "MOV", "KEEP", "ASM",
+    "CAST", "MOV", "KEEP", "PHI", "ASM",
   };
   static char *kCond[] = {NULL, "MP", "EQ", "NE", "LT", "LE", "GE", "GT", NULL, "MP", "EQ", "NE", "ULT", "ULE", "UGE", "UGT"};
   static char *kCond2[] = {NULL, "MP", "==", "!=", "<", "<=", ">=", ">", NULL, "MP", "==", "!=", "<", "<=", ">=", ">"};
@@ -177,7 +214,12 @@ static void dump_func_ir(Function *func) {
       case LI_NORMAL:
         {
           fprintf(fp, "  V%3d (flag=%x): live %3d - %3d", li->virt, vreg->flag, li->start, li->end);
-          if (!keep_virtual_register) {
+          if (keep_virtual_register) {
+            if (vreg->version > 0) {
+              fprintf(fp, ", ");
+              dump_vvreg(fp, vreg);
+            }
+          } else {
             char regtype = vreg->flag & VRF_FLONUM ? 'F' : 'R';
             fprintf(fp, ", => %c%3d", regtype, li->phys);
           }
@@ -191,6 +233,22 @@ static void dump_func_ir(Function *func) {
                 li->start, li->end, vreg->frame.offset);
         break;
       }
+    }
+  } else if (ra->vreg_table != NULL) {
+    for (int i = 0; i < ra->original_vreg_count; ++i) {
+      Vector *vregs = ra->vreg_table[i];
+      assert(vregs != NULL);
+      if (vregs->len <= 1)
+        continue;
+      fprintf(fp, "  V%3d: #%d [", i, vregs->len);
+      for (int j = 0; j < vregs->len; ++j) {
+        VReg *vreg = vregs->data[j];
+        if (j > 0)
+          fprintf(fp, ", ");
+        dump_vreg(fp, vreg);
+        fprintf(fp, "(%d)", vreg->virt);
+      }
+      fprintf(fp, "]\n");
     }
   }
 
@@ -208,23 +266,27 @@ static void dump_func_ir(Function *func) {
       }
       fprintf(fp, "]");
     }
-    if (bb->in_regs->len > 0) {
-      fprintf(fp, " in=[");
-      for (int j = 0; j < bb->in_regs->len; ++j) {
-        VReg *vreg = bb->in_regs->data[j];
-        fprintf(fp, "%s%d", (j > 0 ? ", " : ""), vreg->virt);
-      }
-      fprintf(fp, "]");
-    }
-    if (bb->out_regs->len > 0) {
-      fprintf(fp, " out=[");
-      for (int j = 0; j < bb->out_regs->len; ++j) {
-        VReg *vreg = bb->out_regs->data[j];
-        fprintf(fp, "%s%d", (j > 0 ? ", " : ""), vreg->virt);
-      }
-      fprintf(fp, "]");
-    }
+    if (bb->in_regs->len > 0)
+      dump_vregs(fp, " in", bb->in_regs, false);
+    if (bb->out_regs->len > 0)
+      dump_vregs(fp, " out", bb->out_regs, false);
     fprintf(fp, "\n");
+
+    if (bb->phis != NULL) {
+      for (int j = 0; j < bb->phis->len; ++j) {
+        Phi *phi = bb->phis->data[j];
+        fprintf(fp, "       \tPHI ");
+        dump_vreg2(fp, phi->dst);
+        fprintf(fp, " = {");
+        for (int i = 0; i < phi->params->len; ++i) {
+          VReg *vreg = phi->params->data[i];
+          if (i > 0)
+            fprintf(fp, ", ");
+          dump_vreg2(fp, vreg);
+        }
+        fprintf(fp, "}\n");
+      }
+    }
 
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
       fprintf(fp, "%6d|\t", nip);
@@ -252,16 +314,18 @@ void do_dump_ir(Vector *decls) {
 
     optimize(fnbe->ra, fnbe->bbcon);
 
-    prepare_register_allocation(func);
-    tweak_irs(fnbe);
-    analyze_reg_flow(fnbe->bbcon);
+    if (!keep_phi) {
+      prepare_register_allocation(func);
+      // tweak_irs(fnbe);
+      analyze_reg_flow(fnbe->bbcon);
 
-    alloc_physical_registers(fnbe->ra, fnbe->bbcon);
-    if (!keep_virtual_register)
-      map_virtual_to_physical_registers(fnbe->ra);
-    detect_living_registers(fnbe->ra, fnbe->bbcon);
+      alloc_physical_registers(fnbe->ra, fnbe->bbcon);
+      if (!keep_virtual_register)
+        map_virtual_to_physical_registers(fnbe->ra);
+      detect_living_registers(fnbe->ra, fnbe->bbcon);
 
-    alloc_stack_variables_onto_stack_frame(func);
+      alloc_stack_variables_onto_stack_frame(func);
+    }
 
     curfunc = NULL;
 
@@ -291,10 +355,14 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
 int main(int argc, char *argv[]) {
   enum {
     OPT_KEEP_VIRTUAL_REGISTER = 128,
+    OPT_KEEP_PHI,
+    OPT_SSA,
   };
 
   static const struct option options[] = {
     {"-keep-virtual", no_argument, OPT_KEEP_VIRTUAL_REGISTER},
+    {"-keep-phi", no_argument, OPT_KEEP_PHI},
+    {"-apply-ssa", no_argument, OPT_SSA},
 
     {NULL},
   };
@@ -305,6 +373,17 @@ int main(int argc, char *argv[]) {
     default: assert(false); break;
     case OPT_KEEP_VIRTUAL_REGISTER:
       keep_virtual_register = true;
+      break;
+
+    case OPT_KEEP_PHI:
+      keep_phi = true;
+      break;
+
+    case OPT_SSA:
+      {
+        extern bool apply_ssa;
+        apply_ssa = true;
+      }
       break;
 
     case '?':

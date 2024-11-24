@@ -581,10 +581,11 @@ static void ei_cond(IR *ir) {
 
 static void ei_jmp(IR *ir) {
   const char *label = fmt_name(ir->jmp.bb->label);
-  switch (ir->jmp.cond & (COND_MASK | COND_UNSIGNED)) {
-  case COND_ANY: J(label); return;
-  case COND_NONE: return;
-  default: break;
+  int cond = ir->jmp.cond;
+  assert(cond != COND_NONE);
+  if (ir->jmp.cond == COND_ANY) {
+    J(label);
+    return;
   }
 
   assert(!(ir->opr1->flag & VRF_CONST));
