@@ -18,13 +18,16 @@ enum LiveIntervalState {
   LI_SPILL,
 };
 
+typedef struct LiveRange {
+  int start;
+  int end;
+} LiveRange;
 typedef struct LiveInterval {
   unsigned long occupied_reg_bit;  // Represent occupied registers in bit.
   enum LiveIntervalState state;
-  int start;
-  int end;
   int virt;  // Virtual register no.
   int phys;  // Mapped physical register no.
+  LiveRange range;
 } LiveInterval;
 
 typedef struct RegAllocSettings {

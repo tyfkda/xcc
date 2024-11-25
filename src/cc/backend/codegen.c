@@ -713,7 +713,7 @@ void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
   for (int i = 0; i < ra->vregs->len; ++i) {
     LiveInterval *li = ra->sorted_intervals[i];
     assert(li != NULL);
-    if (li->start >= 0)
+    if (li->range.start >= 0)
       break;
     if (li->state != LI_NORMAL || VREGFOR(li, ra) == NULL)
       continue;
@@ -729,7 +729,7 @@ void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
       // Eliminate deactivated registers.
       for (int k = 0; k < maxbit; ++k) {
         LiveInterval *li = livings[k];
-        if (li != NULL && nip == li->end) {
+        if (li != NULL && nip == li->range.end) {
           assert(BITNO(li, ra) == k);
           living_pregs &= ~(1UL << k);
           livings[k] = NULL;
@@ -745,11 +745,11 @@ void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
       // Add activated registers.
       for (; head < ra->vregs->len; ++head) {
         LiveInterval *li = ra->sorted_intervals[head];
-        if (li->start > nip)
+        if (li->range.start > nip)
           break;
         if (li->state != LI_NORMAL)
           continue;
-        if (nip == li->start) {
+        if (nip == li->range.start) {
           assert(VREGFOR(li, ra) != NULL);
           int bitno = BITNO(li, ra);
           living_pregs |= 1UL << bitno;
