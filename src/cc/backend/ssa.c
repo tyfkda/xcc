@@ -14,7 +14,7 @@
 
 #define ORIG_VIRT(vreg)  ((vreg)->orig_virt >= 0 ? (vreg)->orig_virt : (vreg)->virt)
 
-inline void assign_new_vregs(RegAlloc *ra, Vector **vreg_table, BB *bb, VReg **vregs) {
+static inline void assign_new_vregs(RegAlloc *ra, Vector **vreg_table, BB *bb, VReg **vregs) {
   for (int iir = 0; iir < bb->irs->len; ++iir) {
     IR *ir = bb->irs->data[iir];
     if (ir->opr1 != NULL && !(ir->opr1->flag & (VRF_CONST | VRF_REF))) {
@@ -35,7 +35,7 @@ inline void assign_new_vregs(RegAlloc *ra, Vector **vreg_table, BB *bb, VReg **v
   }
 }
 
-inline void push_nexts(BB *bb, Vector *unchecked) {
+static inline void push_nexts(BB *bb, Vector *unchecked) {
   Vector *irs = bb->irs;
   if (irs->len > 0) {
     IR *ir = irs->data[irs->len - 1];  // JMP must be the last IR.
