@@ -18,6 +18,7 @@
 
 Function *curfunc;
 Scope *curscope;
+VarInfo *curvarinfo;
 LoopScope loop_scope;
 
 int compile_warning_count;
@@ -446,12 +447,21 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool make_int) {
 }
 
 void mark_var_used(Expr *expr) {
+  VarInfo *gvarinfo = NULL;
+
   switch (expr->kind) {
   case EX_VAR:
     {
-      VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, NULL);
+      Scope *scope = NULL;
+      VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
       assert(varinfo != NULL);
-      varinfo->storage |= VS_USED;
+      if (is_global_scope(scope)) {
+        gvarinfo = varinfo;
+      } else {
+        varinfo->storage |= VS_USED;
+        if (varinfo->storage & VS_STATIC)
+          gvarinfo = varinfo->static_.svar;
+      }
     }
     break;
   case EX_COMPLIT:
@@ -461,6 +471,62 @@ void mark_var_used(Expr *expr) {
     mark_var_used(expr->bop.lhs);
     break;
   default: break;
+  }
+
+  if (gvarinfo != NULL && curvarinfo != NULL) {
+    Vector *refs = curvarinfo->global.referred_globals;
+    if (refs == NULL)
+      curvarinfo->global.referred_globals = refs = new_vector();
+    vec_push(refs, gvarinfo);
+  }
+}
+
+void propagate_var_used(void) {
+  Table checked;
+  table_init(&checked);
+  Vector unchecked;
+  vec_init(&unchecked);
+
+  const Name *constructor_name = alloc_name("constructor", NULL, false);
+  const Name *destructor_name = alloc_name("destructor", NULL, false);
+
+  // Collect public functions into unchecked.
+  for (int i = 0; i < global_scope->vars->len; ++i) {
+    VarInfo *varinfo = global_scope->vars->data[i];
+    const Type *type = varinfo->type;
+    if (type->kind == TY_FUNC) {
+      Function *func = varinfo->global.func;
+      if (func == NULL)  // Prototype definition
+        continue;
+      if (((varinfo->storage & VS_STATIC) ||
+          (varinfo->storage & (VS_INLINE | VS_EXTERN)) == VS_INLINE) &&
+          (func->attributes == NULL ||
+           (!table_try_get(func->attributes, constructor_name, NULL) &&
+            !table_try_get(func->attributes, destructor_name, NULL)))) {
+        continue;
+      }
+    } else {
+      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER))
+        continue;
+    }
+    vec_push(&unchecked, varinfo);
+  }
+
+  // Propagate usage.
+  while (unchecked.len > 0) {
+    VarInfo *varinfo = vec_pop(&unchecked);
+    if (table_try_get(&checked, varinfo->name, NULL))
+      continue;
+    table_put(&checked, varinfo->name, NULL);
+    varinfo->storage |= VS_USED;
+
+    Vector *refs = varinfo->global.referred_globals;
+    if (refs == NULL)
+      continue;
+    for (int j = 0; j < refs->len; ++j) {
+      VarInfo *ref = refs->data[j];
+      vec_push(&unchecked, ref);
+    }
   }
 }
 

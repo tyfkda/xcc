@@ -98,7 +98,9 @@ Expr *str_to_char_array_var(Scope *scope, Expr *str) {
   init->single = str;
 
   VarInfo *varinfo = str_to_char_array(scope, type, init);
-  return new_expr_variable(varinfo->name, type, str->token, scope);
+  Expr *expr = new_expr_variable(varinfo->name, type, str->token, scope);
+  mark_var_used(expr);
+  return expr;
 }
 
 static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
@@ -152,6 +154,7 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
   VarInfo *varinfo = str_to_char_array(curscope, strtype, src);
   Expr *var = new_expr_variable(varinfo->name, strtype, NULL, curscope);
   assert(str->type->kind == TY_ARRAY);
+  mark_var_used(var);
   return build_memcpy(dst, var, len * type_size(str->type->pa.ptrof));
 }
 

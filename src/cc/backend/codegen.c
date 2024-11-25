@@ -10,6 +10,7 @@
 
 #include "arch_config.h"
 #include "ast.h"
+#include "cc_misc.h"  // is_function_omitted
 #include "fe_misc.h"  // curfunc, curscope
 #include "ir.h"
 #include "optimize.h"
@@ -874,8 +875,8 @@ bool gen_defun(Function *func) {
     return false;
 
   VarInfo *funcvi = scope_find(global_scope, func->name, NULL);
-  if (funcvi != NULL && satisfy_inline_criteria(funcvi, funcvi->storage)) {
-    // Omit inline function: func->extra preserves the value (NULL).
+  if (is_function_omitted(funcvi)) {
+    // Omit function: func->extra preserves the value (NULL).
     return false;
   }
 

@@ -41,12 +41,15 @@ typedef struct VarInfo {
       VReg *vreg;
       FrameInfo *frameinfo;
     } local;
-    union {
-      Initializer *init;
-      struct {
-        Function *func;
-        Declaration *funcdecl;
+    struct {
+      union {
+        Initializer *init;
+        struct {
+          Function *func;
+          Declaration *funcdecl;
+        };
       };
+      Vector *referred_globals;  // <VarInfo*>
     } global;
     struct {
       struct VarInfo *svar;  // which points to static variable.

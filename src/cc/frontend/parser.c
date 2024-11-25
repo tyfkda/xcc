@@ -813,6 +813,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
   assert(is_global_scope(curscope));
   curfunc = func;
   static_vars = func->static_vars = new_vector();
+  curvarinfo = varinfo;
   Vector *top_vars = new_vector();
   for (int i = 0; i < param_vars->len; ++i) {
     VarInfo *vi = param_vars->data[i];
@@ -843,6 +844,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
   match(TK_SEMICOL);  // Ignore redundant semicolon.
   curfunc = NULL;
   static_vars = NULL;
+  curvarinfo = NULL;
 
 #ifndef __NO_VLA
   if (vla_inits != NULL) {
@@ -925,13 +927,16 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
         }
 
         Initializer *init = NULL;
-        if (match(TK_ASSIGN) != NULL)
+        if (match(TK_ASSIGN) != NULL) {
+          curvarinfo = varinfo;
           init = parse_initializer();
+        }
 
         if (ident != NULL) {
           varinfo->global.init = check_vardecl(&type, ident, storage, init);
           varinfo->type = type;  // type might be changed.
         }
+        curvarinfo = NULL;
       }
     }
 
@@ -1150,6 +1155,8 @@ void parse(Vector *decls) {
     if (decl != NULL)
       vec_push(decls, decl);
   }
+
+  propagate_var_used();
 
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE || XCC_TARGET_PLATFORM == XCC_PLATFORM_WASI
   modify_dtor_func(decls);

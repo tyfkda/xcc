@@ -13,6 +13,7 @@
 #endif
 
 #include "ast.h"
+#include "cc_misc.h"  // is_funciton_no_output
 #include "fe_misc.h"  // curfunc
 #include "parser.h"
 #include "table.h"
@@ -1599,8 +1600,7 @@ static void gen_defun(Function *func) {
     return;
 
   VarInfo *funcvi = scope_find(global_scope, func->name, NULL);
-  assert(funcvi != NULL);
-  if (satisfy_inline_criteria(funcvi, funcvi->storage))
+  if (is_function_omitted(funcvi))
     return;
 
   DataStorage *code = malloc_or_die(sizeof(*code));

@@ -16,6 +16,7 @@ typedef struct Vector Vector;
 
 extern Function *curfunc;
 extern Scope *curscope;
+extern VarInfo *curvarinfo;
 
 extern int compile_warning_count;
 extern int compile_error_count;
@@ -90,6 +91,7 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit);
 const MemberInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
                                         Vector *stack);
 void mark_var_used(Expr *expr);
+void propagate_var_used(void);
 void check_lval(const Token *tok, Expr *expr, const char *error);
 Expr *reduce_refer(Expr *expr);
 Expr *make_refer(const Token *tok, Expr *expr);

@@ -6,6 +6,7 @@
 #include <string.h>  // memcpy
 
 #include "ast.h"
+#include "cc_misc.h"  // is_function_omitted
 #include "fe_misc.h"  // curscope
 #include "lexer.h"
 #include "table.h"
@@ -745,10 +746,15 @@ static void traverse_defun(Function *func) {
   // Static variables.
   Vector *static_vars = func->static_vars;
   if (static_vars != NULL) {
-    for (int k = 0; k < 2; ++k) {  // 0=register, 1=traverse
+    VarInfo *funcvi = scope_find(global_scope, func->name, NULL);
+    assert(funcvi != NULL);
+    int k = (funcvi->storage & (VS_STATIC | VS_USED)) == VS_STATIC ? 1 : 0;  // Static function but not used.
+    for (; k < 2; ++k) {  // 0=register, 1=traverse
       for (int i = 0, len = static_vars->len; i < len; ++i) {
         VarInfo *varinfo = static_vars->data[i];
         assert(!(varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC));
+        if ((varinfo->storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
+          continue;
         if (k == 0)
           register_gvar_info(varinfo->name, varinfo);
         else
@@ -900,9 +906,8 @@ static int detect_compile_unit_flags(Vector *decls) {
       continue;
 
     Function *func = decl->defun.func;
-    VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
-    assert(varinfo != NULL);
-    if (satisfy_inline_criteria(varinfo, varinfo->storage))
+    VarInfo *funcvi = scope_find(global_scope, func->name, NULL);
+    if (is_function_omitted(funcvi))
       continue;
 
     if (detect_compile_unit_sp(func)) {
@@ -921,7 +926,10 @@ void traverse_ast(Vector *decls) {
   for (int k = 0; k < 2; ++k) {  // 0=register, 1=traverse
     for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
       VarInfo *varinfo = global_scope->vars->data[i];
-      if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
+      int storage = varinfo->storage;
+      if (varinfo->type->kind == TY_FUNC ||
+          (storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
+          (storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
         continue;
       if (k == 0)
         register_gvar_info(varinfo->name, varinfo);
@@ -970,7 +978,7 @@ void traverse_ast(Vector *decls) {
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
       if (info->flag == 0 && info->func == NULL)
         continue;
-      if (satisfy_inline_criteria(info->varinfo, info->varinfo->storage))
+      if (is_function_omitted(info->varinfo))
         continue;
       ++symbol_index;
     }
@@ -1019,7 +1027,7 @@ void traverse_ast(Vector *decls) {
         if ((k == 0 && (info->func != NULL || info->flag == 0)) ||  // Put external function first.
             (k == 1 && info->func == NULL))                         // Defined function later.
           continue;
-        if (satisfy_inline_criteria(info->varinfo, info->varinfo->storage))
+        if (is_function_omitted(info->varinfo))
           continue;
         info->index = index++;
         VERBOSE("%2d: %.*s%s\n", info->index, NAMES(name), k == 0 ? "  (import)" : "");
@@ -1041,7 +1049,10 @@ void traverse_ast(Vector *decls) {
       GVarInfo *info;
       for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
         const VarInfo *varinfo = info->varinfo;
-        if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
+        int storage = varinfo->storage;
+        if (varinfo->type->kind == TY_FUNC ||
+            (storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
+            (storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
           continue;
         if ((varinfo->global.init == NULL) == (k == 0) || !is_global_datsec_var(varinfo, global_scope))
           continue;

@@ -5,9 +5,16 @@
 #include <inttypes.h>  // PRId64
 
 #include "ast.h"
+#include "fe_misc.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
+
+bool is_function_omitted(const VarInfo *funcvi) {
+  assert(funcvi != NULL);
+  return (satisfy_inline_criteria(funcvi, funcvi->storage) ||
+      (funcvi->storage & (VS_STATIC | VS_USED)) == VS_STATIC);  // Static function but not used.
+}
 
 static void eval_initial_value(Expr *expr, Expr **pvar, int64_t *poffset) {
   switch (expr->kind) {

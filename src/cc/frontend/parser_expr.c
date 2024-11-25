@@ -836,7 +836,7 @@ static Expr *parse_prim(void) {
       consume(TK_RPAR, "`)' expected");
       if (fetch_token()->kind != TK_LBRACE) {
         parse_error(PE_NOFATAL, NULL, "`{' expected");
-        return new_expr_variable(alloc_label(), type, tok, curscope);  // Dummy
+        return alloc_tmp_var(curscope, type);  // Dummy
       }
       return parse_compound_literal(type);
     } else if (match(TK_LBRACE)) {  // ({})
