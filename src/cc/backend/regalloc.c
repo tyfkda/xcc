@@ -93,7 +93,7 @@ static int insert_active(LiveInterval **active, int active_count, LiveInterval *
   int j;
   for (j = 0; j < active_count; ++j) {
     LiveInterval *p = active[j];
-    if (li->end < p->end)
+    if (li->range.end < p->range.end)
       break;
   }
   if (j < active_count)
@@ -114,9 +114,9 @@ static void remove_active(LiveInterval **active, int active_count, int start, in
 
 static int sort_live_interval(const void *pa, const void *pb) {
   LiveInterval *a = *(LiveInterval**)pa, *b = *(LiveInterval**)pb;
-  int d = a->start - b->start;
+  int d = a->range.start - b->range.start;
   if (d == 0) {
-    d = b->end - a->end;
+    d = b->range.end - a->range.end;
     if (d == 0)
       d = a->virt - b->virt;
   }
@@ -127,7 +127,7 @@ static void split_at_interval(RegAlloc *ra, LiveInterval **active, int active_co
                               LiveInterval *li) {
   assert(active_count > 0);
   LiveInterval *spill = active[active_count - 1];
-  if (spill->end > li->end) {
+  if (spill->range.end > li->range.end) {
     li->phys = spill->phys;
     spill->phys = ra->settings->phys_max;
     spill->state = LI_SPILL;
@@ -153,7 +153,7 @@ static void expire_old_intervals(PhysicalRegisterSet *p, int start) {
   int j;
   for (j = 0; j < active_count; ++j) {
     LiveInterval *li = p->active[j];
-    if (li->end > start)
+    if (li->range.end > start)
       break;
     int phys = li->phys;
     using_bits &= ~(1UL << phys);
@@ -171,11 +171,11 @@ static void set_inout_interval(Vector *vregs, LiveInterval *intervals, int nip) 
       // If the vreg is register parameter for function,
       // it is given a priori and keep live interval start as is.
     } else {
-      if (li->start < 0 || li->start > nip)
-        li->start = nip;
+      if (li->range.start < 0 || li->range.start > nip)
+        li->range.start = nip;
     }
-    if (li->end < nip)
-      li->end = nip;
+    if (li->range.end < nip)
+      li->range.end = nip;
   }
 }
 
@@ -184,7 +184,7 @@ static void check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval
     LiveInterval *li = &intervals[i];
     li->occupied_reg_bit = 0;
     li->state = LI_NORMAL;
-    li->start = li->end = -1;
+    li->range.start = li->range.end = -1;
     li->virt = i;
     li->phys = -1;
   }
@@ -203,10 +203,10 @@ static void check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval
         if (vreg == NULL || (vreg->flag & VRF_CONST))
           continue;
         LiveInterval *li = &intervals[vreg->virt];
-        if (li->start < 0 && !(vreg->flag & VRF_PARAM))
-          li->start = nip;
-        if (li->end < nip)
-          li->end = nip;
+        if (li->range.start < 0 && !(vreg->flag & VRF_PARAM))
+          li->range.start = nip;
+        if (li->range.end < nip)
+          li->range.end = nip;
       }
     }
 
@@ -230,9 +230,9 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
   Vector *actives = new_vector();
   for (int i = 0; i < vreg_count; ++i) {
     LiveInterval *li = sorted_intervals[i];
-    if (li->end < 0)
+    if (li->range.end < 0)
       continue;
-    vec_push(li->start < 0 ? actives : inactives, li);
+    vec_push(li->range.start < 0 ? actives : inactives, li);
   }
 
   const RegAllocSettings *settings = ra->settings;
@@ -254,7 +254,7 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
       // Deactivate registers which end at this ip.
       for (int k = 0; k < actives->len; ++k) {
         LiveInterval *li = actives->data[k];
-        if (li->end <= nip)
+        if (li->range.end <= nip)
           vec_remove_at(actives, k--);
       }
 
@@ -288,7 +288,7 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
       // Activate registers after usage checked.
       while (inactives->len > 0) {
         LiveInterval *li = inactives->data[0];
-        if (li->start > nip)
+        if (li->range.start > nip)
           break;
         vec_remove_at(inactives, 0);
         vec_push(actives, li);
@@ -325,8 +325,8 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
       continue;
     if (li->state != LI_NORMAL)
       continue;
-    expire_old_intervals(&iregset, li->start);
-    expire_old_intervals(&fregset, li->start);
+    expire_old_intervals(&iregset, li->range.start);
+    expire_old_intervals(&fregset, li->range.start);
 
     PhysicalRegisterSet *prsp = &iregset;
     if (((VReg*)ra->vregs->data[li->virt])->flag & VRF_FLONUM)
