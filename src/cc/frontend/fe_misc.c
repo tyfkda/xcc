@@ -482,8 +482,9 @@ void mark_var_used(Expr *expr) {
 }
 
 void propagate_var_used(void) {
-  Table checked;
-  table_init(&checked);
+  Table used, unused;
+  table_init(&used);
+  table_init(&unused);
   Vector unchecked;
   vec_init(&unchecked);
 
@@ -503,11 +504,16 @@ void propagate_var_used(void) {
           (func->attributes == NULL ||
            (!table_try_get(func->attributes, constructor_name, NULL) &&
             !table_try_get(func->attributes, destructor_name, NULL)))) {
+        if (!(varinfo->storage & VS_INLINE))
+          table_put(&unused, varinfo->name, varinfo);
         continue;
       }
     } else {
-      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER))
+      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER)) {
+        if (varinfo->storage & VS_STATIC)
+          table_put(&unused, varinfo->name, varinfo);
         continue;
+      }
     }
     vec_push(&unchecked, varinfo);
   }
@@ -515,9 +521,10 @@ void propagate_var_used(void) {
   // Propagate usage.
   while (unchecked.len > 0) {
     VarInfo *varinfo = vec_pop(&unchecked);
-    if (table_try_get(&checked, varinfo->name, NULL))
+    if (table_try_get(&used, varinfo->name, NULL))
       continue;
-    table_put(&checked, varinfo->name, NULL);
+    table_put(&used, varinfo->name, NULL);
+    table_delete(&unused, varinfo->name);
     varinfo->storage |= VS_USED;
 
     Vector *refs = varinfo->global.referred_globals;
@@ -526,6 +533,18 @@ void propagate_var_used(void) {
     for (int j = 0; j < refs->len; ++j) {
       VarInfo *ref = refs->data[j];
       vec_push(&unchecked, ref);
+    }
+  }
+
+  const Name *name;
+  VarInfo *varinfo;
+  for (int it = 0; (it = table_iterate(&unused, it, &name, (void**)&varinfo)) != -1; ) {
+    if (varinfo->type->kind == TY_FUNC) {
+      if (cc_flags.warn.unused_function)
+        parse_error(PE_WARNING, NULL, "Unused function: `%.*s'", NAMES(name));
+    } else {
+      if (cc_flags.warn.unused_variable)
+        parse_error(PE_WARNING, NULL, "Unused variable: `%.*s'", NAMES(name));
     }
   }
 }
