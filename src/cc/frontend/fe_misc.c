@@ -1741,31 +1741,25 @@ static Expr *duplicate_inline_function_expr(Function *targetfunc, Scope *targets
         return expr;
       }
 
-      Scope *scope;
-      if (varinfo->storage & VS_STATIC) {
-        name = varinfo->static_.gvar->name;
-        scope = global_scope;
-      } else {
-        // Detect relative scope.
-        scope = curscope;
-        for (Scope *p = targetscope; !is_global_scope(p); p = p->parent, scope = scope->parent) {
-          if (expr->var.scope == p)
+      // Detect relative scope.
+      Scope *scope = curscope;
+      for (Scope *p = targetscope; !is_global_scope(p); p = p->parent, scope = scope->parent) {
+        if (expr->var.scope == p)
+          break;
+      }
+      if (varinfo->storage & VS_PARAM) {
+        // Assume parameters are stored in top scope in order.
+        Vector *top_scope_vars = ((Scope*)targetfunc->scopes->data[0])->vars;
+        int i;
+        for (i = 0; i < top_scope_vars->len; ++i) {
+          VarInfo *vi = top_scope_vars->data[i];
+          if (vi == varinfo)
             break;
         }
-        if (varinfo->storage & VS_PARAM) {
-          // Assume parameters are stored in top scope in order.
-          Vector *top_scope_vars = ((Scope*)targetfunc->scopes->data[0])->vars;
-          int i;
-          for (i = 0; i < top_scope_vars->len; ++i) {
-            VarInfo *vi = top_scope_vars->data[i];
-            if (vi == varinfo)
-              break;
-          }
-          assert(i < top_scope_vars->len);
-          // Rename.
-          assert(i < scope->vars->len);
-          name = ((VarInfo*)scope->vars->data[i])->name;
-        }
+        assert(i < top_scope_vars->len);
+        // Rename.
+        assert(i < scope->vars->len);
+        name = ((VarInfo*)scope->vars->data[i])->name;
       }
       return new_expr_variable(name, varinfo->type, expr->token, scope);
     }
@@ -1883,13 +1877,13 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
           vars = new_vector();
           for (int i = 0; i < org_vars->len; ++i) {
             VarInfo *vi = org_vars->data[i];
-            if (vi->storage & VS_STATIC)
-              continue;
             const Name *name = vi->name;
             if (vi->storage & VS_PARAM)  // Rename parameter to be unique.
               name = alloc_label();
             // The new variable is no longer a parameter.
-            var_add(vars, name, vi->type, vi->storage & ~VS_PARAM);
+            VarInfo *dup = var_add(vars, name, vi->type, vi->storage & ~VS_PARAM);
+            if (vi->storage & VS_STATIC)
+              dup->static_.gvar = vi->static_.gvar;
           }
         }
         scope = enter_scope(curfunc);
