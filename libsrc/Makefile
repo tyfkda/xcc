@@ -63,7 +63,7 @@ $(LIB_DIR)/libc.a:	$(LIBC_OBJS)
 define DEFINE_OBJ_TARGET
 $(OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
 	@mkdir -p $(OBJ_DIR)
-	$(CC) -c -o $$@ -Werror -ffreestanding $(CFLAGS) $$<
+	$(CC) -c -o $$@ -Wall -Werror -ffreestanding $(CFLAGS) $$<
 endef
 LIB_SRC_DIRS:=$(CRT0_DIR) $(MATH_DIR) $(MISC_DIR) $(STDIO_DIR) $(STDLIB_DIR) $(STRING_DIR) $(UNISTD_DIR)
 $(foreach D, $(LIB_SRC_DIRS), $(eval $(call DEFINE_OBJ_TARGET,$(D))))
@@ -139,7 +139,7 @@ $(WCC_LIB_DIR)/wlibc.a:	$(WCC_LIBC_OBJS)
 define DEFINE_WCCOBJ_TARGET
 $(WCC_OBJ_DIR)/%.o: $(1)/%.c
 	@mkdir -p $(WCC_OBJ_DIR)
-	$(CC) -c -o $$@ -Werror $(WCC_CFLAGS) $$<
+	$(CC) -c -o $$@ -Wall -Werror $(WCC_CFLAGS) $$<
 endef
 WCC_SRC_DIRS:=$(MATH_DIR) $(MISC_DIR) $(STDIO_DIR) $(STDLIB_DIR) $(STRING_DIR) $(WASM_UNISTD_DIR) $(WASM_CRT0_DIR)
 $(foreach D, $(WCC_SRC_DIRS), $(eval $(call DEFINE_WCCOBJ_TARGET,$(D))))
@@ -157,6 +157,6 @@ test-wcc-$(1):	$(1)_test.wasm
 	../tool/runwasi --dir=. $$<
 
 $(1)_test.wasm:	tests/$(1)_test.c # $(WCC)
-	$(WCC) -o$$@ $$^
+	$(WCC) -o$$@ -Wall -Werror $$^
 endef
 $(foreach D, $(TESTS), $(eval $(call DEFINE_WCCTEST_TARGET,$(D))))

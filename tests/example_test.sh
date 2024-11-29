@@ -13,7 +13,7 @@ try() {
 
   begin_test "$title"
 
-  $XCC -o "$AOUT" -Werror "$inputs" > /dev/null 2>&1 || {
+  $XCC -o "$AOUT" -Wall -Werror "$inputs" > /dev/null 2>&1 || {
     end_test 'Compile failed'
     return
   }
@@ -37,7 +37,7 @@ try_cmp() {
 
   begin_test "$title"
 
-  $XCC -o "$AOUT" -Werror "$inputs" > /dev/null 2>&1 || {
+  $XCC -o "$AOUT" -Wall -Werror "$inputs" > /dev/null 2>&1 || {
     end_test 'Compile failed'
     return
   }

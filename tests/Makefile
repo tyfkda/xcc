@@ -130,20 +130,20 @@ parser_test:	$(PARSER_SRCS)
 
 VAL_SRCS:=valtest.c
 valtest:	$(VAL_SRCS) # $(XCC)
-	$(XCC) -o$@ -Werror $^
+	$(XCC) -o$@ -Wall -Werror $^
 
 FVAL_SRCS:=fvaltest.c
 dvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
-	$(XCC) -o$@ -Werror $(FVAL_SRCS)
+	$(XCC) -o$@ -Wall -Werror $(FVAL_SRCS)
 fvaltest:	$(FVAL_SRCS) flotest.inc # $(XCC)
-	$(XCC) -o$@ -Werror -DUSE_SINGLE $(FVAL_SRCS)
+	$(XCC) -o$@ -Wall -Werror -DUSE_SINGLE $(FVAL_SRCS)
 
 TYPE_SRCS:=print_type_test.c $(CC1_FE_DIR)/type.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 print_type_test:	$(TYPE_SRCS)
 	$(CC) -o $@ $(CFLAGS) $^
 
 link_test: link_main.c link_sub.c
-	$(XCC) -c -fcommon -olink_main.o -Werror link_main.c
+	$(XCC) -c -fcommon -olink_main.o -Wall -Werror link_main.c
 	$(CC) -no-pie -fcommon -o $@ link_sub.c link_main.o
 
 .PHONY: test-std-valtest
@@ -179,6 +179,6 @@ test-wcc-$(1):	$(1).wasm
 	../tool/runwasi $$<
 
 $(1).wasm:	$$($(1)_WCCSRCS) # $(WCC)
-	$(WCC) -o $$@ $$^
+	$(WCC) -o $$@ -Wall -Werror $$^
 endef
 $(foreach D, $(WCC_TESTS), $(eval $(call DEFINE_WCCTEST_TARGET,$(D))))

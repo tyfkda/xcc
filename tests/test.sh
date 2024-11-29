@@ -20,6 +20,7 @@ if [[ "$VERBOSE" != "" ]]; then
   SILENT=''
 fi
 
+RE_WNOALL='\/\/-WNOALL'
 RE_WNOERR='\/\/-WNOERR'
 MAKE_ERR='err'
 
@@ -37,7 +38,8 @@ try_direct() {
     };
   fi
   local OPT=''
-  echo -n "$input" | grep "$RE_WNOERR" > /dev/null || OPT=-Werror
+  echo -n "$input" | grep "$RE_WNOALL" > /dev/null || OPT+=' -Wall'
+  echo -n "$input" | grep "$RE_WNOERR" > /dev/null || OPT+=' -Werror'
 
   echo -e "$input" | eval "$XCC" $OPT -o "$AOUT" -xc - "$SILENT" ||  {
     end_test 'Compile failed'
@@ -68,7 +70,8 @@ compile_error() {
     };
   fi
   local OPT=''
-  echo -n "$input" | grep "$RE_WNOERR" > /dev/null || OPT=-Werror
+  echo -n "$input" | grep "$RE_WNOALL" > /dev/null || OPT+=' -Wall'
+  echo -n "$input" | grep "$RE_WNOERR" > /dev/null || OPT+=' -Werror'
 
   echo -e "$input" | eval "$XCC" $OPT -o "$AOUT" -xc - "$SILENT"
   local exitcode="$?"
@@ -86,7 +89,7 @@ check_error_line() {
   begin_test "$title"
 
   local actual
-  actual=$(echo -e "$input" | $XCC -o "$AOUT" -Werror -xc - 2>&1 | \
+  actual=$(echo -e "$input" | $XCC -o "$AOUT" -Wall -Werror -xc - 2>&1 | \
       grep -E -o '\([0-9]+\)' | sed 's/[()]//g' | head -n 1)
 
   local err=''; [[ "$actual" == "$expected" ]] || err="${expected} expected, but ${actual}"
@@ -108,7 +111,7 @@ link_success() {
   fi
 
   local err=''
-  eval "$XCC" -o "$AOUT" -Werror ${input} "$SILENT" || {
+  eval "$XCC" -o "$AOUT" -Wall -Werror ${input} "$SILENT" || {
     end_test 'Compile failed'
     return
   }
@@ -133,7 +136,7 @@ link_error() {
     };
   fi
 
-  eval "$XCC" -o "$AOUT" -Werror ${input} "$SILENT"
+  eval "$XCC" -o "$AOUT" -Wall -Werror ${input} "$SILENT"
   local exitcode="$?"
   local err=''; [[ "$exitcode" -ne 0 ]] || err="Compile error expected, but succeeded"
   end_test "$err"

@@ -40,7 +40,7 @@ try_run() {
 
   begin_test "$title"
 
-  echo -e "$input" | $CPP $ppflags | $CC -o "$AOUT" -Werror -xc - || exit 1
+  echo -e "$input" | $CPP $ppflags | $CC -o "$AOUT" -Wall -Werror -xc - || exit 1
 
   $RUN_AOUT
   local actual="$?"
