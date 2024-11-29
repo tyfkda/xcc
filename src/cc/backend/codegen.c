@@ -880,6 +880,7 @@ bool gen_defun(Function *func) {
   }
 
   curfunc = func;
+  static_vars = func->static_vars;
   FuncBackend *fnbe = func->extra = calloc_or_die(sizeof(FuncBackend));
   fnbe->ra = NULL;
   fnbe->bbcon = NULL;
@@ -915,6 +916,7 @@ bool gen_defun(Function *func) {
   detect_from_bbs(fnbe->bbcon);
 
   curfunc = NULL;
+  static_vars = NULL;
   curra = NULL;
   return true;
 }

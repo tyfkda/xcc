@@ -803,6 +803,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
   assert(curfunc == NULL);
   assert(is_global_scope(curscope));
   curfunc = func;
+  static_vars = func->static_vars = new_vector();
   Vector *top_vars = new_vector();
   for (int i = 0; i < param_vars->len; ++i) {
     VarInfo *vi = param_vars->data[i];
@@ -832,6 +833,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
   assert(is_global_scope(curscope));
   match(TK_SEMICOL);  // Ignore redundant semicolon.
   curfunc = NULL;
+  static_vars = NULL;
 
 #ifndef __NO_VLA
   if (vla_inits != NULL) {

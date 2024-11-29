@@ -82,7 +82,7 @@ static VarInfo *str_to_char_array(Scope *scope, Type *type, Initializer *init) {
   if (is_global_scope(scope))
     varinfo->global.init = init;
   else
-    varinfo->static_.gvar->global.init = init;
+    varinfo->static_.svar->global.init = init;
   return varinfo;
 }
 
@@ -929,7 +929,7 @@ Initializer *check_vardecl(Type **ptype, const Token *ident, int storage, Initia
 
     // TODO: Check `init` can be cast to `type`.
     if (storage & VS_STATIC) {
-      VarInfo *gvarinfo = varinfo->static_.gvar;
+      VarInfo *gvarinfo = varinfo->static_.svar;
       assert(gvarinfo != NULL);
       gvarinfo->global.init = init = check_global_initializer(type, init);
       gvarinfo->type = type;

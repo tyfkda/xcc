@@ -458,6 +458,7 @@ typedef struct Function {
   const Name *name;
   const Vector *params;  // <VarInfo*>
 
+  Vector *static_vars;  // Static variable entities: <VarInfo*>
   Vector *scopes;  // NULL => prototype definition.
   Stmt *body_block;  // NULL => Prototype definition.
   Table *label_table;  // <const Name*, Stmt*>

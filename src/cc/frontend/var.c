@@ -11,6 +11,8 @@
 
 static VarInfo *define_global(const Name *name, Type *type, int storage);
 
+Vector *static_vars;
+
 int var_find(const Vector *vars, const Name *name) {
   for (int i = 0, len = vars->len; i < len; ++i) {
     VarInfo *info = vars->data[i];
@@ -26,8 +28,6 @@ VarInfo *var_add(Vector *vars, const Name *name, Type *type, int storage) {
   varinfo->name = name;
   varinfo->type = type;
   varinfo->storage = storage;
-  if (storage & VS_STATIC)
-    varinfo->static_.gvar = define_global(alloc_label(), type, storage);
   vec_push(vars, varinfo);
   return varinfo;
 }
@@ -109,7 +109,14 @@ VarInfo *scope_add(Scope *scope, const Name *name, Type *type, int storage) {
 
   if (scope->vars == NULL)
     scope->vars = new_vector();
-  return var_add(scope->vars, name, type, storage);
+
+  VarInfo *varinfo = var_add(scope->vars, name, type, storage);
+  if (storage & VS_STATIC) {
+    // Add corresponding static variable.
+    assert(static_vars != NULL);
+    varinfo->static_.svar = var_add(static_vars, alloc_label(), type, storage);
+  }
+  return varinfo;
 }
 
 StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope) {

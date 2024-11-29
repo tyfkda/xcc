@@ -150,7 +150,7 @@ GVarInfo *get_gvar_info(Expr *expr) {
       varinfo = gvi;
       scope = global_scope;
     } else if (varinfo->storage & VS_STATIC) {
-      varinfo = varinfo->static_.gvar;
+      varinfo = varinfo->static_.svar;
       name = varinfo->name;
     }
   }
@@ -741,6 +741,21 @@ static void modify_func_name(Function *func) {
 static void traverse_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
+
+  // Static variables.
+  Vector *static_vars = func->static_vars;
+  if (static_vars != NULL) {
+    for (int k = 0; k < 2; ++k) {  // 0=register, 1=traverse
+      for (int i = 0, len = static_vars->len; i < len; ++i) {
+        VarInfo *varinfo = static_vars->data[i];
+        assert(!(varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC));
+        if (k == 0)
+          register_gvar_info(varinfo->name, varinfo);
+        else
+          traverse_initializer(varinfo->global.init);
+      }
+    }
+  }
 
   FuncExtra *extra = calloc_or_die(sizeof(FuncExtra));
   extra->reloc_code = new_vector();

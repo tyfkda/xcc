@@ -211,7 +211,7 @@ static VReg *gen_ref_sub(Expr *expr) {
       else if (is_local_storage(varinfo))
         return new_ir_bofs(varinfo->local.frameinfo);
       else if (varinfo->storage & VS_STATIC)
-        return new_ir_iofs(varinfo->static_.gvar->name, false);
+        return new_ir_iofs(varinfo->static_.svar->name, false);
       else
         return new_ir_iofs(expr->var.name, true);
     }
@@ -502,7 +502,7 @@ static VReg *gen_flonum(Expr *expr) {
   Type *type = qualified_type(expr->type, TQ_CONST);
   const Name *name = alloc_label();
   VarInfo *varinfo = scope_add(curscope, name, type, VS_STATIC);
-  VarInfo *gvarinfo = is_global_scope(curscope) ? varinfo : varinfo->static_.gvar;
+  VarInfo *gvarinfo = is_global_scope(curscope) ? varinfo : varinfo->static_.svar;
   gvarinfo->global.init = init;
 
   VReg *src = new_ir_iofs(gvarinfo->name, false);

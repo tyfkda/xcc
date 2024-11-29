@@ -48,7 +48,7 @@ typedef struct VarInfo {
       };
     } global;
     struct {
-      struct VarInfo *gvar;  // which points to global(static) variable.
+      struct VarInfo *svar;  // which points to static variable.
     } static_;
     struct {
       int value;
@@ -75,6 +75,7 @@ typedef struct Scope {
 } Scope;
 
 extern Scope *global_scope;
+extern Vector *static_vars;  // <VarInfo*>
 
 Scope *new_scope(Scope *parent);
 bool is_global_scope(Scope *scope);

@@ -531,7 +531,7 @@ Expr *make_refer(const Token *tok, Expr *expr) {
     } else {
       varinfo->storage |= VS_REF_TAKEN;
       if (varinfo->storage & VS_STATIC && !is_global_scope(e->var.scope)) {
-        VarInfo *gvarinfo = varinfo->static_.gvar;
+        VarInfo *gvarinfo = varinfo->static_.svar;
         gvarinfo->storage |= VS_REF_TAKEN;
       }
     }
@@ -1883,7 +1883,7 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
             // The new variable is no longer a parameter.
             VarInfo *dup = var_add(vars, name, vi->type, vi->storage & ~VS_PARAM);
             if (vi->storage & VS_STATIC)
-              dup->static_.gvar = vi->static_.gvar;
+              dup->static_.svar = vi->static_.svar;
           }
         }
         scope = enter_scope(curfunc);

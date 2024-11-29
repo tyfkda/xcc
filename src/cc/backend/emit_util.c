@@ -179,7 +179,7 @@ static void emit_number(void *ud, const Type *type, Expr *var, int64_t offset) {
     VarInfo *varinfo = scope_find(var->var.scope, name, &scope);
     assert(varinfo != NULL);
     if (!is_global_scope(scope) && varinfo->storage & VS_STATIC) {
-      varinfo = varinfo->static_.gvar;
+      varinfo = varinfo->static_.svar;
       assert(varinfo != NULL);
       name = varinfo->name;
     }
@@ -383,7 +383,21 @@ void emit_code(Vector *decls) {
 
     switch (decl->kind) {
     case DCL_DEFUN:
-      emit_defun(decl->defun.func);
+      {
+        Function *func = decl->defun.func;
+        emit_defun(func);
+
+        // Static variables.
+        if (func->static_vars != NULL) {
+          emit_comment(NULL);
+          Vector *vars = func->static_vars;
+          for (int i = 0; i < vars->len; ++i) {
+            VarInfo *varinfo = vars->data[i];
+            assert(!((varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) || varinfo->type->kind == TY_FUNC));
+            emit_varinfo(varinfo, varinfo->global.init);
+          }
+        }
+      }
       break;
     case DCL_ASM:
       emit_asm(decl->asmstr);
