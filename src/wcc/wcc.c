@@ -5,7 +5,7 @@
 #include <libgen.h>  // dirname
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>  // exit, free
+#include <stdlib.h>  // exit, free, strtoul
 #include <string.h>  // strdup
 #include <strings.h>  // strcasecmp
 #include <sys/stat.h>
@@ -436,9 +436,18 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       break;
     case OPT_STACK_SIZE:
       {
-        int size = atoi(optarg);
+        int base = 10;
+        char *p = optarg;
+        if (*p == '0' && (p[1] == 'x' || p[1] == 'X')) {
+          base = 16;
+          p += 2;
+        }
+        unsigned long size = strtoul(p, &p, base);
         if (size <= 0) {
-          error("stack-size must be positive");
+          error("stack-size must be positive: %ld", size);
+        }
+        if (*p != '\0') {
+          error("positive integer expected: %s", optarg);
         }
         opts->stack_size = size;
       }

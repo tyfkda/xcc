@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdlib.h>  // atoi
+#include <stdlib.h>  // strtoul
 
 #include "../wcc/wasm.h"
 #include "../wcc/wasm_linker.h"
@@ -53,9 +53,18 @@ int main(int argc, char *argv[]) {
       break;
     case OPT_STACK_SIZE:
       {
-        int size = atoi(optarg);
+        int base = 10;
+        char *p = optarg;
+        if (*p == '0' && (p[1] == 'x' || p[1] == 'X')) {
+          base = 16;
+          p += 2;
+        }
+        unsigned long size = strtoul(p, &p, base);
         if (size <= 0) {
           error("stack-size must be positive");
+        }
+        if (*p != '\0') {
+          error("positive integer expected: %s", optarg);
         }
         stack_size = size;
       }
