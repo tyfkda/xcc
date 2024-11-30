@@ -482,6 +482,7 @@ static void gen_ref_sub(Expr *expr) {
           ADD_VARUINT32(info->indirect_index);
         } else {
           GVarInfo *info = get_gvar_info(expr);
+          assert(info != NULL);
           ADD_CODE(OP_I32_CONST);
           FuncExtra *extra = curfunc->extra;
           DataStorage *code = extra->code;
@@ -554,6 +555,7 @@ static void gen_var(Expr *expr, bool needval) {
         ADD_ULEB128(vreg->prim.local_index);
       } else {
         GVarInfo *info = get_gvar_info(expr);
+        assert(info != NULL);
         ADD_CODE(OP_GLOBAL_GET);
         FuncExtra *extra = curfunc->extra;
         DataStorage *code = extra->code;
@@ -616,6 +618,7 @@ static void gen_set_to_var(Expr *var) {
   } else {
     assert(!is_global_datsec_var(varinfo, var->var.scope));
     GVarInfo *info = get_gvar_info(var);
+    assert(info != NULL);
     ADD_CODE(OP_GLOBAL_SET);
     FuncExtra *extra = curfunc->extra;
     DataStorage *code = extra->code;
@@ -799,6 +802,7 @@ static void gen_incdec(Expr *expr, bool needval) {
   } else {
     assert(!is_global_datsec_var(varinfo, scope));
     GVarInfo *info = get_gvar_info(target);
+    assert(info != NULL);
     ADD_CODE(OP_GLOBAL_SET);
     ADD_ULEB128(info->prim.index);
     if (needval) {
@@ -822,6 +826,12 @@ static void gen_assign_sub(Expr *lhs, Expr *rhs) {
         gen_expr(rhs, true);
         gen_set_to_var(lhs);
         break;
+      }
+
+      if ((varinfo->storage & (VS_STATIC | VS_USED)) == VS_STATIC) {
+        // Assignment can be omitted.
+        gen_expr(rhs, false);
+        return;
       }
     }
     gen_lval(lhs);

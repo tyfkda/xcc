@@ -157,7 +157,7 @@ GVarInfo *get_gvar_info(Expr *expr) {
   }
   assert(varinfo != NULL);
   GVarInfo *info = get_gvar_info_from_name(name);
-  if (info == NULL) {
+  if (info == NULL && (!(varinfo->storage & VS_STATIC) || (varinfo->storage & VS_USED))) {
     // Returns dummy.
     info = register_gvar_info(name, varinfo);
     info->flag |= GVF_UNRESOLVED;
@@ -165,7 +165,7 @@ GVarInfo *get_gvar_info(Expr *expr) {
   return info;
 }
 
-#define add_global_var(type, name)  scope_add(global_scope, name, type, 0)
+#define add_global_var(type, name)  scope_add(global_scope, name, type, VS_USED)
 
 void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc,
                           bool add_to_scope) {
@@ -629,7 +629,8 @@ static void traverse_varinfo(VarInfo *varinfo) {
     if (scope_find(global_scope, varinfo->name, NULL) == NULL) {
       // Register into global to output linking information.
       GVarInfo *info = register_gvar_info(varinfo->name, varinfo);
-      info->flag |= GVF_UNRESOLVED;
+      if (info != NULL)
+        info->flag |= GVF_UNRESOLVED;
     }
   }
   if (!(varinfo->storage & (VS_EXTERN | VS_STATIC | VS_ENUM_MEMBER)))
@@ -832,6 +833,7 @@ static void add_builtins(int flag) {
     GVarInfo *info = get_gvar_info_from_name(name);
     if (info == NULL)
       info = register_gvar_info(name, varinfo);
+    assert(info != NULL);
     info->flag |= GVF_UNRESOLVED;
   }
 }
@@ -889,7 +891,9 @@ static bool detect_compile_unit_sp(Function *func) {
 static int detect_compile_unit_memory(void) {
   for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
     VarInfo *varinfo = global_scope->vars->data[i];
-    if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
+    if (varinfo->type->kind == TY_FUNC ||
+        (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
+        (varinfo->storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
       continue;
     if (is_global_datsec_var(varinfo, global_scope))
       return CUF_LINEAR_MEMORY;
@@ -992,8 +996,8 @@ void traverse_ast(Vector *decls) {
       GVarInfo *info;
       for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
         const VarInfo *varinfo = info->varinfo;
-        if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
-          continue;
+        assert(!(varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC));
+        assert(!((varinfo->storage & (VS_STATIC | VS_USED)) == VS_STATIC));
         if ((k == 0 && !(info->flag & GVF_UNRESOLVED)) ||
             (k != 0 && ((info->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
           continue;

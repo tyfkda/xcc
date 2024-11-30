@@ -310,6 +310,12 @@ test_error() {
   compile_error 'noreturn should not return' 'void sub(void) __attribute__((noreturn));\nvoid sub(void){}\nint main(){ sub(); }'
   compile_error 'noreturn should be void' '#include <stdlib.h>\nint sub(void) __attribute__((noreturn));\nint sub(void){exit(0);}\nint main(){ sub(); }'
 
+  # Unused check.
+  compile_error 'unused local variable' 'int main(){ int x = 0; x = 1; return 0; }'
+  compile_error 'unused static variable' 'int main(){ static int x = 0; x = 1; return 0; }'
+  compile_error 'unused static global variable'    'static int s = 0; int g; int sub(){g=1; return 2;} int main(){ s = sub(); return g; }'
+  try_direct 'unused static can run w/o -Werror' 1 'static int s = 0; int g; int sub(){g=1; return 2;} int main(){ s = sub(); return g; } //-WNOERR'
+
   compile_error 'enum and global' 'enum Foo { BAR }; int BAR; int main(){}'
   compile_error 'global and enum' 'int BAR; enum Foo { BAR }; int main(){}'
   compile_error 'dup enum elem' 'enum Foo { BAR, BAR }; int main(){}'

@@ -29,6 +29,7 @@ static void emit_global_number(void *ud, const Type *type, Expr *var, Fixnum off
           v += get_indirect_function_index(var->var.name);
         } else {
           GVarInfo *info = get_gvar_info(var);
+          assert(info != NULL);
           assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
           v += info->non_prim.address;
         }
@@ -116,6 +117,7 @@ static void emit_number(void *ud, const Type *type, Expr *var, Fixnum offset) {
     } else {
       assert(var->kind == EX_VAR);
       const GVarInfo *info = get_gvar_info(var);
+      assert(info != NULL);
       assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
       v += info->non_prim.address;
 
