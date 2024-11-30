@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdarg.h>
 #include <stdlib.h>  // exit
+#include <string.h>
 
 #include "ast.h"
 #include "initializer.h"
@@ -17,6 +18,7 @@
 
 Function *curfunc;
 Scope *curscope;
+LoopScope loop_scope;
 
 int compile_warning_count;
 int compile_error_count;
@@ -27,7 +29,40 @@ CcFlags cc_flags = {
   .optimize_level = 0,
 };
 
-LoopScope loop_scope;
+typedef struct {
+  const char *flag_name;
+  off_t flag_offset;
+} FlagTable;
+
+static bool parse_flag_table(const char *optarg, bool value, const FlagTable *table, size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    const FlagTable *p = &table[i];
+    if (strcmp(optarg, p->flag_name) == 0) {
+      size_t len = strlen(p->flag_name);
+      if (optarg[len] != '\0')
+        continue;
+      bool *b = (bool*)((char*)&cc_flags + p->flag_offset);
+      *b = value;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool parse_fopt(const char *optarg, bool value) {
+  static const FlagTable kFlagTable[] = {
+    {"common", offsetof(CcFlags, common)},
+  };
+  return parse_flag_table(optarg, value, kFlagTable, ARRAY_SIZE(kFlagTable));
+}
+
+bool parse_wopt(const char *optarg, bool value) {
+  static const FlagTable kFlagTable[] = {
+    {"unused-variable", offsetof(CcFlags, warn.unused_variable)},
+    {"unused-function", offsetof(CcFlags, warn.unused_function)},
+  };
+  return parse_flag_table(optarg, value, kFlagTable, ARRAY_SIZE(kFlagTable));
+}
 
 void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt, ...) {
   va_list ap;

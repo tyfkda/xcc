@@ -27,12 +27,21 @@ enum ParseErrorLevel {
 };
 
 typedef struct {
+  bool unused_variable;
+  bool unused_function;
+} WarningFlags;
+
+typedef struct {
   bool warn_as_error;  // Treat warnings as errors
   bool common;
   int optimize_level;
+  WarningFlags warn;
 } CcFlags;
 
 extern CcFlags cc_flags;
+
+bool parse_fopt(const char *optarg, bool value);
+bool parse_wopt(const char *optarg, bool value);
 
 typedef struct {
   Stmt *swtch;
