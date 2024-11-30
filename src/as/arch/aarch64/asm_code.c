@@ -27,7 +27,7 @@ void make_code32(Inst *inst, Code *code, unsigned int *buf, int len) {
   code->len += len;
 }
 
-inline bool assemble_error(ParseInfo *info, const char *message) {
+static inline bool assemble_error(ParseInfo *info, const char *message) {
   parse_error(info, message);
   return false;
 }

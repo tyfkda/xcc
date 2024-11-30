@@ -107,7 +107,7 @@ Expr *assign_bitfield_member(const Token *tok, Expr *dst, Expr *src, Expr *val,
                              const MemberInfo *minfo);
 Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInfo *minfo);
 #else
-inline void not_bitfield_member(Expr *expr)  { (void)expr; }  // Must not, so noop.
+static inline void not_bitfield_member(Expr *expr)  { (void)expr; }  // Must not, so noop.
 #endif
 Expr *incdec_of(enum ExprKind kind, Expr *target, const Token *tok);
 Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs);

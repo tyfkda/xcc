@@ -132,8 +132,8 @@ void set_fixnum_size(enum FixnumKind kind, size_t size, int align);
 size_t type_size(const Type *type);
 size_t align_size(const Type *type);
 
-inline bool is_fixnum(enum TypeKind kind)  { return kind == TY_FIXNUM; }
-inline bool is_flonum(const Type *type)  {
+static inline bool is_fixnum(enum TypeKind kind)  { return kind == TY_FIXNUM; }
+static inline bool is_flonum(const Type *type)  {
 #ifndef __NO_FLONUM
   return type->kind == TY_FLONUM;
 #else
@@ -141,13 +141,13 @@ inline bool is_flonum(const Type *type)  {
   return false;
 #endif
 }
-inline bool is_bool(const Type *type)  { return type->kind == TY_FIXNUM && type->fixnum.kind == FX_BOOL; }
+static inline bool is_bool(const Type *type)  { return type->kind == TY_FIXNUM && type->fixnum.kind == FX_BOOL; }
 bool is_number(const Type *type);
 bool is_unsigned(const Type *type);
 bool is_char_type(const Type *type, /*enum StrKind*/int str_kind);
 bool is_void_ptr(const Type *type);
 bool is_prim_type(const Type *type);
-inline bool ptr_or_array(const Type *type)  { return type->kind == TY_PTR || type->kind == TY_ARRAY; }
+static inline bool ptr_or_array(const Type *type)  { return type->kind == TY_PTR || type->kind == TY_ARRAY; }
 Type *get_fixnum_type(enum FixnumKind kind, bool is_unsigned, int qualifier);
 Type *get_fixnum_type_from_size(size_t size);
 Type *ptrof(Type *type);
@@ -167,7 +167,7 @@ int find_struct_member(const StructInfo *sinfo, const Name *name);
 Type *create_enum_type(const Name *name);
 
 bool same_type_without_qualifier(const Type *type1, const Type *type2, bool ignore_qualifier);
-inline bool same_type(const Type *type1, const Type *type2)  { return same_type_without_qualifier(type1, type2, false); }
+static inline bool same_type(const Type *type1, const Type *type2)  { return same_type_without_qualifier(type1, type2, false); }
 bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit);
 
 //

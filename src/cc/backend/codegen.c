@@ -510,7 +510,7 @@ static void gen_switch(Stmt *stmt) {
   pop_break_bb(save_break);
 }
 
-inline void gen_case(Stmt *stmt) {
+static inline void gen_case(Stmt *stmt) {
   set_curbb(stmt->case_.bb);
   gen_stmt(stmt->case_.stmt);
 }

@@ -164,7 +164,7 @@ typedef struct {
   Initializer *flattened;
 } InitFlattener;
 
-extern inline bool is_multi_type(enum TypeKind kind) {
+static inline bool is_multi_type(enum TypeKind kind) {
   return kind == TY_STRUCT || kind == TY_ARRAY;
 }
 

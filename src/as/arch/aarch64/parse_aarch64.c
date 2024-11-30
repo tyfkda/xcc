@@ -151,19 +151,19 @@ static const char kCondTable[][3] = {
   "hi", "ls", "ge", "lt", "gt", "le", "al", "nv",
 };
 
-inline bool is_reg32(enum RegType reg) {
+static inline bool is_reg32(enum RegType reg) {
   return reg >= W0 && reg <= WZR;
 }
 
-inline bool is_reg64(enum RegType reg) {
+static inline bool is_reg64(enum RegType reg) {
   return reg >= X0 && reg <= SP;
 }
 
-inline bool is_freg32(enum RegType reg) {
+static inline bool is_freg32(enum RegType reg) {
   return reg >= S0 && reg <= S31;
 }
 
-inline bool is_freg64(enum RegType reg) {
+static inline bool is_freg64(enum RegType reg) {
   return reg >= D0 && reg <= D31;
 }
 

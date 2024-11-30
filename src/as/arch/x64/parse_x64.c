@@ -138,23 +138,23 @@ static const char kXmmRegisters[][6] = {
   "xmm8",  "xmm9", "xmm10", "xmm11", "xmm12", "xmm13", "xmm14", "xmm15",
 };
 
-inline bool is_reg8(enum RegType reg) {
+static inline bool is_reg8(enum RegType reg) {
   return reg >= AL && reg <= DIL;
 }
 
-inline bool is_reg16(enum RegType reg) {
+static inline bool is_reg16(enum RegType reg) {
   return reg >= AX && reg <= R15W;
 }
 
-inline bool is_reg32(enum RegType reg) {
+static inline bool is_reg32(enum RegType reg) {
   return reg >= EAX && reg <= R15D;
 }
 
-inline bool is_reg64(enum RegType reg) {
+static inline bool is_reg64(enum RegType reg) {
   return reg >= RAX && reg <= R15;
 }
 
-inline bool is_segment(enum RegType reg) {
+static inline bool is_segment(enum RegType reg) {
   return reg >= CS && reg <= SS;
 }
 

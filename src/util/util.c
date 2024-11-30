@@ -611,11 +611,6 @@ char *sb_join(StringBuffer *sb, const char *separator) {
   return str;
 }
 
-// Make sure inline function is out.
-extern inline void sb_append(StringBuffer *sb, const char *start, const char *end);
-extern inline void sb_prepend(StringBuffer *sb, const char *start, const char *end);
-extern inline char *sb_to_string(StringBuffer *sb);
-
 static const char *escape_hex(int c) {
   char *s = malloc_or_die(5);
   snprintf(s, 5, "\\x%02x", c & 0xff);

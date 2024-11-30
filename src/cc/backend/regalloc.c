@@ -27,7 +27,7 @@ RegAlloc *new_reg_alloc(const RegAllocSettings *settings) {
   return ra;
 }
 
-inline VReg *alloc_vreg(enum VRegSize vsize, int vflag) {
+static inline VReg *alloc_vreg(enum VRegSize vsize, int vflag) {
   VReg *vreg = malloc_or_die(sizeof(*vreg));
   vreg->virt = vreg->orig_virt = -1;
   vreg->phys = -1;

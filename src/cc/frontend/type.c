@@ -231,12 +231,6 @@ size_t align_size(const Type *type) {
   return 1;  // Just in case.
 }
 
-// Make sure inline function is out.
-extern inline bool is_fixnum(enum TypeKind kind);
-extern inline bool is_flonum(const Type *type);
-extern inline bool is_bool(const Type *type);
-extern inline bool ptr_or_array(const Type *type);
-
 bool is_number(const Type *type) {
   return is_flonum(type) || is_fixnum(type->kind);
 }
@@ -390,7 +384,7 @@ Type *create_enum_type(const Name *name) {
 }
 
 // Compare type for function parameter: Ignore const-ness.
-extern inline bool same_type_func_param(const Type *type1, const Type *type2) {
+static inline bool same_type_func_param(const Type *type1, const Type *type2) {
   return same_type_without_qualifier(type1, type2, true);
 }
 
@@ -447,9 +441,6 @@ bool same_type_without_qualifier(const Type *type1, const Type *type2, bool igno
     }
   }
 }
-
-// Make sure inline function is out.
-extern inline bool same_type(const Type *type1, const Type *type2);
 
 bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
   if (same_type_without_qualifier(dst, src, dst->kind == TY_STRUCT))

@@ -69,8 +69,6 @@ int getsert_func_type_index(const Type *type, bool reg) {
   return getsert_func_type(ds.buf, ds.len, reg);
 }
 
-extern int get_func_type_index(const Type *type);
-
 static FuncInfo *register_func_info(const Name *funcname, Function *func, VarInfo *varinfo, int flag) {
   assert(func == NULL || func->type->kind == TY_FUNC);
   FuncInfo *info;

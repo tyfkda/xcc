@@ -87,7 +87,7 @@ static void fix_section_size(Vector *sections, uintptr_t start_address) {
 
 // ================================================
 
-inline int section_key(const SectionInfo *p) {
+static inline int section_key(const SectionInfo *p) {
   int flag = p->flag;
   // if (flag & SF_BSS)
   //   return 4;

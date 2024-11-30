@@ -75,7 +75,7 @@ const RegAllocSettings kArchRegAllocSettings = {
 
 //
 
-bool is_im12(int64_t x) {
+static inline bool is_im12(int64_t x) {
   return x <= ((1L << 11) - 1) && x >= -(1L << 11);
 }
 
@@ -891,7 +891,7 @@ int calculate_func_param_bottom(Function *func) {
 }
 #undef N
 
-inline bool is_freg(const char *reg) {
+static inline bool is_freg(const char *reg) {
   return reg[0] == 'f' && reg[1] != 'p';
 }
 

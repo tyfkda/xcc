@@ -45,7 +45,7 @@ extern void _add_opened_file(FILE *fp);
 extern void _remove_opened_file(FILE *fp);
 extern int _detect_open_flag(const char *mode);
 
-inline int _fputc(int c, FILE *fp)  {
+static inline int _fputc(int c, FILE *fp)  {
   unsigned char _buf = c;
   ssize_t _result = (fp->iof->write)(fp, (char*)&_buf, sizeof(_buf));
   return _result == sizeof(_buf) ? (int)_buf : EOF;

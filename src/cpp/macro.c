@@ -89,7 +89,7 @@ static HideSet *clone_hideset(HideSet *hs) {
   return cloned;
 }
 
-inline void hideset_put(HideSet *hs, const Name *token) {
+static inline void hideset_put(HideSet *hs, const Name *token) {
   assert(hs != NULL);
   table_put(hs, token, (void*)token);
 }

@@ -25,23 +25,20 @@ void make_code32(Inst *inst, Code *code, unsigned int *buf, int len) {
   code->len += len;
 }
 
-inline bool is_im6(int64_t x) {
+static inline bool is_im6(int64_t x) {
   return x <= ((1L << 5) - 1) && x >= -(1L << 5);
 }
 
-inline bool is_im12(int64_t x) {
+static inline bool is_im12(int64_t x) {
   return x <= ((1L << 11) - 1) && x >= -(1L << 11);
 }
 
-inline bool assemble_error(ParseInfo *info, const char *message) {
+static inline bool assemble_error(ParseInfo *info, const char *message) {
   parse_error(info, message);
   return false;
 }
 
 //
-
-extern inline bool is_rvc_reg(int reg);
-extern inline int to_rvc_reg(int reg);
 
 static unsigned char *asm_3r(Inst *inst, Code *code) {
   assert(inst->opr[0].type == REG);

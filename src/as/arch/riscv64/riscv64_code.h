@@ -187,7 +187,7 @@
      (IMM(offset, 4, 1) << 8) | (IMM(offset, 11, 11) << 7))
 #define SWIZZLE_JAL(ofs)  ((IMM(ofs, 20, 20) << 31) | (IMM(ofs, 10, 1) << 21) | (IMM(ofs, 11, 11) << 20) | (IMM(ofs, 19, 12) << 12))
 
-inline bool is_rvc_reg(int reg)  { return reg >= 8 && reg <= 15; }  // X8~X15
-inline int to_rvc_reg(int reg)  { return reg - 8; }
+static inline bool is_rvc_reg(int reg)  { return reg >= 8 && reg <= 15; }  // X8~X15
+static inline int to_rvc_reg(int reg)  { return reg - 8; }
 #define is_rvc_freg  is_rvc_reg
 #define to_rvc_freg  to_rvc_reg

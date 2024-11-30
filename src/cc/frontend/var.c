@@ -32,9 +32,6 @@ VarInfo *var_add(Vector *vars, const Name *name, Type *type, int storage) {
   return varinfo;
 }
 
-// Make sure inline function is out.
-extern inline bool is_local_storage(const VarInfo *varinfo);
-
 // Global
 
 Scope *global_scope;

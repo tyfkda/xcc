@@ -29,16 +29,16 @@ void make_code(Inst *inst, Code *code, unsigned char *buf, int len) {
   code->len += len;
 }
 
-inline char opr_regno(const Reg *reg) {
+static inline char opr_regno(const Reg *reg) {
   return reg->no | (reg->x << 3);
 }
 
-inline bool opr_reg8(const Reg *reg) {
+static inline bool opr_reg8(const Reg *reg) {
   assert(reg->size == REG8);
   return opr_regno(reg) < 4;
 }
 
-inline bool assemble_error(ParseInfo *info, const char *message) {
+static inline bool assemble_error(ParseInfo *info, const char *message) {
   parse_error(info, message);
   return false;
 }
