@@ -15,12 +15,14 @@
 
 #define MAX_TEST_CASES  32
 
+#define XTEST_WEAK  __attribute__((weak))
+
 struct XTestCase {
   const char *title;
   void (*fn)(void);
 };
-static struct XTestCase xtest_cases[MAX_TEST_CASES];
-static size_t xtest_case_count;
+XTEST_WEAK struct XTestCase xtest_cases[MAX_TEST_CASES];
+XTEST_WEAK size_t xtest_case_count;
 
 #define TEST(name) \
   static void test_ ## name (void); \
@@ -52,10 +54,9 @@ static size_t xtest_case_count;
 #define EXPECT_NEAR(expected, actual)  expect_near(#actual, expected, actual)
 #endif
 
-static const char *suite_name;
-static int failed_suite_count;
-static int test_count, error_count;
-static const char *test_title;
+XTEST_WEAK const char *suite_name;
+XTEST_WEAK int failed_suite_count;
+XTEST_WEAK int test_count, error_count;
 
 #define CLEAR_LINE  "\033[1G\033[2K"
 #define RED  "\033[31m"
@@ -63,12 +64,12 @@ static const char *test_title;
 #define BOLD  "\033[1m"
 #define RESET_COLOR  "\033[0m"
 
-static void begin_test_suite(const char *title) {
+XTEST_WEAK void begin_test_suite(const char *title) {
   suite_name = title;
   test_count = error_count = 0;
 }
 
-static void end_test_suite(void) {
+XTEST_WEAK void end_test_suite(void) {
   if (error_count == 0) {
     printf(CLEAR_LINE "  %s: " GREEN "OK: %d" RESET_COLOR "\n", suite_name, test_count);
   } else {
@@ -77,14 +78,13 @@ static void end_test_suite(void) {
   }
 }
 
-static void begin_test(const char *title) {
-  test_title = title;
+XTEST_WEAK void begin_test(const char *title) {
   ++test_count;
   printf(CLEAR_LINE "  %s %d: %s", suite_name, test_count, title);
   fflush(stdout);
 }
 
-static void fail(const char *fmt, ...) {
+XTEST_WEAK void fail(const char *fmt, ...) {
   ++error_count;
   printf("  " RED BOLD "FAILED" RESET_COLOR ": ");
   va_list ap;
@@ -94,32 +94,32 @@ static void fail(const char *fmt, ...) {
   fputc('\n', stdout);
 }
 
-static void expecti64(const char *title, int64_t expected, int64_t actual) {
+XTEST_WEAK void expecti64(const char *title, int64_t expected, int64_t actual) {
   begin_test(title);
   if (expected != actual)
     fail("%s, %" PRId64 " expected, but got %" PRId64 "\n", title, expected, actual);
 }
 
-static void expectptr(const char *title, void *expected, void *actual) {
+XTEST_WEAK void expectptr(const char *title, void *expected, void *actual) {
   begin_test(title);
   if (expected != actual)
     fail("%s, %p expected, but got %p\n", title, expected, actual);
 }
 
-static void expectstr(const char *title, const char *expected, const char *actual) {
+XTEST_WEAK void expectstr(const char *title, const char *expected, const char *actual) {
   begin_test(title);
   if (strcmp(expected, actual) != 0)
     fail("\"%s\" expected, but got \"%s\"\n", expected, actual);
 }
 
 #if !defined(__NO_FLONUM)
-static void expectf64(const char *title, double expected, double actual) {
+XTEST_WEAK void expectf64(const char *title, double expected, double actual) {
   begin_test(title);
   if (expected != actual)
     fail("%s, %f expected, but got %f\n", title, expected, actual);
 }
 
-static void expectf32(const char *title, float expected, float actual) {
+XTEST_WEAK void expectf32(const char *title, float expected, float actual) {
   begin_test(title);
   if (expected != actual)
     fail("%s, %f expected, but got %f\n", title, expected, actual);
@@ -127,7 +127,7 @@ static void expectf32(const char *title, float expected, float actual) {
 #endif
 
 #if !defined(XTEST_NO_EXPECT_NEAR) && !defined(__NO_FLONUM)
-static void expect_near(const char *title, double expected, double actual) {
+XTEST_WEAK void expect_near(const char *title, double expected, double actual) {
   begin_test(title);
   int ok = 0;
   if (isfinite(actual)) {
@@ -142,7 +142,7 @@ static void expect_near(const char *title, double expected, double actual) {
 }
 #endif
 
-static int xtest_main(void) {
+XTEST_WEAK int xtest_main(void) {
   for (size_t i = 0; i < xtest_case_count; ++i) {
     struct XTestCase *p = &xtest_cases[i];
     begin_test_suite(p->title);
