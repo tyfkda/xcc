@@ -1886,6 +1886,10 @@ TEST(function) {
   EXPECT("inline", 1522756, inline_square(1234));
   EXPECT("inline nest", 65536, inline_square(inline_square(16)));
   {
+    int (*f)(int) = inline_square;
+    EXPECT("inline fnptr", 321489, f(567));
+  }
+  {
     {
       int g_shadow = 66;
       inline_shadow(77);

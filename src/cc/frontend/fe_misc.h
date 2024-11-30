@@ -91,6 +91,7 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit);
 const MemberInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
                                         Vector *stack);
 void mark_var_used(Expr *expr);
+void mark_var_used_for_func(Expr *expr);
 void propagate_var_used(void);
 void check_lval(const Token *tok, Expr *expr, const char *error);
 Expr *reduce_refer(Expr *expr);
@@ -124,5 +125,5 @@ bool check_funcend_return(Stmt *stmt);
 
 int get_funparam_index(Function *func, const Name *name);  // -1: Not funparam.
 
-bool satisfy_inline_criteria(const VarInfo *varinfo, int storage);
+bool satisfy_inline_criteria(const VarInfo *varinfo);
 Stmt *embed_inline_funcall(VarInfo *varinfo);

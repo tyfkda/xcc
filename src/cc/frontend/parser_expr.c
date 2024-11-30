@@ -51,7 +51,7 @@ static Expr *parse_funcall(Expr *func) {
   assert(curfunc != NULL);
   curfunc->flag |= FUNCF_HAS_FUNCALL;
 
-  mark_var_used(func);
+  mark_var_used_for_func(func);
   for (int i = 0; i < args->len; ++i)
     mark_var_used(args->data[i]);
 
@@ -68,9 +68,12 @@ static Expr *parse_funcall(Expr *func) {
   if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
     VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
     assert(varinfo != NULL);
-    if (satisfy_inline_criteria(varinfo, 0))
+    if (satisfy_inline_criteria(varinfo))
       return new_expr_inlined(token, varinfo->name, rettype, args,
                               embed_inline_funcall(varinfo));
+    // Not inlined.
+    if (varinfo->storage & VS_INLINE)
+      varinfo->storage |= VS_EXTERN;  // To emit inline function.
   }
 
   Expr *funcall = new_expr_funcall(token, func, args);

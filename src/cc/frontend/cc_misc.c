@@ -12,8 +12,11 @@
 
 bool is_function_omitted(const VarInfo *funcvi) {
   assert(funcvi != NULL);
-  return (satisfy_inline_criteria(funcvi, funcvi->storage) ||
-      (funcvi->storage & (VS_STATIC | VS_USED)) == VS_STATIC);  // Static function but not used.
+  int storage = funcvi->storage;
+  if ((storage & VS_REF_TAKEN) || ((storage & (VS_INLINE | VS_EXTERN)) == (VS_INLINE | VS_EXTERN)))
+    return false;
+  return (satisfy_inline_criteria(funcvi) ||
+      (storage & (VS_STATIC | VS_USED)) == VS_STATIC);  // Static function but not used.
 }
 
 static void eval_initial_value(Expr *expr, Expr **pvar, int64_t *poffset) {

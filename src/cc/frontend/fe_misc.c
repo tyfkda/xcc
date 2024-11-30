@@ -446,7 +446,7 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool make_int) {
   return true;
 }
 
-void mark_var_used(Expr *expr) {
+static void mark_var_used_sub(Expr *expr, bool for_func) {
   VarInfo *gvarinfo = NULL;
 
   switch (expr->kind) {
@@ -457,6 +457,11 @@ void mark_var_used(Expr *expr) {
       assert(varinfo != NULL);
       if (is_global_scope(scope)) {
         gvarinfo = varinfo;
+
+        const Type *type = varinfo->type;
+        if (type->kind == TY_FUNC && !for_func) {
+          varinfo->storage |= VS_REF_TAKEN;
+        }
       } else {
         varinfo->storage |= VS_USED;
         if (varinfo->storage & VS_STATIC)
@@ -479,6 +484,14 @@ void mark_var_used(Expr *expr) {
       curvarinfo->global.referred_globals = refs = new_vector();
     vec_push(refs, gvarinfo);
   }
+}
+
+void mark_var_used(Expr *expr) {
+  mark_var_used_sub(expr, false);
+}
+
+void mark_var_used_for_func(Expr *expr) {
+  mark_var_used_sub(expr, true);
 }
 
 void propagate_var_used(void) {
@@ -1866,10 +1879,7 @@ int get_funparam_index(Function *func, const Name *name) {
 
 //
 
-bool satisfy_inline_criteria(const VarInfo *varinfo, int storage) {
-  if (storage & (VS_STATIC | VS_EXTERN))
-    return false;
-
+bool satisfy_inline_criteria(const VarInfo *varinfo) {
   // TODO: Check complexity or length of function body statements.
   const Type *type = varinfo->type;
   if (type->kind == TY_FUNC && (varinfo->storage & VS_INLINE) && !type->func.vaargs) {
@@ -1981,7 +1991,7 @@ static Expr *duplicate_inline_function_expr(Function *targetfunc, Scope *targets
       // Duplicate from original to receive function parameters correctly.
       VarInfo *varinfo = scope_find(global_scope, expr->inlined.funcname, NULL);
       assert(varinfo != NULL);
-      assert(satisfy_inline_criteria(varinfo, 0));
+      assert(satisfy_inline_criteria(varinfo));
       return new_expr_inlined(expr->token, varinfo->name, expr->type, args,
                               embed_inline_funcall(varinfo));
     }

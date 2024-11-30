@@ -7,7 +7,7 @@
 
 #include "ast.h"
 #include "cc_misc.h"
-#include "fe_misc.h"  // satisfy_inline_criteria
+#include "fe_misc.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"
