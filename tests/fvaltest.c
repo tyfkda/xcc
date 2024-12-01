@@ -19,6 +19,7 @@ double mix_params(int i0, double d0, int i1, float f1, int i2, double d2, int i3
 
 double mix_many_params(int n, int i1, double d1, int i2, double d2, int i3, double d3, int i4,
                        double d4, int i5, double d5, int i6, double d6) {
+  (void)n;
   return i1 * d1 + i2 * d2 + i3 * d3 + i4 * d4 + i5 * d5 + i6 * d6;
 }
 #endif

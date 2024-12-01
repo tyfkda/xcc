@@ -29,6 +29,7 @@ static void emit_global_number(void *ud, const Type *type, Expr *var, Fixnum off
           v += get_indirect_function_index(var->var.name);
         } else {
           GVarInfo *info = get_gvar_info(var);
+          assert(info != NULL);
           assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
           v += info->non_prim.address;
         }
@@ -116,6 +117,7 @@ static void emit_number(void *ud, const Type *type, Expr *var, Fixnum offset) {
     } else {
       assert(var->kind == EX_VAR);
       const GVarInfo *info = get_gvar_info(var);
+      assert(info != NULL);
       assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
       v += info->non_prim.address;
 
@@ -181,7 +183,10 @@ static Vector *construct_data_segment(void) {  // <DataSegment*>
     GVarInfo *info;
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
-      if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER) || varinfo->type->kind == TY_FUNC)
+      int storage = varinfo->storage;
+      if (varinfo->type->kind == TY_FUNC ||
+          (storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
+          (storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
         continue;
       if ((k == 0) == (varinfo->global.init == NULL) ||
           !is_global_datsec_var(varinfo, global_scope))
@@ -347,9 +352,7 @@ static void emit_function_section(EmitWasm *ew) {
     const Name *name;
     FuncInfo *info;
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
-      if (info->func == NULL)
-        continue;
-      if (satisfy_inline_criteria(info->varinfo, info->varinfo->storage))
+      if (info->func == NULL || is_function_omitted(info->varinfo))
         continue;
       ++function_count;
       int type_index = info->type_index;
@@ -495,10 +498,9 @@ static void emit_code_section(EmitWasm *ew) {
     size_t offset = codesec.len;
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
       Function *func = info->func;
-      if (func == NULL)
+      if (func == NULL || is_function_omitted(info->varinfo))
         continue;
-      if (satisfy_inline_criteria(info->varinfo, info->varinfo->storage))
-        continue;
+
       FuncExtra* extra = func->extra;
       DataStorage *code = extra->code;
       data_concat(&codesec, code);
@@ -583,7 +585,7 @@ static void emit_linking_section(EmitWasm *ew) {
       if ((k == 0 && (info->func != NULL || info->flag == 0)) ||  // Put external function first.
           (k == 1 && info->func == NULL))                         // Defined function later.
         continue;
-      if (satisfy_inline_criteria(info->varinfo, info->varinfo->storage))
+      if (is_function_omitted(info->varinfo))
         continue;
 
       int flags = 0;
@@ -611,7 +613,10 @@ static void emit_linking_section(EmitWasm *ew) {
     int flags_bss = k != 2 ? 0 : cc_flags.common ? WASM_SYM_BINDING_WEAK : 0;
     for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
       const VarInfo *varinfo = info->varinfo;
-      if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
+      int storage = varinfo->storage;
+      if (varinfo->type->kind == TY_FUNC ||
+          (storage & VS_ENUM_MEMBER) ||  // VS_EXPORT is not set because of `__stack_pointer`.
+          (storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
         continue;
       GVarInfo *info = get_gvar_info_from_name(varinfo->name);
       if (info == NULL)
@@ -764,9 +769,7 @@ static void emit_reloc_code_section(EmitWasm *ew) {
   FuncInfo *info;
   for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
     Function *func = info->func;
-    if (func == NULL)
-      continue;
-    if (satisfy_inline_criteria(info->varinfo, info->varinfo->storage))
+    if (func == NULL || is_function_omitted(info->varinfo))
       continue;
 
     FuncExtra *extra = func->extra;

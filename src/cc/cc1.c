@@ -47,30 +47,10 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
   parse(decls);
 }
 
-static bool parse_fopt(const char *optarg, bool value) {
-  static const struct {
-    const char *flag_name;
-    off_t flag_offset;
-  } kFlagTable[] = {
-    {"common", offsetof(CcFlags, common)},
-  };
-
-  for (size_t i = 0; i < ARRAY_SIZE(kFlagTable); ++i) {
-    if (strcmp(optarg, kFlagTable[i].flag_name) == 0) {
-      size_t len = strlen(kFlagTable[i].flag_name);
-      if (optarg[len] != '\0')
-        continue;
-      bool *p = (bool*)((char*)&cc_flags + kFlagTable[i].flag_offset);
-      *p = value;
-      return true;
-    }
-  }
-  return false;
-}
-
 int main(int argc, char *argv[]) {
   enum {
     OPT_FNO = 128,
+    OPT_WNO,
     OPT_SSA,
   };
 
@@ -80,8 +60,9 @@ int main(int argc, char *argv[]) {
     {"O", optional_argument},  // Optimization level
 
     // Sub command
-    {"fno-", required_argument, OPT_FNO},
-    {"f", required_argument},
+    {"fno-", optional_argument, OPT_FNO},
+    {"f", optional_argument},
+    {"Wno-", optional_argument, OPT_WNO},
     {"W", required_argument},
 
     // Feature flag.
@@ -120,6 +101,10 @@ int main(int argc, char *argv[]) {
 
     case 'f':
     case OPT_FNO:
+      if (optarg == NULL) {
+        fprintf(stderr, "Warning: missing argument for -f\n");
+        break;
+      }
       if (!parse_fopt(optarg, opt == 'f')) {
         // Silently ignored.
         // fprintf(stderr, "Warning: unknown option for -f: %s\n", optarg);
@@ -127,9 +112,27 @@ int main(int argc, char *argv[]) {
       break;
 
     case 'W':
+      if (optarg != NULL) {
+        if (strcmp(optarg, "error") == 0) {
+          cc_flags.warn_as_error = true;
+          break;
+        }
+        if (strcmp(optarg, "all") == 0) {
+          // Assume all members are bool.
+          for (bool *p = (bool*)&cc_flags.warn; p < (bool*)(&cc_flags.warn + 1); ++p)
+            *p = true;
+          break;
+        }
+      }
+      // Fallthrough
+    case OPT_WNO:
+      if (optarg == NULL) {
+        fprintf(stderr, "Warning: missing argument for -W\n");
+        break;
+      }
       if (strcmp(optarg, "error") == 0) {
         cc_flags.warn_as_error = true;
-      } else {
+      } else if (!parse_wopt(optarg, opt == 'W')) {
         // Silently ignored.
         // fprintf(stderr, "Warning: unknown option for -W: %s\n", optarg);
       }

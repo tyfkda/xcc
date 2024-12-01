@@ -39,6 +39,7 @@ static void start2(int argc, char *argv[], char *env[]) {
 }
 
 void _start(void) {
+  (void)start2;  // Avoid warning: unused function 'start2'
 #if defined(__x86_64__)
   __asm("mov (%rsp), %rdi\n"
         "lea 8(%rsp), %rsi\n"

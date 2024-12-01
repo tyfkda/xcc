@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdarg.h>
 #include <stdlib.h>  // exit
+#include <string.h>
 
 #include "ast.h"
 #include "initializer.h"
@@ -17,6 +18,8 @@
 
 Function *curfunc;
 Scope *curscope;
+VarInfo *curvarinfo;
+LoopScope loop_scope;
 
 int compile_warning_count;
 int compile_error_count;
@@ -27,7 +30,40 @@ CcFlags cc_flags = {
   .optimize_level = 0,
 };
 
-LoopScope loop_scope;
+typedef struct {
+  const char *flag_name;
+  off_t flag_offset;
+} FlagTable;
+
+static bool parse_flag_table(const char *optarg, bool value, const FlagTable *table, size_t count) {
+  for (size_t i = 0; i < count; ++i) {
+    const FlagTable *p = &table[i];
+    if (strcmp(optarg, p->flag_name) == 0) {
+      size_t len = strlen(p->flag_name);
+      if (optarg[len] != '\0')
+        continue;
+      bool *b = (bool*)((char*)&cc_flags + p->flag_offset);
+      *b = value;
+      return true;
+    }
+  }
+  return false;
+}
+
+bool parse_fopt(const char *optarg, bool value) {
+  static const FlagTable kFlagTable[] = {
+    {"common", offsetof(CcFlags, common)},
+  };
+  return parse_flag_table(optarg, value, kFlagTable, ARRAY_SIZE(kFlagTable));
+}
+
+bool parse_wopt(const char *optarg, bool value) {
+  static const FlagTable kFlagTable[] = {
+    {"unused-variable", offsetof(CcFlags, warn.unused_variable)},
+    {"unused-function", offsetof(CcFlags, warn.unused_function)},
+  };
+  return parse_flag_table(optarg, value, kFlagTable, ARRAY_SIZE(kFlagTable));
+}
 
 void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt, ...) {
   va_list ap;
@@ -139,7 +175,7 @@ Expr *alloc_tmp_var(Scope *scope, Type *type) {
   const Token *ident = alloc_dummy_ident();
   // No need to use `add_var_to_scope`, because `name` must be unique.
   const Name *name = ident->ident;
-  scope_add(scope, name, type, 0);
+  scope_add(scope, name, type, VS_USED);
   return new_expr_variable(name, type, ident, scope);
 }
 
@@ -408,6 +444,109 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool make_int) {
     *pRhs = make_cast(type, rhs->token, rhs, false);
   }
   return true;
+}
+
+void mark_var_used(Expr *expr) {
+  VarInfo *gvarinfo = NULL;
+
+  switch (expr->kind) {
+  case EX_VAR:
+    {
+      Scope *scope = NULL;
+      VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
+      assert(varinfo != NULL);
+      if (is_global_scope(scope)) {
+        gvarinfo = varinfo;
+      } else {
+        varinfo->storage |= VS_USED;
+        if (varinfo->storage & VS_STATIC)
+          gvarinfo = varinfo->static_.svar;
+      }
+    }
+    break;
+  case EX_COMPLIT:
+    mark_var_used(expr->complit.var);
+    break;
+  case EX_ASSIGN:
+    mark_var_used(expr->bop.lhs);
+    break;
+  default: break;
+  }
+
+  if (gvarinfo != NULL && curvarinfo != NULL) {
+    Vector *refs = curvarinfo->global.referred_globals;
+    if (refs == NULL)
+      curvarinfo->global.referred_globals = refs = new_vector();
+    vec_push(refs, gvarinfo);
+  }
+}
+
+void propagate_var_used(void) {
+  Table used, unused;
+  table_init(&used);
+  table_init(&unused);
+  Vector unchecked;
+  vec_init(&unchecked);
+
+  const Name *constructor_name = alloc_name("constructor", NULL, false);
+  const Name *destructor_name = alloc_name("destructor", NULL, false);
+
+  // Collect public functions into unchecked.
+  for (int i = 0; i < global_scope->vars->len; ++i) {
+    VarInfo *varinfo = global_scope->vars->data[i];
+    const Type *type = varinfo->type;
+    if (type->kind == TY_FUNC) {
+      Function *func = varinfo->global.func;
+      if (func == NULL)  // Prototype definition
+        continue;
+      if (((varinfo->storage & VS_STATIC) ||
+          (varinfo->storage & (VS_INLINE | VS_EXTERN)) == VS_INLINE) &&
+          (func->attributes == NULL ||
+           (!table_try_get(func->attributes, constructor_name, NULL) &&
+            !table_try_get(func->attributes, destructor_name, NULL)))) {
+        if (!(varinfo->storage & VS_INLINE))
+          table_put(&unused, varinfo->name, varinfo);
+        continue;
+      }
+    } else {
+      if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER)) {
+        if (varinfo->storage & VS_STATIC)
+          table_put(&unused, varinfo->name, varinfo);
+        continue;
+      }
+    }
+    vec_push(&unchecked, varinfo);
+  }
+
+  // Propagate usage.
+  while (unchecked.len > 0) {
+    VarInfo *varinfo = vec_pop(&unchecked);
+    if (table_try_get(&used, varinfo->name, NULL))
+      continue;
+    table_put(&used, varinfo->name, NULL);
+    table_delete(&unused, varinfo->name);
+    varinfo->storage |= VS_USED;
+
+    Vector *refs = varinfo->global.referred_globals;
+    if (refs == NULL)
+      continue;
+    for (int j = 0; j < refs->len; ++j) {
+      VarInfo *ref = refs->data[j];
+      vec_push(&unchecked, ref);
+    }
+  }
+
+  const Name *name;
+  VarInfo *varinfo;
+  for (int it = 0; (it = table_iterate(&unused, it, &name, (void**)&varinfo)) != -1; ) {
+    if (varinfo->type->kind == TY_FUNC) {
+      if (cc_flags.warn.unused_function)
+        parse_error(PE_WARNING, NULL, "Unused function: `%.*s'", NAMES(name));
+    } else {
+      if (cc_flags.warn.unused_variable)
+        parse_error(PE_WARNING, NULL, "Unused variable: `%.*s'", NAMES(name));
+    }
+  }
 }
 
 void check_lval(const Token *tok, Expr *expr, const char *error) {
@@ -1519,6 +1658,32 @@ static void check_unreachability(Stmt *stmt) {
     break;
   }
   parse_error(PE_WARNING, stmt->token, "unreachable");
+}
+
+void check_unused_variables(Function *func, const Token *tok) {
+  assert(func->body_block != NULL);
+  assert(func->body_block->kind == ST_BLOCK);
+  Vector *stmts = func->body_block->block.stmts;
+  if (stmts->len > 0) {
+    // If __asm is used, variables might be used implicitly, so skip checking.
+    for (int i = 0; i < stmts->len; ++i) {
+      Stmt *stmt = stmts->data[i];
+      if (stmt->kind == ST_ASM)
+        return;
+    }
+  }
+
+  for (int i = 0; i < func->scopes->len; ++i) {
+    Scope *scope = func->scopes->data[i];
+    if (scope->vars == NULL)
+      continue;
+    for (int j = 0; j < scope->vars->len; ++j) {
+      VarInfo *varinfo = scope->vars->data[j];
+      if (!(varinfo->storage & (VS_USED | VS_ENUM_MEMBER | VS_EXTERN)) && varinfo->name != NULL) {
+        parse_error(PE_WARNING, tok, "Unused variable `%.*s'", NAMES(varinfo->name));
+      }
+    }
+  }
 }
 
 static void check_reachability_stmt(Stmt *stmt) {

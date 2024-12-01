@@ -331,8 +331,8 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"dumpversion", no_argument, OPT_DUMP_VERSION},
 
     // Sub command
-    {"f", required_argument},
-    {"W", required_argument},
+    {"f", optional_argument},
+    {"W", optional_argument},
 
     // Suppress warnings
     {"g", optional_argument},  // Debug info
@@ -472,6 +472,10 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       break;
 
     case 'f':
+      if (optarg == NULL) {
+        fprintf(stderr, "Warning: missing argument for -f\n");
+        break;
+      }
       if (strncmp(optarg, "use-ld", 6) == 0) {
         if (optarg[6] == '=') {
           opts->ld_cmd->data[0] = &optarg[7];
@@ -482,21 +486,27 @@ static void parse_options(int argc, char *argv[], Options *opts) {
         }
         opts->use_ld = true;
       } else {
-        const char *opt = argv[optind - 1];  // TODO:
+        const char *opt = argv[optind - 1];
         vec_push(opts->cc1_cmd, opt);
         vec_push(opts->linker_options, opt);
       }
       break;
 
     case 'W':
-      if (strncmp(argv[optind - 1], "-Wl,", 4) == 0) {
-        if (opts->use_ld)
-          vec_push(opts->linker_options, argv[optind - 1]);
-        else
-          vec_push(opts->ld_cmd, argv[optind - 1] + 4);
-      } else {
-        vec_push(opts->cc1_cmd, "-W");
-        vec_push(opts->cc1_cmd, optarg);
+      {
+        if (optarg == NULL) {
+          fprintf(stderr, "Warning: missing argument for -f\n");
+          break;
+        }
+        const char *opt = argv[optind - 1];
+        if (strncmp(opt, "-Wl,", 4) == 0) {
+          if (opts->use_ld)
+            vec_push(opts->linker_options, opt);
+          else
+            vec_push(opts->ld_cmd, opt + 4);
+        } else {
+          vec_push(opts->cc1_cmd, opt);
+        }
       }
       break;
 

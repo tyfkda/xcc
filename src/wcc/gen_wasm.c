@@ -13,6 +13,7 @@
 #endif
 
 #include "ast.h"
+#include "cc_misc.h"  // is_funciton_no_output
 #include "fe_misc.h"  // curfunc
 #include "parser.h"
 #include "table.h"
@@ -481,6 +482,7 @@ static void gen_ref_sub(Expr *expr) {
           ADD_VARUINT32(info->indirect_index);
         } else {
           GVarInfo *info = get_gvar_info(expr);
+          assert(info != NULL);
           ADD_CODE(OP_I32_CONST);
           FuncExtra *extra = curfunc->extra;
           DataStorage *code = extra->code;
@@ -553,6 +555,7 @@ static void gen_var(Expr *expr, bool needval) {
         ADD_ULEB128(vreg->prim.local_index);
       } else {
         GVarInfo *info = get_gvar_info(expr);
+        assert(info != NULL);
         ADD_CODE(OP_GLOBAL_GET);
         FuncExtra *extra = curfunc->extra;
         DataStorage *code = extra->code;
@@ -615,6 +618,7 @@ static void gen_set_to_var(Expr *var) {
   } else {
     assert(!is_global_datsec_var(varinfo, var->var.scope));
     GVarInfo *info = get_gvar_info(var);
+    assert(info != NULL);
     ADD_CODE(OP_GLOBAL_SET);
     FuncExtra *extra = curfunc->extra;
     DataStorage *code = extra->code;
@@ -798,6 +802,7 @@ static void gen_incdec(Expr *expr, bool needval) {
   } else {
     assert(!is_global_datsec_var(varinfo, scope));
     GVarInfo *info = get_gvar_info(target);
+    assert(info != NULL);
     ADD_CODE(OP_GLOBAL_SET);
     ADD_ULEB128(info->prim.index);
     if (needval) {
@@ -821,6 +826,12 @@ static void gen_assign_sub(Expr *lhs, Expr *rhs) {
         gen_expr(rhs, true);
         gen_set_to_var(lhs);
         break;
+      }
+
+      if ((varinfo->storage & (VS_STATIC | VS_USED)) == VS_STATIC) {
+        // Assignment can be omitted.
+        gen_expr(rhs, false);
+        return;
       }
     }
     gen_lval(lhs);
@@ -1599,8 +1610,7 @@ static void gen_defun(Function *func) {
     return;
 
   VarInfo *funcvi = scope_find(global_scope, func->name, NULL);
-  assert(funcvi != NULL);
-  if (satisfy_inline_criteria(funcvi, funcvi->storage))
+  if (is_function_omitted(funcvi))
     return;
 
   DataStorage *code = malloc_or_die(sizeof(*code));
@@ -1927,6 +1937,9 @@ static Expr *proc_builtin_va_start(const Token *ident) {
     return NULL;
   }
 
+  mark_var_used(ap);
+  mark_var_used(param);
+
   Scope *top_scope = curscope;
   for (Scope *p = curscope; p = p->parent, !is_global_scope(p); )
     top_scope = p;
@@ -1961,6 +1974,8 @@ static Expr *proc_builtin_va_arg(const Token *ident) {
   consume(TK_COMMA, "`,' expected");
   Type *type = parse_var_def(NULL, NULL, NULL);
   consume(TK_RPAR, "`)' expected");
+
+  mark_var_used(ap);
 
   // (ap = (char*)ap + sizeof(type), *(type*)((char*)ap - sizeof(type)))
   size_t size = type_size(type);

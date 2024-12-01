@@ -563,13 +563,19 @@ static VReg *gen_comma(Expr *expr) {
 static VReg *gen_assign_sub(Expr *lhs, Expr *rhs) {
   VReg *src = gen_expr(rhs);
   if (lhs->kind == EX_VAR) {
+    const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, NULL);
+    assert(varinfo != NULL);
     if (is_prim_type(lhs->type) && !is_global_scope(lhs->var.scope)) {
-      const VarInfo *varinfo = scope_find(lhs->var.scope, lhs->var.name, NULL);
       if (is_local_storage(varinfo)) {
         assert(varinfo->local.vreg != NULL);
         new_ir_mov(varinfo->local.vreg, src, is_unsigned(rhs->type) ? IRF_UNSIGNED : 0);
         return src;
       }
+    }
+
+    if ((varinfo->storage & (VS_STATIC | VS_USED)) == VS_STATIC) {
+      // Can be omitted.
+      return src;
     }
   }
 

@@ -410,7 +410,10 @@ void emit_code(Vector *decls) {
   emit_comment(NULL);
   for (int i = 0; i < global_scope->vars->len; ++i) {
     VarInfo *varinfo = global_scope->vars->data[i];
-    if ((varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) || varinfo->type->kind == TY_FUNC)
+    int storage = varinfo->storage;
+    if (varinfo->type->kind == TY_FUNC ||
+        (storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
+        (storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
       continue;
     emit_varinfo(varinfo, varinfo->global.init);
   }

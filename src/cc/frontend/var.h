@@ -27,6 +27,7 @@ enum {
 
   VS_REF_TAKEN = 1 << 7,  // `&x` used.
   VS_PARAM = 1 << 8,  // Function parameter
+  VS_USED = 1 << 9,  // used.
 };
 
 typedef struct VarInfo {
@@ -40,12 +41,15 @@ typedef struct VarInfo {
       VReg *vreg;
       FrameInfo *frameinfo;
     } local;
-    union {
-      Initializer *init;
-      struct {
-        Function *func;
-        Declaration *funcdecl;
+    struct {
+      union {
+        Initializer *init;
+        struct {
+          Function *func;
+          Declaration *funcdecl;
+        };
       };
+      Vector *referred_globals;  // <VarInfo*>
     } global;
     struct {
       struct VarInfo *svar;  // which points to static variable.
