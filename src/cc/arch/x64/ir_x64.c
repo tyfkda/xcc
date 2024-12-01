@@ -209,6 +209,38 @@ static bool is_got(const Name *name) {
 #endif
 }
 
+static void cmp_vregs(VReg *opr1, VReg *opr2, int cond) {
+  if (opr1->flag & VRF_FLONUM) {
+    assert(opr2->flag & VRF_FLONUM);
+    if ((cond & COND_MASK) <= COND_NE) {
+      switch (opr1->vsize) {
+      case SZ_FLOAT: UCOMISS(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
+      case SZ_DOUBLE: UCOMISD(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
+      default: assert(false); break;
+      }
+    } else {
+      switch (opr1->vsize) {
+      case SZ_FLOAT: COMISS(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
+      case SZ_DOUBLE: COMISD(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
+      default: assert(false); break;
+      }
+    }
+  } else {
+    assert(!(opr1->flag & VRF_CONST));
+    int pow = opr1->vsize;
+    assert(0 <= pow && pow < 4);
+    const char **regs = kRegSizeTable[pow];
+    const char *o1;
+    o1 = regs[opr1->phys];
+    if ((opr2->flag & VRF_CONST) && opr2->fixnum == 0) {
+      TEST(o1, o1);
+    } else {
+      const char *o2 = (opr2->flag & VRF_CONST) ? IM(opr2->fixnum) : regs[opr2->phys];
+      CMP(o2, o1);
+    }
+  }
+}
+
 static void ei_bofs(IR *ir) {
   int64_t offset = ir->bofs.frameinfo->offset + ir->bofs.offset;
   LEA(OFFSET_INDIRECT(offset, RBP, NULL, 1), kReg64s[ir->dst->phys]);
@@ -569,38 +601,6 @@ static void ei_rshift(IR *ir) {
 #undef RSHIFT_INST
 }
 
-static void cmp_vregs(VReg *opr1, VReg *opr2, int cond) {
-  if (opr1->flag & VRF_FLONUM) {
-    assert(opr2->flag & VRF_FLONUM);
-    if ((cond & COND_MASK) <= COND_NE) {
-      switch (opr1->vsize) {
-      case SZ_FLOAT: UCOMISS(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
-      case SZ_DOUBLE: UCOMISD(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
-      default: assert(false); break;
-      }
-    } else {
-      switch (opr1->vsize) {
-      case SZ_FLOAT: COMISS(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
-      case SZ_DOUBLE: COMISD(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
-      default: assert(false); break;
-      }
-    }
-  } else {
-    assert(!(opr1->flag & VRF_CONST));
-    int pow = opr1->vsize;
-    assert(0 <= pow && pow < 4);
-    const char **regs = kRegSizeTable[pow];
-    const char *o1;
-    o1 = regs[opr1->phys];
-    if ((opr2->flag & VRF_CONST) && opr2->fixnum == 0) {
-      TEST(o1, o1);
-    } else {
-      const char *o2 = (opr2->flag & VRF_CONST) ? IM(opr2->fixnum) : regs[opr2->phys];
-      CMP(o2, o1);
-    }
-  }
-}
-
 static void ei_neg(IR *ir) {
   assert(!(ir->dst->flag & VRF_CONST));
   if (ir->opr1->flag & VRF_FLONUM) {
@@ -654,6 +654,155 @@ static void ei_bitnot(IR *ir) {
   assert(0 <= pow && pow < 4);
   const char **regs = kRegSizeTable[pow];
   NOT(regs[ir->dst->phys]);
+}
+
+static void ei_cast(IR *ir) {
+  assert((ir->opr1->flag & VRF_CONST) == 0);
+  if (ir->dst->flag & VRF_FLONUM) {
+    if (ir->opr1->flag & VRF_FLONUM) {
+      // flonum->flonum
+      assert(ir->dst->vsize != ir->opr1->vsize);
+      // Assume flonum are just two types.
+      switch (ir->dst->vsize) {
+      case SZ_FLOAT: CVTSD2SS(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
+      case SZ_DOUBLE: CVTSS2SD(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
+      default: assert(false); break;
+      }
+    } else {
+      // fix->flonum
+      int pows = ir->opr1->vsize;
+      if (pows < 2) {
+        if (ir->flag & IRF_UNSIGNED)
+          MOVZX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
+        else
+          MOVSX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
+        pows = 2;
+      }
+      const char *s = kRegSizeTable[pows][ir->opr1->phys];
+      const char *d = kFReg64s[ir->dst->phys];
+      if (!(ir->flag & IRF_UNSIGNED)) {
+        switch (ir->dst->vsize) {
+        case SZ_FLOAT:   CVTSI2SS(s, d); break;
+        case SZ_DOUBLE:  CVTSI2SD(s, d); break;
+        default: assert(false); break;
+        }
+      } else if (pows < 3) {
+        const char *s64 = kReg64s[ir->opr1->phys];
+        switch (ir->dst->vsize) {
+        case SZ_FLOAT:   CVTSI2SS(s64, d); break;
+        case SZ_DOUBLE:  CVTSI2SD(s64, d); break;
+        default: assert(false); break;
+        }
+      } else {
+        // x64 support signed 64bit-signed-int to double only, so pass half value
+        // (precision is lost anyway).
+        const Name *neglabel = alloc_label();
+        const Name *skiplabel = alloc_label();
+        TEST(s, s);
+        JS(fmt_name(neglabel));
+        switch (ir->dst->vsize) {
+        case SZ_FLOAT:   CVTSI2SS(s, d); break;
+        case SZ_DOUBLE:  CVTSI2SD(s, d); break;
+        default: assert(false); break;
+        }
+        JMP(fmt_name(skiplabel));
+        EMIT_LABEL(fmt_name(neglabel));
+        PUSH(RAX);  // Push %rax to avoid Break
+        MOV(s, RAX);
+        SHR(IM(1), RAX);
+        switch (ir->dst->vsize) {
+        case SZ_FLOAT:   CVTSI2SS(RAX, d); ADDSS(d, d); break;
+        case SZ_DOUBLE:  CVTSI2SD(RAX, d); ADDSD(d, d); break;
+        default: assert(false); break;
+        }
+        POP(RAX);  // Pop %rax
+        EMIT_LABEL(fmt_name(skiplabel));
+      }
+    }
+  } else if (ir->opr1->flag & VRF_FLONUM) {
+    // flonum->fix
+    int powd = ir->dst->vsize;
+    if (powd < 2)
+      powd = 2;
+    switch (ir->opr1->vsize) {
+    case SZ_FLOAT:   CVTTSS2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
+    case SZ_DOUBLE:  CVTTSD2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
+    default: assert(false); break;
+    }
+  } else {
+    // fix->fix
+    assert(ir->dst->vsize != ir->opr1->vsize);
+    if (ir->dst->vsize < ir->opr1->vsize) {
+      if (ir->dst->phys != ir->opr1->phys) {
+        int pow = ir->dst->vsize;
+        assert(0 <= pow && pow < 4);
+        const char **regs = kRegSizeTable[pow];
+        MOV(regs[ir->opr1->phys], regs[ir->dst->phys]);
+      }
+    } else {
+      int pows = ir->opr1->vsize;
+      int powd = ir->dst->vsize;
+      assert(0 <= pows && pows < 4);
+      assert(0 <= powd && powd < 4);
+      if (ir->flag & IRF_UNSIGNED) {
+        if (pows == 2) {
+          // MOVZX %32bit, %64bit doesn't exist!
+          MOV(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[pows][ir->dst->phys]);
+        } else {
+          MOVZX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]);
+        }
+      } else {
+        MOVSX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]);
+      }
+    }
+  }
+}
+
+static void ei_mov(IR *ir) {
+  if (ir->dst->flag & VRF_FLONUM) {
+    if (ir->opr1->phys != ir->dst->phys) {
+      switch (ir->dst->vsize) {
+      case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
+      case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
+      default: assert(false); break;
+      }
+    }
+  } else {
+    assert(!(ir->dst->flag & VRF_CONST));
+    int pow = ir->dst->vsize;
+    assert(0 <= pow && pow < 4);
+    const char **regs = kRegSizeTable[pow];
+    if (ir->opr1->flag & VRF_CONST) {
+      MOV(IM(ir->opr1->fixnum), regs[ir->dst->phys]);
+    } else {
+      if (ir->opr1->phys != ir->dst->phys)
+        MOV(regs[ir->opr1->phys], regs[ir->dst->phys]);
+    }
+  }
+}
+
+static void ei_result(IR *ir) {
+  if (ir->opr1->flag & VRF_FLONUM) {
+    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_XMM0_INDEX();
+    if (ir->opr1->phys != dstphys) {
+      const char *dst = kFReg64s[dstphys];
+      switch (ir->opr1->vsize) {
+      case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], dst); break;
+      case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], dst); break;
+      default: assert(false); break;
+      }
+    }
+  } else {
+    int pow = ir->opr1->vsize;
+    assert(0 <= pow && pow < 4);
+    const char **regs = kRegSizeTable[pow];
+    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_AREG_INDEX();
+    const char *dst = regs[dstphys];
+    if (ir->opr1->flag & VRF_CONST)
+      MOV(IM(ir->opr1->fixnum), dst);
+    else if (ir->opr1->phys != dstphys)
+      MOV(regs[ir->opr1->phys], dst);
+  }
 }
 
 static void ei_cond(IR *ir) {
@@ -910,30 +1059,6 @@ static void ei_call(IR *ir) {
   }
 }
 
-static void ei_result(IR *ir) {
-  if (ir->opr1->flag & VRF_FLONUM) {
-    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_XMM0_INDEX();
-    if (ir->opr1->phys != dstphys) {
-      const char *dst = kFReg64s[dstphys];
-      switch (ir->opr1->vsize) {
-      case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], dst); break;
-      case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], dst); break;
-      default: assert(false); break;
-      }
-    }
-  } else {
-    int pow = ir->opr1->vsize;
-    assert(0 <= pow && pow < 4);
-    const char **regs = kRegSizeTable[pow];
-    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_AREG_INDEX();
-    const char *dst = regs[dstphys];
-    if (ir->opr1->flag & VRF_CONST)
-      MOV(IM(ir->opr1->fixnum), dst);
-    else if (ir->opr1->phys != dstphys)
-      MOV(regs[ir->opr1->phys], dst);
-  }
-}
-
 static void ei_subsp(IR *ir) {
   if (ir->opr1->flag & VRF_CONST) {
     if (ir->opr1->fixnum > 0)
@@ -945,131 +1070,6 @@ static void ei_subsp(IR *ir) {
   }
   if (ir->dst != NULL)
     MOV(RSP, kReg64s[ir->dst->phys]);
-}
-
-static void ei_cast(IR *ir) {
-  assert((ir->opr1->flag & VRF_CONST) == 0);
-  if (ir->dst->flag & VRF_FLONUM) {
-    if (ir->opr1->flag & VRF_FLONUM) {
-      // flonum->flonum
-      assert(ir->dst->vsize != ir->opr1->vsize);
-      // Assume flonum are just two types.
-      switch (ir->dst->vsize) {
-      case SZ_FLOAT: CVTSD2SS(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
-      case SZ_DOUBLE: CVTSS2SD(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
-      default: assert(false); break;
-      }
-    } else {
-      // fix->flonum
-      int pows = ir->opr1->vsize;
-      if (pows < 2) {
-        if (ir->flag & IRF_UNSIGNED)
-          MOVZX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
-        else
-          MOVSX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
-        pows = 2;
-      }
-      const char *s = kRegSizeTable[pows][ir->opr1->phys];
-      const char *d = kFReg64s[ir->dst->phys];
-      if (!(ir->flag & IRF_UNSIGNED)) {
-        switch (ir->dst->vsize) {
-        case SZ_FLOAT:   CVTSI2SS(s, d); break;
-        case SZ_DOUBLE:  CVTSI2SD(s, d); break;
-        default: assert(false); break;
-        }
-      } else if (pows < 3) {
-        const char *s64 = kReg64s[ir->opr1->phys];
-        switch (ir->dst->vsize) {
-        case SZ_FLOAT:   CVTSI2SS(s64, d); break;
-        case SZ_DOUBLE:  CVTSI2SD(s64, d); break;
-        default: assert(false); break;
-        }
-      } else {
-        // x64 support signed 64bit-signed-int to double only, so pass half value
-        // (precision is lost anyway).
-        const Name *neglabel = alloc_label();
-        const Name *skiplabel = alloc_label();
-        TEST(s, s);
-        JS(fmt_name(neglabel));
-        switch (ir->dst->vsize) {
-        case SZ_FLOAT:   CVTSI2SS(s, d); break;
-        case SZ_DOUBLE:  CVTSI2SD(s, d); break;
-        default: assert(false); break;
-        }
-        JMP(fmt_name(skiplabel));
-        EMIT_LABEL(fmt_name(neglabel));
-        PUSH(RAX);  // Push %rax to avoid Break
-        MOV(s, RAX);
-        SHR(IM(1), RAX);
-        switch (ir->dst->vsize) {
-        case SZ_FLOAT:   CVTSI2SS(RAX, d); ADDSS(d, d); break;
-        case SZ_DOUBLE:  CVTSI2SD(RAX, d); ADDSD(d, d); break;
-        default: assert(false); break;
-        }
-        POP(RAX);  // Pop %rax
-        EMIT_LABEL(fmt_name(skiplabel));
-      }
-    }
-  } else if (ir->opr1->flag & VRF_FLONUM) {
-    // flonum->fix
-    int powd = ir->dst->vsize;
-    if (powd < 2)
-      powd = 2;
-    switch (ir->opr1->vsize) {
-    case SZ_FLOAT:   CVTTSS2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
-    case SZ_DOUBLE:  CVTTSD2SI(kFReg64s[ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]); break;
-    default: assert(false); break;
-    }
-  } else {
-    // fix->fix
-    assert(ir->dst->vsize != ir->opr1->vsize);
-    if (ir->dst->vsize < ir->opr1->vsize) {
-      if (ir->dst->phys != ir->opr1->phys) {
-        int pow = ir->dst->vsize;
-        assert(0 <= pow && pow < 4);
-        const char **regs = kRegSizeTable[pow];
-        MOV(regs[ir->opr1->phys], regs[ir->dst->phys]);
-      }
-    } else {
-      int pows = ir->opr1->vsize;
-      int powd = ir->dst->vsize;
-      assert(0 <= pows && pows < 4);
-      assert(0 <= powd && powd < 4);
-      if (ir->flag & IRF_UNSIGNED) {
-        if (pows == 2) {
-          // MOVZX %32bit, %64bit doesn't exist!
-          MOV(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[pows][ir->dst->phys]);
-        } else {
-          MOVZX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]);
-        }
-      } else {
-        MOVSX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[powd][ir->dst->phys]);
-      }
-    }
-  }
-}
-
-static void ei_mov(IR *ir) {
-  if (ir->dst->flag & VRF_FLONUM) {
-    if (ir->opr1->phys != ir->dst->phys) {
-      switch (ir->dst->vsize) {
-      case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
-      case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
-      default: assert(false); break;
-      }
-    }
-  } else {
-    assert(!(ir->dst->flag & VRF_CONST));
-    int pow = ir->dst->vsize;
-    assert(0 <= pow && pow < 4);
-    const char **regs = kRegSizeTable[pow];
-    if (ir->opr1->flag & VRF_CONST) {
-      MOV(IM(ir->opr1->fixnum), regs[ir->dst->phys]);
-    } else {
-      if (ir->opr1->phys != ir->dst->phys)
-        MOV(regs[ir->opr1->phys], regs[ir->dst->phys]);
-    }
-  }
 }
 
 static void ei_keep(IR *ir) {
@@ -1093,14 +1093,18 @@ void emit_bb_irs(BBContainer *bbcon) {
   static const EmitIrFunc table[] = {
     [IR_BOFS] = ei_bofs, [IR_IOFS] = ei_iofs, [IR_SOFS] = ei_sofs,
     [IR_LOAD] = ei_load, [IR_LOAD_S] = ei_load_s, [IR_STORE] = ei_store, [IR_STORE_S] = ei_store_s,
+
     [IR_ADD] = ei_add, [IR_SUB] = ei_sub, [IR_MUL] = ei_mul, [IR_DIV] = ei_div,
     [IR_MOD] = ei_mod, [IR_BITAND] = ei_bitand, [IR_BITOR] = ei_bitor,
     [IR_BITXOR] = ei_bitxor, [IR_LSHIFT] = ei_lshift, [IR_RSHIFT] = ei_rshift,
-    [IR_NEG] = ei_neg, [IR_BITNOT] = ei_bitnot,
-    [IR_COND] = ei_cond, [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
+    [IR_COND] = ei_cond,
+
+    [IR_NEG] = ei_neg, [IR_BITNOT] = ei_bitnot, [IR_CAST] = ei_cast,
+    [IR_MOV] = ei_mov, [IR_RESULT] = ei_result,
+
+    [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
     [IR_PRECALL] = ei_precall, [IR_PUSHARG] = ei_pusharg, [IR_CALL] = ei_call,
-    [IR_RESULT] = ei_result, [IR_SUBSP] = ei_subsp, [IR_CAST] = ei_cast,
-    [IR_MOV] = ei_mov, [IR_KEEP] = ei_keep, [IR_ASM] = ei_asm,
+    [IR_SUBSP] = ei_subsp, [IR_KEEP] = ei_keep, [IR_ASM] = ei_asm,
   };
 
   for (int i = 0; i < bbcon->len; ++i) {

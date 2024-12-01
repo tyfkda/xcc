@@ -67,6 +67,8 @@ enum IrKind {
   IR_LOAD_S,  // dst = [opr1(spilled)]
   IR_STORE,   // [opr2] = opr1
   IR_STORE_S, // [opr2(spilled)] = opr1
+
+  // Binary operators.
   IR_ADD,     // dst = opr1 + opr2
   IR_SUB,
   IR_MUL,
@@ -77,18 +79,20 @@ enum IrKind {
   IR_BITXOR,
   IR_LSHIFT,
   IR_RSHIFT,
+  IR_COND,    // dst <- (opr1 @@ opr2) ? 1 : 0
+  // Unary operators.
   IR_NEG,
   IR_BITNOT,
-  IR_COND,    // dst <- (opr1 @@ opr2) ? 1 : 0
+  IR_CAST,    // dst <- opr1
+  IR_MOV,     // dst = opr1
+  IR_RESULT,  // retval = opr1  (Or mov to dst if set)
+
   IR_JMP,     // Non conditional jump, or conditional jmp (opr1 @@ opr2)
   IR_TJMP,    // Table jump (opr1).  opr2 is NULL, but it might be used to keep temporary vreg.
   IR_PRECALL, // Prepare for call
   IR_PUSHARG,
   IR_CALL,    // Call label or opr1
-  IR_RESULT,  // retval = opr1  (Or mov to dst if set)
   IR_SUBSP,   // RSP -= value
-  IR_CAST,    // dst <- opr1
-  IR_MOV,     // dst = opr1
   IR_KEEP,    // To keep live vregs.
   IR_ASM,     // assembler code
 };

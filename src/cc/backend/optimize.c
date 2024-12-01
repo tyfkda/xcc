@@ -461,15 +461,6 @@ static void copy_propagation(RegAlloc *ra, BBContainer *bbcon) {
       for (int iir = 0; iir < bb->irs->len; ++iir, ++ip) {
         IR *ir = bb->irs->data[iir];
         switch (ir->kind) {
-        case IR_RESULT:
-          // Inlined function call uses RESULT with `dst`.
-          if (ir->dst == NULL)
-            break;
-          // Fallthrough
-        case IR_MOV:
-          if (replace_register(bbcon, ir->dst, ir->opr1) < ip)  // Former instruction is replaced:
-            again = true;  // Try again.
-          break;
         case IR_ADD:
         case IR_SUB:
         case IR_MUL:
@@ -492,17 +483,6 @@ static void copy_propagation(RegAlloc *ra, BBContainer *bbcon) {
               again = true;
           }
           break;
-        case IR_JMP:
-          if (ir->jmp.cond != COND_ANY) {
-            assert(ir->jmp.cond != COND_NONE);
-            if (replace_const_jmp(ir)) {
-              if (ir->jmp.cond == COND_NONE) {
-                vec_remove_at(bb->irs, iir);
-                --iir;
-              }
-            }
-          }
-          break;
         case IR_COND:
           assert(ir->cond.kind != COND_ANY && ir->cond.kind != COND_NONE);
           if (replace_const_cond(ra, ir)) {
@@ -510,6 +490,15 @@ static void copy_propagation(RegAlloc *ra, BBContainer *bbcon) {
             if (replace_register(bbcon, ir->dst, ir->opr1) < ip)  // Propagate const value.
               again = true;
           }
+          break;
+        case IR_RESULT:
+          // Inlined function call uses RESULT with `dst`.
+          if (ir->dst == NULL)
+            break;
+          // Fallthrough
+        case IR_MOV:
+          if (replace_register(bbcon, ir->dst, ir->opr1) < ip)  // Former instruction is replaced:
+            again = true;  // Try again.
           break;
         case IR_CAST:
           if (ir->opr1->flag & VRF_CONST) {
@@ -522,6 +511,17 @@ static void copy_propagation(RegAlloc *ra, BBContainer *bbcon) {
             ir->opr1 = reg_alloc_spawn_const(ra, value, ir->dst->vsize);
             if (replace_register(bbcon, ir->dst, ir->opr1) < ip)
               again = true;
+          }
+          break;
+        case IR_JMP:
+          if (ir->jmp.cond != COND_ANY) {
+            assert(ir->jmp.cond != COND_NONE);
+            if (replace_const_jmp(ir)) {
+              if (ir->jmp.cond == COND_NONE) {
+                vec_remove_at(bb->irs, iir);
+                --iir;
+              }
+            }
           }
           break;
 

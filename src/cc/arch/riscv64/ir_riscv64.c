@@ -482,41 +482,125 @@ static void ei_rshift(IR *ir) {
   }
 }
 
-static void ei_result(IR *ir) {
+static void ei_neg(IR *ir) {
+  assert(!(ir->opr1->flag & VRF_CONST));
   if (ir->opr1->flag & VRF_FLONUM) {
-    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_FA0_INDEX();
-    if (ir->opr1->phys != dstphys) {  // Source is not return register.
-      const char **regs;
-      switch (ir->opr1->vsize) {
-      default: assert(false);  // Fallthroguh
-      case SZ_FLOAT:  regs = kFReg32s; break;
-      case SZ_DOUBLE: regs = kFReg64s; break;
-      }
-      FMV_D(regs[dstphys], regs[ir->opr1->phys]);
+    switch (ir->opr1->vsize) {
+    default: assert(false); // Fallthrough
+    case SZ_FLOAT:   FNEG_S(kFReg32s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+    case SZ_DOUBLE:  FNEG_D(kFReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
     }
   } else {
-    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_A0_INDEX();
-    const char *dst = kReg64s[dstphys];
-    if (ir->opr1->flag & VRF_CONST) {
-      LI(dst, IM(ir->opr1->fixnum));
-    } else if (ir->opr1->phys != dstphys) {  // Source is not return register.
-      MV(dst, kReg64s[ir->opr1->phys]);
-    }
+    NEG(kReg64s[ir->dst->phys], kReg64s[ir->opr1->phys]);
   }
 }
 
-static void ei_subsp(IR *ir) {
-  if (ir->opr1->flag & VRF_CONST) {
-    // assert(ir->opr1->fixnum % 16 == 0);
-    if (ir->opr1->fixnum > 0)
-      ADDI(SP, SP, IM(-ir->opr1->fixnum));
-    else if (ir->opr1->fixnum < 0)
-      ADDI(SP, SP, IM(-ir->opr1->fixnum));
+static void ei_bitnot(IR *ir) {
+  assert(!(ir->opr1->flag & VRF_CONST));
+  NOT(kReg64s[ir->dst->phys], kReg64s[ir->opr1->phys]);
+}
+
+static void ei_cast(IR *ir) {
+  assert((ir->opr1->flag & VRF_CONST) == 0);
+  if (ir->dst->flag & VRF_FLONUM) {
+    if (ir->opr1->flag & VRF_FLONUM) {
+      // flonum->flonum
+      assert(ir->dst->vsize != ir->opr1->vsize);
+      // Assume flonum are just two types.
+      switch (ir->dst->vsize) {
+      default: assert(false); // Fallthrough
+      case SZ_FLOAT:   FCVT_S_D(kFReg32s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+      case SZ_DOUBLE:  FCVT_D_S(kFReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+      }
+    } else {
+      // fix->flonum
+      int pows = ir->opr1->vsize;
+      assert(0 <= pows && pows < 4);
+
+      const char *src = kReg64s[ir->opr1->phys];
+      if (ir->opr1->vsize < VRegSize8) {
+        switch (ir->dst->vsize) {
+        case SZ_FLOAT:
+          if (ir->flag & IRF_UNSIGNED)  FCVT_S_WU(kFReg32s[ir->dst->phys], src);
+          else                          FCVT_S_W(kFReg32s[ir->dst->phys], src);
+          break;
+        case SZ_DOUBLE:
+          if (ir->flag & IRF_UNSIGNED)  FCVT_D_WU(kFReg32s[ir->dst->phys], src);
+          else                          FCVT_D_W(kFReg32s[ir->dst->phys], src);
+          break;
+        default: assert(false); break;
+        }
+      } else {
+        switch (ir->dst->vsize) {
+        case SZ_FLOAT:
+          if (ir->flag & IRF_UNSIGNED)  FCVT_S_LU(kFReg32s[ir->dst->phys], src);
+          else                          FCVT_S_L(kFReg32s[ir->dst->phys], src);
+          break;
+        case SZ_DOUBLE:
+          if (ir->flag & IRF_UNSIGNED)  FCVT_D_LU(kFReg32s[ir->dst->phys], src);
+          else                          FCVT_D_L(kFReg32s[ir->dst->phys], src);
+          break;
+        default: assert(false); break;
+        }
+      }
+    }
+  } else if (ir->opr1->flag & VRF_FLONUM) {
+    // flonum->fix
+    if (ir->dst->vsize < VRegSize8) {
+      if (ir->flag & IRF_UNSIGNED) {
+        switch (ir->opr1->vsize) {
+        case SZ_FLOAT:   FCVT_W_S(kReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+        case SZ_DOUBLE:  FCVT_W_D(kReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+        default: assert(false); break;
+        }
+      } else {
+        switch (ir->opr1->vsize) {
+        case SZ_FLOAT:   FCVT_WU_S(kReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+        case SZ_DOUBLE:  FCVT_WU_D(kReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+        default: assert(false); break;
+        }
+      }
+    } else {
+      if (ir->flag & IRF_UNSIGNED) {
+        switch (ir->opr1->vsize) {
+        case SZ_FLOAT:   FCVT_LU_S(kReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+        case SZ_DOUBLE:  FCVT_LU_D(kReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+        default: assert(false); break;
+        }
+      } else {
+        switch (ir->opr1->vsize) {
+        case SZ_FLOAT:   FCVT_L_S(kReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
+        case SZ_DOUBLE:  FCVT_L_D(kReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+        default: assert(false); break;
+        }
+      }
+    }
   } else {
-    SUB(SP, SP, kReg64s[ir->opr1->phys]);
+    // fix->fix
+    assert(ir->dst->vsize != ir->opr1->vsize);
+    int pows = ir->opr1->vsize;
+    int powd = ir->dst->vsize;
+    assert(0 <= pows && pows < 4);
+    assert(0 <= powd && powd < 4);
+    int pow = MIN(powd, pows);
+    const char *dst = kReg64s[ir->dst->phys], *src = kReg64s[ir->opr1->phys];
+
+    if (ir->flag & IRF_UNSIGNED) {
+      switch (pow) {
+      case 0:  ZEXT_B(dst, src); break;
+      case 1:  ZEXT_H(dst, src); break;
+      case 2:  ZEXT_W(dst, src); break;
+      default: assert(false); break;
+      }
+    } else {
+      switch (pow) {
+      case 0:  SEXT_B(dst, src); break;
+      case 1:  SEXT_H(dst, src); break;
+      case 2:  SEXT_W(dst, src); break;
+      default: assert(false); break;
+      }
+    }
   }
-  if (ir->dst != NULL)
-    MV(kReg64s[ir->dst->phys], SP);
 }
 
 static void ei_mov(IR *ir) {
@@ -543,26 +627,27 @@ static void ei_mov(IR *ir) {
   }
 }
 
-static void ei_keep(IR *ir) {
-  UNUSED(ir);
-}
-
-static void ei_neg(IR *ir) {
-  assert(!(ir->opr1->flag & VRF_CONST));
+static void ei_result(IR *ir) {
   if (ir->opr1->flag & VRF_FLONUM) {
-    switch (ir->opr1->vsize) {
-    default: assert(false); // Fallthrough
-    case SZ_FLOAT:   FNEG_S(kFReg32s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
-    case SZ_DOUBLE:  FNEG_D(kFReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
+    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_FA0_INDEX();
+    if (ir->opr1->phys != dstphys) {  // Source is not return register.
+      const char **regs;
+      switch (ir->opr1->vsize) {
+      default: assert(false);  // Fallthroguh
+      case SZ_FLOAT:  regs = kFReg32s; break;
+      case SZ_DOUBLE: regs = kFReg64s; break;
+      }
+      FMV_D(regs[dstphys], regs[ir->opr1->phys]);
     }
   } else {
-    NEG(kReg64s[ir->dst->phys], kReg64s[ir->opr1->phys]);
+    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_A0_INDEX();
+    const char *dst = kReg64s[dstphys];
+    if (ir->opr1->flag & VRF_CONST) {
+      LI(dst, IM(ir->opr1->fixnum));
+    } else if (ir->opr1->phys != dstphys) {  // Source is not return register.
+      MV(dst, kReg64s[ir->opr1->phys]);
+    }
   }
-}
-
-static void ei_bitnot(IR *ir) {
-  assert(!(ir->opr1->flag & VRF_CONST));
-  NOT(kReg64s[ir->dst->phys], kReg64s[ir->opr1->phys]);
 }
 
 static void ei_cond(IR *ir) {
@@ -826,107 +911,22 @@ static void ei_call(IR *ir) {
   }
 }
 
-static void ei_cast(IR *ir) {
-  assert((ir->opr1->flag & VRF_CONST) == 0);
-  if (ir->dst->flag & VRF_FLONUM) {
-    if (ir->opr1->flag & VRF_FLONUM) {
-      // flonum->flonum
-      assert(ir->dst->vsize != ir->opr1->vsize);
-      // Assume flonum are just two types.
-      switch (ir->dst->vsize) {
-      default: assert(false); // Fallthrough
-      case SZ_FLOAT:   FCVT_S_D(kFReg32s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
-      case SZ_DOUBLE:  FCVT_D_S(kFReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
-      }
-    } else {
-      // fix->flonum
-      int pows = ir->opr1->vsize;
-      assert(0 <= pows && pows < 4);
-
-      const char *src = kReg64s[ir->opr1->phys];
-      if (ir->opr1->vsize < VRegSize8) {
-        switch (ir->dst->vsize) {
-        case SZ_FLOAT:
-          if (ir->flag & IRF_UNSIGNED)  FCVT_S_WU(kFReg32s[ir->dst->phys], src);
-          else                          FCVT_S_W(kFReg32s[ir->dst->phys], src);
-          break;
-        case SZ_DOUBLE:
-          if (ir->flag & IRF_UNSIGNED)  FCVT_D_WU(kFReg32s[ir->dst->phys], src);
-          else                          FCVT_D_W(kFReg32s[ir->dst->phys], src);
-          break;
-        default: assert(false); break;
-        }
-      } else {
-        switch (ir->dst->vsize) {
-        case SZ_FLOAT:
-          if (ir->flag & IRF_UNSIGNED)  FCVT_S_LU(kFReg32s[ir->dst->phys], src);
-          else                          FCVT_S_L(kFReg32s[ir->dst->phys], src);
-          break;
-        case SZ_DOUBLE:
-          if (ir->flag & IRF_UNSIGNED)  FCVT_D_LU(kFReg32s[ir->dst->phys], src);
-          else                          FCVT_D_L(kFReg32s[ir->dst->phys], src);
-          break;
-        default: assert(false); break;
-        }
-      }
-    }
-  } else if (ir->opr1->flag & VRF_FLONUM) {
-    // flonum->fix
-    if (ir->dst->vsize < VRegSize8) {
-      if (ir->flag & IRF_UNSIGNED) {
-        switch (ir->opr1->vsize) {
-        case SZ_FLOAT:   FCVT_W_S(kReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
-        case SZ_DOUBLE:  FCVT_W_D(kReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
-        default: assert(false); break;
-        }
-      } else {
-        switch (ir->opr1->vsize) {
-        case SZ_FLOAT:   FCVT_WU_S(kReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
-        case SZ_DOUBLE:  FCVT_WU_D(kReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
-        default: assert(false); break;
-        }
-      }
-    } else {
-      if (ir->flag & IRF_UNSIGNED) {
-        switch (ir->opr1->vsize) {
-        case SZ_FLOAT:   FCVT_LU_S(kReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
-        case SZ_DOUBLE:  FCVT_LU_D(kReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
-        default: assert(false); break;
-        }
-      } else {
-        switch (ir->opr1->vsize) {
-        case SZ_FLOAT:   FCVT_L_S(kReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
-        case SZ_DOUBLE:  FCVT_L_D(kReg64s[ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
-        default: assert(false); break;
-        }
-      }
-    }
+static void ei_subsp(IR *ir) {
+  if (ir->opr1->flag & VRF_CONST) {
+    // assert(ir->opr1->fixnum % 16 == 0);
+    if (ir->opr1->fixnum > 0)
+      ADDI(SP, SP, IM(-ir->opr1->fixnum));
+    else if (ir->opr1->fixnum < 0)
+      ADDI(SP, SP, IM(-ir->opr1->fixnum));
   } else {
-    // fix->fix
-    assert(ir->dst->vsize != ir->opr1->vsize);
-    int pows = ir->opr1->vsize;
-    int powd = ir->dst->vsize;
-    assert(0 <= pows && pows < 4);
-    assert(0 <= powd && powd < 4);
-    int pow = MIN(powd, pows);
-    const char *dst = kReg64s[ir->dst->phys], *src = kReg64s[ir->opr1->phys];
-
-    if (ir->flag & IRF_UNSIGNED) {
-      switch (pow) {
-      case 0:  ZEXT_B(dst, src); break;
-      case 1:  ZEXT_H(dst, src); break;
-      case 2:  ZEXT_W(dst, src); break;
-      default: assert(false); break;
-      }
-    } else {
-      switch (pow) {
-      case 0:  SEXT_B(dst, src); break;
-      case 1:  SEXT_H(dst, src); break;
-      case 2:  SEXT_W(dst, src); break;
-      default: assert(false); break;
-      }
-    }
+    SUB(SP, SP, kReg64s[ir->opr1->phys]);
   }
+  if (ir->dst != NULL)
+    MV(kReg64s[ir->dst->phys], SP);
+}
+
+static void ei_keep(IR *ir) {
+  UNUSED(ir);
 }
 
 static void ei_asm(IR *ir) {
@@ -944,14 +944,18 @@ void emit_bb_irs(BBContainer *bbcon) {
   static const EmitIrFunc table[] = {
     [IR_BOFS] = ei_bofs, [IR_IOFS] = ei_iofs, [IR_SOFS] = ei_sofs,
     [IR_LOAD] = ei_load, [IR_LOAD_S] = ei_load_s, [IR_STORE] = ei_store, [IR_STORE_S] = ei_store_s,
+
     [IR_ADD] = ei_add, [IR_SUB] = ei_sub, [IR_MUL] = ei_mul, [IR_DIV] = ei_div,
     [IR_MOD] = ei_mod, [IR_BITAND] = ei_bitand, [IR_BITOR] = ei_bitor,
     [IR_BITXOR] = ei_bitxor, [IR_LSHIFT] = ei_lshift, [IR_RSHIFT] = ei_rshift,
-    [IR_NEG] = ei_neg, [IR_BITNOT] = ei_bitnot,
-    [IR_COND] = ei_cond, [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
+    [IR_COND] = ei_cond,
+
+    [IR_NEG] = ei_neg, [IR_BITNOT] = ei_bitnot, [IR_CAST] = ei_cast,
+    [IR_MOV] = ei_mov, [IR_RESULT] = ei_result,
+
+    [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
     [IR_PRECALL] = ei_precall, [IR_PUSHARG] = ei_pusharg, [IR_CALL] = ei_call,
-    [IR_RESULT] = ei_result, [IR_SUBSP] = ei_subsp, [IR_CAST] = ei_cast,
-    [IR_MOV] = ei_mov, [IR_KEEP] = ei_keep, [IR_ASM] = ei_asm,
+    [IR_SUBSP] = ei_subsp, [IR_KEEP] = ei_keep, [IR_ASM] = ei_asm,
   };
 
   for (int i = 0; i < bbcon->len; ++i) {
