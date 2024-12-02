@@ -388,9 +388,9 @@ void emit_code(Vector *decls) {
         emit_defun(func);
 
         // Static variables.
-        if (func->static_vars != NULL) {
+        Vector *vars = func->static_vars;
+        if (vars != NULL && vars->len > 0) {
           emit_comment(NULL);
-          Vector *vars = func->static_vars;
           for (int i = 0; i < vars->len; ++i) {
             VarInfo *varinfo = vars->data[i];
             assert(!((varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) || varinfo->type->kind == TY_FUNC));
