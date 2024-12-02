@@ -168,7 +168,7 @@ int calculate_func_param_bottom(Function *func) {
 }
 #undef N
 
-static Vector *push_caller_save_regs(unsigned long living) {
+static Vector *collect_caller_save_regs(unsigned long living) {
   Vector *saves = new_vector();
 
   struct {
@@ -204,17 +204,25 @@ static Vector *push_caller_save_regs(unsigned long living) {
       vec_push(saves, NULL);
   }
 
-  int n = saves->len;
-  for (int i = 0; i < n; i += 2) {
+  return saves;
+}
+
+static void push_caller_save_regs(IrCallInfo *callinfo) {
+  int align_stack = callinfo->stack_aligned;
+  Vector *saves = callinfo->caller_saves;
+  int total = align_stack + callinfo->stack_args_size + saves->len * TARGET_POINTER_SIZE;
+
+  int offset = total;
+  assert((saves->len & 1) == 0);
+  for (int i = 0; i < saves->len; i += 2) {
+    offset -= TARGET_POINTER_SIZE * 2;
     const char *save1 = saves->data[i];
     const char *save2 = saves->data[i + 1];
     if (save2 != NULL)
-      STP(save1, save2, PRE_INDEX(SP, -16));
+      STP(save1, save2, IMMEDIATE_OFFSET(SP, offset));
     else
-      STR(save1, PRE_INDEX(SP, -16));
+      STR(save1, IMMEDIATE_OFFSET(SP, offset));
   }
-
-  return saves;
 }
 
 static void pop_caller_save_regs(Vector *saves) {
@@ -852,14 +860,13 @@ static void ei_tjmp(IR *ir) {
 }
 
 static void ei_precall(IR *ir) {
-  // Living registers are not modified between preparing function arguments,
-  // so safely saved before calculating argument values.
-  ir->call->caller_saves = push_caller_save_regs(ir->call->living_pregs);
+  Vector *saves = collect_caller_save_regs(ir->call->living_pregs);
+  ir->call->caller_saves = saves;
 
   int align_stack = (16 - (ir->call->stack_args_size)) & 15;
   ir->call->stack_aligned = align_stack;
 
-  int total = align_stack + ir->call->stack_args_size;
+  int total = align_stack + ir->call->stack_args_size + saves->len * TARGET_POINTER_SIZE;
   if (total > 0) {
     SUB(SP, SP, IM(total));
   }
@@ -885,6 +892,8 @@ static void ei_pusharg(IR *ir) {
 }
 
 static void ei_call(IR *ir) {
+  push_caller_save_regs(ir->call);
+
   if (ir->call->label != NULL) {
     char *label = fmt_name(ir->call->label);
     if (ir->call->global)
