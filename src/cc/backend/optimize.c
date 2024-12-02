@@ -30,6 +30,43 @@ static IR *is_last_jtable(BB *bb) {
   return NULL;
 }
 
+static bool same_vreg_value(VReg *v1, VReg *v2) {
+  if ((v1 == NULL) != (v2 == NULL))
+    return false;
+  else if (v1 == NULL)
+    return true;
+
+  if (v1->vsize != v2->vsize ||
+      ((v1->flag | v2->flag) & VRF_FORCEMEMORY) ||
+      ((v1->flag ^ v2->flag) & (VRF_CONST | VRF_FLONUM)))
+    return false;
+
+  if (v1->flag & VRF_CONST) {
+    if (v1->flag & VRF_FLONUM) {
+      assert(v2->flag & VRF_FLONUM);
+      return v1->flonum.value == v2->flonum.value;
+    } else {
+      assert(!(v2->flag & VRF_FLONUM));
+      return v1->fixnum == v2->fixnum;
+    }
+  }
+  // Non const.
+  return v1 == v2;
+}
+
+static bool is_commutative(enum IrKind kind) {
+  switch (kind) {
+  case IR_ADD:
+  case IR_MUL:
+  case IR_BITAND:
+  case IR_BITOR:
+  case IR_BITXOR:
+    return true;
+  default:
+    return false;
+  }
+}
+
 static void replace_jmp_destination(BBContainer *bbcon, BB *src, BB *dst) {
   for (int i = 0; i < bbcon->len; ++i) {
     BB *bb = bbcon->data[i];
@@ -699,6 +736,97 @@ static void copy_propagation(RegAlloc *ra, BBContainer *bbcon) {
   } while (again);
 }
 
+static void common_subexpression_elimination(RegAlloc *ra, BBContainer *bbcon) {
+  UNUSED(ra);
+  Vector *exprs[IR_ASM];
+  for (int i = 0; i < (int)ARRAY_SIZE(exprs); ++i)
+    exprs[i] = NULL;
+
+  int ip = 0;
+  for (int ibb = 0; ibb < bbcon->len; ++ibb) {
+    BB *bb = bbcon->data[ibb];
+
+    // Only apply CSE on each BB, since we haven't implemented global CSE.
+    for (int i = 0; i < (int)ARRAY_SIZE(exprs); ++i) {
+      Vector *v = exprs[i];
+      if (v != NULL)
+        vec_clear(v);
+    }
+
+    for (int iir = 0; iir < bb->irs->len; ++iir, ++ip) {
+      IR *ir = bb->irs->data[iir];
+      if (!(ir->kind == IR_BOFS || (ir->kind >= IR_ADD && ir->kind <= IR_CAST)))
+        continue;
+      Vector *v = exprs[ir->kind];
+      IR *same = NULL;
+      if (v != NULL) {
+        for (int i = 0; i < v->len; ++i) {
+          IR *p = v->data[i];
+          if (p->kind != ir->kind)
+            continue;
+          switch (ir->kind) {
+          case IR_BOFS:
+            if (p->bofs.frameinfo == ir->bofs.frameinfo && p->bofs.offset == ir->bofs.offset)
+              same = p;
+            break;
+
+          case IR_COND:
+            {
+              enum ConditionKind swapped_cond = swap_cond(ir->cond.kind & COND_MASK) | (ir->cond.kind & (~COND_MASK));
+              if ((p->cond.kind == ir->cond.kind &&
+                  same_vreg_value(p->opr1, ir->opr1) && same_vreg_value(p->opr2, ir->opr2)) ||
+                  (p->cond.kind == swapped_cond &&
+                  same_vreg_value(p->opr2, ir->opr1) && same_vreg_value(p->opr1, ir->opr2))) {
+                same = p;
+              }
+            }
+            break;
+
+          default:
+            if (same_vreg_value(p->opr1, ir->opr1) && same_vreg_value(p->opr2, ir->opr2)) {
+              if (ir->kind == IR_CAST) {
+                if (p->dst->vsize != ir->dst->vsize || ((p->flag ^ ir->flag) & IRF_UNSIGNED) ||
+                    (p->dst->flag & VRF_FLONUM) != (ir->dst->flag & VRF_FLONUM))
+                  // continue;
+                  break;
+              }
+              same = p;
+              break;
+            }
+
+            if (is_commutative(ir->kind)) {
+              if (same_vreg_value(p->opr1, ir->opr2) && same_vreg_value(p->opr2, ir->opr1)) {
+                same = p;
+                break;
+              }
+            }
+            break;
+          }
+        }
+      }
+      if (same == NULL) {
+        if (v == NULL)
+          exprs[ir->kind] = v = new_vector();
+        vec_push(v, ir);
+        continue;
+      }
+
+      // Replace to MOV.
+      ir->kind = IR_MOV;
+      ir->opr1 = same->dst;
+      ir->opr2 = NULL;
+      int pos = replace_register(bbcon, ir->dst, ir->opr1);
+      UNUSED(pos);
+      assert(pos >= ip);  // Former instruction is not replaced:
+    }
+  }
+
+  for (int i = 0; i < (int)ARRAY_SIZE(exprs); ++i) {
+    if (exprs[i] != NULL)
+      free_vector(exprs[i]);
+  }
+}
+
 //
 
 void optimize(RegAlloc *ra, BBContainer *bbcon) {
@@ -718,6 +846,7 @@ void optimize(RegAlloc *ra, BBContainer *bbcon) {
   if (apply_ssa) {
     make_ssa(ra, bbcon);
     copy_propagation(ra, bbcon);
+    common_subexpression_elimination(ra, bbcon);
     remove_unused_vregs(ra, bbcon);
     if (!keep_phi) {
       resolve_phis(ra, bbcon);
