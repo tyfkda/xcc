@@ -398,8 +398,8 @@ static int64_t calc_const_expr(IR *ir) {
   case IR_ADD: value = opr1 + opr2; break; \
   case IR_SUB: value = opr1 - opr2; break; \
   case IR_MUL: value = opr1 * opr2; break; \
-  case IR_DIV: value = opr1 / opr2; break; \
-  case IR_MOD: value = opr1 % opr2; break; \
+  case IR_DIV: assert(opr2 != 0); value = opr1 / opr2; break; \
+  case IR_MOD: assert(opr2 != 0); value = opr1 % opr2; break; \
   case IR_BITAND: value = opr1 & opr2; break; \
   case IR_BITOR: value = opr1 | opr2; break; \
   case IR_BITXOR: value = opr1 ^ opr2; break; \
@@ -461,11 +461,18 @@ static void copy_propagation(RegAlloc *ra, BBContainer *bbcon) {
       for (int iir = 0; iir < bb->irs->len; ++iir, ++ip) {
         IR *ir = bb->irs->data[iir];
         switch (ir->kind) {
+        case IR_DIV:
+        case IR_MOD:
+          if ((ir->opr2->flag & VRF_CONST) && ir->opr2->fixnum == 0) {
+            // Stay as it is, DIV or MOD instruction accepts even if both operands are constant.
+            // Zero division exception will be thrown on runtime.
+            // TODO: warning message?
+            break;
+          }
+          // Fallthrough
         case IR_ADD:
         case IR_SUB:
         case IR_MUL:
-        case IR_DIV:
-        case IR_MOD:
         case IR_BITAND:
         case IR_BITOR:
         case IR_BITXOR:

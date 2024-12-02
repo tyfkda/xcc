@@ -1083,12 +1083,13 @@ void tweak_irs(FuncBackend *fnbe) {
         }
         break;
       case IR_MUL:
-      case IR_DIV:
-      case IR_MOD:
       case IR_BITAND:
       case IR_BITOR:
       case IR_BITXOR:
         assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
+        // Fallthrough
+      case IR_DIV:
+      case IR_MOD:
         if (ir->opr1->flag & VRF_CONST)
           insert_const_mov(&ir->opr1, ra, irs, j++);
         if (ir->opr2->flag & VRF_CONST)

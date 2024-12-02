@@ -1053,9 +1053,10 @@ void tweak_irs(FuncBackend *fnbe) {
           insert_const_mov(&ir->opr2, ra, irs, j++);
         break;
       case IR_MUL:
+        assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
+        // Fallthrough
       case IR_DIV:
       case IR_MOD:
-        assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
         if (ir->opr1->flag & VRF_CONST)
           insert_const_mov(&ir->opr1, ra, irs, j++);
         if (ir->opr2->flag & VRF_CONST)

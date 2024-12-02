@@ -116,6 +116,12 @@ link_success() {
     return
   }
 
+  local RE_NOEXEC='NOEXEC'
+  echo -n "$title" | grep "$RE_NOEXEC" > /dev/null && {
+    end_test
+    return
+  };
+
   $RUN_AOUT
   local actual="$?"
   local err=''; [[ "$actual" == "0" ]] || err="exit with ${actual}"
@@ -420,6 +426,9 @@ test_ssa() {
   begin_test_suite "SSA"
 
   try 'swap variables' 74 'int a = 7, b = 4; for (int i = 0; i < 2; ++i) { int d = a; a = b; b = d; } return a*10 + b;'
+
+  echo 'int main(void) {int x = 1, y = 0; return x / y;}' > tmp_zerodiv.c
+  link_success 'zero division (NOEXEC)' tmp_zerodiv.c
 
   end_test_suite
 }
