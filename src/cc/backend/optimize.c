@@ -66,6 +66,10 @@ static void remove_unnecessary_bb(BBContainer *bbcon) {
       BB *bb = bbcon->data[i];
       bool remove = false;
       IR *ir_jmp = is_last_jmp(bb);
+      if (ir_jmp != NULL && ir_jmp->jmp.bb == bb->next) {  // Remove jmp to next instruction.
+        vec_pop(bb->irs);
+        ir_jmp = NULL;
+      }
       if (bb->irs->len == 0 && bb->next != NULL) {  // Empty BB.
         replace_jmp_destination(bbcon, bb, bb->next);
         remove = true;
