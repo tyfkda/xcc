@@ -13,9 +13,6 @@
 #include "util.h"
 #include "x64.h"
 
-static Vector *push_caller_save_regs(unsigned long living);
-static void pop_caller_save_regs(Vector *saves);
-
 // Register allocator
 
 const char *kRegSizeTable[][PHYSICAL_REG_MAX] = {
@@ -89,6 +86,112 @@ const RegAllocSettings kArchRegAllocSettings = {
   .fphys_temporary_count = PHYSICAL_FREG_TEMPORARY,
 #endif
 };
+
+//
+
+static int count_callee_save_regs(unsigned long used, unsigned long fused) {
+  // Assume no callee save freg exists.
+  UNUSED(fused);
+
+  int count = 0;
+  for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
+    int ireg = kCalleeSaveRegs[i];
+    if (used & (1 << ireg))
+      ++count;
+  }
+  return count;
+}
+
+int push_callee_save_regs(unsigned long used, unsigned long fused) {
+  // Assume no callee save freg exists.
+  UNUSED(fused);
+
+  int count = 0;
+  for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
+    int ireg = kCalleeSaveRegs[i];
+    if (used & (1 << ireg)) {
+      PUSH(kReg64s[ireg]);
+      ++count;
+    }
+  }
+  return count;
+}
+
+void pop_callee_save_regs(unsigned long used, unsigned long fused) {
+  // Assume no callee save freg exists.
+  UNUSED(fused);
+
+  for (int i = CALLEE_SAVE_REG_COUNT; --i >= 0;) {
+    int ireg = kCalleeSaveRegs[i];
+    if (used & (1 << ireg)) {
+      POP(kReg64s[ireg]);
+    }
+  }
+}
+
+int calculate_func_param_bottom(Function *func) {
+  FuncBackend *fnbe = func->extra;
+  unsigned long used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
+  int callee_save_count = count_callee_save_regs(used, fused);
+
+  return (callee_save_count * TARGET_POINTER_SIZE) + (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
+}
+
+static Vector *push_caller_save_regs(unsigned long living) {
+  Vector *saves = new_vector();
+
+  for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
+    int ireg = kCallerSaveRegs[i];
+    if (living & (1UL << ireg)) {
+      const char *reg = kReg64s[ireg];
+      PUSH(reg);
+      vec_push(saves, reg);
+    }
+  }
+
+  {
+    int fstart = saves->len;
+    for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
+      int ireg = kCallerSaveFRegs[i];
+      if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
+        // TODO: Detect register size.
+        vec_push(saves, kFReg64s[ireg]);
+      }
+    }
+    int n = saves->len - fstart;
+    if (n > 0) {
+      int ofs = n * TARGET_POINTER_SIZE;
+      SUB(IM(ofs), RSP);
+      for (int i = 0; i < n; ++i) {
+        ofs -= TARGET_POINTER_SIZE;
+        MOVSD(saves->data[i + fstart], OFFSET_INDIRECT(ofs, RSP, NULL, 1));
+      }
+    }
+  }
+
+  return saves;
+}
+
+static void pop_caller_save_regs(Vector *saves) {
+  int i = saves->len;
+  int ofs = 0;
+  while (--i >= 0) {
+    const char *reg = saves->data[i];
+    if (strncmp(reg, "%xmm", 4) != 0)
+      break;
+    MOVSD(OFFSET_INDIRECT(ofs, RSP, NULL, 1), reg);
+    ofs += TARGET_POINTER_SIZE;
+  }
+  if (ofs > 0) {
+    ADD(IM(ofs), RSP);
+  }
+  ++i;
+
+  while (--i >= 0) {
+    const char *reg = saves->data[i];
+    POP(reg);
+  }
+}
 
 //
 
@@ -978,112 +1081,6 @@ static void ei_asm(IR *ir) {
     const char **regs = kRegSizeTable[pow];
     if (ir->dst->phys != GET_AREG_INDEX())
       MOV(regs[GET_AREG_INDEX()], regs[ir->dst->phys]);
-  }
-}
-
-//
-
-static int count_callee_save_regs(unsigned long used, unsigned long fused) {
-  // Assume no callee save freg exists.
-  UNUSED(fused);
-
-  int count = 0;
-  for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
-    int ireg = kCalleeSaveRegs[i];
-    if (used & (1 << ireg))
-      ++count;
-  }
-  return count;
-}
-
-int push_callee_save_regs(unsigned long used, unsigned long fused) {
-  // Assume no callee save freg exists.
-  UNUSED(fused);
-
-  int count = 0;
-  for (int i = 0; i < CALLEE_SAVE_REG_COUNT; ++i) {
-    int ireg = kCalleeSaveRegs[i];
-    if (used & (1 << ireg)) {
-      PUSH(kReg64s[ireg]);
-      ++count;
-    }
-  }
-  return count;
-}
-
-void pop_callee_save_regs(unsigned long used, unsigned long fused) {
-  // Assume no callee save freg exists.
-  UNUSED(fused);
-
-  for (int i = CALLEE_SAVE_REG_COUNT; --i >= 0;) {
-    int ireg = kCalleeSaveRegs[i];
-    if (used & (1 << ireg)) {
-      POP(kReg64s[ireg]);
-    }
-  }
-}
-
-int calculate_func_param_bottom(Function *func) {
-  FuncBackend *fnbe = func->extra;
-  unsigned long used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
-  int callee_save_count = count_callee_save_regs(used, fused);
-
-  return (callee_save_count * TARGET_POINTER_SIZE) + (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
-}
-
-static Vector *push_caller_save_regs(unsigned long living) {
-  Vector *saves = new_vector();
-
-  for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
-    int ireg = kCallerSaveRegs[i];
-    if (living & (1UL << ireg)) {
-      const char *reg = kReg64s[ireg];
-      PUSH(reg);
-      vec_push(saves, reg);
-    }
-  }
-
-  {
-    int fstart = saves->len;
-    for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
-      int ireg = kCallerSaveFRegs[i];
-      if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
-        // TODO: Detect register size.
-        vec_push(saves, kFReg64s[ireg]);
-      }
-    }
-    int n = saves->len - fstart;
-    if (n > 0) {
-      int ofs = n * TARGET_POINTER_SIZE;
-      SUB(IM(ofs), RSP);
-      for (int i = 0; i < n; ++i) {
-        ofs -= TARGET_POINTER_SIZE;
-        MOVSD(saves->data[i + fstart], OFFSET_INDIRECT(ofs, RSP, NULL, 1));
-      }
-    }
-  }
-
-  return saves;
-}
-
-static void pop_caller_save_regs(Vector *saves) {
-  int i = saves->len;
-  int ofs = 0;
-  while (--i >= 0) {
-    const char *reg = saves->data[i];
-    if (strncmp(reg, "%xmm", 4) != 0)
-      break;
-    MOVSD(OFFSET_INDIRECT(ofs, RSP, NULL, 1), reg);
-    ofs += TARGET_POINTER_SIZE;
-  }
-  if (ofs > 0) {
-    ADD(IM(ofs), RSP);
-  }
-  ++i;
-
-  while (--i >= 0) {
-    const char *reg = saves->data[i];
-    POP(reg);
   }
 }
 

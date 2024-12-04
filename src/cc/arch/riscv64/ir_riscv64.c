@@ -14,9 +14,6 @@
 #include "table.h"
 #include "util.h"
 
-static Vector *push_caller_save_regs(unsigned long living);
-static void pop_caller_save_regs(Vector *saves);
-
 // Register allocator
 
 const char *kReg64s[PHYSICAL_REG_MAX] = {
@@ -72,6 +69,121 @@ const RegAllocSettings kArchRegAllocSettings = {
   .fphys_temporary_count = PHYSICAL_FREG_TEMPORARY,
 #endif
 };
+
+//
+
+static inline bool is_freg(const char *reg) {
+  return reg[0] == 'f' && reg[1] != 'p';
+}
+
+static int enum_callee_save_regs(unsigned long bit, int n, const int *indices, const char **regs,
+                                 const char **saves) {
+  int count = 0;
+  for (int i = 0; i < n; ++i) {
+    int ireg = indices[i];
+    if (bit & (1 << ireg))
+      saves[count++] = regs[ireg];
+  }
+  return count;
+}
+
+#define N  (CALLEE_SAVE_REG_COUNT + CALLEE_SAVE_FREG_COUNT)
+
+int push_callee_save_regs(unsigned long used, unsigned long fused) {
+  const char *saves[ALIGN(N, 2)];
+  int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
+  int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
+                                     &saves[count]);
+  int total = count + fcount;
+  int total_aligned = ALIGN(total, 2);
+  if (total_aligned > 0)
+    ADDI(SP, SP, IM(-TARGET_POINTER_SIZE * total_aligned));
+  for (int i = 0; i < count; ++i) {
+    SD(saves[i], IMMEDIATE_OFFSET((total - 1 - i) * TARGET_POINTER_SIZE, SP));
+  }
+  for (int i = 0; i < fcount; ++i) {
+    FSD(saves[i + count], IMMEDIATE_OFFSET((total - 1 - count - i) * TARGET_POINTER_SIZE, SP));
+  }
+  return total_aligned;
+}
+
+void pop_callee_save_regs(unsigned long used, unsigned long fused) {
+  const char *saves[ALIGN(N, 2)];
+  int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
+  int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
+                                     &saves[count]);
+  int total = count + fcount;
+  if (total == 0)
+    return;
+
+  for (int i = fcount; i-- > 0; ) {
+    FLD(saves[i + count], IMMEDIATE_OFFSET((total - 1 - count - i) * TARGET_POINTER_SIZE, SP));
+  }
+  for (int i = count; i-- > 0; ) {
+    LD(saves[i], IMMEDIATE_OFFSET((total - 1 - i) * TARGET_POINTER_SIZE, SP));
+  }
+  ADDI(SP, SP, IM(TARGET_POINTER_SIZE * ALIGN(total, 2)));
+}
+
+int calculate_func_param_bottom(Function *func) {
+  const char *saves[ALIGN(N, 2)];
+  FuncBackend *fnbe = func->extra;
+  unsigned long used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
+  int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
+  int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
+                                     &saves[count]);
+  int total = count + fcount;
+
+  return (ALIGN(total, 2) * TARGET_POINTER_SIZE) + (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
+}
+#undef N
+
+static Vector *push_caller_save_regs(unsigned long living) {
+  Vector *saves = new_vector();
+
+  for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
+    int ireg = kCallerSaveRegs[i];
+    if (living & (1UL << ireg)) {
+      vec_push(saves, kReg64s[ireg]);
+    }
+  }
+
+  for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
+    int freg = kCallerSaveFRegs[i];
+    if (living & (1UL << (freg + PHYSICAL_REG_MAX))) {
+      // TODO: Detect register size.
+      vec_push(saves, kFReg64s[freg]);
+    }
+  }
+
+  int space = ALIGN(saves->len * TARGET_POINTER_SIZE, 16);
+  if (space != 0)
+    ADDI(SP, SP, IM(-space));
+  for (int i = 0, n = saves->len; i < n; ++i) {
+    const char *reg = saves->data[i];
+    if (is_freg(reg))
+      FSD(reg, IMMEDIATE_OFFSET((n - 1 - i) * TARGET_POINTER_SIZE, SP));
+    else
+      SD(reg, IMMEDIATE_OFFSET((n - 1 - i) * TARGET_POINTER_SIZE, SP));
+  }
+
+  return saves;
+}
+
+static void pop_caller_save_regs(Vector *saves) {
+  if (saves->len <= 0)
+    return;
+  for (int n = saves->len, i = n; i-- > 0; ) {
+    const char *reg = saves->data[i];
+    if (is_freg(reg))
+      FLD(saves->data[i], IMMEDIATE_OFFSET((n - 1 - i) * TARGET_POINTER_SIZE, SP));
+    else
+      LD(saves->data[i], IMMEDIATE_OFFSET((n - 1 - i) * TARGET_POINTER_SIZE, SP));
+  }
+  int space = ALIGN(saves->len * TARGET_POINTER_SIZE, 16);
+  if (space != 0)
+    ADDI(SP, SP, IM(space));
+}
 
 //
 
@@ -825,121 +937,6 @@ static void ei_asm(IR *ir) {
     assert(0 <= pow && pow < 4);
     MV(kReg64s[ir->dst->phys], kReg64s[GET_A0_INDEX()]);
   }
-}
-
-//
-
-static int enum_callee_save_regs(unsigned long bit, int n, const int *indices, const char **regs,
-                                 const char **saves) {
-  int count = 0;
-  for (int i = 0; i < n; ++i) {
-    int ireg = indices[i];
-    if (bit & (1 << ireg))
-      saves[count++] = regs[ireg];
-  }
-  return count;
-}
-
-#define N  (CALLEE_SAVE_REG_COUNT + CALLEE_SAVE_FREG_COUNT)
-
-int push_callee_save_regs(unsigned long used, unsigned long fused) {
-  const char *saves[ALIGN(N, 2)];
-  int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
-  int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
-                                     &saves[count]);
-  int total = count + fcount;
-  int total_aligned = ALIGN(total, 2);
-  if (total_aligned > 0)
-    ADDI(SP, SP, IM(-TARGET_POINTER_SIZE * total_aligned));
-  for (int i = 0; i < count; ++i) {
-    SD(saves[i], IMMEDIATE_OFFSET((total - 1 - i) * TARGET_POINTER_SIZE, SP));
-  }
-  for (int i = 0; i < fcount; ++i) {
-    FSD(saves[i + count], IMMEDIATE_OFFSET((total - 1 - count - i) * TARGET_POINTER_SIZE, SP));
-  }
-  return total_aligned;
-}
-
-void pop_callee_save_regs(unsigned long used, unsigned long fused) {
-  const char *saves[ALIGN(N, 2)];
-  int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
-  int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
-                                     &saves[count]);
-  int total = count + fcount;
-  if (total == 0)
-    return;
-
-  for (int i = fcount; i-- > 0; ) {
-    FLD(saves[i + count], IMMEDIATE_OFFSET((total - 1 - count - i) * TARGET_POINTER_SIZE, SP));
-  }
-  for (int i = count; i-- > 0; ) {
-    LD(saves[i], IMMEDIATE_OFFSET((total - 1 - i) * TARGET_POINTER_SIZE, SP));
-  }
-  ADDI(SP, SP, IM(TARGET_POINTER_SIZE * ALIGN(total, 2)));
-}
-
-int calculate_func_param_bottom(Function *func) {
-  const char *saves[ALIGN(N, 2)];
-  FuncBackend *fnbe = func->extra;
-  unsigned long used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
-  int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
-  int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
-                                     &saves[count]);
-  int total = count + fcount;
-
-  return (ALIGN(total, 2) * TARGET_POINTER_SIZE) + (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
-}
-#undef N
-
-static inline bool is_freg(const char *reg) {
-  return reg[0] == 'f' && reg[1] != 'p';
-}
-
-static Vector *push_caller_save_regs(unsigned long living) {
-  Vector *saves = new_vector();
-
-  for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
-    int ireg = kCallerSaveRegs[i];
-    if (living & (1UL << ireg)) {
-      vec_push(saves, kReg64s[ireg]);
-    }
-  }
-
-  for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
-    int freg = kCallerSaveFRegs[i];
-    if (living & (1UL << (freg + PHYSICAL_REG_MAX))) {
-      // TODO: Detect register size.
-      vec_push(saves, kFReg64s[freg]);
-    }
-  }
-
-  int space = ALIGN(saves->len * TARGET_POINTER_SIZE, 16);
-  if (space != 0)
-    ADDI(SP, SP, IM(-space));
-  for (int i = 0, n = saves->len; i < n; ++i) {
-    const char *reg = saves->data[i];
-    if (is_freg(reg))
-      FSD(reg, IMMEDIATE_OFFSET((n - 1 - i) * TARGET_POINTER_SIZE, SP));
-    else
-      SD(reg, IMMEDIATE_OFFSET((n - 1 - i) * TARGET_POINTER_SIZE, SP));
-  }
-
-  return saves;
-}
-
-static void pop_caller_save_regs(Vector *saves) {
-  if (saves->len <= 0)
-    return;
-  for (int n = saves->len, i = n; i-- > 0; ) {
-    const char *reg = saves->data[i];
-    if (is_freg(reg))
-      FLD(saves->data[i], IMMEDIATE_OFFSET((n - 1 - i) * TARGET_POINTER_SIZE, SP));
-    else
-      LD(saves->data[i], IMMEDIATE_OFFSET((n - 1 - i) * TARGET_POINTER_SIZE, SP));
-  }
-  int space = ALIGN(saves->len * TARGET_POINTER_SIZE, 16);
-  if (space != 0)
-    ADDI(SP, SP, IM(space));
 }
 
 void emit_bb_irs(BBContainer *bbcon) {
