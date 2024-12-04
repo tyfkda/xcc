@@ -988,9 +988,9 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
     }
     break;
 
+#ifndef __NO_FLONUM
   case DT_FLOAT:
   case DT_DOUBLE:
-#ifndef __NO_FLONUM
     {
       Expr *expr = parse_expr(info);
       if (expr == NULL) {
@@ -1023,10 +1023,8 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
       }
       vec_push(irs, new_ir_data(buf, size));
     }
-#else
-    assert(false);
-#endif
     break;
+#endif
 
   case DT_GLOBL:
   case DT_LOCAL:
