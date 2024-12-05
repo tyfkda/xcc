@@ -89,6 +89,10 @@ const RegAllocSettings kArchRegAllocSettings = {
 
 //
 
+static inline bool is_xmmreg(const char *reg) {
+  return strncmp(reg, "%xmm", 4) == 0;
+}
+
 static int count_callee_save_regs(unsigned long used, unsigned long fused) {
   // Assume no callee save freg exists.
   UNUSED(fused);
@@ -177,7 +181,7 @@ static void pop_caller_save_regs(Vector *saves) {
   int ofs = 0;
   while (--i >= 0) {
     const char *reg = saves->data[i];
-    if (strncmp(reg, "%xmm", 4) != 0)
+    if (!is_xmmreg(reg))
       break;
     MOVSD(OFFSET_INDIRECT(ofs, RSP, NULL, 1), reg);
     ofs += TARGET_POINTER_SIZE;
