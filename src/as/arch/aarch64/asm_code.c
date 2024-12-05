@@ -489,8 +489,8 @@ static unsigned char *asm_f_ldpstp(Inst *inst, Code *code) {
   uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
   Operand *opr3 = &inst->opr[2];
   assert(opr3->indirect.reg.size == REG64);
-  assert(opr3->indirect.offset.expr->kind == EX_FIXNUM);
-  int64_t offset = opr3->indirect.offset.expr->fixnum;
+  assert(opr3->indirect.offset.expr == NULL || opr3->indirect.offset.expr->kind == EX_FIXNUM);
+  int64_t offset = opr3->indirect.offset.expr != NULL ? opr3->indirect.offset.expr->fixnum : 0;
   assert(offset < (1 << (6 + 3)) && offset >= -(1 << (6 + 3)));
   uint32_t base = opr3->indirect.reg.no;
   uint32_t prepost = kPrePost[opr3->indirect.prepost];
