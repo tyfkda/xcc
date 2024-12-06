@@ -168,7 +168,7 @@ int calculate_func_param_bottom(Function *func) {
 }
 #undef N
 
-static Vector *collect_caller_save_regs(unsigned long living) {
+Vector *collect_caller_save_regs(unsigned long living) {
   Vector *saves = new_vector();
 
   struct {
@@ -210,10 +210,10 @@ static Vector *collect_caller_save_regs(unsigned long living) {
 static void push_caller_save_regs(Vector *saves, int offset) {
   assert((saves->len & 1) == 0);
   offset += saves->len * TARGET_POINTER_SIZE;
-  for (int i = 0; i < saves->len; i += 2) {
+  for (int i = 0; i < saves->len; ) {
     offset -= TARGET_POINTER_SIZE * 2;
-    const char *save1 = saves->data[i];
-    const char *save2 = saves->data[i + 1];
+    const char *save1 = saves->data[i++];
+    const char *save2 = saves->data[i++];
     if (save2 != NULL)
       STP(save1, save2, IMMEDIATE_OFFSET(SP, offset));
     else
@@ -221,16 +221,16 @@ static void push_caller_save_regs(Vector *saves, int offset) {
   }
 }
 
-static void pop_caller_save_regs(Vector *saves) {
-  assert((saves->len % 2) == 0);
+static void pop_caller_save_regs(Vector *saves, int offset) {
+  assert((saves->len & 1) == 0);
   for (int i = saves->len; i > 0; ) {
-    i -= 2;
-    const char *save1 = saves->data[i];
-    const char *save2 = saves->data[i + 1];
+    const char *save2 = saves->data[--i];
+    const char *save1 = saves->data[--i];
     if (save2 != NULL)
-      LDP(save1, save2, POST_INDEX(SP, 16));
+      LDP(save1, save2, IMMEDIATE_OFFSET(SP, offset));
     else
-      LDR(save1, POST_INDEX(SP, 16));
+      LDR(save1, IMMEDIATE_OFFSET(SP, offset));
+    offset += TARGET_POINTER_SIZE * 2;
   }
 }
 
@@ -864,16 +864,7 @@ static void ei_tjmp(IR *ir) {
 }
 
 static void ei_precall(IR *ir) {
-  Vector *saves = collect_caller_save_regs(ir->call->living_pregs);
-  ir->call->caller_saves = saves;
-
-  int align_stack = (16 - (ir->call->stack_args_size)) & 15;
-  ir->call->stack_aligned = align_stack;
-
-  int total = align_stack + ir->call->stack_args_size + saves->len * TARGET_POINTER_SIZE;
-  if (total > 0) {
-    SUB(SP, SP, IM(total));
-  }
+  UNUSED(ir);
 }
 
 static void ei_pusharg(IR *ir) {
@@ -911,12 +902,8 @@ static void ei_call(IR *ir) {
     BLR(kReg64s[ir->opr1->phys]);
   }
 
-  if (total != 0) {
-    ADD(SP, SP, IM(total));
-  }
-
   // Resore caller save registers.
-  pop_caller_save_regs(ir->call->caller_saves);
+  pop_caller_save_regs(ir->call->caller_saves, total);
 
   if (ir->dst != NULL) {
     if (ir->dst->flag & VRF_FLONUM) {

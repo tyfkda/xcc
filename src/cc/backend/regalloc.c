@@ -27,22 +27,21 @@ RegAlloc *new_reg_alloc(const RegAllocSettings *settings) {
   return ra;
 }
 
-static inline VReg *alloc_vreg(enum VRegSize vsize, int vflag) {
+VReg *reg_alloc_spawn_raw(enum VRegSize vsize, int vflag) {
   VReg *vreg = malloc_or_die(sizeof(*vreg));
-  vreg->virt = vreg->orig_virt = -1;
-  vreg->phys = -1;
   vreg->vsize = vsize;
   vreg->flag = vflag;
-  vreg->version = 0;
-  vreg->reg_param_index = -1;
-  vreg->frame.offset = 0;
   return vreg;
 }
 
 VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag) {
-  VReg *vreg = alloc_vreg(vsize, vflag);
+  VReg *vreg = reg_alloc_spawn_raw(vsize, vflag);
   if (!(vflag & VRF_CONST)) {
     vreg->virt = vreg->orig_virt = ra->vregs->len;
+    vreg->phys = -1;
+    vreg->version = 0;
+    vreg->reg_param_index = -1;
+    vreg->frame.offset = 0;
     vec_push(ra->vregs, vreg);
   } else {
     vec_push(ra->consts, vreg);

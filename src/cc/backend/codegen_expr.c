@@ -469,6 +469,7 @@ static VReg *gen_funcall(Expr *expr) {
   }
 
   VReg *dst = NULL;
+  IR *call;
   {
     Type *type = expr->type;
     if (ret_varinfo != NULL)
@@ -486,8 +487,20 @@ static VReg *gen_funcall(Expr *expr) {
         functype->func.params->len + (ret_varinfo != NULL ? 1 : 0);
     set_call_info(callinfo, funcname, global, total_arg_count, reg_arg_count + freg_arg_count,
                        arg_vregs, vaarg_start);
-    /*IR *call =*/ new_ir_call(callinfo, dst, freg);
+    call = new_ir_call(callinfo, dst, freg);
   }
+
+  FuncallInfo *funcall_info = calloc_or_die(sizeof(*funcall_info));
+  funcall_info->call = call;
+  assert(expr->funcall.info == NULL);
+  expr->funcall.info = funcall_info;
+
+  FuncBackend *fnbe = curfunc->extra;
+  assert(fnbe != NULL);
+  Vector *funcalls = fnbe->funcalls;
+  if (funcalls == NULL)
+    fnbe->funcalls = funcalls = new_vector();
+  vec_push(funcalls, expr);
 
   return dst;
 }

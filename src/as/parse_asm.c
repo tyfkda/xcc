@@ -610,7 +610,7 @@ static /*enum RawOpcode*/int find_raw_opcode(ParseInfo *info) {
 }
 
 void parse_inst(ParseInfo *info, Line *line) {
-  Inst *inst  = &line->inst;
+  Inst *inst = &line->inst;
   Operand *opr_table = inst->opr;
   for (int i = 0; i < (int)ARRAY_SIZE(inst->opr); ++i)
     opr_table[i].type = NOOPERAND;

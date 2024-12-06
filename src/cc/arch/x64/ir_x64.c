@@ -141,7 +141,7 @@ int calculate_func_param_bottom(Function *func) {
   return (callee_save_count * TARGET_POINTER_SIZE) + (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
 }
 
-static Vector *collect_caller_save_regs(unsigned long living) {
+Vector *collect_caller_save_regs(unsigned long living) {
   Vector *saves = new_vector();
 
   for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
@@ -166,9 +166,9 @@ static Vector *collect_caller_save_regs(unsigned long living) {
 static void push_caller_save_regs(Vector *saves, int total) {
   int offset = total;
   offset += saves->len * TARGET_POINTER_SIZE;
-  for (int i = 0; i < saves->len; ++i) {
+  for (int i = 0; i < saves->len; ) {
     offset -= TARGET_POINTER_SIZE;
-    const char *reg = saves->data[i];
+    const char *reg = saves->data[i++];
     if (!is_xmmreg(reg))
       MOV(reg, OFFSET_INDIRECT(offset, RSP, NULL, 1));
     else
@@ -176,24 +176,14 @@ static void push_caller_save_regs(Vector *saves, int total) {
   }
 }
 
-static void pop_caller_save_regs(Vector *saves) {
-  int i = saves->len;
-  int ofs = 0;
-  while (--i >= 0) {
-    const char *reg = saves->data[i];
+static void pop_caller_save_regs(Vector *saves, int offset) {
+  for (int i = saves->len; i > 0; ) {
+    const char *reg = saves->data[--i];
     if (!is_xmmreg(reg))
-      break;
-    MOVSD(OFFSET_INDIRECT(ofs, RSP, NULL, 1), reg);
-    ofs += TARGET_POINTER_SIZE;
-  }
-  if (ofs > 0) {
-    ADD(IM(ofs), RSP);
-  }
-  ++i;
-
-  while (--i >= 0) {
-    const char *reg = saves->data[i];
-    POP(reg);
+      MOV(OFFSET_INDIRECT(offset, RSP, NULL, 1), reg);
+    else
+      MOVSD(OFFSET_INDIRECT(offset, RSP, NULL, 1), reg);
+    offset += TARGET_POINTER_SIZE;
   }
 }
 
@@ -967,16 +957,7 @@ static void ei_tjmp(IR *ir) {
 }
 
 static void ei_precall(IR *ir) {
-  Vector *saves = collect_caller_save_regs(ir->call->living_pregs);
-  ir->call->caller_saves = saves;
-
-  int align_stack = (16 - (saves->len * TARGET_POINTER_SIZE + ir->call->stack_args_size)) & 15;
-  ir->call->stack_aligned = align_stack;
-
-  int total = align_stack + ir->call->stack_args_size + saves->len * TARGET_POINTER_SIZE;
-  if (total > 0) {
-    SUB(IM(total), RSP);
-  }
+  UNUSED(ir);
 }
 
 static void ei_pusharg(IR *ir) {
@@ -1032,12 +1013,8 @@ static void ei_call(IR *ir) {
     CALL(fmt("*%s", kReg64s[ir->opr1->phys]));
   }
 
-  if (total != 0) {
-    ADD(IM(total), RSP);
-  }
-
   // Resore caller save registers.
-  pop_caller_save_regs(ir->call->caller_saves);
+  pop_caller_save_regs(ir->call->caller_saves, total);
 
   if (ir->dst != NULL) {
     if (ir->dst->flag & VRF_FLONUM) {

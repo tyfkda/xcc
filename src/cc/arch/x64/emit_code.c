@@ -144,6 +144,32 @@ static void move_params_to_assigned(Function *func) {
   #undef kFRegParam64s
 }
 
+static size_t detect_funcall_work_size(Function *func) {
+  extern Vector *collect_caller_save_regs(unsigned long living);
+
+  FuncBackend *fnbe = func->extra;
+  Vector *funcalls = fnbe->funcalls;
+  size_t max = 0;
+  if (funcalls != NULL) {
+    for (int i = 0; i < funcalls->len; ++i) {
+      Expr *funcall = funcalls->data[i];
+      FuncallInfo *funcall_info = funcall->funcall.info;
+
+      // Caller save registers.
+      IR *ir = funcall_info->call;
+      Vector *saves = collect_caller_save_regs(ir->call->living_pregs);
+      ir->call->caller_saves = saves;
+
+      int align_stack = (16 - (saves->len * TARGET_POINTER_SIZE + ir->call->stack_args_size)) & 15;
+      ir->call->stack_aligned = align_stack;
+
+      size_t total = align_stack + ir->call->stack_args_size + saves->len * TARGET_POINTER_SIZE;
+      max = MAX(max, total);
+    }
+  }
+  return max;
+}
+
 void emit_defun(Function *func) {
   if (func->scopes == NULL ||  // Prototype definition.
       func->extra == NULL)     // Code emission is omitted.
@@ -191,9 +217,19 @@ void emit_defun(Function *func) {
     }
   }
 
+  FuncBackend *fnbe = func->extra;
+  size_t funcall_work_size = detect_funcall_work_size(func);
+  fnbe->stack_work_size = funcall_work_size;
+  {
+    VReg *vreg = fnbe->stack_work_size_vreg;
+    if (vreg != NULL) {
+      assert(vreg->flag & VRF_CONST);
+      vreg->fixnum = funcall_work_size;
+    }
+  }
+
   // Prologue
   // Allocate variable bufer.
-  FuncBackend *fnbe = func->extra;
   size_t frame_size = 0;
   bool rbp_saved = false;
   int callee_saved_count = 0;
@@ -213,11 +249,11 @@ void emit_defun(Function *func) {
       frame_offset = 0;
     }
 
-    size_t callee_saved_size = callee_saved_count * TARGET_POINTER_SIZE;
-    frame_size = fnbe->frame_size;
+    frame_size = fnbe->frame_size + funcall_work_size;
     if (func->flag & (FUNCF_HAS_FUNCALL | FUNCF_STACK_MODIFIED)) {
       // Align frame size to 16 only it contains funcall.
-      frame_size += -(fnbe->frame_size + callee_saved_size + frame_offset) & 15;
+      size_t callee_saved_size = callee_saved_count * TARGET_POINTER_SIZE;
+      frame_size += -(frame_size + callee_saved_size + frame_offset) & 15;
     }
     if (frame_size > 0) {
       SUB(IM(frame_size), RSP);

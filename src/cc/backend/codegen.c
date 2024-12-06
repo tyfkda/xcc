@@ -886,8 +886,11 @@ bool gen_defun(Function *func) {
   fnbe->ret_bb = NULL;
   fnbe->retval = NULL;
   fnbe->result_dst = NULL;
+  fnbe->funcalls = NULL;
   fnbe->frame_size = 0;
   fnbe->vaarg_frame_info.offset = 0;  // Calculated in later.
+  fnbe->stack_work_size = 0;
+  fnbe->stack_work_size_vreg = NULL;
 
   fnbe->bbcon = new_func_blocks();
   set_curbb(new_bb());

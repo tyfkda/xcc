@@ -13,6 +13,7 @@
 #include "ir.h"
 #include "lexer.h"
 #include "parser.h"
+#include "regalloc.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"
@@ -294,6 +295,19 @@ static VReg *gen_alloca(Expr *expr) {
   VReg *result = add_new_vreg(&tyVoidPtr);
   new_ir_subsp(addend, result);
   curfunc->flag |= FUNCF_STACK_MODIFIED;
+
+  // `stack_work_size` is not calculated in gen phase,
+  // so prepare vreg for it and fill the value in emit phase.
+  FuncBackend *fnbe = curfunc->extra;
+  VReg *offset = fnbe->stack_work_size_vreg;
+  if (offset == NULL) {
+    // offset = new_const_vreg(0, to_vsize(&tySize));
+    // Instead of above, create independent constant vreg.
+    offset = reg_alloc_spawn_raw(to_vsize(&tySize), VRF_CONST);
+    offset->fixnum = 0;
+    fnbe->stack_work_size_vreg = offset;
+  }
+  new_ir_bop_raw(IR_ADD, result, result, offset, IRF_UNSIGNED);
   return result;
 }
 
