@@ -242,12 +242,13 @@ void new_ir_store(VReg *dst, VReg *src, int flag) {
   ir->flag = flag;
 }
 
-VReg *new_ir_cond(VReg *opr1, VReg *opr2, enum ConditionKind cond) {
+IR *new_ir_cond(VReg *opr1, VReg *opr2, enum ConditionKind cond) {
   IR *ir = new_ir(IR_COND);
   ir->opr1 = opr1;
   ir->opr2 = opr2;
   ir->cond.kind = cond;
-  return ir->dst = reg_alloc_spawn(curra, vtBool, 0);
+  ir->dst = reg_alloc_spawn(curra, vtBool, 0);
+  return ir;
 }
 
 IR *new_ir_jmp(BB *bb) {
@@ -286,29 +287,18 @@ IR *new_ir_pusharg(VReg *vreg, int index) {
   return ir;
 }
 
-IR *new_ir_precall(int arg_count, int stack_args_size) {
+IR *new_ir_precall(IrCallInfo *call) {
   IR *ir = new_ir(IR_PRECALL);
-  ir->precall.arg_count = arg_count;
-  ir->precall.stack_args_size = stack_args_size;
-  ir->precall.stack_aligned = 0;
-  ir->precall.living_pregs = 0;
-  ir->precall.caller_saves = NULL;
+  ir->call = call;
   return ir;
 }
 
-VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count,
-                  int reg_arg_count, enum VRegSize result_size, int result_flag, IR *precall,
-                  VReg **args, int vaarg_start) {
+IR *new_ir_call(IrCallInfo *info, VReg *dst, VReg *freg) {
   IR *ir = new_ir(IR_CALL);
-  ir->call.label = label;
-  ir->call.global = global;
+  ir->call = info;
+  ir->dst = dst;
   ir->opr1 = freg;
-  ir->call.precall = precall;
-  ir->call.args = args;
-  ir->call.total_arg_count = total_arg_count;
-  ir->call.reg_arg_count = reg_arg_count;
-  ir->call.vaarg_start = vaarg_start;
-  return ir->dst = result_size < 0 ? NULL : reg_alloc_spawn(curra, result_size, result_flag);
+  return ir;
 }
 
 void new_ir_result(VReg *dst, VReg *vreg, int flag) {

@@ -854,12 +854,12 @@ static void ei_tjmp(IR *ir) {
 static void ei_precall(IR *ir) {
   // Living registers are not modified between preparing function arguments,
   // so safely saved before calculating argument values.
-  ir->precall.caller_saves = push_caller_save_regs(ir->precall.living_pregs);
+  ir->call->caller_saves = push_caller_save_regs(ir->call->living_pregs);
 
-  int align_stack = (16 - (ir->precall.stack_args_size)) & 15;
-  ir->precall.stack_aligned = align_stack;
+  int align_stack = (16 - (ir->call->stack_args_size)) & 15;
+  ir->call->stack_aligned = align_stack;
 
-  int total = align_stack + ir->precall.stack_args_size;
+  int total = align_stack + ir->call->stack_args_size;
   if (total > 0) {
     SUB(SP, SP, IM(total));
   }
@@ -885,9 +885,9 @@ static void ei_pusharg(IR *ir) {
 }
 
 static void ei_call(IR *ir) {
-  if (ir->call.label != NULL) {
-    char *label = fmt_name(ir->call.label);
-    if (ir->call.global)
+  if (ir->call->label != NULL) {
+    char *label = fmt_name(ir->call->label);
+    if (ir->call->global)
       label = MANGLE(label);
     BL(quote_label(label));
   } else {
@@ -895,14 +895,13 @@ static void ei_call(IR *ir) {
     BLR(kReg64s[ir->opr1->phys]);
   }
 
-  IR *precall = ir->call.precall;
-  int total = precall->precall.stack_aligned + precall->precall.stack_args_size;
+  int total = ir->call->stack_aligned + ir->call->stack_args_size;
   if (total != 0) {
     ADD(SP, SP, IM(total));
   }
 
   // Resore caller save registers.
-  pop_caller_save_regs(precall->precall.caller_saves);
+  pop_caller_save_regs(ir->call->caller_saves);
 
   if (ir->dst != NULL) {
     if (ir->dst->flag & VRF_FLONUM) {

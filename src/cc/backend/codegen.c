@@ -743,8 +743,7 @@ void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
       IR *ir = bb->irs->data[j];
       if (ir->kind == IR_CALL) {
         // Store it into corresponding precall.
-        IR *ir_precall = ir->call.precall;
-        ir_precall->precall.living_pregs = living_pregs;
+        ir->call->living_pregs = living_pregs;
       }
 
       // Add activated registers.

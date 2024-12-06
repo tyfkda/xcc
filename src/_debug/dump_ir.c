@@ -135,10 +135,10 @@ static void dump_ir(FILE *fp, IR *ir) {
   case IR_PUSHARG: fprintf(fp, "%d, ", ir->pusharg.index); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_CALL:
     if (ir->dst != NULL) { dump_vreg(fp, ir->dst); fprintf(fp, " = "); }
-    if (ir->call.label != NULL) {
-      fprintf(fp, "%.*s(args=#%d)\n", NAMES(ir->call.label), ir->call.reg_arg_count);
+    if (ir->call->label != NULL) {
+      fprintf(fp, "%.*s(args=#%d)\n", NAMES(ir->call->label), ir->call->reg_arg_count);
     } else {
-      fprintf(fp, "*"); dump_vreg(fp, ir->opr1); fprintf(fp, "(args=#%d)\n", ir->call.reg_arg_count);
+      fprintf(fp, "*"); dump_vreg(fp, ir->opr1); fprintf(fp, "(args=#%d)\n", ir->call->reg_arg_count);
     }
     break;
   case IR_SUBSP:  dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;

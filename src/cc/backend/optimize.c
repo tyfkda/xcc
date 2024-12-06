@@ -308,8 +308,8 @@ static int replace_register(BBContainer *bbcon, VReg *target, VReg *alternation)
 
       if (ir->kind != IR_CALL)
         continue;
-      int n = ir->call.total_arg_count;
-      VReg **operands = ir->call.args;
+      int n = ir->call->total_arg_count;
+      VReg **operands = ir->call->args;
       for (int i = 0; i < n; ++i) {
         VReg *opr = operands[i];
         if (opr == target) {
