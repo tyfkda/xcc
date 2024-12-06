@@ -168,7 +168,7 @@ int calculate_func_param_bottom(Function *func) {
 }
 #undef N
 
-static Vector *collect_caller_save_regs(unsigned long living) {
+Vector *collect_caller_save_regs(unsigned long living) {
   Vector *saves = new_vector();
 
   struct {
@@ -225,16 +225,17 @@ static void push_caller_save_regs(IrCallInfo *callinfo) {
   }
 }
 
-static void pop_caller_save_regs(Vector *saves) {
+static void pop_caller_save_regs(Vector *saves, int offset) {
   assert((saves->len % 2) == 0);
   for (int i = saves->len; i > 0; ) {
     i -= 2;
     const char *save1 = saves->data[i];
     const char *save2 = saves->data[i + 1];
     if (save2 != NULL)
-      LDP(save1, save2, POST_INDEX(SP, 16));
+      LDP(save1, save2, IMMEDIATE_OFFSET(SP, offset));
     else
-      LDR(save1, POST_INDEX(SP, 16));
+      LDR(save1, IMMEDIATE_OFFSET(SP, offset));
+    offset += TARGET_POINTER_SIZE * 2;
   }
 }
 
@@ -860,16 +861,7 @@ static void ei_tjmp(IR *ir) {
 }
 
 static void ei_precall(IR *ir) {
-  Vector *saves = collect_caller_save_regs(ir->call->living_pregs);
-  ir->call->caller_saves = saves;
-
-  int align_stack = (16 - (ir->call->stack_args_size)) & 15;
-  ir->call->stack_aligned = align_stack;
-
-  int total = align_stack + ir->call->stack_args_size + saves->len * TARGET_POINTER_SIZE;
-  if (total > 0) {
-    SUB(SP, SP, IM(total));
-  }
+  UNUSED(ir);
 }
 
 static void ei_pusharg(IR *ir) {
@@ -904,13 +896,9 @@ static void ei_call(IR *ir) {
     BLR(kReg64s[ir->opr1->phys]);
   }
 
-  int total = ir->call->stack_aligned + ir->call->stack_args_size;
-  if (total != 0) {
-    ADD(SP, SP, IM(total));
-  }
-
   // Resore caller save registers.
-  pop_caller_save_regs(ir->call->caller_saves);
+  int total = ir->call->stack_aligned + ir->call->stack_args_size;
+  pop_caller_save_regs(ir->call->caller_saves, total);
 
   if (ir->dst != NULL) {
     if (ir->dst->flag & VRF_FLONUM) {

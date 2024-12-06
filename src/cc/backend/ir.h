@@ -245,6 +245,12 @@ void pop_callee_save_regs(unsigned long used, unsigned long fused);
 
 void emit_bb_irs(BBContainer *bbcon);
 
+//
+
+typedef struct FuncallInfo {
+  IR *call;
+} FuncallInfo;
+
 // Function info for backend
 
 typedef struct FuncBackend {
@@ -253,6 +259,7 @@ typedef struct FuncBackend {
   BB *ret_bb;
   VReg *retval;
   VReg *result_dst;
+  Vector *funcalls;
   size_t frame_size;
   FrameInfo vaarg_frame_info;  // Used for va_start.
 } FuncBackend;

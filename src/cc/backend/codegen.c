@@ -887,6 +887,7 @@ bool gen_defun(Function *func) {
   fnbe->ret_bb = NULL;
   fnbe->retval = NULL;
   fnbe->result_dst = NULL;
+  fnbe->funcalls = NULL;
   fnbe->frame_size = 0;
   fnbe->vaarg_frame_info.offset = 0;  // Calculated in later.
 

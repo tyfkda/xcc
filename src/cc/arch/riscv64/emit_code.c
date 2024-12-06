@@ -120,10 +120,38 @@ static void move_params_to_assigned(Function *func) {
   #undef kFRegParam64s
 }
 
+static size_t detect_funcall_worksize(Function *func) {
+  extern Vector *collect_caller_save_regs(unsigned long living);
+
+  FuncBackend *fnbe = func->extra;
+  Vector *funcalls = fnbe->funcalls;
+  int max = 0;
+  if (funcalls != NULL) {
+    for (int i = 0; i < funcalls->len; ++i) {
+      Expr *funcall = funcalls->data[i];
+      FuncallInfo *funcall_info = funcall->funcall.info;
+
+      // Caller save registers.
+      IR *ir = funcall_info->call;
+      Vector *saves = collect_caller_save_regs(ir->call->living_pregs);
+      ir->call->caller_saves = saves;
+
+      int align_stack = (16 - (ir->call->stack_args_size)) & 15;
+      ir->call->stack_aligned = align_stack;
+
+      int total = ir->call->stack_aligned + ir->call->stack_args_size + saves->len * TARGET_POINTER_SIZE;
+      max = MAX(max, total);
+    }
+  }
+  return max;
+}
+
 void emit_defun(Function *func) {
   if (func->scopes == NULL ||  // Prototype definition.
       func->extra == NULL)     // Code emission is omitted.
     return;
+
+  size_t funcall_worksize = detect_funcall_worksize(func);
 
   emit_comment(NULL);
   _TEXT();
@@ -166,7 +194,7 @@ void emit_defun(Function *func) {
   // Prologue
   // Allocate variable bufer.
   FuncBackend *fnbe = func->extra;
-  size_t frame_size = ALIGN(fnbe->frame_size, 16);
+  size_t frame_size = ALIGN(fnbe->frame_size + funcall_worksize, 16);
   bool fp_saved = false;  // Frame pointer saved?
   bool ra_saved = false;  // Return Address register saved?
   unsigned long used_reg_bits = fnbe->ra->used_reg_bits;
@@ -176,7 +204,7 @@ void emit_defun(Function *func) {
       vaarg_params_saved = put_vaarg_params(func);
 
       // Re-align frame size.
-      frame_size = ALIGN(fnbe->frame_size + vaarg_params_saved, 16) - vaarg_params_saved;
+      frame_size = ALIGN(fnbe->frame_size + funcall_worksize + vaarg_params_saved, 16) - vaarg_params_saved;
     }
 
     fp_saved = frame_size > 0 || fnbe->ra->flag & RAF_STACK_FRAME;

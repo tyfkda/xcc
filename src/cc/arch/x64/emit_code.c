@@ -144,10 +144,38 @@ static void move_params_to_assigned(Function *func) {
   #undef kFRegParam64s
 }
 
+static size_t detect_funcall_worksize(Function *func) {
+  extern Vector *collect_caller_save_regs(unsigned long living);
+
+  FuncBackend *fnbe = func->extra;
+  Vector *funcalls = fnbe->funcalls;
+  int max = 0;
+  if (funcalls != NULL) {
+    for (int i = 0; i < funcalls->len; ++i) {
+      Expr *funcall = funcalls->data[i];
+      FuncallInfo *funcall_info = funcall->funcall.info;
+
+      // Caller save registers.
+      IR *ir = funcall_info->call;
+      Vector *saves = collect_caller_save_regs(ir->call->living_pregs);
+      ir->call->caller_saves = saves;
+
+      int align_stack = (16 - (saves->len * TARGET_POINTER_SIZE + ir->call->stack_args_size)) & 15;
+      ir->call->stack_aligned = align_stack;
+
+      int total = align_stack + ir->call->stack_args_size + saves->len * TARGET_POINTER_SIZE;
+      max = MAX(max, total);
+    }
+  }
+  return max;
+}
+
 void emit_defun(Function *func) {
   if (func->scopes == NULL ||  // Prototype definition.
       func->extra == NULL)     // Code emission is omitted.
     return;
+
+  size_t funcall_worksize = detect_funcall_worksize(func);
 
   emit_comment(NULL);
   _TEXT();
@@ -214,7 +242,7 @@ void emit_defun(Function *func) {
     }
 
     size_t callee_saved_size = callee_saved_count * TARGET_POINTER_SIZE;
-    frame_size = fnbe->frame_size;
+    frame_size = fnbe->frame_size + funcall_worksize;
     if (func->flag & (FUNCF_HAS_FUNCALL | FUNCF_STACK_MODIFIED)) {
       // Align frame size to 16 only it contains funcall.
       frame_size += -(fnbe->frame_size + callee_saved_size + frame_offset) & 15;
