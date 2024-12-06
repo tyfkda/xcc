@@ -64,7 +64,7 @@ static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
       ioccupy = 1UL << GET_CREG_INDEX();
     break;
   case IR_CALL:
-    if (ir->call.vaarg_start >= 0) {
+    if (ir->call->vaarg_start >= 0) {
       // Break %al if function is vaarg.
       ioccupy = 1UL << GET_AREG_INDEX();
     }
@@ -141,39 +141,39 @@ int calculate_func_param_bottom(Function *func) {
   return (callee_save_count * TARGET_POINTER_SIZE) + (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
 }
 
-static Vector *push_caller_save_regs(unsigned long living) {
+static Vector *collect_caller_save_regs(unsigned long living) {
   Vector *saves = new_vector();
 
   for (int i = 0; i < CALLER_SAVE_REG_COUNT; ++i) {
     int ireg = kCallerSaveRegs[i];
     if (living & (1UL << ireg)) {
       const char *reg = kReg64s[ireg];
-      PUSH(reg);
       vec_push(saves, reg);
     }
   }
 
-  {
-    int fstart = saves->len;
-    for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
-      int ireg = kCallerSaveFRegs[i];
-      if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
-        // TODO: Detect register size.
-        vec_push(saves, kFReg64s[ireg]);
-      }
-    }
-    int n = saves->len - fstart;
-    if (n > 0) {
-      int ofs = n * TARGET_POINTER_SIZE;
-      SUB(IM(ofs), RSP);
-      for (int i = 0; i < n; ++i) {
-        ofs -= TARGET_POINTER_SIZE;
-        MOVSD(saves->data[i + fstart], OFFSET_INDIRECT(ofs, RSP, NULL, 1));
-      }
+  for (int i = 0; i < CALLER_SAVE_FREG_COUNT; ++i) {
+    int ireg = kCallerSaveFRegs[i];
+    if (living & (1UL << (ireg + PHYSICAL_REG_MAX))) {
+      // TODO: Detect register size.
+      vec_push(saves, kFReg64s[ireg]);
     }
   }
 
   return saves;
+}
+
+static void push_caller_save_regs(Vector *saves, int total) {
+  int offset = total;
+  offset += saves->len * TARGET_POINTER_SIZE;
+  for (int i = 0; i < saves->len; ++i) {
+    offset -= TARGET_POINTER_SIZE;
+    const char *reg = saves->data[i];
+    if (!is_xmmreg(reg))
+      MOV(reg, OFFSET_INDIRECT(offset, RSP, NULL, 1));
+    else
+      MOVSD(reg, OFFSET_INDIRECT(offset, RSP, NULL, 1));
+  }
 }
 
 static void pop_caller_save_regs(Vector *saves) {
@@ -967,14 +967,13 @@ static void ei_tjmp(IR *ir) {
 }
 
 static void ei_precall(IR *ir) {
-  // Living registers are not modified between preparing function arguments,
-  // so safely saved before calculating argument values.
-  ir->precall.caller_saves = push_caller_save_regs(ir->precall.living_pregs);
+  Vector *saves = collect_caller_save_regs(ir->call->living_pregs);
+  ir->call->caller_saves = saves;
 
-  int align_stack = (16 - (ir->precall.caller_saves->len * TARGET_POINTER_SIZE + ir->precall.stack_args_size)) & 15;
-  ir->precall.stack_aligned = align_stack;
+  int align_stack = (16 - (saves->len * TARGET_POINTER_SIZE + ir->call->stack_args_size)) & 15;
+  ir->call->stack_aligned = align_stack;
 
-  int total = align_stack + ir->precall.stack_args_size;
+  int total = align_stack + ir->call->stack_args_size + saves->len * TARGET_POINTER_SIZE;
   if (total > 0) {
     SUB(IM(total), RSP);
   }
@@ -1003,11 +1002,14 @@ static void ei_pusharg(IR *ir) {
 }
 
 static void ei_call(IR *ir) {
-  if (ir->call.vaarg_start >= 0) {
-    int total_arg_count = ir->call.total_arg_count;
+  int total = ir->call->stack_aligned + ir->call->stack_args_size;
+  push_caller_save_regs(ir->call->caller_saves, total);
+
+  if (ir->call->vaarg_start >= 0) {
+    int total_arg_count = ir->call->total_arg_count;
     int freg = 0;
     for (int i = 0; i < total_arg_count; ++i) {
-      if (ir->call.args[i]->flag & VRF_FLONUM) {
+      if (ir->call->args[i]->flag & VRF_FLONUM) {
         ++freg;
         if (freg >= MAX_FREG_ARGS)
           break;
@@ -1020,9 +1022,9 @@ static void ei_call(IR *ir) {
     else
       XOR(AL, AL);
   }
-  if (ir->call.label != NULL) {
-    char *label = fmt_name(ir->call.label);
-    if (ir->call.global)
+  if (ir->call->label != NULL) {
+    char *label = fmt_name(ir->call->label);
+    if (ir->call->global)
       label = MANGLE(label);
     CALL(quote_label(label));
   } else {
@@ -1030,14 +1032,12 @@ static void ei_call(IR *ir) {
     CALL(fmt("*%s", kReg64s[ir->opr1->phys]));
   }
 
-  IR *precall = ir->call.precall;
-  int total = precall->precall.stack_aligned + precall->precall.stack_args_size;
   if (total != 0) {
     ADD(IM(total), RSP);
   }
 
   // Resore caller save registers.
-  pop_caller_save_regs(precall->precall.caller_saves);
+  pop_caller_save_regs(ir->call->caller_saves);
 
   if (ir->dst != NULL) {
     if (ir->dst->flag & VRF_FLONUM) {

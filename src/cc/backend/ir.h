@@ -120,6 +120,23 @@ enum ConditionKind invert_cond(enum ConditionKind cond);
 
 #define IRF_UNSIGNED  (1 << 0)
 
+typedef struct {
+  // Precall
+  int arg_count;
+  int stack_args_size;
+  int stack_aligned;
+  unsigned long living_pregs;
+  Vector *caller_saves;  // <const char*>
+
+  // Call
+  const Name *label;
+  VReg **args;  // [total_arg_count]
+  int total_arg_count;
+  int reg_arg_count;
+  int vaarg_start;
+  bool global;
+} IrCallInfo;
+
 typedef struct IR {
   enum IrKind kind;
   int flag;
@@ -149,27 +166,12 @@ typedef struct IR {
       size_t len;
     } tjmp;
     struct {
-      int arg_count;
-      int stack_args_size;
-      int stack_aligned;
-      unsigned long living_pregs;
-      Vector *caller_saves;  // <const char*>
-    } precall;
-    struct {
       int index;
 #if VAARG_FP_AS_GP
       bool fp_as_gp;
 #endif
     } pusharg;
-    struct {
-      const Name *label;
-      struct IR *precall;
-      VReg **args;  // [total_arg_count]
-      int total_arg_count;
-      int reg_arg_count;
-      int vaarg_start;
-      bool global;
-    } call;
+    IrCallInfo *call;
     struct {
       const char *str;
     } asm_;
@@ -193,15 +195,13 @@ VReg *new_ir_bofs(FrameInfo *fi);
 VReg *new_ir_iofs(const Name *label, bool global);
 VReg *new_ir_sofs(VReg *src);
 void new_ir_store(VReg *dst, VReg *src, int flag);
-VReg *new_ir_cond(VReg *opr1, VReg *opr2, enum ConditionKind cond);
+IR *new_ir_cond(VReg *opr1, VReg *opr2, enum ConditionKind cond);
 IR *new_ir_jmp(BB *bb);  // Non-conditional jump
 void new_ir_cjmp(VReg *opr1, VReg *opr2, enum ConditionKind cond, BB *bb);  // Conditional jump
 void new_ir_tjmp(VReg *val, BB **bbs, size_t len);
-IR *new_ir_precall(int arg_count, int stack_args_size);
+IR *new_ir_precall(IrCallInfo *call);
 IR *new_ir_pusharg(VReg *vreg, int index);
-VReg *new_ir_call(const Name *label, bool global, VReg *freg, int total_arg_count,
-                  int reg_arg_count, enum VRegSize result_size, int result_flag, IR *precall,
-                  VReg **args, int vaarg_start);
+IR *new_ir_call(IrCallInfo *info, VReg *dst, VReg *freg);
 void new_ir_result(VReg *dst, VReg *vreg, int flag);
 void new_ir_subsp(VReg *value, VReg *dst);
 IR *new_ir_cast(VReg *vreg, enum VRegSize dstsize, int vflag);

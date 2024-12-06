@@ -308,6 +308,16 @@ static VReg *gen_ternary(Expr *expr) {
   return result;
 }
 
+static inline void set_call_info(IrCallInfo *call, const Name *label, bool global, int total_arg_count,
+                int reg_arg_count, VReg **args, int vaarg_start) {
+  call->label = label;
+  call->global = global;
+  call->args = args;
+  call->total_arg_count = total_arg_count;
+  call->reg_arg_count = reg_arg_count;
+  call->vaarg_start = vaarg_start;
+}
+
 static VReg *gen_funcall(Expr *expr) {
   Expr *func = expr->funcall.func;
   if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
@@ -390,7 +400,13 @@ static VReg *gen_funcall(Expr *expr) {
     }
   }
 
-  IR *precall = new_ir_precall(arg_count - stack_arg_count, offset);
+  IrCallInfo *callinfo = calloc_or_die(sizeof(*callinfo));
+  callinfo->arg_count = arg_count - stack_arg_count;
+  callinfo->stack_args_size = offset;
+  callinfo->stack_aligned = 0;
+  callinfo->living_pregs = 0;
+  callinfo->caller_saves = NULL;
+  /*IR *precall =*/ new_ir_precall(callinfo);
 
   int total_arg_count = arg_count + (ret_varinfo != NULL ? 1 : 0);
   VReg **arg_vregs = total_arg_count == 0 ? NULL : calloc_or_die(total_arg_count * sizeof(*arg_vregs));
@@ -448,34 +464,32 @@ static VReg *gen_funcall(Expr *expr) {
     const VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
     assert(varinfo != NULL);
     label_call = varinfo->type->kind == TY_FUNC;
-    global = !(varinfo->storage & VS_STATIC);
+    if (label_call)
+      global = !(varinfo->storage & VS_STATIC);
   }
 
-  VReg *result_reg = NULL;
+  VReg *dst = NULL;
   {
-    int vaarg_start = !functype->func.vaargs || functype->func.params == NULL ? -1 :
-        functype->func.params->len + (ret_varinfo != NULL ? 1 : 0);
     Type *type = expr->type;
     if (ret_varinfo != NULL)
       type = ptrof(type);
-    enum VRegSize ret_vsize = -1;
-    int ret_vflag = 0;
-    if (type->kind != TY_VOID) {
-      ret_vsize = to_vsize(type);
-      ret_vflag = to_vflag(type);
-    }
-    if (label_call) {
-      result_reg = new_ir_call(func->var.name, global, NULL, total_arg_count,
-                               reg_arg_count + freg_arg_count, ret_vsize, ret_vflag, precall,
-                               arg_vregs, vaarg_start);
-    } else {
-      VReg *freg = gen_expr(func);
-      result_reg = new_ir_call(NULL, false, freg, total_arg_count, reg_arg_count + freg_arg_count,
-                               ret_vsize, ret_vflag, precall, arg_vregs, vaarg_start);
-    }
+    if (type->kind != TY_VOID)
+      dst = reg_alloc_spawn(curra, to_vsize(type), to_vflag(type));
+
+    const Name *funcname = NULL;
+    VReg *freg = NULL;
+    if (label_call)
+      funcname = func->var.name;
+    else
+      freg = gen_expr(func);
+    int vaarg_start = !functype->func.vaargs || functype->func.params == NULL ? -1 :
+        functype->func.params->len + (ret_varinfo != NULL ? 1 : 0);
+    set_call_info(callinfo, funcname, global, total_arg_count, reg_arg_count + freg_arg_count,
+                       arg_vregs, vaarg_start);
+    /*IR *call =*/ new_ir_call(callinfo, dst, freg);
   }
 
-  return result_reg;
+  return dst;
 }
 
 static VReg *gen_arith(enum ExprKind kind, const Type *type, VReg *lhs, VReg *rhs) {
@@ -673,7 +687,7 @@ static VReg *gen_relation(Expr *expr) {
   case COND_ANY:
     return new_const_vreg(cmp.cond == COND_ANY, to_vsize(&tyBool));
   default:
-    return new_ir_cond(cmp.lhs, cmp.rhs, cmp.cond);
+    return new_ir_cond(cmp.lhs, cmp.rhs, cmp.cond)->dst;
   }
 }
 
