@@ -162,7 +162,6 @@ Expr *new_expr_funcall(const Token *token, Expr *func, Vector *args) {
   Expr *expr = new_expr(EX_FUNCALL, functype->func.ret, token);
   expr->funcall.func = func;
   expr->funcall.args = args;
-  expr->funcall.unnested = NULL;
   return expr;
 }
 
