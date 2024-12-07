@@ -165,7 +165,7 @@ static size_t detect_funcall_worksize(Function *func) {
 
   FuncBackend *fnbe = func->extra;
   Vector *funcalls = fnbe->funcalls;
-  int max = 0;
+  size_t max = 0;
   if (funcalls != NULL) {
     for (int i = 0; i < funcalls->len; ++i) {
       Expr *funcall = funcalls->data[i];
@@ -179,7 +179,7 @@ static size_t detect_funcall_worksize(Function *func) {
       int align_stack = (16 - (ir->call->stack_args_size)) & 15;
       ir->call->stack_aligned = align_stack;
 
-      int total = ir->call->stack_aligned + ir->call->stack_args_size + saves->len * TARGET_POINTER_SIZE;
+      size_t total = ir->call->stack_aligned + ir->call->stack_args_size + saves->len * TARGET_POINTER_SIZE;
       max = MAX(max, total);
     }
   }
@@ -190,8 +190,6 @@ void emit_defun(Function *func) {
   if (func->scopes == NULL ||  // Prototype definition.
       func->extra == NULL)     // Code emission is omitted.
     return;
-
-  size_t funcall_worksize = detect_funcall_worksize(func);
 
   emit_comment(NULL);
   _TEXT();
@@ -237,6 +235,8 @@ void emit_defun(Function *func) {
   // Prologue
   // Allocate variable bufer.
   FuncBackend *fnbe = func->extra;
+  size_t funcall_worksize = detect_funcall_worksize(func);
+  fnbe->stack_work_size = funcall_worksize;
   size_t frame_size = ALIGN(fnbe->frame_size + funcall_worksize, 16);
   bool fp_saved = false;  // Frame pointer saved?
   bool lr_saved = false;  // Link register saved?

@@ -262,6 +262,7 @@ typedef struct FuncBackend {
   Vector *funcalls;
   size_t frame_size;
   FrameInfo vaarg_frame_info;  // Used for va_start.
+  size_t stack_work_size;
 } FuncBackend;
 
 //
