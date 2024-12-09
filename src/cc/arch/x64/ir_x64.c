@@ -956,10 +956,6 @@ static void ei_tjmp(IR *ir) {
   _TEXT();
 }
 
-static void ei_precall(IR *ir) {
-  UNUSED(ir);
-}
-
 static void ei_pusharg(IR *ir) {
   if (ir->opr1->flag & VRF_FLONUM) {
     // Assume parameter registers are arranged from index 0.
@@ -1080,7 +1076,7 @@ void emit_bb_irs(BBContainer *bbcon) {
     [IR_MOV] = ei_mov, [IR_RESULT] = ei_result,
 
     [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
-    [IR_PRECALL] = ei_precall, [IR_PUSHARG] = ei_pusharg, [IR_CALL] = ei_call,
+    [IR_PUSHARG] = ei_pusharg, [IR_CALL] = ei_call,
     [IR_SUBSP] = ei_subsp, [IR_KEEP] = ei_keep, [IR_ASM] = ei_asm,
   };
 

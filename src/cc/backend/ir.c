@@ -287,12 +287,6 @@ IR *new_ir_pusharg(VReg *vreg, int index) {
   return ir;
 }
 
-IR *new_ir_precall(IrCallInfo *call) {
-  IR *ir = new_ir(IR_PRECALL);
-  ir->call = call;
-  return ir;
-}
-
 IR *new_ir_call(IrCallInfo *info, VReg *dst, VReg *freg) {
   IR *ir = new_ir(IR_CALL);
   ir->call = info;

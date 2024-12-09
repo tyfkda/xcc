@@ -400,14 +400,6 @@ static VReg *gen_funcall(Expr *expr) {
     }
   }
 
-  IrCallInfo *callinfo = calloc_or_die(sizeof(*callinfo));
-  callinfo->arg_count = arg_count - stack_arg_count;
-  callinfo->stack_args_size = offset;
-  callinfo->stack_aligned = 0;
-  callinfo->living_pregs = 0;
-  callinfo->caller_saves = NULL;
-  /*IR *precall =*/ new_ir_precall(callinfo);
-
   int total_arg_count = arg_count + (ret_varinfo != NULL ? 1 : 0);
   VReg **arg_vregs = total_arg_count == 0 ? NULL : calloc_or_die(total_arg_count * sizeof(*arg_vregs));
 
@@ -467,6 +459,13 @@ static VReg *gen_funcall(Expr *expr) {
     if (label_call)
       global = !(varinfo->storage & VS_STATIC);
   }
+
+  IrCallInfo *callinfo = calloc_or_die(sizeof(*callinfo));
+  callinfo->arg_count = arg_count - stack_arg_count;
+  callinfo->stack_args_size = offset;
+  callinfo->stack_aligned = 0;
+  callinfo->living_pregs = 0;
+  callinfo->caller_saves = NULL;
 
   VReg *dst = NULL;
   IR *call;

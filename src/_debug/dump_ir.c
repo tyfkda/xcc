@@ -79,7 +79,7 @@ static void dump_ir(FILE *fp, IR *ir) {
     "BOFS", "IOFS", "SOFS", "LOAD", "LOAD_S", "STORE", "STORE_S",
     "ADD", "SUB", "MUL", "DIV", "MOD", "BITAND", "BITOR", "BITXOR", "LSHIFT", "RSHIFT", "COND",
     "NEG", "BITNOT", "CAST", "MOV", "RESULT",
-    "JMP", "TJMP", "PRECALL", "PUSHARG", "CALL", "SUBSP", "KEEP", "ASM",
+    "JMP", "TJMP", "PUSHARG", "CALL", "SUBSP", "KEEP", "ASM",
   };
   static char *kCond[] = {NULL, "MP", "EQ", "NE", "LT", "LE", "GE", "GT", NULL, "MP", "EQ", "NE", "ULT", "ULE", "UGE", "UGT"};
   static char *kCond2[] = {NULL, "MP", "==", "!=", "<", "<=", ">=", ">", NULL, "MP", "==", "!=", "<", "<=", ">=", ">"};
@@ -131,7 +131,6 @@ static void dump_ir(FILE *fp, IR *ir) {
     if (ir->opr2 != NULL) {fprintf(fp, " (tmp="); dump_vreg(fp, ir->opr2); fprintf(fp, ")");}
     fprintf(fp, "\n");
     break;
-  case IR_PRECALL: fprintf(fp, "\n"); break;
   case IR_PUSHARG: fprintf(fp, "%d, ", ir->pusharg.index); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
   case IR_CALL:
     if (ir->dst != NULL) { dump_vreg(fp, ir->dst); fprintf(fp, " = "); }

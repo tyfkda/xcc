@@ -89,7 +89,6 @@ enum IrKind {
 
   IR_JMP,     // Non conditional jump, or conditional jmp (opr1 @@ opr2)
   IR_TJMP,    // Table jump (opr1).  opr2 is NULL, but it might be used to keep temporary vreg.
-  IR_PRECALL, // Prepare for call
   IR_PUSHARG,
   IR_CALL,    // Call label or opr1
   IR_SUBSP,   // RSP -= value
@@ -199,7 +198,6 @@ IR *new_ir_cond(VReg *opr1, VReg *opr2, enum ConditionKind cond);
 IR *new_ir_jmp(BB *bb);  // Non-conditional jump
 void new_ir_cjmp(VReg *opr1, VReg *opr2, enum ConditionKind cond, BB *bb);  // Conditional jump
 void new_ir_tjmp(VReg *val, BB **bbs, size_t len);
-IR *new_ir_precall(IrCallInfo *call);
 IR *new_ir_pusharg(VReg *vreg, int index);
 IR *new_ir_call(IrCallInfo *info, VReg *dst, VReg *freg);
 void new_ir_result(VReg *dst, VReg *vreg, int flag);
