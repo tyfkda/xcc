@@ -345,7 +345,10 @@ static void ei_add(IR *ir) {
       }
     } else {
       if (ir->opr2->flag & VRF_CONST) {
-        ADDI(dst, kReg64s[ir->opr1->phys], IM(ir->opr2->fixnum));
+        if (ir->opr2->fixnum != 0)
+          ADDI(dst, kReg64s[ir->opr1->phys], IM(ir->opr2->fixnum));
+        else if (ir->dst->phys != ir->opr1->phys)
+          MV(dst, kReg64s[ir->opr1->phys]);
       } else {
         ADD(dst, kReg64s[ir->opr1->phys], kReg64s[ir->opr2->phys]);
       }
@@ -371,7 +374,10 @@ static void ei_sub(IR *ir) {
       }
     } else {
       if (ir->opr2->flag & VRF_CONST) {
-        ADDI(dst, kReg64s[ir->opr1->phys], IM(-ir->opr2->fixnum));
+        if (ir->opr2->fixnum != 0)
+          ADDI(dst, kReg64s[ir->opr1->phys], IM(-ir->opr2->fixnum));
+        else if (ir->dst->phys != ir->opr1->phys)
+          MV(dst, kReg64s[ir->opr1->phys]);
       } else {
         SUB(dst, kReg64s[ir->opr1->phys], kReg64s[ir->opr2->phys]);
       }
@@ -851,7 +857,6 @@ static void ei_precall(IR *ir) {
 }
 
 static void ei_pusharg(IR *ir) {
-  assert(!(ir->opr1->flag & VRF_CONST));
   if (ir->opr1->flag & VRF_FLONUM) {
 #if VAARG_FP_AS_GP
     if (ir->pusharg.fp_as_gp) {
@@ -873,8 +878,11 @@ static void ei_pusharg(IR *ir) {
     }
   } else {
     // Assume parameter registers are arranged from index 0.
-    if (ir->pusharg.index != ir->opr1->phys)
-      MV(kReg64s[ir->pusharg.index], kReg64s[ir->opr1->phys]);
+    const char *dst = kReg64s[ir->pusharg.index];
+    if (ir->opr1->flag & VRF_CONST)
+      LI(dst, IM(ir->opr1->fixnum));
+    else if (ir->pusharg.index != ir->opr1->phys)
+      MV(dst, kReg64s[ir->opr1->phys]);
   }
 }
 
@@ -1145,10 +1153,6 @@ void tweak_irs(FuncBackend *fnbe) {
           assert(ir->opr2 == NULL);
           ir->opr2 = tmp;
         }
-        break;
-      case IR_PUSHARG:
-        if (ir->opr1->flag & VRF_CONST)
-          insert_const_mov(&ir->opr1, ra, irs, j++);
         break;
       case IR_CALL:
         if (ir->opr1 != NULL && (ir->opr1->flag & VRF_CONST)) {

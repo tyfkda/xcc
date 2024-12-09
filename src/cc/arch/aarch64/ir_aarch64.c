@@ -458,11 +458,15 @@ static void ei_add(IR *ir) {
     int pow = ir->dst->vsize;
     assert(0 <= pow && pow < 4);
     const char **regs = kRegSizeTable[pow];
+    const char *dst = regs[ir->dst->phys], *opr1 = regs[ir->opr1->phys];
     if (ir->opr2->flag & VRF_CONST) {
       assert(ir->opr2->fixnum >= 0);
-      ADD(regs[ir->dst->phys], regs[ir->opr1->phys], IM(ir->opr2->fixnum));
+      if (ir->opr2->fixnum > 0)
+        ADD(dst, opr1, IM(ir->opr2->fixnum));
+      else if (ir->dst->phys != ir->opr1->phys)
+        MOV(dst, opr1);
     } else {
-      ADD(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
+      ADD(dst, opr1, regs[ir->opr2->phys]);
     }
   }
 }
@@ -481,11 +485,15 @@ static void ei_sub(IR *ir) {
     int pow = ir->dst->vsize;
     assert(0 <= pow && pow < 4);
     const char **regs = kRegSizeTable[pow];
+    const char *dst = regs[ir->dst->phys], *opr1 = regs[ir->opr1->phys];
     if (ir->opr2->flag & VRF_CONST) {
       assert(ir->opr2->fixnum >= 0);
-      SUB(regs[ir->dst->phys], regs[ir->opr1->phys], IM(ir->opr2->fixnum));
+      if (ir->opr2->fixnum > 0)
+        SUB(dst, opr1, IM(ir->opr2->fixnum));
+      else if (ir->dst->phys != ir->opr1->phys)
+        MOV(dst, opr1);
     } else {
-      SUB(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
+      SUB(dst, opr1, regs[ir->opr2->phys]);
     }
   }
 }
@@ -866,7 +874,6 @@ static void ei_precall(IR *ir) {
 }
 
 static void ei_pusharg(IR *ir) {
-  assert(!(ir->opr1->flag & VRF_CONST));
   int pow = ir->opr1->vsize;
   if (ir->opr1->flag & VRF_FLONUM) {
     // Assume parameter registers are arranged from index 0.
@@ -879,8 +886,11 @@ static void ei_pusharg(IR *ir) {
     }
   } else {
     // Assume parameter registers are arranged from index 0.
-    if (ir->pusharg.index != ir->opr1->phys)
-      MOV(kRegSizeTable[pow][ir->pusharg.index], kRegSizeTable[pow][ir->opr1->phys]);
+    const char *dst = kRegSizeTable[pow][ir->pusharg.index];
+    if (ir->opr1->flag & VRF_CONST)
+      mov_immediate(dst, ir->opr1->fixnum, pow >= 3, ir->flag & IRF_UNSIGNED);
+    else if (ir->pusharg.index != ir->opr1->phys)
+      MOV(dst, kRegSizeTable[pow][ir->opr1->phys]);
   }
 }
 
@@ -1107,10 +1117,6 @@ void tweak_irs(FuncBackend *fnbe) {
           assert(ir->opr2 == NULL);
           ir->opr2 = tmp;
         }
-        break;
-      case IR_PUSHARG:
-        if (ir->opr1->flag & VRF_CONST)
-          insert_const_mov(&ir->opr1, ra, irs, j++);
         break;
       case IR_CALL:
         if (ir->opr1 != NULL && (ir->opr1->flag & VRF_CONST)) {
