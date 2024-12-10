@@ -123,7 +123,6 @@ typedef struct {
   // Precall
   int arg_count;
   int stack_args_size;
-  int stack_aligned;
   unsigned long living_pregs;
   Vector *caller_saves;  // <const char*>
 

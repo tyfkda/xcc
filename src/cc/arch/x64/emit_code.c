@@ -160,10 +160,7 @@ static size_t detect_funcall_work_size(Function *func) {
       Vector *saves = collect_caller_save_regs(ir->call->living_pregs);
       ir->call->caller_saves = saves;
 
-      int align_stack = (16 - (saves->len * TARGET_POINTER_SIZE + ir->call->stack_args_size)) & 15;
-      ir->call->stack_aligned = align_stack;
-
-      size_t total = align_stack + ir->call->stack_args_size + saves->len * TARGET_POINTER_SIZE;
+      size_t total = ir->call->stack_args_size + saves->len * TARGET_POINTER_SIZE;
       max = MAX(max, total);
     }
   }

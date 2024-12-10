@@ -873,7 +873,7 @@ static void ei_pusharg(IR *ir) {
 }
 
 static void ei_call(IR *ir) {
-  int total = ir->call->stack_aligned + ir->call->stack_args_size;
+  int total = ir->call->stack_args_size;
   push_caller_save_regs(ir->call->caller_saves, total);
 
   if (ir->call->label != NULL) {

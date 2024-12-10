@@ -463,7 +463,6 @@ static VReg *gen_funcall(Expr *expr) {
   IrCallInfo *callinfo = calloc_or_die(sizeof(*callinfo));
   callinfo->arg_count = arg_count - stack_arg_count;
   callinfo->stack_args_size = offset;
-  callinfo->stack_aligned = 0;
   callinfo->living_pregs = 0;
   callinfo->caller_saves = NULL;
 
