@@ -856,6 +856,7 @@ TEST(all) {
   }
 
   EXPECT("block expr", 169, ({int x = 13; x * x;}));
+  EXPECT("block expr simple", 13, ({int zzz = 13; zzz;}));
 
   {
     int64_t x = 0x123456789abcdef0LL;

@@ -846,6 +846,12 @@ static Expr *parse_prim(void) {
       // gcc extension: Statement expression.
       Stmt *block = parse_block(tok, NULL);
       consume(TK_RPAR, "`)' expected");
+      Vector *stmts = block->block.stmts;
+      if (stmts->len > 0) {
+        Stmt *last = stmts->data[stmts->len - 1];
+        if (last->kind == ST_EXPR)
+          mark_var_used(last->expr);
+      }
       return new_expr_block(block);
     } else {
       Expr *expr = parse_expr();
