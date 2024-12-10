@@ -1492,11 +1492,6 @@ static Expr *unnest_arg(Expr *arg, Vector *unnested) {
 // precalculate it and make function argument simple.
 static Expr *simplify_funarg_recur(Expr *arg, Vector *unnested) {
   switch (arg->kind) {
-  case EX_PREINC:
-  case EX_PREDEC:
-  case EX_POSTINC:
-  case EX_POSTDEC:
-  case EX_ASSIGN:
   case EX_TERNARY:
   case EX_FUNCALL:
   case EX_INLINED:
@@ -1544,10 +1539,21 @@ static Expr *simplify_funarg_recur(Expr *arg, Vector *unnested) {
     arg->bop.rhs = simplify_funarg_recur(arg->bop.rhs, unnested);
     break;
 
+  case EX_ASSIGN:
+    if (!is_prim_type(arg->type))
+      return unnest_arg(arg, unnested);
+    arg->bop.lhs = simplify_funarg_recur(arg->bop.lhs, unnested);
+    arg->bop.rhs = simplify_funarg_recur(arg->bop.rhs, unnested);
+    break;
+
   // Unary operators
   case EX_POS:
   case EX_NEG:
   case EX_BITNOT:
+  case EX_PREINC:
+  case EX_PREDEC:
+  case EX_POSTINC:
+  case EX_POSTDEC:
   case EX_REF:
   case EX_DEREF:
   case EX_CAST:
