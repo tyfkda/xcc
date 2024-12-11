@@ -1777,9 +1777,9 @@ TEST(initializer) {
 //
 
 void empty_function(void){}
-int more_params(int a, int b, int c, int d, int e, int f, char g, int h) { return a + b + c + d + e + f + g + h; }
+int more_params(int a, int b, int c, int d, int e, int f, char g, long h, short i, unsigned char j) { return a + b + c + d + e + f + g + h + i + j; }
 typedef struct {int x; int y;} MoreParamsReturnsStruct;
-MoreParamsReturnsStruct more_params_returns_struct(int a, int b, int c, int d, int e, int f, int g) { return (MoreParamsReturnsStruct){a + b + c + d + e + f + g}; }
+MoreParamsReturnsStruct more_params_returns_struct(int a, int b, int c, int d, int e, int f, char g, long h, short i, unsigned char j) { return (MoreParamsReturnsStruct){a + b + c + d + e + f + g + h + i + j}; }
 int array_arg_wo_size(int arg[]) { return arg[1]; }
 long long long_immediate(unsigned long long x) { return x / 11; }
 
@@ -1845,10 +1845,10 @@ const char *get_func(void) { return __func__; }
 
 TEST(function) {
   empty_function();
-  EXPECT("more params", 36, more_params(1, 2, 3, 4, 5, 6, 7, 8));
+  EXPECT("more params", 55, more_params(1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
   {
-    MoreParamsReturnsStruct s = more_params_returns_struct(11, 22, 33, 44, 55, 66, 77);
-    EXPECT("more params w/ struct", 308, s.x);
+    MoreParamsReturnsStruct s = more_params_returns_struct(11, 22, 33, 44, 55, 66, 77, 88, 99, 110);
+    EXPECT("more params w/ struct", 605, s.x);
   }
 
   // EXPECT("proto in func", 78, 'int main(){ int sub(int); return sub(77); } int sub(int x) { return x + 1; }')

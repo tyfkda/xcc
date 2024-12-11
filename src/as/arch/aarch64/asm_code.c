@@ -262,25 +262,27 @@ static unsigned char *asm_ldrstr(Inst *inst, Code *code) {
           b -= 3;
           s = 1;
         }
-        b |= sz;
         if (opr2->indirect.prepost == 0) {
           if (offset >= 0)
-            W_LDR_UIMM(b, s, opr1->reg.no, offset >> (2 + sz), base);
+            W_LDR_UIMM(b | sz, s, opr1->reg.no, offset >> (b + (inst->op == LDR ? sz : 0)), base);
           else
-            W_LDUR(b, s, opr1->reg.no, offset, base);
+            W_LDUR(b | sz, s, opr1->reg.no, offset, base);
         } else {
-          W_LDR(b, s, opr1->reg.no, offset, base, prepost);
+          W_LDR(b | sz, s, opr1->reg.no, offset, base, prepost);
         }
       }
       break;
     case STRB: case STRH: case STR:
-      if (opr2->indirect.prepost == 0) {
-        if (offset >= 0)
-          W_STR_UIMM((inst->op - STRB) | sz, opr1->reg.no, offset >> (2 + sz), base);
-        else
-          W_STUR((inst->op - STRB) | sz, opr1->reg.no, offset, base);
-      } else {
-        W_STR((inst->op - STRB) | sz, opr1->reg.no, offset, base, prepost);
+      {
+        uint32_t b = inst->op - STRB;
+        if (opr2->indirect.prepost == 0) {
+          if (offset >= 0)
+            W_STR_UIMM(b | sz, opr1->reg.no, offset >> (b + (inst->op == STR ? sz : 0)), base);
+          else
+            W_STUR(b | sz, opr1->reg.no, offset, base);
+        } else {
+          W_STR(b | sz, opr1->reg.no, offset, base, prepost);
+        }
       }
       break;
     default: assert(false); break;
