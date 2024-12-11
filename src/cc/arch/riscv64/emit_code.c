@@ -244,7 +244,7 @@ void emit_defun(Function *func) {
       if (fp_saved)
         MV(SP, FP);
       else if (frame_size > 0)
-        ADD(SP, SP, IM(frame_size));
+        ADDI(SP, SP, IM(frame_size));
 
       pop_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
 
