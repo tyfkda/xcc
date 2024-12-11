@@ -120,7 +120,7 @@ Type *choose_ternary_result_type(Expr *tval, Expr *fval);
 Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs);
 Expr *simplify_funcall(Expr *funcall);
 
-void check_unused_variables(Function *func, const Token *tok);
+void check_unused_variables(Function *func);
 void check_func_reachability(Function *func);
 bool check_funcend_return(Stmt *stmt);
 

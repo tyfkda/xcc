@@ -86,7 +86,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   if (var->kind == EX_VAR) {
     assert(curfunc->type->func.vaargs);
     VarInfo *varinfo = params->data[params->len - 1];
-    is_last = equal_name(var->var.name, varinfo->name);
+    is_last = equal_name(var->var.name, varinfo->ident->ident);
   }
   if (!is_last) {
     parse_error(PE_NOFATAL, var->token, "Must be last function argument");
@@ -146,7 +146,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   if (var->kind == EX_VAR) {
     assert(curfunc->type->func.vaargs);
     VarInfo *varinfo = params->data[params->len - 1];
-    is_last = equal_name(var->var.name, varinfo->name);
+    is_last = equal_name(var->var.name, varinfo->ident->ident);
   }
   if (!is_last) {
     parse_error(PE_NOFATAL, var->token, "Must be last function argument");
@@ -215,7 +215,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   if (var->kind == EX_VAR) {
     assert(curfunc->type->func.vaargs);
     VarInfo *varinfo = params->data[params->len - 1];
-    is_last = equal_name(var->var.name, varinfo->name);
+    is_last = equal_name(var->var.name, varinfo->ident->ident);
   }
   if (!is_last) {
     parse_error(PE_NOFATAL, var->token, "Must be last function argument");

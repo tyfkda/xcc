@@ -168,7 +168,7 @@ static void dump_func_ir(Function *func) {
   BBContainer *bbcon = fnbe->bbcon;
   assert(bbcon != NULL);
 
-  fprintf(fp, "### %.*s\n\n", NAMES(func->name));
+  fprintf(fp, "### %.*s\n\n", NAMES(func->ident->ident));
 
   fprintf(fp, "params and locals:\n");
   Vector *stack_vars = new_vector();
@@ -185,7 +185,7 @@ static void dump_func_ir(Function *func) {
         vec_push(stack_vars, varinfo);
         continue;
       }
-      fprintf(fp, "  V%3d (flag=%x): %.*s  : ", vreg->virt, vreg->flag, NAMES(varinfo->name));
+      fprintf(fp, "  V%3d (flag=%x): %.*s  : ", vreg->virt, vreg->flag, NAMES(varinfo->ident->ident));
       print_type(fp, varinfo->type);
       fprintf(fp, "\n");
     }
@@ -193,7 +193,7 @@ static void dump_func_ir(Function *func) {
   for (int i = 0; i < stack_vars->len; ++i) {
     VarInfo *varinfo = stack_vars->data[i];
     fprintf(fp, "  stack (offset=%4d, size=%zu): %.*s  : ", varinfo->local.frameinfo->offset,
-            type_size(varinfo->type), NAMES(varinfo->name));
+            type_size(varinfo->type), NAMES(varinfo->ident->ident));
     print_type(fp, varinfo->type);
     fprintf(fp, "\n");
   }

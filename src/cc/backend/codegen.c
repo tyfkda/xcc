@@ -61,10 +61,10 @@ static BB *push_break_bb(BB **save) {
 static VarInfo *prepare_retvar(Function *func) {
   // Insert vreg for return value pointer into top of the function scope.
   Type *rettype = func->type->func.ret;
-  const Name *retval_name = alloc_label();
+  const Token *retval_token = alloc_dummy_ident();
   Type *retptrtype = ptrof(rettype);
   Scope *top_scope = func->scopes->data[0];
-  VarInfo *varinfo = scope_add(top_scope, retval_name, retptrtype, 0);
+  VarInfo *varinfo = scope_add(top_scope, retval_token, retptrtype, 0);
   VReg *vreg = add_new_vreg(varinfo->type);
   vreg->flag |= VRF_PARAM;
   vreg->reg_param_index = 0;
@@ -872,7 +872,7 @@ bool gen_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return false;
 
-  VarInfo *funcvi = scope_find(global_scope, func->name, NULL);
+  VarInfo *funcvi = scope_find(global_scope, func->ident->ident, NULL);
   if (is_function_omitted(funcvi)) {
     // Omit function: func->extra preserves the value (NULL).
     return false;

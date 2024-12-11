@@ -168,7 +168,7 @@ VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int stor
   if (scope->typedef_table != NULL && table_try_get(scope->typedef_table, ident->ident, NULL))
     parse_error(PE_NOFATAL, ident, "conflict with typedef");
 
-  return scope_add(scope, ident->ident, type, storage);
+  return scope_add(scope, ident, type, storage);
 }
 
 Token *alloc_dummy_ident(void) {
@@ -180,7 +180,7 @@ Expr *alloc_tmp_var(Scope *scope, Type *type) {
   const Token *ident = alloc_dummy_ident();
   // No need to use `add_var_to_scope`, because `name` must be unique.
   const Name *name = ident->ident;
-  scope_add(scope, name, type, VS_USED);
+  scope_add(scope, ident, type, VS_USED);
   return new_expr_variable(name, type, ident, scope);
 }
 
@@ -523,13 +523,13 @@ void propagate_var_used(void) {
            (!table_try_get(func->attributes, constructor_name, NULL) &&
             !table_try_get(func->attributes, destructor_name, NULL)))) {
         if (!(varinfo->storage & VS_INLINE))
-          table_put(&unused, varinfo->name, varinfo);
+          table_put(&unused, varinfo->ident->ident, varinfo);
         continue;
       }
     } else {
       if (varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER)) {
         if (varinfo->storage & VS_STATIC)
-          table_put(&unused, varinfo->name, varinfo);
+          table_put(&unused, varinfo->ident->ident, varinfo);
         continue;
       }
     }
@@ -539,10 +539,10 @@ void propagate_var_used(void) {
   // Propagate usage.
   while (unchecked.len > 0) {
     VarInfo *varinfo = vec_pop(&unchecked);
-    if (table_try_get(&used, varinfo->name, NULL))
+    if (table_try_get(&used, varinfo->ident->ident, NULL))
       continue;
-    table_put(&used, varinfo->name, NULL);
-    table_delete(&unused, varinfo->name);
+    table_put(&used, varinfo->ident->ident, NULL);
+    table_delete(&unused, varinfo->ident->ident);
     varinfo->storage |= VS_USED;
 
     Vector *refs = varinfo->global.referred_globals;
@@ -559,10 +559,10 @@ void propagate_var_used(void) {
   for (int it = 0; (it = table_iterate(&unused, it, &name, (void**)&varinfo)) != -1; ) {
     if (varinfo->type->kind == TY_FUNC) {
       if (cc_flags.warn.unused_function)
-        parse_error(PE_WARNING, NULL, "Unused function: `%.*s'", NAMES(name));
+        parse_error(PE_WARNING, varinfo->ident, "Unused function: `%.*s'", NAMES(name));
     } else {
       if (cc_flags.warn.unused_variable)
-        parse_error(PE_WARNING, NULL, "Unused variable: `%.*s'", NAMES(name));
+        parse_error(PE_WARNING, varinfo->ident, "Unused variable: `%.*s'", NAMES(name));
     }
   }
 }
@@ -733,7 +733,7 @@ Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rh
 #endif
 
     if ((kind == EX_DIV || kind == EX_MOD) && rhs->fixnum == 0) {
-      parse_error(PE_FATAL, tok, "Divide by 0");
+      parse_error(PE_FATAL, rhs->token, "Divide by 0");
     }
 
 #define CALC(kind, l, r, value) \
@@ -767,7 +767,7 @@ Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rh
 
   if ((kind == EX_DIV || kind == EX_MOD) && is_const(rhs) &&
       is_fixnum(rhs->type->kind) && rhs->fixnum == 0) {
-    parse_error(PE_WARNING, tok, "Divide by 0");
+    parse_error(PE_WARNING, rhs->token, "Divide by 0");
   }
 
   cast_numbers(&lhs, &rhs, true);
@@ -1670,7 +1670,7 @@ static void check_unreachability(Stmt *stmt) {
   parse_error(PE_WARNING, stmt->token, "unreachable");
 }
 
-void check_unused_variables(Function *func, const Token *tok) {
+void check_unused_variables(Function *func) {
   assert(func->body_block != NULL);
   assert(func->body_block->kind == ST_BLOCK);
   Vector *stmts = func->body_block->block.stmts;
@@ -1689,8 +1689,8 @@ void check_unused_variables(Function *func, const Token *tok) {
       continue;
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
-      if (!(varinfo->storage & (VS_USED | VS_ENUM_MEMBER | VS_EXTERN)) && varinfo->name != NULL) {
-        parse_error(PE_WARNING, tok, "Unused variable `%.*s'", NAMES(varinfo->name));
+      if (!(varinfo->storage & (VS_USED | VS_ENUM_MEMBER | VS_EXTERN)) && varinfo->ident != NULL) {
+        parse_error(PE_WARNING, varinfo->ident, "Unused variable `%.*s'", NAMES(varinfo->ident->ident));
       }
     }
   }
@@ -1799,7 +1799,7 @@ static void check_func_return(Function *func) {
   static const Name *main_name;
   if (main_name == NULL)
     main_name = alloc_name("main", NULL, false);
-  if (equal_name(func->name, main_name)) {
+  if (equal_name(func->ident->ident, main_name)) {
     if (rettype->kind == TY_VOID) {
       // Force return type to `int' for `main' function.
       type->func.ret = rettype = &tyInt;
@@ -1818,7 +1818,7 @@ static void check_func_return(Function *func) {
   } else if (rettype->kind != TY_VOID && !(func->body_block->reach & REACH_STOP)) {
     Vector *stmts = func->body_block->block.stmts;
     if (stmts->len == 0 || ((Stmt*)stmts->data[stmts->len - 1])->kind != ST_ASM) {
-      if (equal_name(func->name, main_name)) {
+      if (equal_name(func->ident->ident, main_name)) {
         // Return 0 if `return` statement is omitted in `main` function.
         if (!is_fixnum(rettype->kind) || rettype->fixnum.kind != FX_INT) {
           parse_error(PE_WARNING, rbrace, "`main' return type should be `int'");
@@ -1868,7 +1868,7 @@ int get_funparam_index(Function *func, const Name *name) {
   const Vector *params = func->params;
   for (int i = 0, param_count = params->len; i < param_count; ++i) {
     VarInfo *v = params->data[i];
-    if (equal_name(v->name, name))
+    if (equal_name(v->ident->ident, name))
       return i;
   }
   return -1;
@@ -1931,7 +1931,7 @@ static Expr *duplicate_inline_function_expr(Function *targetfunc, Scope *targets
         assert(i < top_scope_vars->len);
         // Rename.
         assert(i < scope->vars->len);
-        name = ((VarInfo*)scope->vars->data[i])->name;
+        name = ((VarInfo*)scope->vars->data[i])->ident->ident;
       }
       return new_expr_variable(name, varinfo->type, expr->token, scope);
     }
@@ -1989,7 +1989,7 @@ static Expr *duplicate_inline_function_expr(Function *targetfunc, Scope *targets
       VarInfo *varinfo = scope_find(global_scope, expr->inlined.funcname, NULL);
       assert(varinfo != NULL);
       assert(satisfy_inline_criteria(varinfo));
-      return new_expr_inlined(expr->token, varinfo->name, expr->type, args,
+      return new_expr_inlined(expr->token, varinfo->ident->ident, expr->type, args,
                               embed_inline_funcall(varinfo));
     }
   case EX_COMPLIT:
@@ -2049,11 +2049,14 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
           vars = new_vector();
           for (int i = 0; i < org_vars->len; ++i) {
             VarInfo *vi = org_vars->data[i];
-            const Name *name = vi->name;
-            if (vi->storage & VS_PARAM)  // Rename parameter to be unique.
-              name = alloc_label();
+            const Token *token;
+            if (vi->storage & VS_PARAM) {  // Rename parameter to be unique.
+              token = alloc_dummy_ident();
+            } else {
+              token = vi->ident;
+            }
             // The new variable is no longer a parameter.
-            VarInfo *dup = var_add(vars, name, vi->type, vi->storage & ~VS_PARAM);
+            VarInfo *dup = var_add(vars, token, vi->type, vi->storage & ~VS_PARAM);
             if (vi->storage & VS_STATIC)
               dup->static_.svar = vi->static_.svar;
           }
@@ -2188,7 +2191,7 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
       VarDecl *d = stmt->vardecl;
       if (d->varinfo->storage & VS_STATIC)
         return NULL;
-      VarInfo *varinfo = scope_find(curscope, d->varinfo->name, NULL);
+      VarInfo *varinfo = scope_find(curscope, d->varinfo->ident->ident, NULL);
       assert(varinfo != NULL);
       VarDecl *decl = new_vardecl(varinfo);
       decl->init_stmt = duplicate_inline_function_stmt(targetfunc, targetscope, d->init_stmt);

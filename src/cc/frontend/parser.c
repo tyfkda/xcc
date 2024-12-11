@@ -728,9 +728,9 @@ static Function *define_func(Type *functype, const Token *ident, const Vector *p
       flag |= FUNCF_NORETURN;
   }
 
-  Function *func = new_func(functype, ident->ident, functype->func.param_vars, attributes, flag);
+  Function *func = new_func(functype, ident, functype->func.param_vars, attributes, flag);
   func->params = param_vars;
-  VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
+  VarInfo *varinfo = scope_find(global_scope, func->ident->ident, NULL);
   if (varinfo == NULL) {
     varinfo = add_var_to_scope(global_scope, ident, functype, storage);
   } else {
@@ -759,7 +759,7 @@ static Function *define_func(Type *functype, const Token *ident, const Vector *p
     if (varinfo->type->kind != TY_FUNC ||
         !same_type(varinfo->type->func.ret, functype->func.ret) ||
         (varinfo->type->func.params != NULL && !same_type(varinfo->type, functype))) {
-      parse_error(PE_NOFATAL, ident, "Definition conflict: `%.*s'", NAMES(func->name));
+      parse_error(PE_NOFATAL, ident, "Definition conflict: `%.*s'", NAMES(func->ident->ident));
     } else {
       if (varinfo->global.func == NULL) {
         if (varinfo->type->func.params == NULL)  // Old-style prototype definition.
@@ -804,7 +804,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
   VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
   assert(varinfo != NULL);
   if (varinfo->global.func != NULL) {
-    parse_error(PE_NOFATAL, ident, "`%.*s' function already defined", NAMES(func->name));
+    parse_error(PE_NOFATAL, ident, "`%.*s' function already defined", NAMES(func->ident->ident));
   } else {
     varinfo->global.func = func;
   }
@@ -862,7 +862,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
   check_func_reachability(func);
 
   if (cc_flags.warn.unused_variable)
-    check_unused_variables(func, tok);
+    check_unused_variables(func);
 
   Declaration *decl = new_decl_defun(func);
   varinfo->global.funcdecl = decl;
@@ -1014,7 +1014,7 @@ static Function *generate_dtor_caller_func(Vector *dtors) {
   Type *functype = new_func_type(&tyVoid, param_types, false);
 
   Vector *top_vars = new_vector();
-  var_add(top_vars, alloc_name("p", NULL, false), &tyVoidPtr, VS_PARAM);
+  var_add(top_vars, alloc_dummy_ident(), &tyVoidPtr, VS_PARAM);
 
   const Token *functok = alloc_dummy_ident();
   Table *attributes = NULL;
@@ -1035,7 +1035,7 @@ static Function *generate_dtor_caller_func(Vector *dtors) {
     Function *dtor = dtors->data[i];
     const Token *token = NULL;
     Vector *args = new_vector();
-    Expr *func = new_expr_variable(dtor->name, dtor->type, token, global_scope);
+    Expr *func = new_expr_variable(dtor->ident->ident, dtor->type, token, global_scope);
     Expr *call = new_expr_funcall(token, dtor->type, func, args);
     vec_push(stmts, new_stmt_expr(call));
   }
@@ -1057,7 +1057,7 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
 
   // Declare: extern void *__dso_handle;
   const Name *dso_handle_name = alloc_name("__dso_handle", NULL, false);
-  scope_add(global_scope, dso_handle_name, &tyVoidPtr, VS_EXTERN | VS_USED);
+  scope_add(global_scope, alloc_ident(dso_handle_name, NULL, dso_handle_name->chars, dso_handle_name->chars + dso_handle_name->bytes), &tyVoidPtr, VS_EXTERN | VS_USED);
 
   // Declare: extern int __cxa_atexit(void (*)(void*), void*, void*);
   const Name *cxa_atexit_name = alloc_name("__cxa_atexit", NULL, false);
@@ -1069,9 +1069,9 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
     vec_push(cxa_atexit_param_types, &tyVoidPtr);
 
     Vector *param_vars = new_vector();
-    var_add(param_vars, alloc_name("x", NULL, false), &tyVoidPtr, VS_PARAM);
-    var_add(param_vars, alloc_name("y", NULL, false), &tyVoidPtr, VS_PARAM);
-    var_add(param_vars, alloc_name("z", NULL, false), &tyVoidPtr, VS_PARAM);
+    var_add(param_vars, alloc_dummy_ident(), &tyVoidPtr, VS_PARAM);
+    var_add(param_vars, alloc_dummy_ident(), &tyVoidPtr, VS_PARAM);
+    var_add(param_vars, alloc_dummy_ident(), &tyVoidPtr, VS_PARAM);
 
     cxa_atexit_functype = new_func_type(&tyInt, cxa_atexit_param_types, false);
     define_func(cxa_atexit_functype, alloc_ident(cxa_atexit_name, NULL, cxa_atexit_name->chars, NULL), param_vars, VS_EXTERN | VS_USED, NULL);
@@ -1099,7 +1099,7 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
   Vector *stmts = new_vector();
   const Token *token = NULL;
   Vector *args = new_vector();
-  vec_push(args, make_refer(token, new_expr_variable(dtor_caller_func->name, dtor_caller_func->type, token, global_scope)));
+  vec_push(args, make_refer(token, new_expr_variable(dtor_caller_func->ident->ident, dtor_caller_func->type, token, global_scope)));
   vec_push(args, new_expr_fixlit(&tyVoidPtr, token, 0));
   vec_push(args, new_expr_unary(EX_REF, &tyVoidPtr, NULL, new_expr_variable(dso_handle_name, &tyVoidPtr, token, global_scope)));
   // __cxa_atexit(dtor_caller, NULL, &__dso_handle);
@@ -1126,8 +1126,7 @@ static void modify_dtor_func(Vector *decls) {
       if (table_try_get(func->attributes, destructor_name, NULL)) {
         const Type *type = func->type;
         if (type->func.params == NULL || type->func.params->len > 0 || type->func.ret->kind != TY_VOID) {
-          const Token *token = func->body_block != NULL ? func->body_block->token : NULL;
-          parse_error(PE_NOFATAL, token, "destructor must have no parameters and return void");
+          parse_error(PE_NOFATAL, func->ident, "destructor must have no parameters and return void");
         } else {
           if (dtors == NULL)
             dtors = new_vector();

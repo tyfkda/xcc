@@ -122,8 +122,8 @@ bool is_global_datsec_var(const VarInfo *varinfo, Scope *scope) {
     return false;
 #else
   // Special: Stack pointer and break address.
-  if (equal_name(varinfo->name, alloc_name(SP_NAME, NULL, false)) ||
-      equal_name(varinfo->name, alloc_name(BREAK_ADDRESS_NAME, NULL, false)))
+  if (equal_name(varinfo->ident->ident, alloc_name(SP_NAME, NULL, false)) ||
+      equal_name(varinfo->ident->ident, alloc_name(BREAK_ADDRESS_NAME, NULL, false)))
     return false;
 #endif
   return true;

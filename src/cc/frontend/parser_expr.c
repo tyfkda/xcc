@@ -97,7 +97,7 @@ static Expr *parse_funcall(Expr *func) {
     VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
     assert(varinfo != NULL);
     if (satisfy_inline_criteria(varinfo))
-      return new_expr_inlined(token, varinfo->name, rettype, args,
+      return new_expr_inlined(token, varinfo->ident->ident, rettype, args,
                               embed_inline_funcall(varinfo));
     // Not inlined.
     if (varinfo->storage & VS_INLINE)
@@ -822,7 +822,7 @@ Vector *parse_funparams(bool *pvaargs) {
         if (ident != NULL && var_find(vars, ident->ident) >= 0)
           parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(ident->ident));
         else
-          var_add(vars, ident != NULL ? ident->ident : NULL, type, storage | VS_PARAM);
+          var_add(vars, ident, type, storage | VS_PARAM);
       }
       if (match(TK_RPAR))
         break;
@@ -938,9 +938,10 @@ static Expr *parse_prim(void) {
     }
 
     // Make nul-terminated function name.
-    size_t len = curfunc->name->bytes;
+    const Name *name = curfunc->ident->ident;
+    size_t len = name->bytes;
     char *str = malloc_or_die(len + 1);
-    memcpy(str, curfunc->name->chars, len);
+    memcpy(str, name->chars, len);
     str[len] = '\0';
     return string_expr(tok, str, len + 1, STR_CHAR);
   }

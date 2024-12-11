@@ -143,13 +143,14 @@ GVarInfo *get_gvar_info(Expr *expr) {
       VarInfo *gvi = scope_find(global_scope, name, NULL);
       if (gvi == NULL) {
         // Register dummy.
-        gvi = scope_add(global_scope, name, expr->type, VS_EXTERN);
+        const Token *ident = alloc_ident(name, NULL, name->chars, name->chars + name->bytes);
+        gvi = scope_add(global_scope, ident, expr->type, VS_EXTERN);
       }
       varinfo = gvi;
       scope = global_scope;
     } else if (varinfo->storage & VS_STATIC) {
       varinfo = varinfo->static_.svar;
-      name = varinfo->name;
+      name = varinfo->ident->ident;
     }
   }
   assert(varinfo != NULL);
@@ -170,7 +171,7 @@ void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc
   table_put(&builtin_function_table, name, proc);
 
   if (add_to_scope)
-    scope_add(global_scope, name, type, 0);
+    scope_add(global_scope, alloc_ident(name, NULL, name->chars, name->chars + name->bytes), type, 0);
 }
 
 static void traverse_stmts(Vector *stmts);
@@ -299,16 +300,16 @@ static void te_funcall(Expr **pexpr, bool needval) {
   if (work_size > 0) {
     work_size = ALIGN(work_size, 8);
     assert(curfunc != NULL);
-    FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
+    FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
     assert(finfo != NULL);
     if (finfo->lspname == NULL) {
-      const Name *lspname = alloc_label();
-      finfo->lspname = lspname;
+      const Token *lspident = alloc_dummy_ident();
+      finfo->lspname = lspident->ident;
 
       assert(curfunc != NULL);
       assert(curfunc->scopes->len > 0);
       Scope *topscope = curfunc->scopes->data[0];
-      scope_add(topscope, lspname, &tyVoidPtr, 0);
+      scope_add(topscope, lspident, &tyVoidPtr, 0);
     }
 
     if (finfo->stack_work_size < work_size)
@@ -403,9 +404,9 @@ static void te_cast(Expr **pexpr, bool needval) {
       if (src->kind != EX_VAR) {
         // To use the src value multiple times, store it to temporary variable.
         Expr *orgsrc = src;
-        const Name *name = alloc_label();
-        scope_add(curscope, name, stype, 0);
-        Expr *var = new_expr_variable(name, stype, NULL, curscope);
+        const Token *ident = alloc_dummy_ident();
+        scope_add(curscope, ident, stype, 0);
+        Expr *var = new_expr_variable(ident->ident, stype, NULL, curscope);
         assign = new_expr_bop(EX_ASSIGN, &tyVoid, NULL, var, orgsrc);
         src = var;
       }
@@ -574,12 +575,12 @@ static void traverse_switch(Stmt *stmt) {
     // Store value into temporary variable.
     assert(curfunc != NULL);
     Scope *scope = curfunc->scopes->data[0];
-    const Name *name = alloc_label();
+    const Token *ident = alloc_dummy_ident();
     Type *type = stmt->switch_.value->type;
-    scope_add(scope, name, type, 0);
+    scope_add(scope, ident, type, 0);
 
     // switch (complex)  =>  switch ((tmp = complex, tmp))
-    Expr *var = new_expr_variable(name, type, NULL, scope);
+    Expr *var = new_expr_variable(ident->ident, type, NULL, scope);
     Expr *comma = new_expr_bop(
         EX_COMMA, type, org_value->token,
         new_expr_bop(EX_ASSIGN, &tyVoid, org_value->token, var, org_value),
@@ -620,12 +621,12 @@ static void traverse_for(Stmt *stmt) {
 static void traverse_varinfo(VarInfo *varinfo) {
   if (varinfo->type->kind == TY_FUNC) {
     // Local extern function declaration.
-    register_func_info(varinfo->name, NULL, varinfo, 0);
+    register_func_info(varinfo->ident->ident, NULL, varinfo, 0);
   } else if (varinfo->storage & VS_EXTERN) {
     assert(!is_global_scope(curscope));
-    if (scope_find(global_scope, varinfo->name, NULL) == NULL) {
+    if (scope_find(global_scope, varinfo->ident->ident, NULL) == NULL) {
       // Register into global to output linking information.
-      GVarInfo *info = register_gvar_info(varinfo->name, varinfo);
+      GVarInfo *info = register_gvar_info(varinfo->ident->ident, varinfo);
       if (info != NULL)
         info->flag |= GVF_UNRESOLVED;
     }
@@ -700,7 +701,7 @@ static void modify_func_name(Function *func) {
   static const Name *main_name;
   if (main_name == NULL)
     main_name = alloc_name("main", NULL, false);
-  if (!equal_name(func->name, main_name))
+  if (!equal_name(func->ident->ident, main_name))
     return;
 
   assert(func->params != NULL);
@@ -728,8 +729,8 @@ static void modify_func_name(Function *func) {
   // Rename two arguments `main` to `__main_argc_argv`.
   VarInfo *org_varinfo = scope_find(global_scope, main_name, NULL);
   assert(org_varinfo != NULL);
-  func->name = newname;
-  VarInfo *varinfo = scope_add(global_scope, newname, functype, org_varinfo->storage);
+  func->ident = alloc_ident(newname, NULL, newname->chars, newname->chars + newname->bytes);
+  VarInfo *varinfo = scope_add(global_scope, func->ident, functype, org_varinfo->storage);
   varinfo->global.func = func;
 
   // Clear `main` function.
@@ -744,7 +745,7 @@ static void traverse_defun(Function *func) {
   // Static variables.
   Vector *static_vars = func->static_vars;
   if (static_vars != NULL) {
-    VarInfo *funcvi = scope_find(global_scope, func->name, NULL);
+    VarInfo *funcvi = scope_find(global_scope, func->ident->ident, NULL);
     assert(funcvi != NULL);
     int k = (funcvi->storage & (VS_STATIC | VS_USED)) == VS_STATIC ? 1 : 0;  // Static function but not used.
     for (; k < 2; ++k) {  // 0=register, 1=traverse
@@ -754,7 +755,7 @@ static void traverse_defun(Function *func) {
         if ((varinfo->storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
           continue;
         if (k == 0)
-          register_gvar_info(varinfo->name, varinfo);
+          register_gvar_info(varinfo->ident->ident, varinfo);
         else
           traverse_initializer(varinfo->global.init);
       }
@@ -773,10 +774,10 @@ static void traverse_defun(Function *func) {
     assert(tyvalist != NULL);
 
     const Name *name = alloc_name(VA_ARGS_NAME, NULL, false);
-    scope_add(func->scopes->data[0], name, tyvalist, 0);
+    scope_add(func->scopes->data[0], alloc_ident(name, NULL, name->chars, name->chars + name->bytes), tyvalist, 0);
   }
 
-  register_func_info(func->name, func, NULL, 0);
+  register_func_info(func->ident->ident, func, NULL, 0);
   curfunc = func;
   traverse_stmt(func->body_block);
   curfunc = NULL;
@@ -822,7 +823,7 @@ static void add_builtins(int flag) {
     const Name *name = alloc_name(SP_NAME, NULL, false);
     VarInfo *varinfo = scope_find(global_scope, name, NULL);
     if (varinfo == NULL) {
-      varinfo = add_global_var(&tyVoidPtr, name);
+      varinfo = add_global_var(&tyVoidPtr, alloc_ident(name, NULL, name->chars, name->chars + name->bytes));
     } else {
       if (!same_type(varinfo->type, &tyVoidPtr))
         parse_error(PE_NOFATAL, NULL, "Illegal type: %.*s", NAMES(name));
@@ -842,7 +843,7 @@ static bool detect_compile_unit_sp(Function *func) {
   assert(extra != NULL);
   if (extra->setjmp_count > 0)
     return true;
-  FuncInfo *finfo = table_get(&func_info_table, func->name);
+  FuncInfo *finfo = table_get(&func_info_table, func->ident->ident);
   assert(finfo != NULL);
   if (finfo->lspname != NULL)
     return true;
@@ -870,7 +871,7 @@ static bool detect_compile_unit_sp(Function *func) {
 
       int param_index = -1;
       if (i == 0 && param_count > 0) {
-        int k = get_funparam_index(func, varinfo->name);
+        int k = get_funparam_index(func, varinfo->ident->ident);
         if (k >= 0) {
           param_index = k;
           if (!is_stack_param(varinfo->type))
@@ -907,7 +908,7 @@ static int detect_compile_unit_flags(Vector *decls) {
       continue;
 
     Function *func = decl->defun.func;
-    VarInfo *funcvi = scope_find(global_scope, func->name, NULL);
+    VarInfo *funcvi = scope_find(global_scope, func->ident->ident, NULL);
     if (is_function_omitted(funcvi))
       continue;
 
@@ -933,7 +934,7 @@ void traverse_ast(Vector *decls) {
           (storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
         continue;
       if (k == 0)
-        register_gvar_info(varinfo->name, varinfo);
+        register_gvar_info(varinfo->ident->ident, varinfo);
       else
         traverse_initializer(varinfo->global.init);
     }
@@ -1006,7 +1007,7 @@ void traverse_ast(Vector *decls) {
           info->item_index = (uint32_t)-1;
         }
         info->symbol_index = symbol_index++;
-        VERBOSE("%2d: %.*s (%d)\n", info->item_index, NAMES(varinfo->name), info->symbol_index);
+        VERBOSE("%2d: %.*s (%d)\n", info->item_index, NAMES(varinfo->ident->ident), info->symbol_index);
       }
     }
 
@@ -1063,7 +1064,7 @@ void traverse_ast(Vector *decls) {
         info->non_prim.address = address;
         size_t size = type_size(varinfo->type);
         address += size;
-        VERBOSE("%04x: %.*s  (size=0x%zx)\n", info->non_prim.address, NAMES(varinfo->name), size);
+        VERBOSE("%04x: %.*s  (size=0x%zx)\n", info->non_prim.address, NAMES(varinfo->ident->ident), size);
       }
     }
   }

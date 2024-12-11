@@ -325,7 +325,7 @@ static void gen_funcall(Expr *expr) {
   size_t work_size = sarg_siz + vaarg_bufsiz;
   Expr *lspvar = NULL;
   if (work_size > 0) {
-    FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
+    FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
     assert(finfo != NULL && finfo->lspname != NULL);
     lspvar = new_expr_variable(finfo->lspname, &tyVoidPtr, NULL, curfunc->scopes->data[0]);
   }
@@ -345,7 +345,7 @@ static void gen_funcall(Expr *expr) {
     }
     assert(varinfo != NULL);
     // &ret_buf
-    Expr *e = new_expr_variable(varinfo->name, varinfo->type, NULL, curfunc->scopes->data[0]);
+    Expr *e = new_expr_variable(varinfo->ident->ident, varinfo->type, NULL, curfunc->scopes->data[0]);
     gen_lval(e);
   }
 
@@ -426,7 +426,7 @@ static void gen_funcall(Expr *expr) {
 }
 
 static void gen_bpofs(int32_t offset) {
-  FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
+  FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
   assert(finfo != NULL && finfo->bpname != NULL);
   const Name *bpname = finfo->bpname;
   Scope *scope = curfunc->scopes->data[0];
@@ -960,13 +960,13 @@ static void gen_inlined(Expr *expr, bool needval) {
       Expr *arg = args->data[i];
       VarInfo *varinfo = top_scope_vars->data[i];
       assert(!(varinfo->storage & VS_PARAM));
-      Expr *lhs = new_expr_variable(varinfo->name, varinfo->type, NULL, top_scope);
+      Expr *lhs = new_expr_variable(varinfo->ident->ident, varinfo->type, NULL, top_scope);
       gen_assign_sub(lhs, arg);
     }
   } curscope = bak_curscope;
 
   assert(curfunc != NULL);
-  FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
+  FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
   int bak_flag = finfo->flag;
   finfo->flag |= FF_INLINING;
 
@@ -1351,7 +1351,7 @@ static void gen_return(Stmt *stmt, bool is_last) {
     if (is_prim_type(rettype)) {
       gen_expr(val, true);
     } else {
-      FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
+      FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
       assert(finfo != NULL);
       if (!(finfo->flag & FF_INLINING)) {
         // Local #0 is the pointer for result.
@@ -1370,7 +1370,7 @@ static void gen_return(Stmt *stmt, bool is_last) {
     }
   }
 
-  FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
+  FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
   assert(finfo != NULL);
   if (!is_last) {
     if (finfo->bpname != NULL || finfo->flag & FF_INLINING) {
@@ -1499,7 +1499,7 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
 
       int param_index = -1;
       if (i == 0 && param_count > 0) {
-        int k = get_funparam_index(func, varinfo->name);
+        int k = get_funparam_index(func, varinfo->ident->ident);
         if (k >= 0) {
           param_index = k;
           if (!is_stack_param(varinfo->type))
@@ -1521,16 +1521,16 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
       }
     }
   }
-  FuncInfo *finfo = table_get(&func_info_table, func->name);
+  FuncInfo *finfo = table_get(&func_info_table, func->ident->ident);
   assert(finfo != NULL);
   if (frame_size > 0 || param_count != pparam_count || (func->flag & FUNCF_STACK_MODIFIED)) {
     frame_size = ALIGN(frame_size, 8);  // TODO:
 
     // Allocate a variable for base pointer in function top scope.
-    const Name *bpname = alloc_label();
-    finfo->bpname = bpname;
+    const Token *bpident = alloc_dummy_ident();
+    finfo->bpname = bpident->ident;
 
-    scope_add(func->scopes->data[0], bpname, &tySize, 0);
+    scope_add(func->scopes->data[0], bpident, &tySize, 0);
     local_counts[WT_I32 - WT_I32] += 1;
   }
 
@@ -1569,7 +1569,7 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
       varinfo->local.vreg = vreg;
       int param_index = -1;
       if (i == 0 && param_count > 0) {
-        int k = get_funparam_index(func, varinfo->name);
+        int k = get_funparam_index(func, varinfo->ident->ident);
         if (k >= 0)
           param_index = k;
       }
@@ -1609,7 +1609,7 @@ static void gen_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
 
-  VarInfo *funcvi = scope_find(global_scope, func->name, NULL);
+  VarInfo *funcvi = scope_find(global_scope, func->ident->ident, NULL);
   if (is_function_omitted(funcvi))
     return;
 
@@ -1642,7 +1642,7 @@ static void gen_defun(Function *func) {
   }
 
   // Set up base pointer.
-  FuncInfo *finfo = table_get(&func_info_table, func->name);
+  FuncInfo *finfo = table_get(&func_info_table, func->ident->ident);
   assert(finfo != NULL);
   const Name *bpname = finfo->bpname;
   Expr *bpvar = bpname == NULL ? NULL : new_expr_variable(bpname, &tyVoidPtr, NULL, func->scopes->data[0]);
@@ -1932,7 +1932,7 @@ static Expr *proc_builtin_va_start(const Token *ident) {
     parse_error(PE_FATAL, param->token, "variable expected");
   const Vector *funparams = curfunc->params;
   if (funparams == NULL ||
-      !equal_name(((VarInfo*)funparams->data[funparams->len - 1])->name, param->var.name)) {
+      !equal_name(((VarInfo*)funparams->data[funparams->len - 1])->ident->ident, param->var.name)) {
     parse_error(PE_FATAL, param->token, "must be the last parameter");
     return NULL;
   }
@@ -2029,7 +2029,7 @@ static void gen_alloca(Expr *expr, enum BuiltinFunctionPhase phase) {
       new_expr_fixlit(&tySSize, token, -stack_align));
 
   assert(curfunc != NULL);
-  FuncInfo *finfo = table_get(&func_info_table, curfunc->name);
+  FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
   assert(finfo != NULL);
   Expr *lspvar = NULL;
   if (finfo->lspname != NULL)

@@ -319,7 +319,7 @@ static void emit_import_section(EmitWasm *ew) {
           is_global_datsec_var(varinfo, global_scope))
         continue;
 
-      const Name *name = varinfo->name;
+      const Name *name = varinfo->ident->ident;
       data_string(&imports_section, module_name, module_name_len);  // import module name
       data_string(&imports_section, name->chars, name->bytes);  // import name
       data_push(&imports_section, IMPORT_GLOBAL);  // import kind
@@ -453,7 +453,7 @@ static void emit_elems_section(EmitWasm *ew) {
   FuncInfo *info;
   for (int it = 0;
         (it = table_iterate(&indirect_function_table, it, &name, (void**)&info)) != -1; ) {
-    VERBOSE("%.*s (%u)\n", NAMES(info->varinfo->name), info->index);
+    VERBOSE("%.*s (%u)\n", NAMES(info->varinfo->ident->ident), info->index);
     data_leb128(&elems_section, -1, info->index);  // elem function index
   }
   data_close_chunk(&elems_section, -1);
@@ -533,7 +533,7 @@ static Vector *emit_data_section(EmitWasm *ew) {
       data_push(&datasec, 0);  // flags
       // Init (address).
       uint32_t address = segment->gvarinfo->non_prim.address;
-      VERBOSE("%04x: %.*s  (size=0x%zx)\n", address, NAMES(segment->gvarinfo->varinfo->name),
+      VERBOSE("%04x: %.*s  (size=0x%zx)\n", address, NAMES(segment->gvarinfo->varinfo->ident->ident),
               type_size(segment->gvarinfo->varinfo->type));
       data_push(&datasec, OP_I32_CONST);
       data_leb128(&datasec, -1, address);
@@ -618,7 +618,7 @@ static void emit_linking_section(EmitWasm *ew) {
           (storage & VS_ENUM_MEMBER) ||  // VS_EXPORT is not set because of `__stack_pointer`.
           (storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
         continue;
-      GVarInfo *info = get_gvar_info_from_name(varinfo->name);
+      GVarInfo *info = get_gvar_info_from_name(varinfo->ident->ident);
       if (info == NULL)
         continue;
       if ((k == 0 && !(info->flag & GVF_UNRESOLVED)) ||
@@ -634,7 +634,7 @@ static void emit_linking_section(EmitWasm *ew) {
       if (is_global_datsec_var(varinfo, global_scope)) {
         data_push(&linking_section, SIK_SYMTAB_DATA);  // kind
         data_uleb128(&linking_section, -1, flags);
-        const Name *name = varinfo->name;
+        const Name *name = varinfo->ident->ident;
         data_string(&linking_section, name->chars, name->bytes);
         if (!(info->flag & GVF_UNRESOLVED)) {  // Defined global: put name. otherwise not required.
           data_uleb128(&linking_section, -1, info->item_index);
@@ -646,7 +646,7 @@ static void emit_linking_section(EmitWasm *ew) {
         data_uleb128(&linking_section, -1, flags);
         data_uleb128(&linking_section, -1, info->item_index);
         if (info->item_index >= ew->import_global_count) {
-          const Name *name = varinfo->name;
+          const Name *name = varinfo->ident->ident;
           data_string(&linking_section, name->chars, name->bytes);
         }
       }
@@ -679,15 +679,17 @@ static void emit_linking_section(EmitWasm *ew) {
       VarInfo *varinfo = segment->gvarinfo->varinfo;
       int flags = 0;
       if (varinfo->global.init != NULL && varinfo->global.init->kind == IK_SINGLE) {
-          Expr *e = varinfo->global.init->single;
-          if (e->kind == EX_STR && e->str.kind == STR_CHAR) {
-            const Type *type = varinfo->type;
-            if (type->kind == TY_ARRAY && type->pa.length > 0 &&
-                type->pa.length == (ssize_t)e->str.len && e->str.buf[type->pa.length - 1] == '\0')
-              flags |= WASM_SEG_FLAG_STRINGS;
-          }
+        Expr *e = varinfo->global.init->single;
+        if (e->kind == EX_STR && e->str.kind == STR_CHAR) {
+          const Type *type = varinfo->type;
+          if (type->kind == TY_ARRAY && type->pa.length > 0 &&
+              type->pa.length == (ssize_t)e->str.len && e->str.buf[type->pa.length - 1] == '\0')
+            flags |= WASM_SEG_FLAG_STRINGS;
         }
-      data_string(&linking_section, varinfo->name->chars, varinfo->name->bytes);
+      }
+
+      const Name *name = varinfo->ident->ident;
+      data_string(&linking_section, name->chars, name->bytes);
       data_uleb128(&linking_section, -1, segment->p2align);
       data_uleb128(&linking_section, -1, flags);
     }
@@ -701,7 +703,7 @@ static void emit_linking_section(EmitWasm *ew) {
     for (int i = 0; i < init_funcs->len; ++i) {
       Function *func = init_funcs->data[i];
       FuncInfo *info;
-      info = table_get(&func_info_table, func->name);
+      info = table_get(&func_info_table, func->ident->ident);
       assert(info != NULL);
       data_uleb128(&linking_section, -1, 65535);  // Priority
       data_uleb128(&linking_section, -1, info->index);  // Symbol index

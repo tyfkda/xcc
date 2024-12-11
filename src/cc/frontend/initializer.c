@@ -97,7 +97,7 @@ Expr *str_to_char_array_var(Scope *scope, Expr *str) {
   init->single = str;
 
   VarInfo *varinfo = str_to_char_array(scope, type, init);
-  Expr *expr = new_expr_variable(varinfo->name, type, str->token, scope);
+  Expr *expr = new_expr_variable(varinfo->ident->ident, type, str->token, scope);
   mark_var_used(expr);
   return expr;
 }
@@ -151,7 +151,7 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src, const Token 
 
   Type *strtype = dst->type;
   VarInfo *varinfo = str_to_char_array(curscope, strtype, src);
-  Expr *var = new_expr_variable(varinfo->name, strtype, NULL, curscope);
+  Expr *var = new_expr_variable(varinfo->ident->ident, strtype, NULL, curscope);
   assert(str->type->kind == TY_ARRAY);
   mark_var_used(var);
   return build_memcpy(dst, var, len * type_size(str->type->pa.ptrof));
@@ -850,7 +850,7 @@ void construct_initializing_stmts(Vector *decls) {
     VarDecl *decl = decls->data[i];
     VarInfo *varinfo = decl->varinfo;
     assert(!(varinfo->storage & (VS_STATIC | VS_EXTERN)));
-    Expr *var = new_expr_variable(varinfo->name, varinfo->type, NULL, curscope);
+    Expr *var = new_expr_variable(varinfo->ident->ident, varinfo->type, NULL, curscope);
     assert(!is_global_scope(curscope));
     if (varinfo->local.init != NULL) {
       Vector *inits = assign_initial_value(var, varinfo->local.init, NULL);

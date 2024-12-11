@@ -11,6 +11,7 @@ typedef struct Initializer Initializer;
 typedef struct Name Name;
 typedef struct StructInfo StructInfo;
 typedef struct Table Table;
+typedef struct Token Token;
 typedef struct Type Type;
 typedef struct VReg VReg;
 typedef struct Vector Vector;
@@ -31,7 +32,7 @@ enum {
 };
 
 typedef struct VarInfo {
-  const Name *name;
+  const Token *ident;
   Type *type;
   int storage;
   union {
@@ -65,7 +66,7 @@ typedef struct VarInfo {
 void init_global(void);
 
 int var_find(const Vector *vars, const Name *name);  // <VarInfo*>
-VarInfo *var_add(Vector *vars, const Name *name, Type *type, int storage);  // <VarInfo*>
+VarInfo *var_add(Vector *vars, const Token *name, Type *type, int storage);  // <VarInfo*>
 static inline bool is_local_storage(const VarInfo *varinfo)  { return !(varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER | VS_TYPEDEF)); }
 
 // Scope
@@ -84,7 +85,7 @@ extern Vector *static_vars;  // <VarInfo*>
 Scope *new_scope(Scope *parent);
 bool is_global_scope(Scope *scope);
 VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope);
-VarInfo *scope_add(Scope *scope, const Name *name, Type *type, int storage);
+VarInfo *scope_add(Scope *scope, const Token *name, Type *type, int storage);
 
 StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope);
 void define_struct(Scope *scope, const Name *name, StructInfo *sinfo);

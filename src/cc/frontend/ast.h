@@ -458,7 +458,7 @@ Stmt *new_stmt_asm(const Token *token, Expr *str, Expr *arg);
 
 typedef struct Function {
   Type *type;
-  const Name *name;
+  const Token *ident;
   const Vector *params;  // <VarInfo*>
 
   Vector *static_vars;  // Static variable entities: <VarInfo*>
@@ -475,7 +475,7 @@ typedef struct Function {
 #define FUNCF_STACK_MODIFIED  (1 << 1)
 #define FUNCF_HAS_FUNCALL     (1 << 2)
 
-Function *new_func(Type *type, const Name *name, const Vector *params, Table *attributes, int flag);
+Function *new_func(Type *type, const Token *ident, const Vector *params, Table *attributes, int flag);
 
 // Declaration
 

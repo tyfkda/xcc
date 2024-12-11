@@ -5,27 +5,26 @@
 #include <stdlib.h>  // malloc
 #include <string.h>
 
+#include "fe_misc.h"  // alloc_dummy_ident
 #include "table.h"
 #include "type.h"
 #include "util.h"
-
-static VarInfo *define_global(const Name *name, Type *type, int storage);
 
 Vector *static_vars;
 
 int var_find(const Vector *vars, const Name *name) {
   for (int i = 0, len = vars->len; i < len; ++i) {
     VarInfo *info = vars->data[i];
-    if (info->name != NULL && equal_name(info->name, name))
+    if (info->ident != NULL && equal_name(info->ident->ident, name))
       return i;
   }
   return -1;
 }
 
-VarInfo *var_add(Vector *vars, const Name *name, Type *type, int storage) {
-  assert(name == NULL || var_find(vars, name) < 0);
+VarInfo *var_add(Vector *vars, const Token *token, Type *type, int storage) {
+  assert(token == NULL || var_find(vars, token->ident) < 0);
   VarInfo *varinfo = calloc_or_die(sizeof(*varinfo));
-  varinfo->name = name;
+  varinfo->ident = token;
   varinfo->type = type;
   varinfo->storage = storage;
   vec_push(vars, varinfo);
@@ -43,21 +42,22 @@ void init_global(void) {
   table_init(&global_var_table);
 }
 
-static VarInfo *define_global(const Name *name, Type *type, int storage) {
-  assert(name != NULL);
+static VarInfo *define_global(const Token *token, Type *type, int storage) {
+  assert(token != NULL);
+  const Name *name = token->ident;
   VarInfo *varinfo = table_get(&global_var_table, name);
   if (varinfo != NULL) {
     if (!(varinfo->storage & VS_EXTERN)) {
       assert(storage & VS_EXTERN);
       return varinfo;
     }
-    varinfo->name = name;
+    varinfo->ident = token;
     varinfo->type = type;
     varinfo->storage = storage;
     varinfo->global.init = NULL;
   } else {
     // `static' is different meaning for global and local variable.
-    varinfo = var_add(global_scope->vars, name, type, storage & ~VS_STATIC);
+    varinfo = var_add(global_scope->vars, token, type, storage & ~VS_STATIC);
     varinfo->storage = storage;
     table_put(&global_var_table, name, varinfo);
   }
@@ -99,7 +99,7 @@ VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope) {
   return varinfo;
 }
 
-VarInfo *scope_add(Scope *scope, const Name *name, Type *type, int storage) {
+VarInfo *scope_add(Scope *scope, const Token *name, Type *type, int storage) {
   assert(name != NULL);
   if (is_global_scope(scope))
     return define_global(name, type, storage);
@@ -111,7 +111,7 @@ VarInfo *scope_add(Scope *scope, const Name *name, Type *type, int storage) {
   if (storage & VS_STATIC) {
     // Add corresponding static variable.
     assert(static_vars != NULL);
-    varinfo->static_.svar = var_add(static_vars, alloc_label(), type, storage);
+    varinfo->static_.svar = var_add(static_vars, alloc_dummy_ident(), type, storage);
   }
   return varinfo;
 }

@@ -151,13 +151,14 @@ void emit_defun(Function *func) {
   _TEXT();
 
   bool global = true;
-  const VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
+  const Name *name = func->ident->ident;
+  const VarInfo *varinfo = scope_find(global_scope, name, NULL);
   if (varinfo != NULL) {
     global = (varinfo->storage & VS_STATIC) == 0;
   }
 
   {
-    char *label = format_func_name(func->name, global);
+    char *label = format_func_name(name, global);
     if (is_weak_attr(func->attributes))
       _WEAK(label);
     else if (global)
@@ -166,7 +167,7 @@ void emit_defun(Function *func) {
       _LOCAL(label);
     EMIT_ALIGN(2);
 #if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
-    EMIT_ASM(".type", quote_label(fmt_name(func->name)), "@function");
+    EMIT_ASM(".type", quote_label(fmt_name(name)), "@function");
 #endif
     EMIT_LABEL(label);
   }

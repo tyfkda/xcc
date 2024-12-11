@@ -44,8 +44,10 @@ void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc
   const Name *name = alloc_name(str, NULL, false);
   table_put(&builtin_function_table, name, proc);
 
-  if (add_to_scope)
-    scope_add(global_scope, name, type, 0);
+  if (add_to_scope) {
+    const Token *token = alloc_ident(name, NULL, name->chars, name->chars + name->bytes);
+    scope_add(global_scope, token, type, 0);
+  }
 }
 
 struct CompareExpr {
@@ -211,7 +213,7 @@ static VReg *gen_ref_sub(Expr *expr) {
       else if (is_local_storage(varinfo))
         return new_ir_bofs(varinfo->local.frameinfo);
       else if (varinfo->storage & VS_STATIC)
-        return new_ir_iofs(varinfo->static_.svar->name, false);
+        return new_ir_iofs(varinfo->static_.svar->ident->ident, false);
       else
         return new_ir_iofs(expr->var.name, true);
     }
@@ -330,9 +332,9 @@ static VReg *gen_funcall(Expr *expr) {
 
   VarInfo *ret_varinfo = NULL;  // Return value is on the stack.
   if (is_stack_param(expr->type)) {
-    const Name *name = alloc_label();
+    const Token *token = alloc_dummy_ident();
     Type *type = expr->type;
-    ret_varinfo = scope_add(curscope, name, type, 0);
+    ret_varinfo = scope_add(curscope, token, type, 0);
     FrameInfo *fi = malloc_or_die(sizeof(*fi));
     fi->offset = 0;
     ret_varinfo->local.frameinfo = fi;
@@ -525,12 +527,12 @@ static VReg *gen_flonum(Expr *expr) {
 
   assert(curscope != NULL);
   Type *type = qualified_type(expr->type, TQ_CONST);
-  const Name *name = alloc_label();
-  VarInfo *varinfo = scope_add(curscope, name, type, VS_STATIC);
+  const Token *token = alloc_dummy_ident();
+  VarInfo *varinfo = scope_add(curscope, token, type, VS_STATIC);
   VarInfo *gvarinfo = is_global_scope(curscope) ? varinfo : varinfo->static_.svar;
   gvarinfo->global.init = init;
 
-  VReg *src = new_ir_iofs(gvarinfo->name, false);
+  VReg *src = new_ir_iofs(gvarinfo->ident->ident, false);
   return new_ir_load(src, to_vsize(type), to_vflag(type), 0);
 #else
   UNUSED(expr);
@@ -753,7 +755,7 @@ static VReg *gen_inlined(Expr *expr) {
       Expr *arg = args->data[i];
       VarInfo *varinfo = top_scope_vars->data[i];
       assert(!(varinfo->storage & VS_PARAM));
-      Expr *lhs = new_expr_variable(varinfo->name, varinfo->type, NULL, top_scope);
+      Expr *lhs = new_expr_variable(varinfo->ident->ident, varinfo->type, NULL, top_scope);
       gen_assign_sub(lhs, arg);
     }
   } curscope = bak_curscope;

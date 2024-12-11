@@ -181,7 +181,7 @@ static void emit_number(void *ud, const Type *type, Expr *var, int64_t offset) {
     if (!is_global_scope(scope) && varinfo->storage & VS_STATIC) {
       varinfo = varinfo->static_.svar;
       assert(varinfo != NULL);
-      name = varinfo->name;
+      name = varinfo->ident->ident;
     }
 
     char *label = fmt_name(name);
@@ -238,7 +238,7 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
     .emit_string = emit_string,
   };
 
-  const Name *name = varinfo->name;
+  const Name *name = varinfo->ident->ident;
   if (init != NULL) {
     if (varinfo->type->qualifier & TQ_CONST)
       _RODATA();
@@ -338,10 +338,10 @@ static void emit_decls_ctor_dtor(Vector *decls) {
   for (int i = 0; i < ctors->len; ++i) {
     Function *func = ctors->data[i];
     bool global = true;
-    const VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
+    const VarInfo *varinfo = scope_find(global_scope, func->ident->ident, NULL);
     if (varinfo != NULL)
       global = (varinfo->storage & VS_STATIC) == 0;
-    _QUAD(format_func_name(func->name, global));
+    _QUAD(format_func_name(func->ident->ident, global));
   }
   // For Apple platforms, the constructor function that registers the destructor function is
   // generated, so no need to handle the destructor functions.
@@ -353,10 +353,11 @@ static void emit_decls_ctor_dtor(Vector *decls) {
     for (int i = 0; i < ctors->len; ++i) {
       Function *func = ctors->data[i];
       bool global = true;
-      const VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
+      const Name *name = func->ident->ident;
+      const VarInfo *varinfo = scope_find(global_scope, name, NULL);
       if (varinfo != NULL)
         global = (varinfo->storage & VS_STATIC) == 0;
-      _QUAD(format_func_name(func->name, global));
+      _QUAD(format_func_name(name, global));
     }
   }
   if (dtors->len > 0) {
@@ -366,10 +367,11 @@ static void emit_decls_ctor_dtor(Vector *decls) {
     for (int i = 0; i < dtors->len; ++i) {
       Function *func = dtors->data[i];
       bool global = true;
-      const VarInfo *varinfo = scope_find(global_scope, func->name, NULL);
+      const Name *name = func->ident->ident;
+      const VarInfo *varinfo = scope_find(global_scope, name, NULL);
       if (varinfo != NULL)
         global = (varinfo->storage & VS_STATIC) == 0;
-      _QUAD(format_func_name(func->name, global));
+      _QUAD(format_func_name(name, global));
     }
   }
 #endif
