@@ -1036,7 +1036,7 @@ static Function *generate_dtor_caller_func(Vector *dtors) {
     const Token *token = NULL;
     Vector *args = new_vector();
     Expr *func = new_expr_variable(dtor->name, dtor->type, token, global_scope);
-    Expr *call = new_expr_funcall(token, func, args);
+    Expr *call = new_expr_funcall(token, dtor->type, func, args);
     vec_push(stmts, new_stmt_expr(call));
   }
 
@@ -1104,7 +1104,7 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
   vec_push(args, new_expr_unary(EX_REF, &tyVoidPtr, NULL, new_expr_variable(dso_handle_name, &tyVoidPtr, token, global_scope)));
   // __cxa_atexit(dtor_caller, NULL, &__dso_handle);
   vec_push(stmts, new_stmt_expr(
-      new_expr_funcall(token, new_expr_variable(cxa_atexit_name, cxa_atexit_functype, token, global_scope), args)));
+      new_expr_funcall(token, cxa_atexit_functype, new_expr_variable(cxa_atexit_name, cxa_atexit_functype, token, global_scope), args)));
 
   func->body_block = new_stmt_block(NULL, stmts, scope, NULL);
 

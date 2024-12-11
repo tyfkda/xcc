@@ -11,7 +11,6 @@
 #include "codegen.h"
 #include "fe_misc.h"
 #include "ir.h"
-#include "lexer.h"
 #include "parser.h"
 #include "regalloc.h"
 #include "table.h"

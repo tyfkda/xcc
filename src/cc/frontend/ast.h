@@ -174,6 +174,9 @@ typedef struct Token {
   };
 } Token;
 
+Token *alloc_token(enum TokenKind kind, Line *line, const char *begin, const char *end);
+Token *alloc_ident(const Name *name, Line *line, const char *begin, const char *end);
+
 // ================================================
 
 // Expr
@@ -283,11 +286,11 @@ typedef struct Expr {
   };
 } Expr;
 
+Expr *new_expr(enum ExprKind kind, Type *type, const Token *token);
 Expr *new_expr_fixlit(Type *type, const Token *token, Fixnum fixnum);
 #ifndef __NO_FLONUM
 Expr *new_expr_flolit(Type *type, const Token *token, Flonum flonum);
 #endif
-Expr *new_expr_str(const Token *token, const char *str, ssize_t len, enum StrKind kind);  // `len` includes last '\0'.
 Expr *new_expr_bop(enum ExprKind kind, Type *type, const Token *token, Expr *lhs, Expr *rhs);
 Expr *new_expr_unary(enum ExprKind kind, Type *type, const Token *token, Expr *sub);
 Expr *new_expr_deref(const Token *token, Expr *sub);
@@ -295,7 +298,7 @@ Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, T
 Expr *new_expr_variable(const Name *name, Type *type, const Token *token, Scope *scope);
 Expr *new_expr_member(const Token *token, Type *type, Expr *target, const Name *ident,
                       const MemberInfo *minfo);
-Expr *new_expr_funcall(const Token *token, Expr *func, Vector *args);
+Expr *new_expr_funcall(const Token *token, const Type *functype, Expr *func, Vector *args);
 Expr *new_expr_inlined(const Token *token, const Name *name, Type *functype, Vector *args,
                        struct Stmt *embedded);
 Expr *new_expr_cast(Type *type, const Token *token, Expr *sub);

@@ -224,7 +224,7 @@ static bool modify_if_setjmp(LexicalStack *lp, Expr *jmpbuf_env, Expr *var) {
   vec_push(args, try_block_expr);
 
   Expr *try_catch_longjmp = new_expr_funcall(
-      token, new_expr_variable(alloc_name("__builtin_try_catch_longjmp", NULL, false), functype, token, global_scope),
+      token, functype, new_expr_variable(alloc_name("__builtin_try_catch_longjmp", NULL, false), functype, token, global_scope),
       args);
 
   Expr *store_sp = new_expr_bop(EX_ASSIGN, &tyVoid, token,

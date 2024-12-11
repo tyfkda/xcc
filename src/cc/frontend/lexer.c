@@ -12,19 +12,6 @@
 #include "table.h"
 #include "util.h"
 
-Token *alloc_token(enum TokenKind kind, Line *line, const char *begin, const char *end) {
-  if (end == NULL) {
-    assert(begin != NULL);
-    end = begin + strlen(begin);
-  }
-  Token *token = malloc_or_die(sizeof(*token));
-  token->kind = kind;
-  token->line = line;
-  token->begin = begin;
-  token->end = end;
-  return token;
-}
-
 static bool for_preprocess;
 
 static const struct {
@@ -151,17 +138,6 @@ void lex_error(const char *p, const char *fmt, ...) {
     show_error_line(lexer.line->buf, p, 1);
 
   exit(1);
-}
-
-Token *alloc_ident(const Name *name, Line *line, const char *begin, const char *end) {
-  Token *tok = alloc_token(TK_IDENT, line, begin, end);
-  tok->ident = name;
-  return tok;
-}
-
-Token *alloc_dummy_ident(void) {
-  const Name *label = alloc_label();
-  return alloc_ident(label, NULL, label->chars, label->chars + label->bytes);
 }
 
 static void init_reserved_word_table(void) {

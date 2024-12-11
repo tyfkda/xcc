@@ -11,7 +11,6 @@
 #include "cc_misc.h"
 #include "codegen.h"
 #include "ir.h"
-#include "lexer.h"
 #include "regalloc.h"
 #include "riscv64.h"
 #include "table.h"

@@ -21,6 +21,34 @@ static Table builtin_expr_ident_table;
 
 static Expr *parse_unary(void);
 
+static Expr *string_expr(const Token *token, const char *str, ssize_t len, enum StrKind kind) {
+  enum FixnumKind fxkind = FX_CHAR;
+  bool is_unsigned = false;
+#ifndef __NO_WCHAR
+  switch (kind) {
+  case STR_CHAR:  break;
+  case STR_WIDE:  fxkind = FX_INT; is_unsigned = true; break;  // TODO: Match with wchar_t.
+  }
+#endif
+  Type *ctype = get_fixnum_type(fxkind, is_unsigned, TQ_CONST);
+
+  Type *type = calloc_or_die(sizeof(*type));
+  type->kind = TY_ARRAY;
+  type->qualifier = TQ_CONST | TQ_FORSTRLITERAL;
+  type->pa.ptrof = ctype;
+  type->pa.length = len;
+#ifndef __NO_VLA
+  type->pa.vla = NULL;
+  type->pa.size_var = NULL;
+#endif
+
+  Expr *expr = new_expr(EX_STR, type, token);
+  expr->str.buf = str;
+  expr->str.len = len;
+  expr->str.kind = kind;
+  return expr;
+}
+
 void add_builtin_expr_ident(const char *str, BuiltinExprProc *proc) {
   const Name *name = alloc_name(str, NULL, false);
   table_put(&builtin_expr_ident_table, name, proc);
@@ -76,7 +104,7 @@ static Expr *parse_funcall(Expr *func) {
       varinfo->storage |= VS_EXTERN;  // To emit inline function.
   }
 
-  Expr *funcall = new_expr_funcall(token, func, args);
+  Expr *funcall = new_expr_funcall(token, functype, func, args);
   return simplify_funcall(funcall);
 }
 
@@ -899,13 +927,13 @@ static Expr *parse_prim(void) {
 #endif
 
   if ((tok = match(TK_STR)) != NULL)
-    return new_expr_str(tok, tok->str.buf, tok->str.len, tok->str.kind);
+    return string_expr(tok, tok->str.buf, tok->str.len, tok->str.kind);
 
   if ((tok = match(TK_FUNCNAME)) != NULL) {
     if (curfunc == NULL) {
       parse_error(PE_NOFATAL, tok, "must be inside function");
       static const char nulstr[] = "";
-      return new_expr_str(tok, nulstr, 0, STR_CHAR);
+      return string_expr(tok, nulstr, 0, STR_CHAR);
     }
 
     // Make nul-terminated function name.
@@ -913,7 +941,7 @@ static Expr *parse_prim(void) {
     char *str = malloc_or_die(len + 1);
     memcpy(str, curfunc->name->chars, len);
     str[len] = '\0';
-    return new_expr_str(tok, str, len + 1, STR_CHAR);
+    return string_expr(tok, str, len + 1, STR_CHAR);
   }
 
   Token *ident = consume(TK_IDENT, "Number or Ident or open paren expected");

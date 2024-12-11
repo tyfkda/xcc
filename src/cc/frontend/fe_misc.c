@@ -171,6 +171,11 @@ VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int stor
   return scope_add(scope, ident->ident, type, storage);
 }
 
+Token *alloc_dummy_ident(void) {
+  const Name *label = alloc_label();
+  return alloc_ident(label, NULL, label->chars, label->chars + label->bytes);
+}
+
 Expr *alloc_tmp_var(Scope *scope, Type *type) {
   const Token *ident = alloc_dummy_ident();
   // No need to use `add_var_to_scope`, because `name` must be unique.
@@ -1969,7 +1974,7 @@ static Expr *duplicate_inline_function_expr(Function *targetfunc, Scope *targets
         Expr *arg = src_args->data[i];
         vec_push(args, duplicate_inline_function_expr(targetfunc, targetscope, arg));
       }
-      return new_expr_funcall(expr->token, func, args);
+      return new_expr_funcall(expr->token, get_callee_type(func->type), func, args);
     }
   case EX_INLINED:
     {

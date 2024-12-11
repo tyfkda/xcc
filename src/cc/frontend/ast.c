@@ -3,9 +3,29 @@
 
 #include <assert.h>
 #include <stdlib.h>  // malloc
+#include <string.h>
 
 #include "type.h"
 #include "util.h"
+
+Token *alloc_token(enum TokenKind kind, Line *line, const char *begin, const char *end) {
+  if (end == NULL) {
+    assert(begin != NULL);
+    end = begin + strlen(begin);
+  }
+  Token *token = malloc_or_die(sizeof(*token));
+  token->kind = kind;
+  token->line = line;
+  token->begin = begin;
+  token->end = end;
+  return token;
+}
+
+Token *alloc_ident(const Name *name, Line *line, const char *begin, const char *end) {
+  Token *tok = alloc_token(TK_IDENT, line, begin, end);
+  tok->ident = name;
+  return tok;
+}
 
 bool is_const(Expr *expr) {
   // TODO: Handle constant variable.
@@ -58,7 +78,7 @@ Expr *strip_cast(Expr *expr) {
   return expr;
 }
 
-static Expr *new_expr(enum ExprKind kind, Type *type, const Token *token) {
+Expr *new_expr(enum ExprKind kind, Type *type, const Token *token) {
   Expr *expr = malloc_or_die(sizeof(*expr));
   expr->kind = kind;
   expr->type = type;
@@ -83,34 +103,6 @@ Expr *new_expr_flolit(Type *type, const Token *token, Flonum flonum) {
   return expr;
 }
 #endif
-
-Expr *new_expr_str(const Token *token, const char *str, ssize_t len, enum StrKind kind) {
-  enum FixnumKind fxkind = FX_CHAR;
-  bool is_unsigned = false;
-#ifndef __NO_WCHAR
-  switch (kind) {
-  case STR_CHAR:  break;
-  case STR_WIDE:  fxkind = FX_INT; is_unsigned = true; break;  // TODO: Match with wchar_t.
-  }
-#endif
-  Type *ctype = get_fixnum_type(fxkind, is_unsigned, TQ_CONST);
-
-  Type *type = calloc_or_die(sizeof(*type));
-  type->kind = TY_ARRAY;
-  type->qualifier = TQ_CONST | TQ_FORSTRLITERAL;
-  type->pa.ptrof = ctype;
-  type->pa.length = len;
-#ifndef __NO_VLA
-  type->pa.vla = NULL;
-  type->pa.size_var = NULL;
-#endif
-
-  Expr *expr = new_expr(EX_STR, type, token);
-  expr->str.buf = str;
-  expr->str.len = len;
-  expr->str.kind = kind;
-  return expr;
-}
 
 Expr *new_expr_variable(const Name *name, Type *type, const Token *token, Scope *scope) {
   Expr *expr = new_expr(EX_VAR, type, token);
@@ -156,9 +148,7 @@ Expr *new_expr_member(const Token *token, Type *type, Expr *target, const Name *
   return expr;
 }
 
-Expr *new_expr_funcall(const Token *token, Expr *func, Vector *args) {
-  Type *functype = get_callee_type(func->type);
-  assert(functype != NULL);
+Expr *new_expr_funcall(const Token *token, const Type *functype, Expr *func, Vector *args) {
   Expr *expr = new_expr(EX_FUNCALL, functype->func.ret, token);
   expr->funcall.func = func;
   expr->funcall.args = args;
@@ -191,6 +181,7 @@ Expr *new_expr_complit(Type *type, const Token *token, Expr *var, Vector *inits,
 }
 
 Expr *new_expr_block(Stmt *block) {
+  static Type tyVoid = {.kind=TY_VOID};
   assert(block->kind == ST_BLOCK);
   Type *type = &tyVoid;
   Vector *stmts = block->block.stmts;

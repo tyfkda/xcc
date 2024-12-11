@@ -8,7 +8,6 @@
 #include "ast.h"
 #include "cc_misc.h"  // is_function_omitted
 #include "fe_misc.h"  // curscope
-#include "lexer.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"
