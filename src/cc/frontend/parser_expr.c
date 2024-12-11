@@ -283,13 +283,13 @@ static StructInfo *parse_struct(bool is_union) {
 #ifndef __NO_BITFIELD
       if (bit != NULL) {
         if (bit->fixnum < 0) {
-          parse_error(PE_NOFATAL, NULL, "illegal bit width");
+          parse_error(PE_NOFATAL, bit->token, "illegal bit width");
           bit = NULL;
         } else if (bit->fixnum > (Fixnum)(type_size(type) * TARGET_CHAR_BIT)) {
-          parse_error(PE_NOFATAL, NULL, "bit width exceeds");
+          parse_error(PE_NOFATAL, bit->token, "bit width exceeds");
           bit = NULL;
         } else if (bit->fixnum == 0 && ident != NULL) {
-          parse_error(PE_NOFATAL, NULL, "bit width zero with name");
+          parse_error(PE_NOFATAL, bit->token, "bit width zero with name");
         }
       }
 #endif
@@ -462,7 +462,7 @@ Type *parse_raw_type(int *pstorage) {
       }
 
       if (name == NULL && sinfo == NULL)
-        parse_error(PE_FATAL, NULL, "Illegal struct/union usage");
+        parse_error(PE_FATAL, tok, "Illegal struct/union usage");
 
       type = create_struct_type(sinfo, name, tc.qualifier);
     } else if (tok->kind == TK_ENUM) {
@@ -539,23 +539,24 @@ Type *parse_pointer(Type *type) {
     return NULL;
 
   for (;;) {
-    if (match(TK_CONST)) {
+    const Token *tok;
+    if ((tok = match(TK_CONST)) != NULL) {
       if (type->qualifier & TQ_CONST)
-        parse_error(PE_NOFATAL, NULL, "multiple `const' specified");
+        parse_error(PE_NOFATAL, tok, "multiple `const' specified");
       else
         type = qualified_type(type, TQ_CONST);
       continue;
     }
-    if (match(TK_VOLATILE)) {
+    if ((tok = match(TK_VOLATILE)) != NULL) {
       if (type->qualifier & TQ_VOLATILE)
-        parse_error(PE_NOFATAL, NULL, "multiple `volatile' specified");
+        parse_error(PE_NOFATAL, tok, "multiple `volatile' specified");
       else
         type = qualified_type(type, TQ_VOLATILE);
       continue;
     }
-    if (match(TK_RESTRICT)) {
+    if ((tok = match(TK_RESTRICT)) != NULL) {
       if (type->qualifier & TQ_RESTRICT)
-        parse_error(PE_NOFATAL, NULL, "multiple `restrict' specified");
+        parse_error(PE_NOFATAL, tok, "multiple `restrict' specified");
       else
         type = qualified_type(type, TQ_RESTRICT);
       continue;
@@ -839,7 +840,7 @@ static Expr *parse_compound_literal(Type *type) {
   Initializer *init = parse_initializer();
 
   if (type->kind == TY_ARRAY)
-    type = fix_array_size(type, init);
+    type = fix_array_size(type, init, token);
 
   Expr *var = alloc_tmp_var(curscope, type);
   Vector *inits = NULL;

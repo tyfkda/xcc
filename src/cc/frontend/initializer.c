@@ -10,7 +10,7 @@
 #include "util.h"
 #include "var.h"
 
-Type *fix_array_size(Type *type, Initializer *init) {
+Type *fix_array_size(Type *type, Initializer *init, const Token *token) {
   assert(init != NULL);
   assert(type->kind == TY_ARRAY);
 
@@ -29,7 +29,7 @@ Type *fix_array_size(Type *type, Initializer *init) {
         type = single->type;
       } else {
         if (single->type->pa.length != arr_len)
-          parse_error(PE_NOFATAL, NULL, "Array length different");
+          parse_error(PE_NOFATAL, token, "Array length different");
       }
       return type;
     default: break;
@@ -66,7 +66,7 @@ Type *fix_array_size(Type *type, Initializer *init) {
     assert(!is_str || init->single->kind == EX_STR);
     ssize_t init_len = is_str ? (ssize_t)init->single->str.len : (ssize_t)init->multi->len;
     if (init_len > arr_len && (!is_str || init_len - 1 > arr_len))  // Allow non-nul string.
-      parse_error(PE_NOFATAL, NULL, "Initializer more than array size");
+      parse_error(PE_NOFATAL, token, "Initializer more than array size");
     return type;
   }
 }
@@ -132,7 +132,7 @@ static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
   return new_stmt_block(NULL, stmts, NULL, NULL);
 }
 
-static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
+static Stmt *init_char_array_by_string(Expr *dst, Initializer *src, const Token *token) {
   // Initialize char[] with string literal (char s[] = "foo";).
   assert(src->kind == IK_SINGLE);
   const Expr *str = src->single;
@@ -145,8 +145,8 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src) {
     dst->type->pa.length = dstlen = len;
   } else {
     if (dstlen < len - 1)
-      parse_error(PE_FATAL, NULL, "Buffer is shorter than string: %d for \"%s\"", (int)dstlen,
-                  str);
+      parse_error(PE_FATAL, token, "Buffer is shorter than string: %d for \"%s\"", (int)dstlen,
+                  str->str.buf);
   }
 
   Type *strtype = dst->type;
@@ -749,7 +749,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       // Special handling for string (char[]).
       if (init->single->kind == EX_STR &&
           is_char_type(expr->type->pa.ptrof, init->single->str.kind) ) {
-        vec_push(inits, init_char_array_by_string(expr, init));
+        vec_push(inits, init_char_array_by_string(expr, init, init->single->token));
         break;
       }
       if (init->kind == IK_SINGLE && init->single->kind == EX_COMPLIT) {
@@ -873,7 +873,7 @@ Initializer *check_vardecl(Type **ptype, const Token *ident, int storage, Initia
   init = flatten_initializer(type, init);
   if (type->kind == TY_ARRAY) {
     if (init != NULL) {
-      *ptype = type = fix_array_size(type, init);
+      *ptype = type = fix_array_size(type, init, ident);
     } else if (type->pa.length == -1 && !(storage & VS_EXTERN)
 #ifndef __NO_VLA
                && type->pa.vla == NULL

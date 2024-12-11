@@ -7,7 +7,7 @@ typedef struct Token Token;
 typedef struct Type Type;
 typedef struct Vector Vector;
 
-Type *fix_array_size(Type *type, Initializer *init);
+Type *fix_array_size(Type *type, Initializer *init, const Token *token);
 Expr *str_to_char_array_var(Scope *scope, Expr *str);
 void construct_initializing_stmts(Vector *decls);
 Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits);
