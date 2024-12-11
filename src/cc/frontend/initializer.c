@@ -693,9 +693,8 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       }
     }
     break;
-  default:
-    parse_error(PE_NOFATAL, NULL, "Global initial value for type %d not implemented (yet)\n",
-                type->kind);
+  case TY_VOID: case TY_FUNC:
+    assert(false);
     break;
   }
   return init;
