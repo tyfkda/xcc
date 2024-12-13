@@ -11,10 +11,6 @@ extern void (*__init_array_end []) (void);  // __attribute__((weak));
 extern void (*__fini_array_start []) (void);  // __attribute__((weak));
 extern void (*__fini_array_end []) (void);  // __attribute__((weak));
 
-#if defined(__riscv)
-int __dummy = 123;  // Force .data section to be exist to avoid ELF-load error on spike/pk.
-#endif
-
 static void call_fini_funcs(void) {
   for (void (**pp)(void) = __fini_array_start; pp < __fini_array_end; ++pp)
     (*pp)();
