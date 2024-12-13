@@ -697,12 +697,6 @@ static Type *parse_direct_declarator_suffix(Type *type) {
       if (basetype->qualifier & TQ_CONST)
         type->qualifier |= TQ_CONST;
     }
-
-    // Flexible array struct not allowd.
-    if (basetype->kind == TY_STRUCT) {
-      if (basetype->struct_.info != NULL && basetype->struct_.info->is_flexible)
-        parse_error(PE_NOFATAL, tok, "using flexible array as an array not allowed.");
-    }
   } else if (match(TK_LPAR)) {
     bool vaargs;
     Vector *param_vars = parse_funparams(&vaargs);

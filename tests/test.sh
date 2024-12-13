@@ -175,8 +175,9 @@ test_struct() {
   compile_error 'union for struct' 'struct Foo{int x;}; int main(){ union Foo foo; (void)foo; }'
   compile_error 'no member name' 'struct Foo{union{int anon;}; int;}; int main(){}'
   compile_error 'FAM must be last' 'struct Foo{int a; int b[]; int y;}; int main(){}'
-  compile_error 'FAM cannot array' 'struct Foo{int a; int b[];}; struct Foo x[5]; int main(){}'
-  compile_error 'FAM cannot struct' 'struct Foo{int a; int b[];}; struct Bar {struct Foo foo; int x;}; int main(){}'
+  try_direct 'FAM array' 20 'struct Foo{int a; int b[];}; struct Foo x[5]; int main(){return sizeof(x);}'
+  compile_error 'FAM not last in struct' 'struct Foo{int a; int b[];}; struct Bar {struct Foo foo; int x;}; int main(){}'
+  try_direct 'FAM at last in struct' 8 'struct Foo{int a; int b[];}; struct Bar {int x; struct Foo foo;}; int main(){return sizeof(struct Bar);}'
 
   end_test_suite
 }
