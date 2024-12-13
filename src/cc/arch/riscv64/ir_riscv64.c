@@ -329,6 +329,8 @@ static void ei_store(IR *ir) {
 
 static void ei_add(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
+    assert(!(ir->opr2->flag & VRF_CONST));
     switch (ir->dst->vsize) {
     default: assert(false);  // Fallthrough
     case SZ_FLOAT:   FADD_S(kFReg32s[ir->dst->phys], kFReg32s[ir->opr1->phys], kFReg32s[ir->opr2->phys]); break;
@@ -358,6 +360,8 @@ static void ei_add(IR *ir) {
 
 static void ei_sub(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
+    assert(!(ir->opr2->flag & VRF_CONST));
     switch (ir->dst->vsize) {
     default: assert(false);  // Fallthrough
     case SZ_FLOAT:   FSUB_S(kFReg32s[ir->dst->phys], kFReg32s[ir->opr1->phys], kFReg32s[ir->opr2->phys]); break;
@@ -387,6 +391,8 @@ static void ei_sub(IR *ir) {
 
 static void ei_mul(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
+    assert(!(ir->opr2->flag & VRF_CONST));
     switch (ir->dst->vsize) {
     default: assert(false);  // Fallthrough
     case SZ_FLOAT:   FMUL_S(kFReg32s[ir->dst->phys], kFReg32s[ir->opr1->phys], kFReg32s[ir->opr2->phys]); break;
@@ -404,6 +410,8 @@ static void ei_mul(IR *ir) {
 
 static void ei_div(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
+    assert(!(ir->opr2->flag & VRF_CONST));
     switch (ir->dst->vsize) {
     default: assert(false);  // Fallthrough
     case SZ_FLOAT:   FDIV_S(kFReg32s[ir->dst->phys], kFReg32s[ir->opr1->phys], kFReg32s[ir->opr2->phys]); break;
@@ -491,6 +499,7 @@ static void ei_rshift(IR *ir) {
 static void ei_neg(IR *ir) {
   assert(!(ir->opr1->flag & VRF_CONST));
   if (ir->opr1->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
     switch (ir->opr1->vsize) {
     default: assert(false); // Fallthrough
     case SZ_FLOAT:   FNEG_S(kFReg32s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
@@ -510,6 +519,7 @@ static void ei_cast(IR *ir) {
   assert((ir->opr1->flag & VRF_CONST) == 0);
   if (ir->dst->flag & VRF_FLONUM) {
     if (ir->opr1->flag & VRF_FLONUM) {
+      assert(!(ir->opr1->flag & VRF_CONST));
       // flonum->flonum
       assert(ir->dst->vsize != ir->opr1->vsize);
       // Assume flonum are just two types.
@@ -553,6 +563,7 @@ static void ei_cast(IR *ir) {
   } else if (ir->opr1->flag & VRF_FLONUM) {
     // flonum->fix
     if (ir->dst->vsize < VRegSize8) {
+      assert(!(ir->opr1->flag & VRF_CONST));
       if (ir->flag & IRF_UNSIGNED) {
         switch (ir->opr1->vsize) {
         case SZ_FLOAT:   FCVT_W_S(kReg64s[ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
@@ -611,6 +622,7 @@ static void ei_cast(IR *ir) {
 
 static void ei_mov(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
     if (ir->opr1->phys != ir->dst->phys) {
       const char *src, *dst;
       switch (ir->dst->vsize) {
@@ -635,6 +647,7 @@ static void ei_mov(IR *ir) {
 
 static void ei_result(IR *ir) {
   if (ir->opr1->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
     int dstphys = ir->dst != NULL ? ir->dst->phys : GET_FA0_INDEX();
     if (ir->opr1->phys != dstphys) {  // Source is not return register.
       const char **regs;
@@ -825,7 +838,7 @@ static void ei_tjmp(IR *ir) {
   char *label = fmt_name(table_label);
   LA(opr2, label);
   // dst = label + (opr1 << 3)
-  assert(!(ir->opr1->flag & VRF_CONST));
+  assert(!(ir->opr1->flag & (VRF_FLONUM | VRF_CONST)));
   const char *opr1 = kReg64s[ir->opr1->phys];
   SLLI(opr1, opr1, IM(3));
   ADD(opr2, opr2, opr1);
@@ -844,6 +857,7 @@ static void ei_tjmp(IR *ir) {
 
 static void ei_pusharg(IR *ir) {
   if (ir->opr1->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
 #if VAARG_FP_AS_GP
     if (ir->pusharg.fp_as_gp) {
       switch (ir->opr1->vsize) {
@@ -957,6 +971,17 @@ void tweak_irs(FuncBackend *fnbe) {
     Vector *irs = bb->irs;
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
+
+#ifndef __NO_FLONUM
+      // const fvregs.
+      VReg **operands[] = {&ir->opr1, &ir->opr2};
+      for (int k = 0; k < 2; ++k) {
+        VReg **pp = operands[k], *opr = *pp;
+        if (opr != NULL && (opr->flag & (VRF_FLONUM | VRF_CONST)) == (VRF_FLONUM | VRF_CONST))
+          j = insert_const_fload(pp, irs, j);
+      }
+#endif
+
       switch (ir->kind) {
       case IR_LOAD:
         if (ir->opr1->flag & VRF_CONST) {

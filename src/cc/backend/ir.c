@@ -61,6 +61,13 @@ VReg *new_const_vreg(int64_t value, enum VRegSize vsize) {
   return reg_alloc_spawn_const(curra, value, vsize);
 }
 
+#ifndef __NO_FLONUM
+VReg *new_const_vfreg(double value, enum VRegSize vsize) {
+  assert(curra != NULL);
+  return reg_alloc_spawn_fconst(curra, value, vsize);
+}
+#endif
+
 IR *new_ir_bop_raw(enum IrKind kind, VReg *dst, VReg *opr1, VReg *opr2, int flag) {
   IR *ir = new_ir(kind);
   ir->flag = flag;
@@ -71,8 +78,8 @@ IR *new_ir_bop_raw(enum IrKind kind, VReg *dst, VReg *opr1, VReg *opr2, int flag
 }
 
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, int flag) {
-  if (opr1->flag & VRF_CONST) {
-    if (opr2->flag & VRF_CONST) {
+  if ((opr1->flag & (VRF_FLONUM | VRF_CONST)) == VRF_CONST) {
+    if ((opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_CONST) {
       int64_t value = 0;
       switch (kind) {
       case IR_ADD:     value = opr1->fixnum + opr2->fixnum; break;
@@ -152,7 +159,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, 
       }
     }
   } else {
-    if (opr2->flag & VRF_CONST) {
+    if ((opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_CONST) {
       switch (kind) {
       case IR_ADD:
       case IR_SUB:

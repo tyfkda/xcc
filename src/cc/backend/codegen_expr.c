@@ -521,19 +521,7 @@ static VReg *gen_fixnum(Expr *expr) {
 
 static VReg *gen_flonum(Expr *expr) {
 #ifndef __NO_FLONUM
-  assert(expr->type->kind == TY_FLONUM);
-  Initializer *init = new_initializer(IK_SINGLE, expr->token);
-  init->single = expr;
-
-  assert(curscope != NULL);
-  Type *type = qualified_type(expr->type, TQ_CONST);
-  const Token *token = alloc_dummy_ident();
-  VarInfo *varinfo = scope_add(curscope, token, type, VS_STATIC);
-  VarInfo *gvarinfo = is_global_scope(curscope) ? varinfo : varinfo->static_.svar;
-  gvarinfo->global.init = init;
-
-  VReg *src = new_ir_iofs(gvarinfo->ident->ident, false)->dst;
-  return new_ir_load(src, to_vsize(type), to_vflag(type), 0)->dst;
+  return new_const_vfreg(expr->flonum, to_vsize(expr->type));
 #else
   UNUSED(expr);
   assert(false);

@@ -297,6 +297,21 @@ void insert_tmp_mov(VReg **pvreg, Vector *irs, int i) {
   *pvreg = tmp;
 }
 
+#ifndef __NO_FLONUM
+int insert_const_fload(VReg **pvreg, Vector *irs, int i) {
+  VReg *c = *pvreg;
+  assert((c->flag & (VRF_FLONUM | VRF_CONST)) == (VRF_FLONUM | VRF_CONST));
+
+  IR *iofs = new_ir_iofs(c->flonum.label, false);
+  vec_insert(irs, i++, iofs);
+
+  IR *load = new_ir_load(iofs->dst, c->vsize, c->flag & VRF_MASK, 0);
+  vec_insert(irs, i++, load);
+  *pvreg = load->dst;
+  return i;
+}
+#endif
+
 bool is_fall_path_only(BBContainer *bbcon, int i) {
   if (i == 0)
     return true;
@@ -418,6 +433,73 @@ static void emit_decls_ctor_dtor(Vector *decls) {
 #endif
 }
 
+static inline void emit_const_floats(Function *func) {
+#ifndef __NO_FLONUM
+  FuncBackend *fnbe = func->extra;
+  assert(fnbe != NULL);
+  Vector *consts = fnbe->ra->consts;
+  bool first = true;
+  for (int i = 0; i < consts->len; ++i) {
+    VReg *vreg = consts->data[i];
+    if (!(vreg->flag & VRF_FLONUM))
+      continue;
+
+    if (first) {
+      first = false;
+      _RODATA();
+    }
+    char *label = fmt_name(vreg->flonum.label);
+    _LOCAL(label);
+    EMIT_ALIGN(1 << vreg->vsize);
+    EMIT_LABEL(label);
+    switch (vreg->vsize) {
+    case VRegSize4:
+      {
+        union { float f; uint32_t l; } u;
+        u.f = vreg->flonum.value;
+        _LONG(hexnum(u.l));
+      }
+      break;
+    case VRegSize8:
+      {
+        union { double d; uint64_t q; } u;
+        u.d = vreg->flonum.value;
+        _QUAD(hexnum(u.q));
+      }
+      break;
+    default: assert(false); break;
+    }
+  }
+#else
+  UNUSED(func);
+#endif
+}
+
+static void emit_defun(Function *func) {
+  bool emit = !(func->scopes == NULL ||  // Prototype definition.
+                func->extra == NULL);    // Code emission is omitted.
+
+  if (emit) {
+    emit_defun_body(func);
+    emit_const_floats(func);
+  }
+
+  VarInfo *funcvi = scope_find(global_scope, func->ident->ident, NULL);
+  assert(funcvi != NULL);
+  if (emit || (funcvi->storage & VS_USED)) {  // Static inline function is not emitted, but it must output its static variables.
+    // Static variables.
+    Vector *vars = func->static_vars;
+    if (vars != NULL && vars->len > 0) {
+      emit_comment(NULL);
+      for (int i = 0; i < vars->len; ++i) {
+        VarInfo *varinfo = vars->data[i];
+        assert(!((varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) || varinfo->type->kind == TY_FUNC));
+        emit_varinfo(varinfo, varinfo->global.init);
+      }
+    }
+  }
+}
+
 void emit_code(Vector *decls) {
   for (int i = 0, len = decls->len; i < len; ++i) {
     Declaration *decl = decls->data[i];
@@ -426,21 +508,7 @@ void emit_code(Vector *decls) {
 
     switch (decl->kind) {
     case DCL_DEFUN:
-      {
-        Function *func = decl->defun.func;
-        emit_defun(func);
-
-        // Static variables.
-        Vector *vars = func->static_vars;
-        if (vars != NULL && vars->len > 0) {
-          emit_comment(NULL);
-          for (int i = 0; i < vars->len; ++i) {
-            VarInfo *varinfo = vars->data[i];
-            assert(!((varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) || varinfo->type->kind == TY_FUNC));
-            emit_varinfo(varinfo, varinfo->global.init);
-          }
-        }
-      }
+      emit_defun(decl->defun.func);
       break;
     case DCL_ASM:
       emit_asm(decl->asmstr);

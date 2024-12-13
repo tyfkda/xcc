@@ -60,7 +60,7 @@ VReg *reg_alloc_with_version(RegAlloc *ra, VReg *parent, int version) {
 VReg *reg_alloc_spawn_const(RegAlloc *ra, int64_t value, enum VRegSize vsize) {
   for (int i = 0; i < ra->consts->len; ++i) {
     VReg *v = ra->consts->data[i];
-    if (v->fixnum == value && v->vsize == vsize)
+    if (!(v->flag & VRF_FLONUM) && v->fixnum == value && v->vsize == vsize)
       return v;
   }
 
@@ -68,6 +68,26 @@ VReg *reg_alloc_spawn_const(RegAlloc *ra, int64_t value, enum VRegSize vsize) {
   vreg->fixnum = value;
   return vreg;
 }
+
+#ifndef __NO_FLONUM
+VReg *reg_alloc_spawn_fconst(RegAlloc *ra, double value, enum VRegSize vsize) {
+  union { double d; uint64_t q; } u1, u2;
+  u1.d = value;
+  for (int i = 0; i < ra->consts->len; ++i) {
+    VReg *v = ra->consts->data[i];
+    if (!(v->flag & VRF_FLONUM))
+      continue;
+    u2.d = v->flonum.value;
+    if (u1.q == u2.q && v->vsize == vsize)
+      return v;
+  }
+
+  VReg *vreg = reg_alloc_spawn(ra, vsize, VRF_FLONUM | VRF_CONST);
+  vreg->flonum.value = value;
+  vreg->flonum.label = alloc_label();
+  return vreg;
+}
+#endif
 
 static int insert_active(LiveInterval **active, int active_count, LiveInterval *li) {
   int j;

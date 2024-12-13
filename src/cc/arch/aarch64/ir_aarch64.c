@@ -292,7 +292,7 @@ static bool is_got(const Name *name) {
 static void cmp_vregs(VReg *opr1, VReg *opr2) {
   assert(opr1 != NULL && opr2 != NULL);
   if (opr1->flag & VRF_FLONUM) {
-    assert(opr2->flag & VRF_FLONUM);
+    assert((opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_FLONUM);
     const char *o1, *o2;
     switch (opr1->vsize) {
     default: assert(false); // Fallthrough
@@ -450,6 +450,8 @@ static void ei_store(IR *ir) {
 
 static void ei_add(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
+    assert(!(ir->opr2->flag & VRF_CONST));
     const char **regs;
     switch (ir->dst->vsize) {
     default: assert(false);  // Fallthrough
@@ -477,6 +479,8 @@ static void ei_add(IR *ir) {
 
 static void ei_sub(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
+    assert(!(ir->opr2->flag & VRF_CONST));
     const char **regs;
     switch (ir->dst->vsize) {
     default: assert(false);  // Fallthrough
@@ -504,6 +508,8 @@ static void ei_sub(IR *ir) {
 
 static void ei_mul(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
+    assert(!(ir->opr2->flag & VRF_CONST));
     const char **regs;
     switch (ir->dst->vsize) {
     default: assert(false);  // Fallthrough
@@ -522,6 +528,8 @@ static void ei_mul(IR *ir) {
 
 static void ei_div(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
+    assert(!(ir->opr2->flag & VRF_CONST));
     const char **regs;
     switch (ir->dst->vsize) {
     default: assert(false);  // Fallthrough
@@ -608,6 +616,7 @@ static void ei_rshift(IR *ir) {
 static void ei_neg(IR *ir) {
   assert(!(ir->opr1->flag & VRF_CONST));
   if (ir->opr1->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
     const char **table;
     switch (ir->dst->vsize) {
     default: assert(false); // Fallthrough
@@ -635,6 +644,7 @@ static void ei_cast(IR *ir) {
   assert((ir->opr1->flag & VRF_CONST) == 0);
   if (ir->dst->flag & VRF_FLONUM) {
     if (ir->opr1->flag & VRF_FLONUM) {
+      assert(!(ir->opr1->flag & VRF_CONST));
       // flonum->flonum
       assert(ir->dst->vsize != ir->opr1->vsize);
       // Assume flonum are just two types.
@@ -661,6 +671,7 @@ static void ei_cast(IR *ir) {
       else                          SCVTF(dst, src);
     }
   } else if (ir->opr1->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
     // flonum->fix
     int powd = ir->dst->vsize;
     if (ir->flag & IRF_UNSIGNED) {
@@ -712,6 +723,7 @@ static void ei_cast(IR *ir) {
 
 static void ei_mov(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
     if (ir->opr1->phys != ir->dst->phys) {
       const char *src, *dst;
       switch (ir->dst->vsize) {
@@ -737,6 +749,7 @@ static void ei_mov(IR *ir) {
 
 static void ei_result(IR *ir) {
   if (ir->opr1->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
     int dstphys = ir->dst != NULL ? ir->dst->phys : GET_D0_INDEX();
     if (ir->opr1->phys != dstphys) {  // Source is not return register.
       const char **regs;
@@ -866,6 +879,7 @@ static void ei_tjmp(IR *ir) {
 static void ei_pusharg(IR *ir) {
   int pow = ir->opr1->vsize;
   if (ir->opr1->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
     // Assume parameter registers are arranged from index 0.
     if (ir->pusharg.index != ir->opr1->phys) {
       switch (ir->opr1->vsize) {
@@ -979,6 +993,17 @@ void tweak_irs(FuncBackend *fnbe) {
     Vector *irs = bb->irs;
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
+
+#ifndef __NO_FLONUM
+      // const fvregs.
+      VReg **operands[] = {&ir->opr1, &ir->opr2};
+      for (int k = 0; k < 2; ++k) {
+        VReg **pp = operands[k], *opr = *pp;
+        if (opr != NULL && (opr->flag & (VRF_FLONUM | VRF_CONST)) == (VRF_FLONUM | VRF_CONST))
+          j = insert_const_fload(pp, irs, j);
+      }
+#endif
+
       switch (ir->kind) {
       case IR_LOAD:
         if (ir->opr1->flag & VRF_CONST) {

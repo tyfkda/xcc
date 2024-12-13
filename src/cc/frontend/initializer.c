@@ -609,8 +609,8 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
     return NULL;
 
   switch (type->kind) {
-#ifndef __NO_FLONUM
   case TY_FLONUM:
+#ifndef __NO_FLONUM
     if (init->kind == IK_SINGLE) {
       switch (init->single->kind) {
       case EX_FIXNUM:
@@ -626,8 +626,8 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
         break;
       }
     }
-    break;
 #endif
+    break;
   case TY_FIXNUM:
   case TY_PTR:
     {

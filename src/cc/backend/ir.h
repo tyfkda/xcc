@@ -25,16 +25,16 @@ enum VRegSize {
   VRegSize8,
 };
 
-#define VRF_PARAM     (1 << 0)  // Function parameter
-#define VRF_REF       (1 << 1)  // Reference(&) taken
-#define VRF_CONST     (1 << 2)  // Constant
-#define VRF_SPILLED   (1 << 3)  // Spilled
-#define VRF_NO_SPILL  (1 << 4)  // No Spill
-#define VRF_FLONUM    (1 << 6)  // Floating-point register?
-#define VRF_UNUSED    (1 << 9)  // Unused
-#define VRF_STACK_PARAM (1 << 10)  // Function parameter, but through stack (spilled by default, so no regalloc needed)
+#define VRF_CONST        (1 << 0)  // Constant
+#define VRF_FLONUM       (1 << 1)  // Floating-point register?
+#define VRF_REF          (1 << 2)  // Reference(&) taken
+#define VRF_PARAM        (1 << 3)  // Function parameter
+#define VRF_STACK_PARAM  (1 << 4)  // Function parameter, but through stack (spilled by default, so no regalloc needed)
+#define VRF_SPILLED      (1 << 5)  // Spilled
+#define VRF_NO_SPILL     (1 << 6)  // No Spill
+#define VRF_UNUSED       (1 << 7)  // Unused
 
-#define VRF_MASK      (VRF_FLONUM)
+#define VRF_MASK         (VRF_FLONUM)
 
 typedef struct VReg {
   enum VRegSize vsize;
@@ -51,7 +51,13 @@ typedef struct VReg {
     };
 
     // Const:
-    int64_t fixnum;   // Constant value.
+    int64_t fixnum;
+#ifndef __NO_FLONUM
+    struct {
+      double value;
+      const Name *label;
+    } flonum;
+#endif
   };
 } VReg;
 
@@ -184,6 +190,9 @@ typedef struct {
 Phi *new_phi(VReg *dst, Vector *params);
 
 VReg *new_const_vreg(int64_t value, enum VRegSize vsize);
+#ifndef __NO_FLONUM
+VReg *new_const_vfreg(double value, enum VRegSize vsize);
+#endif
 VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, int flag);
 IR *new_ir_bop_raw(enum IrKind kind, VReg *dst, VReg *opr1, VReg *opr2, int flag);
 VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize, int flag);

@@ -43,6 +43,12 @@ static void dump_vreg(FILE *fp, VReg *vreg) {
   assert(!(vreg->flag & VRF_SPILLED));
   static const char *kSize[] = {"b", "w", "d", ""};
   if (vreg->flag & VRF_CONST) {
+#ifndef __NO_FLONUM
+    if (vreg->flag & VRF_FLONUM) {
+      fprintf(fp, "(%gf)", vreg->flonum.value);
+      return;
+    }
+#endif
     fprintf(fp, "(%" PRId64 ")", vreg->fixnum);
   } else if (vreg->phys >= 0) {
     char regtype = 'R';

@@ -19,8 +19,8 @@ TEST(number) {
   expecti64("sizeof(double)", NUMBER_TYPE_SIZE, sizeof(Number));
 
   EXPECT("w/o initializer", 0.0, Empty);
-  EXPECT("zero", 0.0, 0);
-  EXPECT("decimal", 42.0, 42);
+  EXPECT("zero", 0.0, ({int i = 0; i;}));
+  EXPECT("decimal", 42.0, ({int i = 42; i;}));
   EXPECT("hex literal", 12.5, 0x1.9p3);
   EXPECT("hex literal w/o .", 1.25, 0xap-3);
 

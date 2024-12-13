@@ -90,10 +90,13 @@ bool is_weak_attr(Table *attributes);
 
 void swap_opr12(IR *ir);
 void insert_tmp_mov(VReg **pvreg, Vector *irs, int i);
+#ifndef __NO_FLONUM
+int insert_const_fload(VReg **pvreg, Vector *irs, int i);
+#endif
 
 typedef void (*EmitIrFunc)(IR *);
 extern const EmitIrFunc kEmitIrFuncTable[];
 
 void emit_code(Vector *decls);
 extern void emit_bb_irs(BBContainer *bbcon);
-extern void emit_defun(Function *func);
+extern void emit_defun_body(Function *func);

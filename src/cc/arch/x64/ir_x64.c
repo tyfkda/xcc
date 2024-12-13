@@ -201,7 +201,7 @@ static bool is_got(const Name *name) {
 
 static void cmp_vregs(VReg *opr1, VReg *opr2, int cond) {
   if (opr1->flag & VRF_FLONUM) {
-    assert(opr2->flag & VRF_FLONUM);
+    assert((opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_FLONUM);
     if ((cond & COND_MASK) <= COND_NE) {
       switch (opr1->vsize) {
       case SZ_FLOAT: UCOMISS(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
@@ -326,6 +326,8 @@ static void ei_store(IR *ir) {
 static void ei_add(IR *ir) {
   assert(ir->dst->phys == ir->opr1->phys);
   if (ir->dst->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
+    assert(!(ir->opr2->flag & VRF_CONST));
     const char **regs = kFReg64s;
     switch (ir->dst->vsize) {
     case SZ_FLOAT: ADDSS(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
@@ -356,6 +358,8 @@ static void ei_add(IR *ir) {
 static void ei_sub(IR *ir) {
   assert(ir->dst->phys == ir->opr1->phys);
   if (ir->dst->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
+    assert(!(ir->opr2->flag & VRF_CONST));
     const char **regs = kFReg64s;
     switch (ir->dst->vsize) {
     case SZ_FLOAT: SUBSS(regs[ir->opr2->phys], regs[ir->dst->phys]); break;
@@ -594,6 +598,7 @@ static void ei_rshift(IR *ir) {
 static void ei_neg(IR *ir) {
   assert(!(ir->dst->flag & VRF_CONST));
   if (ir->opr1->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
     assert(ir->dst->phys != ir->opr1->phys);
     VReg *dst = ir->dst, *opr1 = ir->opr1;
     switch (opr1->vsize) {
@@ -650,6 +655,7 @@ static void ei_cast(IR *ir) {
   assert((ir->opr1->flag & VRF_CONST) == 0);
   if (ir->dst->flag & VRF_FLONUM) {
     if (ir->opr1->flag & VRF_FLONUM) {
+      assert(!(ir->opr1->flag & VRF_CONST));
       // flonum->flonum
       assert(ir->dst->vsize != ir->opr1->vsize);
       // Assume flonum are just two types.
@@ -710,6 +716,7 @@ static void ei_cast(IR *ir) {
       }
     }
   } else if (ir->opr1->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
     // flonum->fix
     int powd = ir->dst->vsize;
     if (powd < 2)
@@ -750,6 +757,7 @@ static void ei_cast(IR *ir) {
 
 static void ei_mov(IR *ir) {
   if (ir->dst->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
     if (ir->opr1->phys != ir->dst->phys) {
       switch (ir->dst->vsize) {
       case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
@@ -773,6 +781,7 @@ static void ei_mov(IR *ir) {
 
 static void ei_result(IR *ir) {
   if (ir->opr1->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
     int dstphys = ir->dst != NULL ? ir->dst->phys : GET_XMM0_INDEX();
     if (ir->opr1->phys != dstphys) {
       const char *dst = kFReg64s[dstphys];
@@ -958,6 +967,7 @@ static void ei_tjmp(IR *ir) {
 
 static void ei_pusharg(IR *ir) {
   if (ir->opr1->flag & VRF_FLONUM) {
+    assert(!(ir->opr1->flag & VRF_CONST));
     // Assume parameter registers are arranged from index 0.
     if (ir->pusharg.index != ir->opr1->phys) {
       switch (ir->opr1->vsize) {
@@ -1133,6 +1143,16 @@ void tweak_irs(FuncBackend *fnbe) {
     Vector *irs = bb->irs;
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
+
+#ifndef __NO_FLONUM
+      // const fvregs.
+      VReg **operands[] = {&ir->opr1, &ir->opr2};
+      for (int k = 0; k < 2; ++k) {
+        VReg **pp = operands[k], *opr = *pp;
+        if (opr != NULL && (opr->flag & (VRF_FLONUM | VRF_CONST)) == (VRF_FLONUM | VRF_CONST))
+          j = insert_const_fload(pp, irs, j);
+      }
+#endif
 
       if (ir->kind != IR_MOV) {
         VReg **vregs[] = {&ir->opr1, &ir->opr2};

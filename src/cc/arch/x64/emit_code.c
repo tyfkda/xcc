@@ -166,11 +166,7 @@ static size_t detect_funcall_work_size(Function *func) {
   return max;
 }
 
-void emit_defun(Function *func) {
-  if (func->scopes == NULL ||  // Prototype definition.
-      func->extra == NULL)     // Code emission is omitted.
-    return;
-
+void emit_defun_body(Function *func) {
   emit_comment(NULL);
   _TEXT();
 
@@ -276,6 +272,4 @@ void emit_defun(Function *func) {
 
     RET();
   }
-
-  // Static variables are emitted through global variables.
 }
