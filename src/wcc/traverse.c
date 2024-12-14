@@ -194,29 +194,23 @@ static void traverse_expr(Expr **pexpr, bool needval);
 
 static void traverse_func_expr(Expr **pexpr) {
   Expr *expr = *pexpr;
-  const Type *type = expr->type;
+  Type *type = expr->type;
   assert(type->kind == TY_FUNC ||
          (type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC));
-  bool global = false;
+  const Name *funcname = NULL;
   if (expr->kind == EX_VAR) {
-    if (is_global_scope(expr->var.scope)) {
-      global = true;
-    } else {
-      Scope *scope;
-      VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
-      global = (varinfo->storage & VS_EXTERN) != 0;
-    }
+    if (type->kind == TY_FUNC)  // Function must be placed in global scope.
+      funcname = expr->var.name;
   }
-  if (global && type->kind == TY_FUNC) {
+  if (funcname != NULL) {
     BuiltinFunctionProc *proc;
-    if (!table_try_get(&builtin_function_table, expr->var.name, (void**)&proc))
-      register_func_info(expr->var.name, NULL, NULL, FF_REFERRED);
+    if (!table_try_get(&builtin_function_table, funcname, (void**)&proc))
+      register_func_info(funcname, NULL, NULL, FF_REFERRED);
     else
       (*proc)(expr, BFP_TRAVERSE);
   } else {
-    while (type->kind == TY_PTR)
-      type = type->pa.ptrof;
-    assert(type->kind == TY_FUNC);
+    type = get_callee_type(type);
+    assert(type != NULL && type->kind == TY_FUNC);
     getsert_func_type_index(type, true);
     traverse_expr(pexpr, true);
   }

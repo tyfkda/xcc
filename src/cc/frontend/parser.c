@@ -192,11 +192,6 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
       }
     }
 
-    if (type->kind == TY_FUNC /* && !is_global_scope(curscope)*/) {
-      // Must be prototype.
-      tmp_storage |= VS_EXTERN;
-    }
-
     assert(!is_global_scope(curscope));
 
 #ifndef __NO_VLA
