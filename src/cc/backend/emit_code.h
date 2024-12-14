@@ -11,6 +11,7 @@ typedef struct Function Function;
 typedef struct FuncBackend FuncBackend;
 typedef struct Initializer Initializer;
 typedef struct IR IR;
+typedef struct Name Name;
 typedef struct RegAlloc RegAlloc;
 typedef struct Table Table;
 typedef struct VarInfo VarInfo;
@@ -25,8 +26,6 @@ typedef struct VReg VReg;
 #define EMIT_ASM(...)  _SELECT_EMIT_ASM(__VA_ARGS__, 4, 3, 2, 1, 0, -1)(__VA_ARGS__)
 #define _SELECT_EMIT_ASM(_4, _3, _2, _1, _0, count, ...)  emit_asm ## count
 #endif
-
-typedef struct Name Name;
 
 char *fmt(const char *s, ...);
 char *fmt_name(const Name *name);

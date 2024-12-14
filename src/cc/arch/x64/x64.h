@@ -1,6 +1,8 @@
 #pragma once
 
-#include "emit_util.h"
+#include <stdint.h>  // int64_t
+
+#include "emit_code.h"
 
 #ifndef IM
 #define IM(x)  im(x)
@@ -205,3 +207,11 @@
 
 #define CVTSD2SS(o1, o2)   EMIT_ASM("cvtsd2ss", o1, o2)  // double->single
 #define CVTSS2SD(o1, o2)   EMIT_ASM("cvtss2sd", o1, o2)  // single->double
+
+//
+
+char *im(int64_t x);  // $x
+char *indirect(const char *base, const char *index, int scale);
+char *offset_indirect(int offset, const char *base, const char *index, int scale);
+char *label_indirect(const char *label, int64_t offset, const char *reg);
+char *gotpcrel(char *label);

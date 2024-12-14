@@ -1,8 +1,9 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>  // int64_t
 
-#include "emit_util.h"
+#include "emit_code.h"
 
 #ifndef IM
 #define IM(x)  im(x)
@@ -250,5 +251,14 @@
 #define FCVT(o1, o2)       EMIT_ASM("fcvt", o1, o2)  // float <- float
 #define FCVTZS(o1, o2)     EMIT_ASM("fcvtzs", o1, o2)  // int <- float
 #define FCVTZU(o1, o2)     EMIT_ASM("fcvtzu", o1, o2)  // unsigned int <- float
+
+//
+
+char *im(int64_t x);  // #x
+char *immediate_offset(const char *reg, int offset);
+char *pre_index(const char *reg, int offset);
+char *post_index(const char *reg, int offset);
+char *reg_offset(const char *base, const char *reg, const char *shift);
+char *label_at_page(char *label, int flag, int64_t offset);  // bit0=pageoff, bit1=got
 
 void mov_immediate(const char *dst, int64_t value, bool b64, bool is_unsigned);

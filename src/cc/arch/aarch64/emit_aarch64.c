@@ -1,71 +1,87 @@
 #include "../../../config.h"
 #include "./arch_config.h"
-#include "emit_code.h"
 
 #include <assert.h>
 #include <inttypes.h>  // PRId64
 #include <stdlib.h>
 #include <string.h>
 
+#include "aarch64.h"
 #include "ast.h"
 #include "cc_misc.h"
 #include "codegen.h"
 #include "ir.h"
 #include "regalloc.h"
-#include "riscv64.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
 
 char *im(int64_t x) {
-  return fmt("%" PRId64, x);
+  return fmt("#%" PRId64, x);
 }
 
-char *immediate_offset(int offset, const char *reg) {
-  return offset != 0 ? fmt("%d(%s)", offset, reg) : fmt("(%s)", reg);
+char *immediate_offset(const char *reg, int offset) {
+  return offset != 0 ? fmt("[%s,#%d]", reg, offset) : fmt("[%s]", reg);
+}
+
+char *pre_index(const char *reg, int offset) {
+  return fmt("[%s,#%d]!", reg, offset);
+}
+
+char *post_index(const char *reg, int offset) {
+  return fmt("[%s],#%d", reg, offset);
+}
+
+char *reg_offset(const char *base, const char *reg, const char *shift) {
+  if (shift != NULL)
+    return fmt("[%s,%s,%s]", base, reg, shift);
+  return fmt("[%s,%s]", base, reg);
+}
+
+char *label_at_page(char *label, int flag, int64_t offset) {
+  if (offset != 0) {
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+    static const char *s[] = {
+      "%s+%" PRId64 "@PAGE", "%s+%" PRId64 "@PAGEOFF",
+      "%s+%" PRId64 "@GOTPAGE", "%s+%" PRId64 "@GOTPAGEOFF",
+    };
+#else
+    static const char *s[] = {
+      "%s+%" PRId64, ":lo12:%s+%" PRId64,
+      ":got:%s+%" PRId64, ":got_lo12:%s+%" PRId64,
+    };
+#endif
+    return fmt(s[flag], label, offset);
+  }
+
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+  static const char *s[] = {
+    "%s@PAGE", "%s@PAGEOFF",
+    "%s@GOTPAGE", "%s@GOTPAGEOFF",
+  };
+#else
+  static const char *s[] = {
+    "%s", ":lo12:%s",
+    ":got:%s", ":got_lo12:%s",
+  };
+#endif
+  return fmt(s[flag], label);
 }
 
 ////////////////////////////////////////////////
-
-static const char *kRegParam64s[] = {A0, A1, A2, A3, A4, A5, A6, A7};
 
 static bool is_asm(Stmt *stmt) {
   return stmt->kind == ST_ASM;
 }
 
-static int put_vaarg_params(Function *func) {
-  assert(func->type->func.vaargs);
-#if VAARG_ON_STACK
-  return;
-#else
-  RegParamInfo iparams[MAX_REG_ARGS];
-  RegParamInfo fparams[MAX_FREG_ARGS];
-  int iparam_count = 0;
-  int fparam_count = 0;
-  enumerate_register_params(func, iparams, MAX_REG_ARGS, fparams, MAX_FREG_ARGS,
-                            &iparam_count, &fparam_count);
-
-  int size = 0;
-  int n = MAX_REG_ARGS - iparam_count;
-  if (n > 0) {
-    int size_org = n * TARGET_POINTER_SIZE;
-    size = ALIGN(n, 2) * TARGET_POINTER_SIZE;
-    int offset = size - size_org;
-    ADDI(SP, SP, IM(-size));
-    for (int i = iparam_count; i < MAX_REG_ARGS; ++i, offset += TARGET_POINTER_SIZE)
-      SD(kRegParam64s[i], IMMEDIATE_OFFSET(offset, SP));
-  }
-  return size;
-#endif
-}
-
 static void move_params_to_assigned(Function *func) {
-  extern const char *kReg64s[];
+  extern const char **kRegSizeTable[];
   extern const int ArchRegParamMapping[];
-  extern const char *kFReg64s[];
+  extern const char *kFReg32s[], *kFReg64s[];
 
   // Assume fp-parameters are arranged from index 0.
+  #define kFRegParam32s  kFReg32s
   #define kFRegParam64s  kFReg64s
 
   RegParamInfo iparams[MAX_REG_ARGS];
@@ -82,40 +98,63 @@ static void move_params_to_assigned(Function *func) {
     size_t size = type_size(p->type);
     int pow = most_significant_bit(size);
     assert(IS_POWER_OF_2(size) && pow < 4);
-    const char *src = kReg64s[ArchRegParamMapping[p->index]];
+    const char *src = kRegSizeTable[pow][ArchRegParamMapping[p->index]];
     if (vreg->flag & VRF_SPILLED) {
       int offset = vreg->frame.offset;
       assert(offset != 0);
-      const char *dst = IMMEDIATE_OFFSET(offset, FP);
+      const char *dst;
+      if (offset >= -256) {
+        dst = IMMEDIATE_OFFSET(FP, offset);
+      } else {
+        mov_immediate(X9, offset, true, false);  // x9 broken.
+        dst = REG_OFFSET(FP, X9, NULL);
+      }
       switch (pow) {
-      case 0:  SB(src, dst); break;
-      case 1:  SH(src, dst); break;
-      case 2:  SW(src, dst); break;
-      case 3:  SD(src, dst); break;
+      case 0:          STRB(src, dst); break;
+      case 1:          STRH(src, dst); break;
+      case 2: case 3:  STR(src, dst); break;
       default: assert(false); break;
       }
     } else if (ArchRegParamMapping[p->index] != vreg->phys) {
-      const char *dst = kReg64s[vreg->phys];
-      MV(dst, src);
+      const char *dst = kRegSizeTable[pow][vreg->phys];
+      MOV(dst, src);
     }
   }
   for (int i = 0; i < fparam_count; ++i) {
     RegParamInfo *p = &fparams[i];
     VReg *vreg = p->vreg;
-    const char *src = kFRegParam64s[p->index];
+    const char *src = (p->type->flonum.kind >= FL_DOUBLE ? kFRegParam64s : kFRegParam32s)[p->index];
     if (vreg->flag & VRF_SPILLED) {
       int offset = vreg->frame.offset;
       assert(offset != 0);
-      assert(offset != 0);
-      FSD(src, IMMEDIATE_OFFSET(offset, FP));
+      STR(src, IMMEDIATE_OFFSET(FP, offset));
     } else {
       if (p->index != vreg->phys) {
-        const char *dst = kFReg64s[vreg->phys];
-        FMV_D(dst, src);
+        const char *dst = (p->type->flonum.kind >= FL_DOUBLE ? kFReg64s : kFReg32s)[vreg->phys];
+        FMOV(dst, src);
       }
     }
   }
 
+#if VAARG_ON_STACK
+  bool vaargs = false;
+#else
+  bool vaargs = func->type->func.vaargs;
+#endif
+  if (vaargs) {
+    for (int i = iparam_count; i < MAX_REG_ARGS; ++i) {
+      int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
+      STR(kRegSizeTable[3][ArchRegParamMapping[i]], IMMEDIATE_OFFSET(FP, offset));
+    }
+#ifndef __NO_FLONUM
+    for (int i = fparam_count; i < MAX_FREG_ARGS; ++i) {
+      int offset = (i - MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
+      STR(kFRegParam64s[i], IMMEDIATE_OFFSET(FP, offset));
+    }
+#endif
+  }
+
+  #undef kFRegParam32s
   #undef kFRegParam64s
 }
 
@@ -157,7 +196,10 @@ void emit_defun_body(Function *func) {
     char *label = format_func_name(name, global);
     if (is_weak_attr(func->attributes))
       _WEAK(label);
-    else if (global)
+#if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE  // Specify weak and global/local on Apple/Mach-O, but not on other platforms.
+    else
+#endif
+    if (global)
       _GLOBL(label);
     else
       _LOCAL(label);
@@ -197,25 +239,15 @@ void emit_defun_body(Function *func) {
   // Allocate variable bufer.
   size_t frame_size = ALIGN(fnbe->frame_size + funcall_work_size, 16);
   bool fp_saved = false;  // Frame pointer saved?
-  bool ra_saved = false;  // Return Address register saved?
+  bool lr_saved = false;  // Link register saved?
   unsigned long used_reg_bits = fnbe->ra->used_reg_bits;
-  int vaarg_params_saved = 0;
   if (!no_stmt) {
-    if (func->type->func.vaargs) {
-      vaarg_params_saved = put_vaarg_params(func);
-
-      // Re-align frame size.
-      frame_size = ALIGN(fnbe->frame_size + funcall_work_size + vaarg_params_saved, 16) - vaarg_params_saved;
-    }
-
     fp_saved = fnbe->frame_size > 0 || fnbe->ra->flag & RAF_STACK_FRAME;
-    ra_saved = (func->flag & FUNCF_HAS_FUNCALL) != 0;
+    lr_saved = (func->flag & FUNCF_HAS_FUNCALL) != 0;
 
-    // TODO: Handle fp_saved and ra_saved individually.
-    if (fp_saved || ra_saved) {
-      ADDI(SP, SP, IM(-16));
-      SD(RA, IMMEDIATE_OFFSET(8, SP));
-      SD(FP, IMMEDIATE_OFFSET0(SP));
+    // TODO: Handle fp_saved and lr_saved individually.
+    if (fp_saved || lr_saved) {
+      STP(FP, LR, PRE_INDEX(SP, -16));
 
       // FP is saved, so omit from callee save.
       used_reg_bits &= ~(1UL << GET_FPREG_INDEX());
@@ -225,9 +257,16 @@ void emit_defun_body(Function *func) {
     push_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
 
     if (fp_saved)
-      MV(FP, SP);
+      MOV(FP, SP);
     if (frame_size > 0) {
-      ADDI(SP, SP, IM(-frame_size));
+      const char *value;
+      if (frame_size <= 0x0fff) {
+        value = IM(frame_size);
+      } else {
+        // Break x17
+        mov_immediate(value = X17, frame_size, true, false);
+      }
+      SUB(SP, SP, value);
     }
 
     move_params_to_assigned(func);
@@ -239,20 +278,15 @@ void emit_defun_body(Function *func) {
     // Epilogue
     if (!no_stmt) {
       if (fp_saved)
-        MV(SP, FP);
+        MOV(SP, FP);
       else if (frame_size > 0)
-        ADDI(SP, SP, IM(frame_size));
+        ADD(SP, SP, IM(frame_size));
 
       pop_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
 
-      if (fp_saved || ra_saved) {
-        LD(FP, IMMEDIATE_OFFSET0(SP));
-        LD(RA, IMMEDIATE_OFFSET(8, SP));
-        ADDI(SP, SP, IM(16));
-      }
+      if (fp_saved || lr_saved)
+        LDP(FP, LR, POST_INDEX(SP, 16));
     }
-    if (vaarg_params_saved > 0)
-      ADDI(SP, SP, IM(vaarg_params_saved));
 
     RET();
   }

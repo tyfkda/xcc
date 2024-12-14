@@ -1,8 +1,9 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>  // int64_t
 
-#include "emit_util.h"
+#include "emit_code.h"
 
 #ifndef IM
 #define IM(x)  im(x)
@@ -202,3 +203,8 @@
 #define FLT_S(o1, o2, o3)     EMIT_ASM("flt.s", o1, o2, o3)
 #define FLE_D(o1, o2, o3)     EMIT_ASM("fle.d", o1, o2, o3)
 #define FLE_S(o1, o2, o3)     EMIT_ASM("fle.s", o1, o2, o3)
+
+//
+
+char *im(int64_t x);
+char *immediate_offset(int offset, const char *reg);

@@ -332,8 +332,8 @@ dump_ir_SRCS:=$(DEBUG_DIR)/dump_ir.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/p
 	$(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c $(CC1_FE_DIR)/cc_misc.c \
 	$(CC1_BE_DIR)/codegen_expr.c $(CC1_BE_DIR)/codegen.c $(CC1_BE_DIR)/ir.c \
 	$(CC1_BE_DIR)/optimize.c $(CC1_BE_DIR)/ssa.c $(CC1_BE_DIR)/regalloc.c \
-	$(CC1_BE_DIR)/emit_util.c $(CC1_DIR)/builtin.c \
-	$(CC1_ARCH_DIR)/emit_code.c $(CC1_ARCH_DIR)/ir_$(ARCHTYPE).c \
+	$(CC1_DIR)/builtin.c $(CC1_ARCH_DIR)/emit_code.c \
+	$(CC1_ARCH_DIR)/ir_$(ARCHTYPE).c $(CC1_ARCH_DIR)/emit_$(ARCHTYPE).c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 
 dump_type_SRCS:=$(DEBUG_DIR)/dump_type.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \

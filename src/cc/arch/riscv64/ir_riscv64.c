@@ -8,7 +8,6 @@
 #include <string.h>
 
 #include "ast.h"
-#include "emit_code.h"
 #include "regalloc.h"
 #include "riscv64.h"
 #include "table.h"

@@ -1,5 +1,5 @@
 #include "../../config.h"
-#include "emit_util.h"
+#include "emit_code.h"
 
 #include <assert.h>
 #include <inttypes.h>  // PRId64

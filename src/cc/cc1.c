@@ -7,7 +7,6 @@
 #include <string.h>
 
 #include "codegen.h"
-#include "emit_util.h"
 #include "emit_code.h"
 #include "fe_misc.h"
 #include "lexer.h"
