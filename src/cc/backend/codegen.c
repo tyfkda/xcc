@@ -926,6 +926,7 @@ bool gen_defun(Function *func) {
 extern inline void gen_defun_after(Function *func) {
   FuncBackend *fnbe = func->extra;
   curfunc = func;
+  curra = fnbe->ra;
 
   optimize(fnbe->ra, fnbe->bbcon);
 
@@ -940,6 +941,7 @@ extern inline void gen_defun_after(Function *func) {
   alloc_stack_variables_onto_stack_frame(func);
 
   curfunc = NULL;
+  curra = NULL;
 }
 
 static void gen_decl(Declaration *decl) {

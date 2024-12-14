@@ -930,68 +930,24 @@ static void ei_asm(IR *ir) {
   }
 }
 
-void emit_bb_irs(BBContainer *bbcon) {
-  typedef void (*EmitIrFunc)(IR *);
-  static const EmitIrFunc table[] = {
-    [IR_BOFS] = ei_bofs, [IR_IOFS] = ei_iofs, [IR_SOFS] = ei_sofs,
-    [IR_LOAD] = ei_load, [IR_LOAD_S] = ei_load_s, [IR_STORE] = ei_store, [IR_STORE_S] = ei_store_s,
+const EmitIrFunc kEmitIrFuncTable[] = {
+  [IR_BOFS] = ei_bofs, [IR_IOFS] = ei_iofs, [IR_SOFS] = ei_sofs,
+  [IR_LOAD] = ei_load, [IR_LOAD_S] = ei_load_s, [IR_STORE] = ei_store, [IR_STORE_S] = ei_store_s,
 
-    [IR_ADD] = ei_add, [IR_SUB] = ei_sub, [IR_MUL] = ei_mul, [IR_DIV] = ei_div,
-    [IR_MOD] = ei_mod, [IR_BITAND] = ei_bitand, [IR_BITOR] = ei_bitor,
-    [IR_BITXOR] = ei_bitxor, [IR_LSHIFT] = ei_lshift, [IR_RSHIFT] = ei_rshift,
-    [IR_COND] = ei_cond,
+  [IR_ADD] = ei_add, [IR_SUB] = ei_sub, [IR_MUL] = ei_mul, [IR_DIV] = ei_div,
+  [IR_MOD] = ei_mod, [IR_BITAND] = ei_bitand, [IR_BITOR] = ei_bitor,
+  [IR_BITXOR] = ei_bitxor, [IR_LSHIFT] = ei_lshift, [IR_RSHIFT] = ei_rshift,
+  [IR_COND] = ei_cond,
 
-    [IR_NEG] = ei_neg, [IR_BITNOT] = ei_bitnot, [IR_CAST] = ei_cast,
-    [IR_MOV] = ei_mov, [IR_RESULT] = ei_result,
+  [IR_NEG] = ei_neg, [IR_BITNOT] = ei_bitnot, [IR_CAST] = ei_cast,
+  [IR_MOV] = ei_mov, [IR_RESULT] = ei_result,
 
-    [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
-    [IR_PUSHARG] = ei_pusharg, [IR_CALL] = ei_call,
-    [IR_SUBSP] = ei_subsp, [IR_KEEP] = ei_keep, [IR_ASM] = ei_asm,
-  };
-
-  for (int i = 0; i < bbcon->len; ++i) {
-    BB *bb = bbcon->data[i];
-#ifndef NDEBUG
-    // Check BB connection.
-    if (i < bbcon->len - 1) {
-      BB *nbb = bbcon->data[i + 1];
-      UNUSED(nbb);
-      assert(bb->next == nbb);
-    } else {
-      assert(bb->next == NULL);
-    }
-#endif
-
-    if (is_fall_path_only(bbcon, i))
-      emit_comment(NULL);
-    else
-      EMIT_LABEL(fmt_name(bb->label));
-    for (int j = 0; j < bb->irs->len; ++j) {
-      IR *ir = bb->irs->data[j];
-      assert(ir->kind < (int)ARRAY_SIZE(table));
-      assert(table[ir->kind] != NULL);
-      (*table[ir->kind])(ir);
-    }
-  }
-}
+  [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
+  [IR_PUSHARG] = ei_pusharg, [IR_CALL] = ei_call,
+  [IR_SUBSP] = ei_subsp, [IR_KEEP] = ei_keep, [IR_ASM] = ei_asm,
+};
 
 //
-
-static void swap_opr12(IR *ir) {
-  VReg *tmp = ir->opr1;
-  ir->opr1 = ir->opr2;
-  ir->opr2 = tmp;
-}
-
-static void insert_const_mov(VReg **pvreg, RegAlloc *ra, Vector *irs, int i) {
-  VReg *c = *pvreg;
-  VReg *tmp = reg_alloc_spawn(ra, c->vsize, c->flag & VRF_MASK);
-  IR *mov = new_ir_mov(tmp, c, ((IR*)irs->data[i])->flag);
-  vec_insert(irs, i, mov);
-  *pvreg = tmp;
-}
-
-#define insert_tmp_mov  insert_const_mov
 
 void tweak_irs(FuncBackend *fnbe) {
   BBContainer *bbcon = fnbe->bbcon;
@@ -1004,12 +960,12 @@ void tweak_irs(FuncBackend *fnbe) {
       switch (ir->kind) {
       case IR_LOAD:
         if (ir->opr1->flag & VRF_CONST) {
-          insert_const_mov(&ir->opr1, ra, irs, j++);
+          insert_tmp_mov(&ir->opr1, irs, j++);
         }
         break;
       case IR_STORE:
         if (ir->opr2->flag & VRF_CONST) {
-          insert_const_mov(&ir->opr2, ra, irs, j++);
+          insert_tmp_mov(&ir->opr2, irs, j++);
         }
         break;
       case IR_ADD:
@@ -1018,7 +974,7 @@ void tweak_irs(FuncBackend *fnbe) {
           swap_opr12(ir);
         if ((ir->opr2->flag & VRF_CONST) &&
             (ir->opr2->fixnum > 0x07ff || ir->opr2->fixnum < -0x0800))
-          insert_const_mov(&ir->opr2, ra, irs, j++);
+          insert_tmp_mov(&ir->opr2, irs, j++);
         break;
       case IR_SUB:
         assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
@@ -1029,11 +985,11 @@ void tweak_irs(FuncBackend *fnbe) {
             ir->opr2 = NULL;
             break;
           }
-          insert_const_mov(&ir->opr1, ra, irs, j++);
+          insert_tmp_mov(&ir->opr1, irs, j++);
         }
         if ((ir->opr2->flag & VRF_CONST) &&
             (ir->opr2->fixnum > 0x0800 || ir->opr2->fixnum < -0x07ff))
-          insert_const_mov(&ir->opr2, ra, irs, j++);
+          insert_tmp_mov(&ir->opr2, irs, j++);
         break;
       case IR_MUL:
         assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
@@ -1041,24 +997,24 @@ void tweak_irs(FuncBackend *fnbe) {
       case IR_DIV:
       case IR_MOD:
         if (ir->opr1->flag & VRF_CONST)
-          insert_const_mov(&ir->opr1, ra, irs, j++);
+          insert_tmp_mov(&ir->opr1, irs, j++);
         if (ir->opr2->flag & VRF_CONST)
-          insert_const_mov(&ir->opr2, ra, irs, j++);
+          insert_tmp_mov(&ir->opr2, irs, j++);
         break;
       case IR_BITAND:
       case IR_BITOR:
       case IR_BITXOR:
         assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
         if (ir->opr1->flag & VRF_CONST)
-          insert_const_mov(&ir->opr1, ra, irs, j++);
+          insert_tmp_mov(&ir->opr1, irs, j++);
         if ((ir->opr2->flag & VRF_CONST) && !is_im12(ir->opr2->fixnum))
-          insert_const_mov(&ir->opr2, ra, irs, j++);
+          insert_tmp_mov(&ir->opr2, irs, j++);
         break;
       case IR_LSHIFT:
       case IR_RSHIFT:
         assert(!(ir->opr1->flag & VRF_CONST) || !(ir->opr2->flag & VRF_CONST));
         if (ir->opr1->flag & VRF_CONST)
-          insert_const_mov(&ir->opr1, ra, irs, j++);
+          insert_tmp_mov(&ir->opr1, irs, j++);
         break;
       case IR_COND:
         {
@@ -1076,7 +1032,7 @@ void tweak_irs(FuncBackend *fnbe) {
 
               if ((ir->opr2->flag & VRF_CONST) &&
                   (ir->opr2->fixnum > 0x0800 || ir->opr2->fixnum < -0x07ff))
-                insert_const_mov(&ir->opr2, ra, irs, j++);
+                insert_tmp_mov(&ir->opr2, irs, j++);
               IR *sub = new_ir_bop_raw(IR_SUB, dst, ir->opr1, ir->opr2, ir->flag);
               vec_insert(irs, j++, sub);
 
@@ -1086,11 +1042,11 @@ void tweak_irs(FuncBackend *fnbe) {
             break;
           case COND_LE: case COND_GT:
             if (ir->opr2->flag & VRF_CONST)
-              insert_const_mov(&ir->opr2, ra, irs, j++);
+              insert_tmp_mov(&ir->opr2, irs, j++);
             break;
           case COND_LT: case COND_GE:
             if ((ir->opr2->flag & VRF_CONST) && !is_im12(ir->opr2->fixnum))
-              insert_const_mov(&ir->opr2, ra, irs, j++);
+              insert_tmp_mov(&ir->opr2, irs, j++);
             break;
           default:
             break;
@@ -1120,13 +1076,13 @@ void tweak_irs(FuncBackend *fnbe) {
         } else if (ir->opr2 != NULL &&
             (ir->opr2->flag & VRF_CONST) &&
             ir->opr2->fixnum != 0) {
-          insert_const_mov(&ir->opr2, ra, irs, j++);
+          insert_tmp_mov(&ir->opr2, irs, j++);
         }
         break;
       case IR_TJMP:
         {
           // Make sure opr1 can be broken.
-          insert_tmp_mov(&ir->opr1, ra, irs, j++);
+          insert_tmp_mov(&ir->opr1, irs, j++);
 
           // Allocate temporary register to use calculation.
           VReg *tmp = reg_alloc_spawn(ra, VRegSize8, 0);
@@ -1140,7 +1096,7 @@ void tweak_irs(FuncBackend *fnbe) {
         break;
       case IR_CALL:
         if (ir->opr1 != NULL && (ir->opr1->flag & VRF_CONST)) {
-          insert_const_mov(&ir->opr1, ra, irs, j++);
+          insert_tmp_mov(&ir->opr1, irs, j++);
         }
         break;
 

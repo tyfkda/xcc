@@ -11,6 +11,7 @@
 #include "cc_misc.h"
 #include "fe_misc.h"
 #include "ir.h"
+#include "regalloc.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"
@@ -282,6 +283,20 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
   }
 }
 
+void swap_opr12(IR *ir) {
+  VReg *tmp = ir->opr1;
+  ir->opr1 = ir->opr2;
+  ir->opr2 = tmp;
+}
+
+void insert_tmp_mov(VReg **pvreg, Vector *irs, int i) {
+  VReg *c = *pvreg;
+  VReg *tmp = reg_alloc_spawn(curra, c->vsize, c->flag & VRF_MASK);
+  IR *mov = new_ir_mov(tmp, c, ((IR*)irs->data[i])->flag);
+  vec_insert(irs, i, mov);
+  *pvreg = tmp;
+}
+
 bool is_fall_path_only(BBContainer *bbcon, int i) {
   if (i == 0)
     return true;
@@ -307,6 +322,32 @@ bool is_weak_attr(Table *attributes) {
 static void emit_asm(Expr *asmstr) {
   assert(asmstr->kind == EX_STR);
   EMIT_ASM(asmstr->str.buf);
+}
+
+void emit_bb_irs(BBContainer *bbcon) {
+  for (int i = 0; i < bbcon->len; ++i) {
+    BB *bb = bbcon->data[i];
+#ifndef NDEBUG
+    // Check BB connection.
+    if (i < bbcon->len - 1) {
+      BB *nbb = bbcon->data[i + 1];
+      UNUSED(nbb);
+      assert(bb->next == nbb);
+    } else {
+      assert(bb->next == NULL);
+    }
+#endif
+
+    if (is_fall_path_only(bbcon, i))
+      emit_comment(NULL);
+    else
+      EMIT_LABEL(fmt_name(bb->label));
+    for (int j = 0; j < bb->irs->len; ++j) {
+      IR *ir = bb->irs->data[j];
+      assert(kEmitIrFuncTable[ir->kind] != NULL);
+      (*kEmitIrFuncTable[ir->kind])(ir);
+    }
+  }
 }
 
 static void emit_decls_ctor_dtor(Vector *decls) {

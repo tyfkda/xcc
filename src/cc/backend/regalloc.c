@@ -35,6 +35,7 @@ VReg *reg_alloc_spawn_raw(enum VRegSize vsize, int vflag) {
 }
 
 VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag) {
+  assert(ra != NULL);
   VReg *vreg = reg_alloc_spawn_raw(vsize, vflag);
   if (!(vflag & VRF_CONST)) {
     vreg->virt = vreg->orig_virt = ra->vregs->len;

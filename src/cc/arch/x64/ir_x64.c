@@ -1061,60 +1061,22 @@ static void ei_asm(IR *ir) {
   }
 }
 
-void emit_bb_irs(BBContainer *bbcon) {
-  typedef void (*EmitIrFunc)(IR *);
-  static const EmitIrFunc table[] = {
-    [IR_BOFS] = ei_bofs, [IR_IOFS] = ei_iofs, [IR_SOFS] = ei_sofs,
-    [IR_LOAD] = ei_load, [IR_LOAD_S] = ei_load_s, [IR_STORE] = ei_store, [IR_STORE_S] = ei_store_s,
+const EmitIrFunc kEmitIrFuncTable[] = {
+  [IR_BOFS] = ei_bofs, [IR_IOFS] = ei_iofs, [IR_SOFS] = ei_sofs,
+  [IR_LOAD] = ei_load, [IR_LOAD_S] = ei_load_s, [IR_STORE] = ei_store, [IR_STORE_S] = ei_store_s,
 
-    [IR_ADD] = ei_add, [IR_SUB] = ei_sub, [IR_MUL] = ei_mul, [IR_DIV] = ei_div,
-    [IR_MOD] = ei_mod, [IR_BITAND] = ei_bitand, [IR_BITOR] = ei_bitor,
-    [IR_BITXOR] = ei_bitxor, [IR_LSHIFT] = ei_lshift, [IR_RSHIFT] = ei_rshift,
-    [IR_COND] = ei_cond,
+  [IR_ADD] = ei_add, [IR_SUB] = ei_sub, [IR_MUL] = ei_mul, [IR_DIV] = ei_div,
+  [IR_MOD] = ei_mod, [IR_BITAND] = ei_bitand, [IR_BITOR] = ei_bitor,
+  [IR_BITXOR] = ei_bitxor, [IR_LSHIFT] = ei_lshift, [IR_RSHIFT] = ei_rshift,
+  [IR_COND] = ei_cond,
 
-    [IR_NEG] = ei_neg, [IR_BITNOT] = ei_bitnot, [IR_CAST] = ei_cast,
-    [IR_MOV] = ei_mov, [IR_RESULT] = ei_result,
+  [IR_NEG] = ei_neg, [IR_BITNOT] = ei_bitnot, [IR_CAST] = ei_cast,
+  [IR_MOV] = ei_mov, [IR_RESULT] = ei_result,
 
-    [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
-    [IR_PUSHARG] = ei_pusharg, [IR_CALL] = ei_call,
-    [IR_SUBSP] = ei_subsp, [IR_KEEP] = ei_keep, [IR_ASM] = ei_asm,
-  };
-
-  for (int i = 0; i < bbcon->len; ++i) {
-    BB *bb = bbcon->data[i];
-#ifndef NDEBUG
-    // Check BB connection.
-    if (i < bbcon->len - 1) {
-      BB *nbb = bbcon->data[i + 1];
-      UNUSED(nbb);
-      assert(bb->next == nbb);
-    } else {
-      assert(bb->next == NULL);
-    }
-#endif
-
-    if (is_fall_path_only(bbcon, i))
-      emit_comment(NULL);
-    else
-      EMIT_LABEL(fmt_name(bb->label));
-    for (int j = 0; j < bb->irs->len; ++j) {
-      IR *ir = bb->irs->data[j];
-      assert(ir->kind < (int)ARRAY_SIZE(table));
-      assert(table[ir->kind] != NULL);
-      (*table[ir->kind])(ir);
-    }
-  }
-}
-
-static void insert_const_mov(VReg **pvreg, RegAlloc *ra, Vector *irs, int i) {
-  VReg *c = *pvreg;
-  VReg *tmp = reg_alloc_spawn(ra, c->vsize, c->flag & VRF_MASK);
-  IR *mov = new_ir_mov(tmp, c, ((IR*)irs->data[i])->flag);
-  vec_insert(irs, i, mov);
-  *pvreg = tmp;
-}
-
-#define insert_tmp_mov  insert_const_mov
+  [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
+  [IR_PUSHARG] = ei_pusharg, [IR_CALL] = ei_call,
+  [IR_SUBSP] = ei_subsp, [IR_KEEP] = ei_keep, [IR_ASM] = ei_asm,
+};
 
 // Rewrite `A = B op C` to `A = B; A = A op C`.
 static void convert_3to2(FuncBackend *fnbe) {
@@ -1129,7 +1091,7 @@ static void convert_3to2(FuncBackend *fnbe) {
         if (ir->dst->flag & VRF_FLONUM) {
           // To use two xmm registers, keep opr1 and assign dst and opr1 in different register.
           assert(ir->dst->virt != ir->opr1->virt);
-          insert_tmp_mov(&ir->opr1, fnbe->ra, irs, j++);
+          insert_tmp_mov(&ir->opr1, irs, j++);
 
           IR *keep = new_ir_keep(NULL, ir->opr1, NULL);
           vec_insert(irs, ++j, keep);
@@ -1177,7 +1139,7 @@ void tweak_irs(FuncBackend *fnbe) {
         for (int k = 0; k < 2; ++k) {
           VReg **pp = vregs[k], *vreg = *pp;
           if (vreg != NULL && vreg->flag & VRF_CONST && !is_im32(vreg->fixnum))
-            insert_const_mov(pp, ra, irs, j++);
+            insert_tmp_mov(pp, irs, j++);
         }
       }
 
@@ -1187,7 +1149,7 @@ void tweak_irs(FuncBackend *fnbe) {
       case IR_MOD:
         assert(!(ir->opr1->flag & VRF_CONST));
         if (ir->opr2->flag & VRF_CONST)
-          insert_const_mov(&ir->opr2, ra, irs, j++);
+          insert_tmp_mov(&ir->opr2, irs, j++);
         break;
 
       case IR_TJMP:
@@ -1204,7 +1166,7 @@ void tweak_irs(FuncBackend *fnbe) {
         break;
       case IR_CALL:
         if (ir->opr1 != NULL && (ir->opr1->flag & VRF_CONST)) {
-          insert_const_mov(&ir->opr1, ra, irs, j++);
+          insert_tmp_mov(&ir->opr1, irs, j++);
         }
         break;
 

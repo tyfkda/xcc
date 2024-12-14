@@ -10,9 +10,12 @@ typedef struct Vector BBContainer;
 typedef struct Function Function;
 typedef struct FuncBackend FuncBackend;
 typedef struct Initializer Initializer;
+typedef struct IR IR;
+typedef struct RegAlloc RegAlloc;
 typedef struct Table Table;
 typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
+typedef struct VReg VReg;
 
 #ifndef EMIT_LABEL
 #define EMIT_LABEL(label)  emit_label(label)
@@ -85,5 +88,12 @@ bool is_fall_path_only(BBContainer *bbcon, int i);
 char *format_func_name(const Name *funcname, bool global);
 bool is_weak_attr(Table *attributes);
 
+void swap_opr12(IR *ir);
+void insert_tmp_mov(VReg **pvreg, Vector *irs, int i);
+
+typedef void (*EmitIrFunc)(IR *);
+extern const EmitIrFunc kEmitIrFuncTable[];
+
 void emit_code(Vector *decls);
+extern void emit_bb_irs(BBContainer *bbcon);
 extern void emit_defun(Function *func);
