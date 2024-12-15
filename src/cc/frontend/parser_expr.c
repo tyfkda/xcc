@@ -76,9 +76,6 @@ static Expr *parse_funcall(Expr *func) {
   Token *token;
   Vector *args = parse_args(&token);
 
-  assert(curfunc != NULL);
-  curfunc->flag |= FUNCF_HAS_FUNCALL;
-
   mark_var_used_for_func(func);
   for (int i = 0; i < args->len; ++i)
     mark_var_used(args->data[i]);

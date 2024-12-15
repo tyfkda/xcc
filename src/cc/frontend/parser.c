@@ -1016,7 +1016,6 @@ static Function *generate_dtor_caller_func(Vector *dtors) {
   const Token *functok = alloc_dummy_ident();
   Table *attributes = NULL;
   Function *func = define_func(functype, functok, top_vars, VS_STATIC | VS_USED, attributes);
-  func->flag |= FUNCF_HAS_FUNCALL;
 
   assert(curfunc == NULL);
   assert(is_global_scope(curscope));
@@ -1083,7 +1082,6 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
   assert(attributes != NULL);
   table_put(attributes, alloc_name("constructor", NULL, false), NULL);
   Function *func = define_func(functype, functok, top_vars, VS_STATIC | VS_USED, attributes);
-  func->flag |= FUNCF_HAS_FUNCALL;
 
   assert(curfunc == NULL);
   assert(is_global_scope(curscope));

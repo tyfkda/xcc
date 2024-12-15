@@ -208,7 +208,8 @@ void emit_defun_body(Function *func) {
     }
 
     fp_saved = fnbe->frame_size > 0 || fnbe->ra->flag & RAF_STACK_FRAME;
-    ra_saved = (func->flag & FUNCF_HAS_FUNCALL) != 0;
+    assert(fnbe->funcalls == NULL || fnbe->funcalls->len > 0);
+    ra_saved = fnbe->funcalls != NULL;
 
     // TODO: Handle fp_saved and ra_saved individually.
     if (fp_saved || ra_saved) {

@@ -473,7 +473,6 @@ typedef struct Function {
 
 #define FUNCF_NORETURN        (1 << 0)
 #define FUNCF_STACK_MODIFIED  (1 << 1)
-#define FUNCF_HAS_FUNCALL     (1 << 2)
 
 Function *new_func(Type *type, const Token *ident, const Vector *params, Table *attributes, int flag);
 

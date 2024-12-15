@@ -242,7 +242,8 @@ void emit_defun_body(Function *func) {
     }
 
     frame_size = fnbe->frame_size + funcall_work_size;
-    if (func->flag & (FUNCF_HAS_FUNCALL | FUNCF_STACK_MODIFIED)) {
+    assert(fnbe->funcalls == NULL || fnbe->funcalls->len > 0);
+    if (fnbe->funcalls != NULL || (func->flag & FUNCF_STACK_MODIFIED)) {
       // Align frame size to 16 only it contains funcall.
       size_t callee_saved_size = callee_saved_count * TARGET_POINTER_SIZE;
       frame_size += -(frame_size + callee_saved_size + frame_offset) & 15;
