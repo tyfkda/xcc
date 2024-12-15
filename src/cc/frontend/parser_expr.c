@@ -117,6 +117,9 @@ Type *parse_var_def(Type **prawType, int *pstorage, Token **pident) {
       *prawType = rawType;
   }
 
+  if (rawType->kind == TY_AUTO)
+    return parse_direct_declarator(rawType, pident);
+
   return parse_declarator(rawType, pident);
 }
 
@@ -598,7 +601,6 @@ static Expr *grouping(void) {
 }
 
 static Expr *lparen(Token *tok) {
-  UNUSED(tok);
   int storage;
   Token *token = fetch_token();
   Type *type = parse_var_def(NULL, &storage, NULL);
@@ -623,6 +625,10 @@ static Expr *lparen(Token *tok) {
 
   if (storage & (VS_EXTERN | VS_STATIC | VS_TYPEDEF | VS_INLINE))
     parse_error(PE_NOFATAL, token, "storage specifier not allowed");
+  if (type->kind == TY_AUTO) {
+    parse_error(PE_NOFATAL, token, "auto type not allowed");
+    type = &tyInt;  // Dummy
+  }
 
   if (fetch_token()->kind == TK_LBRACE)
     return parse_compound_literal(type);
@@ -707,12 +713,19 @@ static Expr *size_align_of(Token *token) {
   if (ptr_or_array(type) && type->pa.vla != NULL)
     return calc_type_size(type);
 #endif
-  if (type->kind == TY_ARRAY) {
+  switch (type->kind) {
+  case TY_ARRAY:
     if (type->pa.length == -1) {
       parse_error(PE_NOFATAL, tok, "size unknown");
       type->pa.length = 1;  // Continue parsing.
     }
     assert(type->pa.length >= 0);
+    break;
+  case TY_AUTO:
+    parse_error(PE_NOFATAL, tok, "size unknown");
+    type = &tyInt;  // Dummy.
+    break;
+  default: break;
   }
 
   const Fixnum size = token->kind == TK_SIZEOF ? type_size(type) : align_size(type);

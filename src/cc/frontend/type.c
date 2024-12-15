@@ -206,6 +206,7 @@ size_t type_size(const Type *type) {
     return type->struct_.info->size;
   case TY_FUNC: case TY_VOID:
     break;
+  case TY_AUTO: assert(false); break;
   }
   return 1;
 }
@@ -226,6 +227,7 @@ size_t align_size(const Type *type) {
     return type->struct_.info->align;
   case TY_FUNC: case TY_VOID:
     break;
+  case TY_AUTO: assert(false); break;
   }
   return 1;  // Just in case.
 }
@@ -434,6 +436,7 @@ bool same_type_without_qualifier(const Type *type1, const Type *type2, bool igno
       if (type1->struct_.name == NULL || type2->struct_.name == NULL)
         return false;
       return equal_name(type1->struct_.name, type2->struct_.name);
+    case TY_AUTO: assert(false); break;
     }
   }
 }
@@ -739,6 +742,7 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
     }
     call_print_type_chain(parent, fp);
     break;
+  case TY_AUTO: assert(false); break;
   }
 }
 

@@ -129,6 +129,10 @@ static StructInfo *parse_struct(bool is_union) {
           flex_arr_mem = ident;
         }
         break;
+      case TY_AUTO:
+        parse_error(PE_NOFATAL, ident, "auto type not allowed in struct/union");
+        type = &tyInt;
+        break;
       default:  break;
       }
 
@@ -303,6 +307,12 @@ Type *parse_raw_type(int *pstorage) {
       }
     } else if (tok->kind == TK_VOID) {
       type = tc.qualifier & TQ_CONST ? &tyConstVoid : &tyVoid;
+    } else if (tok->kind == TK_AUTO_TYPE) {
+      if (!no_type_combination(&tc, 0, 0))
+        parse_error(PE_NOFATAL, tok, ILLEGAL_TYPE_COMBINATION);
+
+      type = calloc_or_die(sizeof(*type));
+      type->kind = TY_AUTO;
     }
     if (type == NULL) {
       unget_token(tok);
@@ -520,6 +530,10 @@ static Type *parse_direct_declarator_suffix(Type *type) {
     bool vaargs;
     Vector *param_vars = parse_funparams(&vaargs);
     Type *rettype = parse_direct_declarator_suffix(type);
+    if (rettype->kind == TY_AUTO) {
+      parse_error(PE_NOFATAL, NULL, "auto type not allowed in function return type");
+      rettype = &tyInt;
+    }
 
     Vector *param_types = extract_varinfo_types(param_vars);
     type = new_func_type(rettype, param_types, vaargs);
@@ -527,7 +541,7 @@ static Type *parse_direct_declarator_suffix(Type *type) {
   }
   return type;
 }
-static Type *parse_direct_declarator(Type *type, Token **pident) {
+Type *parse_direct_declarator(Type *type, Token **pident) {
   Token *ident = NULL;
   if (match(TK_LPAR)) {
     Type *ret = type;
@@ -611,6 +625,10 @@ Vector *parse_funparams(bool *pvaargs) {
             type = array_to_ptr(type);
           break;
         case TY_FUNC:   type = ptrof(type); break;
+        case TY_AUTO:
+          parse_error(PE_NOFATAL, ident, "auto type not allowed in function parameter");
+          type = &tyInt;
+          break;
         default: break;
         }
 

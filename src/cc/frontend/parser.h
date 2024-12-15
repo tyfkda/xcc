@@ -23,6 +23,7 @@ void add_builtin_expr_ident(const char *str, BuiltinExprProc *proc);
 Type *parse_raw_type(int *pstorage);
 Type *parse_type_suffix(Type *type);
 Type *parse_declarator(Type *rawtype, Token **pident);
+Type *parse_direct_declarator(Type *type, Token **pident);
 Vector *parse_args(Token **ptoken);
 Vector *parse_funparams(bool *pvaargs);  // Vector<VarInfo*>, NULL=>old style.
 Type *parse_var_def(Type **prawType, int *pstorage, Token **pident);

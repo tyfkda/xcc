@@ -252,6 +252,32 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     VarInfo *varinfo = add_var_to_scope(curscope, ident, type, tmp_storage);
     if (type->kind != TY_FUNC) {
       Initializer *init = match(TK_ASSIGN) ? parse_initializer() : NULL;
+
+      if (type->kind == TY_AUTO) {
+        type = NULL;
+        if (init != NULL && init->kind == IK_MULTI && init->multi->len == 1)
+          init = init->multi->data[0];
+        if (init == NULL) {
+          parse_error(PE_NOFATAL, ident, "auto type must have initializer");
+        } else if (init->kind != IK_SINGLE) {
+          parse_error(PE_NOFATAL, ident, "auto type must have single initializer");
+        } else {
+          type = init->single->type;
+          switch (type->kind) {
+          case TY_FUNC:
+            type = ptrof(type);  // Function pointer.
+            break;
+          case TY_VOID: assert(false); break;
+          default: break;
+          }
+        }
+
+        if (type == NULL) {
+          type = &tyInt;  // Dummy
+          init = NULL;
+        }
+      }
+
       init = check_vardecl(&type, ident, tmp_storage, init);
       varinfo->type = type;  // type might be changed.
       if (init != NULL && !(tmp_storage & (VS_STATIC | VS_EXTERN))) {

@@ -60,6 +60,7 @@ static const struct {
   {"__attribute__", TK_ATTRIBUTE},
   {"_Noreturn", TK_NORETURN},
   {"_Generic", TK_GENERIC},
+  {"__auto_type", TK_AUTO_TYPE},
 };
 
 static const struct {

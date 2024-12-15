@@ -299,6 +299,7 @@ static VReg *gen_variable(Expr *expr) {
   case TY_FUNC:
     return gen_lval(expr);
   case TY_VOID: break;
+  case TY_AUTO: assert(false); break;
   }
   assert(!"Must not reached");
   return NULL;
@@ -648,6 +649,7 @@ static VReg *gen_assign_sub(Expr *lhs, Expr *rhs) {
       gen_memcpy(lhs->type, dst, src);
     }
     break;
+  case TY_AUTO: assert(false); break;
   }
   return src;
 }
