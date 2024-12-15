@@ -18,14 +18,6 @@
 #include "util.h"
 #include "var.h"
 
-static Expr *proc_builtin_type_kind(const Token *ident) {
-  consume(TK_LPAR, "`(' expected");
-  const Type *type = parse_var_def(NULL, NULL, NULL);
-  consume(TK_RPAR, "`)' expected");
-
-  return new_expr_fixlit(&tySize, ident, type->kind);
-}
-
 #ifndef __NO_FLONUM
 static Expr *proc_builtin_nan(const Token *ident) {
   consume(TK_LPAR, "`(' expected");
@@ -313,9 +305,6 @@ static VReg *gen_alloca(Expr *expr) {
 }
 
 void install_builtins(void) {
-  static BuiltinExprProc p_type_kind = &proc_builtin_type_kind;
-  add_builtin_expr_ident("__builtin_type_kind", &p_type_kind);
-
 #ifndef __NO_FLONUM
   static BuiltinExprProc p_nan = &proc_builtin_nan;
   add_builtin_expr_ident("__builtin_nan", &p_nan);
