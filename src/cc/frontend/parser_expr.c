@@ -842,6 +842,60 @@ static Expr *parse_compound_literal(Type *type) {
   return new_expr_complit(type, token, var, inits, init);
 }
 
+static Expr *parse_generic(void) {
+  consume(TK_LPAR, "`(' expected");
+  Expr *target = parse_assign();
+  mark_var_used(target);
+  consume(TK_COMMA, "`,' expected");
+
+  Vector *types = new_vector();
+  Vector *exprs = new_vector();
+  Expr *default_value = NULL;
+  do {
+    Token *tok = fetch_token();
+    Type *type = NULL;
+    if (!match(TK_DEFAULT)) {
+      int storage;
+      Token *ident;
+      type = parse_var_def(NULL, &storage, &ident);
+      if (type == NULL) {
+        parse_error(PE_NOFATAL, tok, "type expected");
+        break;
+      }
+      if (storage != 0)
+        parse_error(PE_NOFATAL, tok, "storage class specifier not allowed");
+      if (ident != NULL)
+        parse_error(PE_NOFATAL, tok, "identifier not allowed");
+    }
+    consume(TK_COLON, "`:' expected");
+    Expr *expr = parse_assign();
+    if (type == NULL) {
+      if (default_value != NULL)
+        parse_error(PE_NOFATAL, tok, "multiple default values");
+      default_value = expr;
+    } else {
+      // TODO: Type duplication check.
+      vec_push(types, type);
+      vec_push(exprs, expr);
+    }
+  } while (match(TK_COMMA));
+  consume(TK_RPAR, "`)' expected");
+
+  Type *type = target->type;
+  if (type->kind == TY_ARRAY)
+    type = array_to_ptr(type);
+  for (int i = 0; i < types->len; ++i) {
+    Type *t = types->data[i];
+    if (same_type(t, type))
+      return exprs->data[i];
+  }
+  if (default_value == NULL) {
+    parse_error(PE_NOFATAL, target->token, "no matching type found");
+    default_value = exprs->data[0];
+  }
+  return default_value;
+}
+
 static Expr *parse_prim(void) {
   Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
@@ -928,6 +982,9 @@ static Expr *parse_prim(void) {
     str[len] = '\0';
     return string_expr(tok, str, len + 1, STR_CHAR);
   }
+
+  if (match(TK_GENERIC))
+    return parse_generic();
 
   Token *ident = consume(TK_IDENT, "Number or Ident or open paren expected");
   if (ident == NULL)
