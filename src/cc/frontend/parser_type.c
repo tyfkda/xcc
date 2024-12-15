@@ -303,6 +303,12 @@ Type *parse_raw_type(int *pstorage) {
       }
     } else if (tok->kind == TK_VOID) {
       type = tc.qualifier & TQ_CONST ? &tyConstVoid : &tyVoid;
+    } else if (tok->kind == TK_AUTO_TYPE) {
+      if (!no_type_combination(&tc, 0, 0))
+        parse_error(PE_NOFATAL, tok, ILLEGAL_TYPE_COMBINATION);
+
+      type = calloc_or_die(sizeof(*type));
+      type->kind = TY_AUTO;
     }
     if (type == NULL) {
       unget_token(tok);

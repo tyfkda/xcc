@@ -714,7 +714,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       }
     }
     break;
-  case TY_VOID: case TY_FUNC:
+  case TY_VOID: case TY_FUNC: case TY_AUTO:
     assert(false);
     break;
   }

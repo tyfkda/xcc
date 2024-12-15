@@ -2077,6 +2077,15 @@ TEST(extension) {
 #undef GENERIC_FUNC
 #undef GENERIC_FLONUM
   }
+
+  {
+    __auto_type x = 1 + 2 * 3;
+    EXPECT("auto type size", sizeof(int), sizeof(x));
+    EXPECT("auto type", 7, x);
+
+    __auto_type f = &foo;  // int (*f)(void)
+    EXPECT("auto type fnptr", 123, f());
+  }
 }
 
 //

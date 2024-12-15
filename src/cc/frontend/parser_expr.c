@@ -117,6 +117,13 @@ Type *parse_var_def(Type **prawType, int *pstorage, Token **pident) {
       *prawType = rawType;
   }
 
+  if (rawType->kind == TY_AUTO) {
+    Token *ident = match(TK_IDENT);
+    if (pident != NULL)
+      *pident = ident;
+    return rawType;
+  }
+
   return parse_declarator(rawType, pident);
 }
 

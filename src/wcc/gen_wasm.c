@@ -576,7 +576,7 @@ static void gen_var(Expr *expr, bool needval) {
   case TY_FUNC:
     gen_lval(expr);
     break;
-  case TY_VOID: assert(false); break;
+  case TY_VOID: case TY_AUTO: assert(false); break;
   }
 }
 
@@ -850,7 +850,7 @@ static void gen_assign_sub(Expr *lhs, Expr *rhs) {
       }
     }
     break;
-  case TY_ARRAY: case TY_FUNC: case TY_VOID: assert(false); break;
+  case TY_ARRAY: case TY_FUNC: case TY_VOID: case TY_AUTO: assert(false); break;
   }
 }
 
@@ -902,7 +902,7 @@ static void gen_deref(Expr *expr, bool needval) {
       // array, struct and func values are handled as a pointer.
       break;
 
-    case TY_VOID: assert(false); break;
+    case TY_VOID: case TY_AUTO: assert(false); break;
     }
   }
 }

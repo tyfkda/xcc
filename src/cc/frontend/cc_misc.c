@@ -262,6 +262,6 @@ void construct_initial_value(const Type *type, const Initializer *init,
       }
     }
     break;
-  case TY_FUNC: case TY_VOID: assert(false); break;
+  case TY_FUNC: case TY_VOID: case TY_AUTO: assert(false); break;
   }
 }

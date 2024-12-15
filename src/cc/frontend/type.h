@@ -42,6 +42,7 @@ enum TypeKind {
   TY_ARRAY,
   TY_FUNC,
   TY_STRUCT,  // include union
+  TY_AUTO,
 };
 
 // Qualifier
