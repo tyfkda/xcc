@@ -532,6 +532,25 @@ static void peephole(RegAlloc *ra, BB *bb) {
         }
       }
       break;
+    case IR_MOV:
+      {
+        int replaced = replace_register_in_bb(bb, ir->dst, ir->opr1, i + 1, i + 1);
+fprintf(stderr, "MOV %d -> %d, replaced=%d/%d/%d\n", ir->dst->virt, ir->opr1->virt, replaced, i, bb->irs->len);
+        if (replaced != INT_MAX) {
+          for (int iir = replaced; iir < bb->irs->len; ++iir) {
+            IR *ir = bb->irs->data[iir];
+enum IrKind org = ir->kind;
+            if (constant_folding(ra, ir)) {
+fprintf(stderr, "  constand_folding at %d: ir=%d -> %d\n", iir, org, ir->kind);
+              if (ir->kind == IR_JMP && ir->jmp.cond == COND_NONE) {
+                vec_remove_at(bb->irs, iir);
+                --iir;
+              }
+            }
+          }
+        }
+      }
+      break;
     default:
       break;
     }
