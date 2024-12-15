@@ -14,7 +14,7 @@ typedef __gnuc_va_list va_list;
 #define va_arg(ap,ty)     __builtin_va_arg(ap,ty)
 #define va_copy(dst,src)  __builtin_va_copy(dst,src)
 
-#elif defined(__APPLE__) && defined(__aarch64__)
+#elif (defined(__APPLE__) && defined(__aarch64__)) || defined(__riscv)
 typedef void **va_list;
 
 #define va_start(ap,p)    __builtin_va_start(ap,p)
@@ -22,15 +22,7 @@ typedef void **va_list;
 #define va_arg(ap, type)  (*(type*)(ap)++)  // Assume little endian
 #define va_copy(dst,src)  (dst = src)
 
-#elif defined(__riscv)
-typedef void **va_list;
-
-#define va_start(ap,p)    __builtin_va_start(ap,p)
-#define va_end(ap)        /*(void)*/(ap = 0)
-#define va_arg(ap, type)  ((ap) += 1, *(type*)((ap) - 1))  // Assume little endian
-#define va_copy(dst,src)  (dst = src)
-
-#else  // not __APPLE__ nor __aarch64__
+#else  // not (__APPLE__ and __aarch64__) nor __riscv
 
 #include <stdint.h>
 
