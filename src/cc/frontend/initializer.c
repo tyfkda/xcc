@@ -516,6 +516,17 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
   } else {
     switch (init->kind) {
     case IK_MULTI:
+      if (init->multi->len == 0) {
+        init->kind = IK_SINGLE;
+#ifndef __NO_FLONUM
+        if (is_flonum(type)) {
+          init->single = new_expr_flolit(type, init->token, 0);
+          break;
+        }
+#endif
+        init->single = new_expr_fixlit(type, init->token, 0);
+        break;
+      }
       if (init->multi->len != 1 || ((Initializer*)init->multi->data[0])->kind != IK_SINGLE) {
         parse_error(PE_NOFATAL, init->token, "Requires scaler");
         break;

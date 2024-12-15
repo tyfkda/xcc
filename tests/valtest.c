@@ -714,6 +714,9 @@ TEST(all) {
   {
     char buf[3] = {};
     EXPECT("char array with empty initializer", 0, buf[0]);
+
+    int z = {};
+    EXPECT("primitive with empty initializer", 0, z);
   }
   {
     struct {int x; int y;} s = {3};
