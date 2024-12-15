@@ -219,94 +219,23 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
 
 //
 
-static void peephole(RegAlloc *ra, BB *bb) {
-  for (int i = 0; i < bb->irs->len; ++i) {
-    IR *ir = bb->irs->data[i];
-    switch (ir->kind) {
-    case IR_BOFS:
-    case IR_IOFS:
-      if (i < bb->irs->len - 1) {
-        IR *next = bb->irs->data[i + 1];
-        if ((next->kind == IR_ADD || next->kind == IR_SUB) &&
-            next->opr1 == ir->dst && next->opr2->flag & VRF_CONST) {
-          assert(!(next->opr2->flag & VRF_FLONUM));
-          // Overwrite next IR. Current IR should be eliminated because of dst is unused.
-          VReg *dst = next->dst;
-          int64_t offset = next->opr2->fixnum;
-          if (next->kind == IR_SUB)
-            offset = -offset;
-          *next = *ir;
-          next->dst = dst;
-          if (ir->kind == IR_BOFS)
-            next->bofs.offset += offset;
-          else
-            next->iofs.offset += offset;
-        }
-      }
-      break;
-    case IR_ADD:
-      if ((ir->opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_CONST && i < bb->irs->len - 1) {
-        IR *next = bb->irs->data[i + 1];
-        if ((next->kind == IR_ADD || next->kind == IR_SUB) &&
-            next->opr1 == ir->dst && next->opr2->flag & VRF_CONST) {
-          assert(!(next->opr2->flag & VRF_FLONUM));
-          // Overwrite next IR. Current IR should be eliminated because of dst is unused.
-          VReg *dst = next->dst;
-          VReg *opr2 = ir->opr2;
-          int64_t value = next->opr2->fixnum;
-          if (next->kind == IR_SUB)
-            value = -value;
-          value += opr2->fixnum;
-          *next = *ir;
-          next->dst = dst;
-          next->opr2 = reg_alloc_spawn_const(ra, value, opr2->vsize);
-        }
-      }
-      break;
-    default:
-      break;
-    }
-  }
-}
-
-// Depends on SSA.
-
-static int replace_register(BBContainer *bbcon, VReg *target, VReg *alternation) {
-  if (target->flag & VRF_REF || alternation->flag & VRF_REF)
-    return INT_MAX;
-
+static int replace_register_in_bb(BB *bb, VReg *target, VReg *alternation, int start, int ip) {
   int first = INT_MAX;
-  int ip = 0;
-  for (int ibb = 0; ibb < bbcon->len; ++ibb) {
-    BB *bb = bbcon->data[ibb];
+  for (int iir = start; iir < bb->irs->len; ++iir, ++ip) {
+    IR *ir = bb->irs->data[iir];
+    if (ir->dst == target && ir->opr1 != alternation)
+      break;
 
-    Vector *phis = bb->phis;
-    if (phis != NULL) {
-      for (int iphi = 0; iphi < phis->len; ++iphi) {
-        Phi *phi = phis->data[iphi];
-        for (int i = 0; i < phi->params->len; ++i) {
-          VReg *opr = phi->params->data[i];
-          if (opr == target) {
-            phi->params->data[i] = alternation;
-            first = MIN(first, ip);
-          }
-        }
-      }
+    if (ir->opr1 == target) {
+      ir->opr1 = alternation;
+      first = MIN(first, ip);
+    }
+    if (ir->opr2 == target) {
+      ir->opr2 = alternation;
+      first = MIN(first, ip);
     }
 
-    for (int iir = 0; iir < bb->irs->len; ++iir, ++ip) {
-      IR *ir = bb->irs->data[iir];
-      if (ir->opr1 == target) {
-        ir->opr1 = alternation;
-        first = MIN(first, ip);
-      }
-      if (ir->opr2 == target) {
-        ir->opr2 = alternation;
-        first = MIN(first, ip);
-      }
-
-      if (ir->kind != IR_CALL)
-        continue;
+    if (ir->kind == IR_CALL) {
       int n = ir->call->total_arg_count;
       VReg **operands = ir->call->args;
       for (int i = 0; i < n; ++i) {
@@ -462,6 +391,187 @@ static double calc_fconst_expr(IR *ir) {
 }
 #endif
 
+static bool constant_folding(RegAlloc *ra, IR *ir) {
+  switch (ir->kind) {
+  case IR_DIV:
+  case IR_MOD:
+    if ((ir->opr2->flag & VRF_CONST) &&
+        (   (!(ir->opr2->flag & VRF_FLONUM) && ir->opr2->fixnum == 0)
+#ifndef __NO_FLONUM
+          || ( (ir->opr2->flag & VRF_FLONUM) && ir->opr2->flonum.value == 0)
+#endif
+        )) {
+      // Stay as it is, DIV or MOD instruction accepts even if both operands are constant.
+      // Zero division exception will be thrown on runtime.
+      // TODO: warning message?
+      break;
+    }
+    // Fallthrough
+  case IR_ADD:
+  case IR_SUB:
+  case IR_MUL:
+  case IR_BITAND:
+  case IR_BITOR:
+  case IR_BITXOR:
+  case IR_LSHIFT:
+  case IR_RSHIFT:
+  case IR_NEG:
+  case IR_BITNOT:
+    if ((ir->opr1->flag & VRF_CONST) && (ir->opr2 == NULL || ir->opr2->flag & VRF_CONST)) {
+#ifndef __NO_FLONUM
+      if (ir->opr1->flag & VRF_FLONUM) {
+        double value = calc_fconst_expr(ir);
+        // Replace to MOV.
+        ir->kind = IR_MOV;
+        ir->opr1 = reg_alloc_spawn_fconst(ra, value, ir->dst->vsize);
+        ir->opr2 = NULL;
+      } else
+#endif
+      {
+        int64_t value = wrap_value(calc_const_expr(ir), 1 << ir->dst->vsize, ir->flag & IRF_UNSIGNED);
+        // Replace to MOV.
+        ir->kind = IR_MOV;
+        ir->opr1 = reg_alloc_spawn_const(ra, value, ir->dst->vsize);
+        ir->opr2 = NULL;
+      }
+      return true;
+    }
+    break;
+  case IR_COND:
+    assert(ir->cond.kind != COND_ANY && ir->cond.kind != COND_NONE);
+    return replace_const_cond(ra, ir);
+  case IR_CAST:
+    if (ir->opr1->flag & VRF_CONST) {
+#ifndef __NO_FLONUM
+      if (ir->dst->flag & VRF_FLONUM) {
+        double value;
+        if (!(ir->opr1->flag & VRF_FLONUM)) {
+          value = (ir->flag & IRF_UNSIGNED) ? (double)(uint64_t)ir->opr1->fixnum : (double)ir->opr1->fixnum;
+        } else {
+          value = ir->opr1->flonum.value;
+        }
+        // Replace to MOV.
+        ir->kind = IR_MOV;
+        ir->opr1 = reg_alloc_spawn_fconst(ra, value, ir->dst->vsize);
+      } else
+#endif
+      {
+        int64_t value;
+#ifndef __NO_FLONUM
+        if (ir->opr1->flag & VRF_FLONUM) {
+          double d = ir->opr1->flonum.value;
+          value = !(ir->flag & IRF_UNSIGNED) ? (int64_t)d : (int64_t)(uint64_t)d;
+          value = wrap_value(value, 1 << ir->dst->vsize, ir->flag & IRF_UNSIGNED);
+        } else
+#endif
+        {
+          value = ir->opr1->fixnum;
+          if (ir->dst->vsize > ir->opr1->vsize)
+            value = wrap_value(value, 1 << ir->opr1->vsize, ir->flag & IRF_UNSIGNED);
+        }
+        // Replace to MOV.
+        ir->kind = IR_MOV;
+        ir->opr1 = reg_alloc_spawn_const(ra, value, ir->dst->vsize);
+      }
+      return true;
+    }
+    break;
+  case IR_JMP:
+    if (ir->jmp.cond != COND_ANY) {
+      assert(ir->jmp.cond != COND_NONE);
+      return replace_const_jmp(ir);
+    }
+    break;
+
+  default: break;
+  }
+  return false;
+}
+
+//
+
+static void peephole(RegAlloc *ra, BB *bb) {
+  for (int i = 0; i < bb->irs->len; ++i) {
+    IR *ir = bb->irs->data[i];
+    switch (ir->kind) {
+    case IR_BOFS:
+    case IR_IOFS:
+      if (i < bb->irs->len - 1) {
+        IR *next = bb->irs->data[i + 1];
+        if ((next->kind == IR_ADD || next->kind == IR_SUB) &&
+            next->opr1 == ir->dst && next->opr2->flag & VRF_CONST) {
+          assert(!(next->opr2->flag & VRF_FLONUM));
+          // Overwrite next IR. Current IR should be eliminated because of dst is unused.
+          VReg *dst = next->dst;
+          int64_t offset = next->opr2->fixnum;
+          if (next->kind == IR_SUB)
+            offset = -offset;
+          *next = *ir;
+          next->dst = dst;
+          if (ir->kind == IR_BOFS)
+            next->bofs.offset += offset;
+          else
+            next->iofs.offset += offset;
+        }
+      }
+      break;
+    case IR_ADD:
+      if ((ir->opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_CONST && i < bb->irs->len - 1) {
+        IR *next = bb->irs->data[i + 1];
+        if ((next->kind == IR_ADD || next->kind == IR_SUB) &&
+            next->opr1 == ir->dst && next->opr2->flag & VRF_CONST) {
+          assert(!(next->opr2->flag & VRF_FLONUM));
+          // Overwrite next IR. Current IR should be eliminated because of dst is unused.
+          VReg *dst = next->dst;
+          VReg *opr2 = ir->opr2;
+          int64_t value = next->opr2->fixnum;
+          if (next->kind == IR_SUB)
+            value = -value;
+          value += opr2->fixnum;
+          *next = *ir;
+          next->dst = dst;
+          next->opr2 = reg_alloc_spawn_const(ra, value, opr2->vsize);
+        }
+      }
+      break;
+    default:
+      break;
+    }
+  }
+}
+
+// Depends on SSA.
+
+static int replace_register(BBContainer *bbcon, VReg *target, VReg *alternation) {
+  if (target->flag & VRF_REF || alternation->flag & VRF_REF)
+    return INT_MAX;
+
+  int first = INT_MAX;
+  int ip = 0;
+  for (int ibb = 0; ibb < bbcon->len; ++ibb) {
+    BB *bb = bbcon->data[ibb];
+
+    Vector *phis = bb->phis;
+    if (phis != NULL) {
+      for (int iphi = 0; iphi < phis->len; ++iphi) {
+        Phi *phi = phis->data[iphi];
+        for (int i = 0; i < phi->params->len; ++i) {
+          VReg *opr = phi->params->data[i];
+          if (opr == target) {
+            phi->params->data[i] = alternation;
+            first = MIN(first, ip);
+          }
+        }
+      }
+    }
+
+    int at = replace_register_in_bb(bb, target, alternation, 0, ip);
+    first = MIN(first, at);
+    ip += bb->irs->len;
+  }
+  return first;
+}
+
 static void copy_propagation(RegAlloc *ra, BBContainer *bbcon) {
   bool again;
   do {
@@ -494,65 +604,18 @@ static void copy_propagation(RegAlloc *ra, BBContainer *bbcon) {
         }
       }
 
-
       for (int iir = 0; iir < bb->irs->len; ++iir, ++ip) {
         IR *ir = bb->irs->data[iir];
+        if (constant_folding(ra, ir)) {
+          if (ir->kind == IR_JMP && ir->jmp.cond == COND_NONE) {
+            vec_remove_at(bb->irs, iir);
+            --iir;
+            --ip;
+            continue;
+          }
+        }
+
         switch (ir->kind) {
-        case IR_DIV:
-        case IR_MOD:
-          if ((ir->opr2->flag & VRF_CONST) &&
-              (   (!(ir->opr2->flag & VRF_FLONUM) && ir->opr2->fixnum == 0)
-#ifndef __NO_FLONUM
-               || ( (ir->opr2->flag & VRF_FLONUM) && ir->opr2->flonum.value == 0)
-#endif
-              )) {
-            // Stay as it is, DIV or MOD instruction accepts even if both operands are constant.
-            // Zero division exception will be thrown on runtime.
-            // TODO: warning message?
-            break;
-          }
-          // Fallthrough
-        case IR_ADD:
-        case IR_SUB:
-        case IR_MUL:
-        case IR_BITAND:
-        case IR_BITOR:
-        case IR_BITXOR:
-        case IR_LSHIFT:
-        case IR_RSHIFT:
-        case IR_NEG:
-        case IR_BITNOT:
-          if ((ir->opr1->flag & VRF_CONST) && (ir->opr2 == NULL || ir->opr2->flag & VRF_CONST)) {
-#ifndef __NO_FLONUM
-            if (ir->opr1->flag & VRF_FLONUM) {
-              double value = calc_fconst_expr(ir);
-              // Replace to MOV.
-              ir->kind = IR_MOV;
-              ir->opr1 = reg_alloc_spawn_fconst(ra, value, ir->dst->vsize);
-              ir->opr2 = NULL;
-              if (replace_register(bbcon, ir->dst, ir->opr1) < ip)
-                again = true;
-            } else
-#endif
-            {
-              int64_t value = wrap_value(calc_const_expr(ir), 1 << ir->dst->vsize, ir->flag & IRF_UNSIGNED);
-              // Replace to MOV.
-              ir->kind = IR_MOV;
-              ir->opr1 = reg_alloc_spawn_const(ra, value, ir->dst->vsize);
-              ir->opr2 = NULL;
-              if (replace_register(bbcon, ir->dst, ir->opr1) < ip)
-                again = true;
-            }
-          }
-          break;
-        case IR_COND:
-          assert(ir->cond.kind != COND_ANY && ir->cond.kind != COND_NONE);
-          if (replace_const_cond(ra, ir)) {
-            assert(ir->kind == IR_MOV);  // Must be replaced with MOV.
-            if (replace_register(bbcon, ir->dst, ir->opr1) < ip)  // Propagate const value.
-              again = true;
-          }
-          break;
         case IR_RESULT:
           // Inlined function call uses RESULT with `dst`.
           if (ir->dst == NULL)
@@ -562,55 +625,6 @@ static void copy_propagation(RegAlloc *ra, BBContainer *bbcon) {
           if (replace_register(bbcon, ir->dst, ir->opr1) < ip)  // Former instruction is replaced:
             again = true;  // Try again.
           break;
-        case IR_CAST:
-          if (ir->opr1->flag & VRF_CONST) {
-#ifndef __NO_FLONUM
-            if (ir->dst->flag & VRF_FLONUM) {
-              double value;
-              if (!(ir->opr1->flag & VRF_FLONUM)) {
-                value = (ir->flag & IRF_UNSIGNED) ? (double)(uint64_t)ir->opr1->fixnum : (double)ir->opr1->fixnum;
-              } else {
-                value = ir->opr1->flonum.value;
-              }
-              // Replace to MOV.
-              ir->kind = IR_MOV;
-              ir->opr1 = reg_alloc_spawn_fconst(ra, value, ir->dst->vsize);
-            } else
-#endif
-            {
-              int64_t value;
-#ifndef __NO_FLONUM
-              if (ir->opr1->flag & VRF_FLONUM) {
-                double d = ir->opr1->flonum.value;
-                value = !(ir->flag & IRF_UNSIGNED) ? (int64_t)d : (int64_t)(uint64_t)d;
-                value = wrap_value(value, 1 << ir->dst->vsize, ir->flag & IRF_UNSIGNED);
-              } else
-#endif
-              {
-                value = ir->opr1->fixnum;
-                if (ir->dst->vsize > ir->opr1->vsize)
-                  value = wrap_value(value, 1 << ir->opr1->vsize, ir->flag & IRF_UNSIGNED);
-              }
-              // Replace to MOV.
-              ir->kind = IR_MOV;
-              ir->opr1 = reg_alloc_spawn_const(ra, value, ir->dst->vsize);
-            }
-            if (replace_register(bbcon, ir->dst, ir->opr1) < ip)
-              again = true;
-          }
-          break;
-        case IR_JMP:
-          if (ir->jmp.cond != COND_ANY) {
-            assert(ir->jmp.cond != COND_NONE);
-            if (replace_const_jmp(ir)) {
-              if (ir->jmp.cond == COND_NONE) {
-                vec_remove_at(bb->irs, iir);
-                --iir;
-              }
-            }
-          }
-          break;
-
         default: break;
         }
       }
