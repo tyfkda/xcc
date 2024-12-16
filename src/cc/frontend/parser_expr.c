@@ -30,17 +30,9 @@ static Expr *string_expr(const Token *token, const char *str, ssize_t len, enum 
   case STR_WIDE:  fxkind = FX_INT; is_unsigned = true; break;  // TODO: Match with wchar_t.
   }
 #endif
-  Type *ctype = get_fixnum_type(fxkind, is_unsigned, TQ_CONST);
-
-  Type *type = calloc_or_die(sizeof(*type));
-  type->kind = TY_ARRAY;
-  type->qualifier = TQ_CONST | TQ_FORSTRLITERAL;
-  type->pa.ptrof = ctype;
-  type->pa.length = len;
-#ifndef __NO_VLA
-  type->pa.vla = NULL;
-  type->pa.size_var = NULL;
-#endif
+  Type *ctype = get_fixnum_type(fxkind, is_unsigned, 0);  // not const.
+  Type *type = arrayof(ctype, len);
+  type->qualifier = TQ_CONST;
 
   Expr *expr = new_expr(EX_STR, type, token);
   expr->str.buf = str;

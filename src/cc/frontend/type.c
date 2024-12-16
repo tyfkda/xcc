@@ -299,7 +299,6 @@ Type *arrayof(Type *type, ssize_t length) {
 Type *array_to_ptr(Type *type) {
   assert(type->kind == TY_ARRAY);
   Type *p = ptrof(type->pa.ptrof);
-  p->qualifier |= type->qualifier & TQ_FORSTRLITERAL;
 #ifndef __NO_VLA
   p->pa.vla = type->pa.vla;
   p->pa.size_var = type->pa.size_var;
@@ -492,12 +491,8 @@ bool can_cast(const Type *dst, const Type *src, bool zero, bool is_explicit) {
     case TY_PTR:
       if (is_explicit)
         return true;
-      // non-const <- const implicitly.
-      if ((src->pa.ptrof->qualifier & TQ_CONST) && !(dst->pa.ptrof->qualifier & TQ_CONST)) {
-        // Allow const char to char for string literal, otherwise disallow.
-        return (src->qualifier & TQ_FORSTRLITERAL) &&
-               (is_char_type(dst->pa.ptrof, src->pa.ptrof->fixnum.kind) || dst->pa.ptrof->kind == TY_VOID);
-      }
+      if ((src->pa.ptrof->qualifier & TQ_CONST) && !(dst->pa.ptrof->qualifier & TQ_CONST))
+        return false;  // non-const <- const implicitly.
       // void* is interchangable with any pointer type.
       if (dst->pa.ptrof->kind == TY_VOID || src->pa.ptrof->kind == TY_VOID)
         return true;

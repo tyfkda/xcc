@@ -49,7 +49,6 @@ enum {
   TQ_CONST = 1 << 0,
   TQ_VOLATILE = 1 << 1,
   TQ_RESTRICT = 1 << 2,
-  TQ_FORSTRLITERAL = 1 << 8,
 };
 
 typedef struct MemberInfo {

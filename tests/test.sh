@@ -16,6 +16,7 @@ function test_basic() {
   compile_error 'subtract void pointers' 'int main(void) {char s[16]; void *p = &s[1], *q = &s[15]; return q - p;}'
   try_direct 'direct addressing' 99 'int main(int argc, char *argv[]) {(void)argv; if (argc < 0) { *(volatile short*)0x12 = 0x34; return *(volatile int*)0x5678; } return 99;}'
   try_direct 'restrict for array in funparam' 83 'int sub(int arr[restrict]) { return arr[0]; } int main(void) { int a[] = {83}; return sub(a); }'
+  segfault 'string literal is not const' "int main(void) {char *s = \"foo\"; s[0] = 'x'; return 0;} //-WCC"
 
   end_test_suite
 }

@@ -235,6 +235,41 @@ function link_error() {
   end_test "$err"
 }
 
+trapped=''
+function trap_handler() {
+  trapped='TRAPPED'
+}
+
+segfault() {
+  local title="$1"
+  local input="$2"
+
+  begin_test "$title"
+
+  if [[ -n "$RE_SKIP" ]]; then
+    echo -n "$input" | grep "$RE_SKIP" > /dev/null && {
+      end_test
+      return
+    };
+  fi
+  local OPT=''
+  echo -n "$input" | grep "$RE_WNOALL" > /dev/null || OPT+=' -Wall'
+  echo -n "$input" | grep "$RE_WNOERR" > /dev/null || OPT+=' -Werror'
+
+  echo -e "$input" | eval "$XCC" $OPT -o "$AOUT" -xc - "$SILENT" ||  {
+    end_test 'Compile failed'
+    return
+  }
+
+  trap trap_handler ERR
+  trapped=''
+  $RUN_AOUT > /dev/null 2>&1
+  trap - ERR
+
+  local err=''; [[ "$trapped" == "TRAPPED" ]] || err="trap expected, but succeeded"
+  end_test "$err"
+}
+
 function try_pp() {
   local title="$1"
   local expected
