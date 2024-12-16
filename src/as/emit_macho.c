@@ -392,7 +392,8 @@ int emit_macho_obj(const char *ofn, Vector *sections, Table *label_table, Vector
       .nreloc = section->rela_count,
       .flags = flags,
     };
-    strncpy(sect.sectname, section->name->chars, MIN(sizeof(sect.sectname), (size_t)section->name->bytes));
+    strncpy(sect.sectname, section->name->chars,
+            MIN(sizeof(sect.sectname), (size_t)section->name->bytes));
     if (section->segname != NULL)
       strncpy(sect.segname, section->segname, sizeof(sect.segname));
     fwrite(&sect, sizeof(sect), 1, ofp);

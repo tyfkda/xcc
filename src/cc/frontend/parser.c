@@ -250,14 +250,16 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
 #endif
 
     VarInfo *varinfo = add_var_to_scope(curscope, ident, type, tmp_storage);
-    Initializer *init = (type->kind != TY_FUNC && match(TK_ASSIGN)) ? parse_initializer() : NULL;
-    init = check_vardecl(&type, ident, tmp_storage, init);
-    varinfo->type = type;  // type might be changed.
-    if (init != NULL && !(tmp_storage & (VS_STATIC | VS_EXTERN))) {
-      VarDecl *decl = new_vardecl(varinfo);
-      if (decls == NULL)
-        decls = new_vector();
-      vec_push(decls, decl);
+    if (type->kind != TY_FUNC) {
+      Initializer *init = match(TK_ASSIGN) ? parse_initializer() : NULL;
+      init = check_vardecl(&type, ident, tmp_storage, init);
+      varinfo->type = type;  // type might be changed.
+      if (init != NULL && !(tmp_storage & (VS_STATIC | VS_EXTERN))) {
+        VarDecl *decl = new_vardecl(varinfo);
+        if (decls == NULL)
+          decls = new_vector();
+        vec_push(decls, decl);
+      }
     }
   } while (match(TK_COMMA));
   return decls;

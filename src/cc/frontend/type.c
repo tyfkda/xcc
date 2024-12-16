@@ -429,15 +429,13 @@ bool same_type_without_qualifier(const Type *type1, const Type *type2, bool igno
       }
       return true;
     case TY_STRUCT:
-      {
-        if (type1->struct_.info != NULL) {
-          if (type2->struct_.info != NULL)
-            return type1->struct_.info == type2->struct_.info;
-        }
-        if (type1->struct_.name == NULL || type2->struct_.name == NULL)
-          return false;
-        return equal_name(type1->struct_.name, type2->struct_.name);
+      if (type1->struct_.info != NULL) {
+        if (type2->struct_.info != NULL)
+          return type1->struct_.info == type2->struct_.info;
       }
+      if (type1->struct_.name == NULL || type2->struct_.name == NULL)
+        return false;
+      return equal_name(type1->struct_.name, type2->struct_.name);
     }
   }
 }
@@ -613,7 +611,7 @@ static void print_array_type(FILE *fp, const Type *type) {
 }
 
 void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
-  if (type->kind != TY_PTR) {
+  if (!ptr_or_array(type)) {
     if (type->qualifier & TQ_CONST)
       fprintf(fp, "const ");
     if (type->qualifier & TQ_VOLATILE)

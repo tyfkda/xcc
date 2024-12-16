@@ -25,7 +25,8 @@ static bool same_expr(const Expr *expr1, const Expr *expr2) {
   case EX_FIXNUM:
     return expr1->fixnum == expr2->fixnum;
   case EX_STR:
-    return expr1->str.len == expr2->str.len && memcmp(expr1->str.buf, expr2->str.buf, expr1->str.len) == 0;
+    return expr1->str.len == expr2->str.len &&
+           memcmp(expr1->str.buf, expr2->str.buf, expr1->str.len) == 0;
   default: assert(false); break;
   }
 }
@@ -54,7 +55,8 @@ static bool same_init(const Initializer *init1, const Initializer *init2) {
     }
     return true;
   case IK_BRKT:
-    return init1->bracket.index == init2->bracket.index && same_init(init1->bracket.value, init2->bracket.value);
+    return init1->bracket.index == init2->bracket.index &&
+           same_init(init1->bracket.value, init2->bracket.value);
   default:
     return false;
   }
@@ -213,7 +215,7 @@ TEST(flatten) {
 
   {  // Redundant brace for struct member.
     MemberInfo *members = malloc(sizeof(*members) * 1);
-    members[0] = (MemberInfo){ .name = alloc_name("x", NULL, false), .type = &tyInt };
+    members[0] = (MemberInfo){.name = alloc_name("x", NULL, false), .type = &tyInt};
     StructInfo *sinfo = create_struct_info(members, 1, false, false);
     Type *type = create_struct_type(sinfo, NULL, 0);
 
@@ -222,13 +224,13 @@ TEST(flatten) {
 
   {  // Point to intermediate.
     MemberInfo *members1 = malloc(sizeof(*members1) * 2);
-    members1[0] = (MemberInfo){ .name = alloc_name("x", NULL, false), .type = &tyInt };
-    members1[1] = (MemberInfo){ .name = alloc_name("y", NULL, false), .type = &tyInt };
+    members1[0] = (MemberInfo){.name = alloc_name("x", NULL, false), .type = &tyInt};
+    members1[1] = (MemberInfo){.name = alloc_name("y", NULL, false), .type = &tyInt};
     StructInfo *sinfo1 = create_struct_info(members1, 2, false, false);
     Type *type1 = create_struct_type(sinfo1, NULL, 0);
 
     MemberInfo *members2 = malloc(sizeof(*members2) * 1);
-    members2[0] = (MemberInfo){ .name = alloc_name("s", NULL, false), .type = type1 };
+    members2[0] = (MemberInfo){.name = alloc_name("s", NULL, false), .type = type1};
     StructInfo *sinfo2 = create_struct_info(members2, 1, false, false);
     Type *type2 = create_struct_type(sinfo2, NULL, 0);
 

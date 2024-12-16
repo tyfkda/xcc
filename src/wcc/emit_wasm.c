@@ -501,7 +501,7 @@ static void emit_code_section(EmitWasm *ew) {
       if (func == NULL || is_function_omitted(info->varinfo))
         continue;
 
-      FuncExtra* extra = func->extra;
+      FuncExtra *extra = func->extra;
       DataStorage *code = extra->code;
       data_concat(&codesec, code);
 

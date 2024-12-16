@@ -219,7 +219,8 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         assert(symidx >= 0);
 
         rela->r_offset = u->offset;
-        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? R_AARCH64_ADR_PREL_PG_HI21 : R_AARCH64_ADD_ABS_LO12_NC);
+        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_PCREL_HI ? R_AARCH64_ADR_PREL_PG_HI21
+                                                                      : R_AARCH64_ADD_ABS_LO12_NC);
         rela->r_addend = u->add;
       }
       break;

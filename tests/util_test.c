@@ -83,10 +83,12 @@ TEST(join_paths) {
   EXPECT_STREQ("Root 4", "/", JOIN_PATHS(".", "/"));
   EXPECT_NULL(JOIN_PATHS("/user/foo", "../../../bar"));
   EXPECT_STREQ("Ancestor", "../bar", JOIN_PATHS("usr/foo", "../../../bar"));
-  EXPECT_STREQ("Root end with '/'", "/user/foo/inc/stdio.h", JOIN_PATHS("/user/foo/", "inc/stdio.h"));
+  EXPECT_STREQ("Root end with '/'", "/user/foo/inc/stdio.h",
+               JOIN_PATHS("/user/foo/", "inc/stdio.h"));
   EXPECT_STREQ("Not root", "user/foo/inc/stdio.h", JOIN_PATHS("user/foo", "inc/stdio.h"));
   EXPECT_STREQ("Non root ancestor", "user/inc/stdio.h", JOIN_PATHS("user/foo", "../inc/stdio.h"));
-  EXPECT_STREQ("Non root ancestor", "../inc/stdio.h", JOIN_PATHS("user/foo", "../../../inc/stdio.h"));
+  EXPECT_STREQ("Non root ancestor", "../inc/stdio.h",
+               JOIN_PATHS("user/foo", "../../../inc/stdio.h"));
   EXPECT_STREQ("Cwd", "./foo.txt", JOIN_PATHS(".", "foo.txt"));
   EXPECT_STREQ("Cwd with abs", "/bar.txt", JOIN_PATHS(".", "/bar.txt"));
   EXPECT_STREQ("Cwd with abs", "../../baz.txt", JOIN_PATHS(".", "../../baz.txt"));

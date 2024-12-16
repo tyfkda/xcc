@@ -17,7 +17,7 @@ static void call_fini_funcs(void) {
 }
 
 static void start2(int argc, char *argv[], char *env[]) {
-  extern int main(int, char**, char **);
+  extern int main(int, char**, char**);
 #ifndef __APPLE__
   extern char **environ;
   environ = env;

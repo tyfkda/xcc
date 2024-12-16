@@ -72,7 +72,7 @@ static void dump_vregs(FILE *fp, const char *title, Vector *regs, bool newline) 
   fprintf(fp, "%s=[", title);
   for (int i = 0; i < regs->len; ++i) {
     VReg *vreg = regs->data[i];
-    fprintf(fp, "%s%d", i==0?"":",", vreg->virt);
+    fprintf(fp, "%s%d", i == 0 ? "" : ",", vreg->virt);
   }
   if (newline)
     fprintf(fp, "]\n");
@@ -395,7 +395,6 @@ int main(int argc, char *argv[]) {
       break;
     }
   }
-
 
   // Compile.
   init_compiler();

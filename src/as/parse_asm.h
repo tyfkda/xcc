@@ -195,4 +195,5 @@ typedef struct {
   int align;
 } LabelInfo;
 
-LabelInfo *add_label_table(Table *label_table, const Name *label, SectionInfo *section, bool define, bool global);
+LabelInfo *add_label_table(Table *label_table, const Name *label, SectionInfo *section, bool define,
+                           bool global);

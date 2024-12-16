@@ -68,7 +68,8 @@ int getsert_func_type_index(const Type *type, bool reg) {
   return getsert_func_type(ds.buf, ds.len, reg);
 }
 
-static FuncInfo *register_func_info(const Name *funcname, Function *func, VarInfo *varinfo, int flag) {
+static FuncInfo *register_func_info(const Name *funcname, Function *func, VarInfo *varinfo,
+                                    int flag) {
   assert(func == NULL || func->type->kind == TY_FUNC);
   FuncInfo *info;
   if (!table_try_get(&func_info_table, funcname, (void**)&info)) {
@@ -171,7 +172,8 @@ void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc
   table_put(&builtin_function_table, name, proc);
 
   if (add_to_scope)
-    scope_add(global_scope, alloc_ident(name, NULL, name->chars, name->chars + name->bytes), type, 0);
+    scope_add(global_scope, alloc_ident(name, NULL, name->chars, name->chars + name->bytes), type,
+              0);
 }
 
 static void traverse_stmts(Vector *stmts);
@@ -786,7 +788,8 @@ static void traverse_defun(Function *func) {
     if (table_try_get(func->attributes, constructor_name, NULL)) {
       // Ensure that the function has no parameters and returns void.
       const Type *type = func->type;
-      if (type->func.params == NULL || type->func.params->len > 0 || type->func.ret->kind != TY_VOID) {
+      if (type->func.params == NULL || type->func.params->len > 0 ||
+          type->func.ret->kind != TY_VOID) {
         const Token *token = func->body_block != NULL ? func->body_block->token : NULL;
         parse_error(PE_NOFATAL, token, "constructor must have no parameters and return void");
       } else {
@@ -817,7 +820,8 @@ static void add_builtins(int flag) {
     const Name *name = alloc_name(SP_NAME, NULL, false);
     VarInfo *varinfo = scope_find(global_scope, name, NULL);
     if (varinfo == NULL) {
-      varinfo = add_global_var(&tyVoidPtr, alloc_ident(name, NULL, name->chars, name->chars + name->bytes));
+      varinfo = add_global_var(&tyVoidPtr,
+                               alloc_ident(name, NULL, name->chars, name->chars + name->bytes));
     } else {
       if (!same_type(varinfo->type, &tyVoidPtr))
         parse_error(PE_NOFATAL, NULL, "Illegal type: %.*s", NAMES(name));

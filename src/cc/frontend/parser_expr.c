@@ -348,7 +348,7 @@ static StructInfo *parse_struct(bool is_union) {
 
 #define ASSERT_PARSE_ERROR(cond, tok, ...)  do { if (!(cond)) parse_error(PE_FATAL, tok, __VA_ARGS__); } while (0)
 
-Type *parse_raw_type(int *pstorage) {
+static Type *parse_raw_type(int *pstorage) {
   static const char MULTIPLE_STORAGE_SPECIFIED[] = "multiple storage specified";
   static const char MULTIPLE_QUALIFIER_SPECIFIED[] = "multiple qualifier specified";
   static const char ILLEGAL_TYPE_COMBINATION[] = "illegal type combination";

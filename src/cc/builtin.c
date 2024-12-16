@@ -188,8 +188,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   VReg *p = new_ir_bofs(fi)->dst;
   if (offset > 0) {
     enum VRegSize vsize = to_vsize(&tyVoidPtr);
-    p = new_ir_bop(IR_ADD, p, new_const_vreg(offset, vsize), vsize,
-                   IRF_UNSIGNED);
+    p = new_ir_bop(IR_ADD, p, new_const_vreg(offset, vsize), vsize, IRF_UNSIGNED);
   }
 
   // (void)(ap = fp + <vaarg saved offset>)
@@ -237,12 +236,16 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   // ap->gp_offset = gn * TARGET_POINTER_SIZE
   VReg *ap = gen_expr(args->data[0]);
   VReg *gp_offset = ap;
-  new_ir_store(gp_offset, new_const_vreg(MIN(gn, MAX_REG_ARGS) * TARGET_POINTER_SIZE, to_vsize(&tyInt)), 0);
+  new_ir_store(gp_offset,
+               new_const_vreg(MIN(gn, MAX_REG_ARGS) * TARGET_POINTER_SIZE, to_vsize(&tyInt)), 0);
 
   // ap->fp_offset = (MAX_REG_ARGS + fn) * TARGET_POINTER_SIZE
   VReg *fp_offset = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt), to_vsize(&tySize)),
                                ap->vsize, IRF_UNSIGNED);
-  new_ir_store(fp_offset, new_const_vreg((MAX_REG_ARGS + MIN(fn, MAX_FREG_ARGS)) * TARGET_POINTER_SIZE, to_vsize(&tySize)), 0);
+  new_ir_store(fp_offset,
+               new_const_vreg((MAX_REG_ARGS + MIN(fn, MAX_FREG_ARGS)) * TARGET_POINTER_SIZE,
+                              to_vsize(&tySize)),
+               0);
 
   // ap->overflow_arg_area = 2 * TARGET_POINTER_SIZE
   {

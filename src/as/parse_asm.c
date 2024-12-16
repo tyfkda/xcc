@@ -107,7 +107,8 @@ static LabelInfo *new_label(SectionInfo *section) {
   return info;
 }
 
-LabelInfo *add_label_table(Table *label_table, const Name *label, SectionInfo *section, bool define, bool global) {
+LabelInfo *add_label_table(Table *label_table, const Name *label, SectionInfo *section, bool define,
+                           bool global) {
   LabelInfo *info = table_get(label_table, label);
   if (info != NULL) {
     if (define) {

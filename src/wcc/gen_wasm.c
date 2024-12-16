@@ -1656,7 +1656,8 @@ static void gen_defun(Function *func) {
       gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, bpvar, gspvar));
     // global.sp = local.bp - frame_size;
     if (frame_size > 0) {
-      Expr *result = new_expr_bop(EX_SUB, &tyVoidPtr, NULL, bpvar != NULL ? bpvar : gspvar, new_expr_fixlit(&tySize, NULL, frame_size));
+      Expr *result = new_expr_bop(EX_SUB, &tyVoidPtr, NULL, bpvar != NULL ? bpvar : gspvar,
+                                  new_expr_fixlit(&tySize, NULL, frame_size));
       if (lspvar == NULL) {
         result = new_expr_bop(EX_ASSIGN, &tyVoid, NULL, gspvar, result);
       } else {
@@ -1694,7 +1695,8 @@ static void gen_defun(Function *func) {
     Vector *stmts = func->body_block->block.stmts;
     if (stmts->len > 0) {
       Stmt *last = stmts->data[stmts->len - 1];
-      if (last->kind != ST_ASM && functype->func.ret->kind != TY_VOID && !check_funcend_return(func->body_block)) {
+      if (last->kind != ST_ASM && functype->func.ret->kind != TY_VOID &&
+          !check_funcend_return(func->body_block)) {
         assert(func->body_block->reach & REACH_STOP);
         ADD_CODE(OP_UNREACHABLE);
       }
@@ -2042,8 +2044,8 @@ static void gen_alloca(Expr *expr, enum BuiltinFunctionPhase phase) {
     modify_sp = new_expr_bop(EX_ASSIGN, &tyVoid, NULL, gspvar, updated);
   } else {
     modify_sp = new_expr_bop(EX_COMMA, &tyVoid, NULL,
-                              new_expr_bop(EX_ASSIGN, &tyVoid, NULL, lspvar, updated),
-                              new_expr_bop(EX_ASSIGN, &tyVoid, NULL, gspvar, lspvar));
+                             new_expr_bop(EX_ASSIGN, &tyVoid, NULL, lspvar, updated),
+                             new_expr_bop(EX_ASSIGN, &tyVoid, NULL, gspvar, lspvar));
   }
   gen_expr_stmt(modify_sp);
 

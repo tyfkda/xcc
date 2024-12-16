@@ -38,8 +38,8 @@ static void putpadding(FILE *fp, int m, char padding) {
   } while (m > 0);
 }
 
-static int snprintullong(FILE *fp, unsigned long long x,
-                         int base, const char* digits, int order, int padding) {
+static int snprintullong(FILE *fp, unsigned long long x, int base, const char *digits, int order,
+                         int padding) {
   char buf[32];
   STATIC_ASSERT(sizeof(buf) >= (sizeof(long long) * CHAR_BIT + 2) / 3);
   unsigned int i = 0, o = 0;
@@ -67,8 +67,8 @@ static char *snprintullong2(char *bufend, unsigned long long x, int base, const 
   return p;
 }
 
-static int snprintstr(FILE *fp, const char* s,
-                      int order, int suborder, bool leftalign, char padding) {
+static int snprintstr(FILE *fp, const char *s, int order, int suborder, bool leftalign,
+                      char padding) {
   size_t len = strlen(s);
   if (suborder > 0)
     len = MIN(len, (unsigned int)suborder);
@@ -114,14 +114,14 @@ static long double pow10(int order) {
   return a;
 }
 
-static int printnonfinite(FILE *fp, long double x,
-                          int order, int suborder, bool sign, bool leftalign) {
+static int printnonfinite(FILE *fp, long double x, int order, int suborder, bool sign,
+                          bool leftalign) {
   int o = sprintsign(fp, signbit(x), sign, &order);
   return o + snprintstr(fp, isnan(x) ? "nan" : "inf", order, suborder, leftalign, ' ');
 }
 
-static int printfloat(FILE *fp, long double x,
-                      int order, int suborder, bool sign, bool leftalign, char padding) {
+static int printfloat(FILE *fp, long double x, int order, int suborder, bool sign, bool leftalign,
+                      char padding) {
   if (!isfinite(x))
     return printnonfinite(fp, x, order, suborder, sign, leftalign);
 

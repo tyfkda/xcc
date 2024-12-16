@@ -1416,7 +1416,8 @@ TEST(struct) {
     EXPECT("FAM local 3", 333, local.b[1]);
     EXPECT("FAM local 4", 444, local.b[2]);
     EXPECT("FAM local 5", 555, local.b[3]);
-    EXPECT("sizeof(x) with flexible is not actual", sizeof(struct FlexibleArrayMember), sizeof(local));
+    EXPECT("sizeof(x) with flexible is not actual",
+           sizeof(struct FlexibleArrayMember), sizeof(local));
 #endif
   }
 }

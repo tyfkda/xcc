@@ -200,11 +200,13 @@ int main(int argc, char *argv[]) {
   fix_section_size(sections, LOAD_ADDRESS);
 
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-  extern int emit_macho_obj(const char *ofn, Vector *sections, Table *label_table, Vector *unresolved);
-  #define EMIT_OBJ  emit_macho_obj
+  extern int emit_macho_obj(const char *ofn, Vector *sections, Table *label_table,
+                            Vector *unresolved);
+  #define EMIT_OBJ emit_macho_obj
 #else
-  extern int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *unresolved);
-  #define EMIT_OBJ  emit_elf_obj
+  extern int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table,
+                          Vector *unresolved);
+  #define EMIT_OBJ emit_elf_obj
 #endif
   int result = EMIT_OBJ(ofn, sections, &label_table, unresolved);
   if (result != 0) {

@@ -575,7 +575,8 @@ static int do_compile(Options *opts, const char *root) {
       res = -1;
       break;
     case Clanguage:
-      res = compile_csource(src, opts->out_type, outfn, ofd, opts->cpp_cmd, opts->cc1_cmd, opts->as_cmd, opts->ld_cmd);
+      res = compile_csource(src, opts->out_type, outfn, ofd, opts->cpp_cmd, opts->cc1_cmd,
+                            opts->as_cmd, opts->ld_cmd);
       break;
     case Assembly:
       res = compile_asm(src, opts->out_type, outfn, ofd, opts->as_cmd, opts->ld_cmd);

@@ -206,16 +206,21 @@ static VReg *gen_ref_sub(Expr *expr) {
   case EX_VAR:
     {
       Scope *scope;
-      const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
+      const Name *name = expr->var.name;
+      const VarInfo *varinfo = scope_find(expr->var.scope, name, &scope);
       assert(varinfo != NULL && scope == expr->var.scope);
-      if (is_global_scope(scope))
-        return new_ir_iofs(expr->var.name, (varinfo->storage & VS_STATIC) == 0)->dst;
-      else if (is_local_storage(varinfo))
-        return new_ir_bofs(varinfo->local.frameinfo)->dst;
-      else if (varinfo->storage & VS_STATIC)
-        return new_ir_iofs(varinfo->static_.svar->ident->ident, false)->dst;
-      else
-        return new_ir_iofs(expr->var.name, true)->dst;
+      bool global = false;
+      if (is_global_scope(scope)) {
+        global = (varinfo->storage & VS_STATIC) == 0;
+      } else {
+        if (is_local_storage(varinfo))
+          return new_ir_bofs(varinfo->local.frameinfo)->dst;
+        if (varinfo->storage & VS_STATIC)
+          name = varinfo->static_.svar->ident->ident;
+        else
+          global = true;
+      }
+      return new_ir_iofs(name, global)->dst;
     }
   case EX_DEREF:
     return gen_expr(expr->unary.sub);

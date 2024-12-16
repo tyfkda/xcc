@@ -822,7 +822,6 @@ static void generate_init_funcs(WasmLinker *linker) {
   codesec->size = ds.len;
 }
 
-
 static void renumber_symbols_wasmobj(WasmObj *wasmobj, uint32_t *defined_count) {
   Vector *symtab = wasmobj->linking.symtab;
   uint32_t import_count[3];
@@ -1233,7 +1232,8 @@ static void out_table_section(WasmLinker *linker) {
   data_leb128(&table_section, -1, 1);  // num tables
   data_push(&table_section, WT_FUNCREF);
   data_push(&table_section, 0x00);  // limits: flags
-  data_leb128(&table_section, -1, INDIRECT_FUNCTION_TABLE_START_INDEX + indirect_functions->count);  // initial
+  data_leb128(&table_section, -1,
+              INDIRECT_FUNCTION_TABLE_START_INDEX + indirect_functions->count);  // initial
   data_close_chunk(&table_section, -1);
 
   fputc(SEC_TABLE, linker->ofp);

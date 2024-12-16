@@ -189,19 +189,19 @@ static PpResult pp_prim(void) {
 static PpResult pp_postfix(void) {
   PpResult result = pp_prim();
 
-  //for (;;) {
-    //Token *tok;
-    //if (pp_match(TK_LPAR))
-    //  expr = parse_funcall(expr);
-    //else if ((tok = pp_match(TK_LBRACKET)) != NULL)
-    //  expr = parse_array_index(tok, expr);
-    //else if ((tok = pp_match(TK_INC)) != NULL)
-    //  expr = new_expr_unary(EX_POSTINC, NULL, tok, expr);
-    //else if ((tok = pp_match(TK_DEC)) != NULL)
-    //  expr = new_expr_unary(EX_POSTDEC, NULL, tok, expr);
-    //else
+  // for (;;) {
+  //   Token *tok;
+  //   if (pp_match(TK_LPAR))
+  //     expr = parse_funcall(expr);
+  //   else if ((tok = pp_match(TK_LBRACKET)) != NULL)
+  //     expr = parse_array_index(tok, expr);
+  //   else if ((tok = pp_match(TK_INC)) != NULL)
+  //     expr = new_expr_unary(EX_POSTINC, NULL, tok, expr);
+  //   else if ((tok = pp_match(TK_DEC)) != NULL)
+  //     expr = new_expr_unary(EX_POSTDEC, NULL, tok, expr);
+  //   else
       return result;
-  //}
+  // }
 }
 
 static PpResult pp_unary(void) {
@@ -225,25 +225,25 @@ static PpResult pp_unary(void) {
     return ~result;
   }
 
-  //if ((tok = pp_match(TK_AND)) != NULL) {
-  //  PpExpr *expr = pp_cast_expr();
-  //  return new_expr_unary(EX_REF, NULL, tok, expr);
-  //}
+  // if ((tok = pp_match(TK_AND)) != NULL) {
+  //   PpExpr *expr = pp_cast_expr();
+  //   return new_expr_unary(EX_REF, NULL, tok, expr);
+  // }
 
-  //if ((tok = pp_match(TK_MUL)) != NULL) {
-  //  PpExpr *expr = pp_cast_expr();
-  //  return new_expr_unary(EX_DEREF, NULL, tok, expr);
-  //}
+  // if ((tok = pp_match(TK_MUL)) != NULL) {
+  //   PpExpr *expr = pp_cast_expr();
+  //   return new_expr_unary(EX_DEREF, NULL, tok, expr);
+  // }
 
-  //if ((tok = pp_match(TK_INC)) != NULL) {
-  //  PpExpr *expr = pp_unary();
-  //  return new_expr_unary(EX_PREINC, NULL, tok, expr);
-  //}
+  // if ((tok = pp_match(TK_INC)) != NULL) {
+  //   PpExpr *expr = pp_unary();
+  //   return new_expr_unary(EX_PREINC, NULL, tok, expr);
+  // }
 
-  //if ((tok = pp_match(TK_DEC)) != NULL) {
-  //  PpExpr *expr = pp_unary();
-  //  return new_expr_unary(EX_PREDEC, NULL, tok, expr);
-  //}
+  // if ((tok = pp_match(TK_DEC)) != NULL) {
+  //   PpExpr *expr = pp_unary();
+  //   return new_expr_unary(EX_PREDEC, NULL, tok, expr);
+  // }
 
   return pp_postfix();
 }

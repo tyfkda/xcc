@@ -227,7 +227,8 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
     const ElfSectionInfo *strinfo = &elfobj->section_infos[symhdr->sh_link];
     const ElfSectionInfo *dst_info = &elfobj->section_infos[shdr->sh_info];
     assert(dst_info->shdr->sh_type == SHT_PROGBITS || dst_info->shdr->sh_type == SHT_INIT_ARRAY ||
-           dst_info->shdr->sh_type == SHT_FINI_ARRAY || dst_info->shdr->sh_type == SHT_PREINIT_ARRAY);
+           dst_info->shdr->sh_type == SHT_FINI_ARRAY ||
+           dst_info->shdr->sh_type == SHT_PREINIT_ARRAY);
     if (dst_info->progbits.content == NULL) {
       // Target section is not collected, so skip relocation.
       continue;
@@ -330,8 +331,10 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
           // Assume [..., [j-2]=PCREL_HI20, [j-1]=RELAX, [j]=PCREL_LO12_I, ...]
           assert(j >= 2);
           const Elf64_Rela *hirela = &relas[j - 2];
-          assert((ELF64_R_TYPE(rela->r_info) == R_RISCV_PCREL_LO12_I && ELF64_R_TYPE(hirela->r_info) == R_RISCV_PCREL_HI20) ||
-                 (ELF64_R_TYPE(rela->r_info) == R_RISCV_LO12_I && ELF64_R_TYPE(hirela->r_info) == R_RISCV_HI20));
+          assert((ELF64_R_TYPE(rela->r_info) == R_RISCV_PCREL_LO12_I &&
+                  ELF64_R_TYPE(hirela->r_info) == R_RISCV_PCREL_HI20) ||
+                 (ELF64_R_TYPE(rela->r_info) == R_RISCV_LO12_I &&
+                  ELF64_R_TYPE(hirela->r_info) == R_RISCV_HI20));
           const Elf64_Sym *hisym = &symhdrinfo->symtab.syms[ELF64_R_SYM(hirela->r_info)];
           uint64_t hiaddress = calc_rela_sym_address(ld, elfobj, hirela, hisym, strinfo);
           uint64_t hipc = elfobj->section_infos[shdr->sh_info].progbits.address + hirela->r_offset;
@@ -439,7 +442,8 @@ static int resolve_symbols_elfobj(LinkEditor *ld, ElfObj *elfobj, Table *unresol
   return error_count;
 }
 
-static void collect_sections_elfobj(LinkEditor *ld, ElfObj *elfobj, const char *name, Vector *seclist) {
+static void collect_sections_elfobj(LinkEditor *ld, ElfObj *elfobj, const char *name,
+                                    Vector *seclist) {
   UNUSED(ld);
   ElfSectionInfo *shsymtab = &elfobj->section_infos[elfobj->ehdr.e_shstrndx];
   assert(shsymtab->shdr->sh_type == SHT_STRTAB);
@@ -449,8 +453,9 @@ static void collect_sections_elfobj(LinkEditor *ld, ElfObj *elfobj, const char *
     if (section == NULL)
       continue;
     Elf64_Shdr *shdr = section->shdr;
-    assert(shdr->sh_type == SHT_PROGBITS || shdr->sh_type == SHT_NOBITS || shdr->sh_type == SHT_INIT_ARRAY ||
-           shdr->sh_type == SHT_FINI_ARRAY || shdr->sh_type == SHT_PREINIT_ARRAY);
+    assert(shdr->sh_type == SHT_PROGBITS || shdr->sh_type == SHT_NOBITS ||
+           shdr->sh_type == SHT_INIT_ARRAY || shdr->sh_type == SHT_FINI_ARRAY ||
+           shdr->sh_type == SHT_PREINIT_ARRAY);
     assert(shdr->sh_size > 0);
 
     const char *s = &strbuf[shdr->sh_name];
@@ -490,7 +495,8 @@ static int resolve_symbols_archive(LinkEditor *ld, Archive *ar, Table *unresolve
   return error_count;
 }
 
-static void collect_sections_archive(LinkEditor *ld, Archive *ar, const char *name, Vector *seclist) {
+static void collect_sections_archive(LinkEditor *ld, Archive *ar, const char *name,
+                                     Vector *seclist) {
   Vector *contents = ar->contents;
   for (int i = 0; i < contents->len; ++i) {
     ArContent *content = contents->data[i];
@@ -524,7 +530,8 @@ static int ld_resolve_relas(LinkEditor *ld) {
   return error_count;
 }
 
-static void add_elf_section(SectionGroup section_groups[SECTION_COUNT], const ElfSectionInfo *p, int secno) {
+static void add_elf_section(SectionGroup section_groups[SECTION_COUNT], const ElfSectionInfo *p,
+                            int secno) {
   Elf64_Shdr *shdr = p->shdr;
   if (shdr->sh_type == SHT_NOBITS)
     return;
@@ -568,7 +575,8 @@ static void ld_collect_sections(LinkEditor *ld, const char *name, Vector *seclis
   }
 }
 
-static void ld_calc_address(SectionGroup section_groups[SECTION_COUNT], Vector *section_lists[SECTION_COUNT], uint64_t start_address) {
+static void ld_calc_address(SectionGroup section_groups[SECTION_COUNT],
+                            Vector *section_lists[SECTION_COUNT], uint64_t start_address) {
   uint64_t address = start_address;
   for (int secno = 0; secno < SECTION_COUNT; ++secno) {
     Vector *v = section_lists[secno];
@@ -661,7 +669,8 @@ static void output_section(FILE *fp, SectionGroup *secgroup) {
   fwrite(buf, ds->len, 1, fp);
 }
 
-static bool output_exe(const char *ofn, uint64_t entry_address, SectionGroup section_groups[SECTION_COUNT]) {
+static bool output_exe(const char *ofn, uint64_t entry_address,
+                       SectionGroup section_groups[SECTION_COUNT]) {
   int phnum = section_groups[SEC_DATA].ds->len > 0 || section_groups[SEC_DATA].bss_size > 0 ? 2 : 1;
 
   FILE *fp;
@@ -686,13 +695,15 @@ static bool output_exe(const char *ofn, uint64_t entry_address, SectionGroup sec
   const int flags = 0;
 #endif
   out_elf_header(fp, entry_address, phnum, 0, flags, 0);
-  out_program_header(fp, 0, PROG_START, section_groups[SEC_TEXT].start_address, code_rodata_sz, code_rodata_sz);
+  out_program_header(fp, 0, PROG_START, section_groups[SEC_TEXT].start_address, code_rodata_sz,
+                     code_rodata_sz);
   if (phnum > 1) {
     size_t datamemsz = section_groups[SEC_DATA].ds->len + section_groups[SEC_DATA].bss_size;
     uint64_t offset = PROG_START + code_rodata_sz;
     if (section_groups[SEC_DATA].ds->len > 0)
       offset = ALIGN(offset, DATA_ALIGN);
-    out_program_header(fp, 1, offset, section_groups[SEC_DATA].start_address, section_groups[SEC_DATA].ds->len, datamemsz);
+    out_program_header(fp, 1, offset, section_groups[SEC_DATA].start_address,
+                       section_groups[SEC_DATA].ds->len, datamemsz);
   }
 
   uint64_t addr = PROG_START;
@@ -721,12 +732,13 @@ typedef struct {
   int flag;
 } DumpSymbol;
 
-static void dump_map_elfobj(LinkEditor *ld, ElfObj *elfobj, File *file, ArContent *content, Vector *symbols) {
+static void dump_map_elfobj(LinkEditor *ld, ElfObj *elfobj, File *file, ArContent *content,
+                            Vector *symbols) {
   ElfSectionInfo *symtab = elfobj->symtab_section;
   assert(symtab != NULL);
   const char *strbuf = symtab->symtab.strtab->strtab.buf;
   for (size_t i = 0; i < symtab->symtab.count; ++i) {
-    Elf64_Sym* sym = &symtab->symtab.syms[i];
+    Elf64_Sym *sym = &symtab->symtab.syms[i];
     if (sym->st_shndx == SHN_UNDEF)
       continue;
 
@@ -763,7 +775,7 @@ static void dump_map_elfobj(LinkEditor *ld, ElfObj *elfobj, File *file, ArConten
 }
 
 static void dump_map_file(LinkEditor *ld, Vector *symbols) {
-  LinkElem* elem;
+  LinkElem *elem;
   const Name *name;
   for (int it = 0; (it = table_iterate(ld->generated_symbol_table, it, &name, (void**)&elem)) != -1; ) {
     assert(elem->kind == LEK_SYMBOL);
@@ -802,7 +814,8 @@ static int sort_dump_symbol(const void *a, const void *b) {
   return a < b ? -1 : 1;
 }
 
-static bool output_map_file(LinkEditor *ld, const char *outmapfn, uint64_t entry_address, const Name *entry_name) {
+static bool output_map_file(LinkEditor *ld, const char *outmapfn, uint64_t entry_address,
+                            const Name *entry_name) {
   Vector *symbols = new_vector();  // <DumpSymbol*>
   dump_map_file(ld, symbols);
   qsort(symbols->data, symbols->len, sizeof(*symbols->data), sort_dump_symbol);
@@ -1022,7 +1035,8 @@ static void collect_sections(LinkEditor *ld, Vector *section_lists[SECTION_COUNT
   }
 }
 
-static void prepare_section_groups(Vector *section_lists[SECTION_COUNT], SectionGroup section_groups[SECTION_COUNT]) {
+static void prepare_section_groups(Vector *section_lists[SECTION_COUNT],
+                                   SectionGroup section_groups[SECTION_COUNT]) {
   for (int secno = 0; secno < SECTION_COUNT; ++secno) {
     SectionGroup *secgroup = &section_groups[secno];
     secgroup->align = secno == SEC_DATA ? DATA_ALIGN : 1;
@@ -1061,7 +1075,8 @@ static void prepare_section_groups(Vector *section_lists[SECTION_COUNT], Section
   }
 }
 
-static void collect_section_data(Vector *section_lists[SECTION_COUNT], SectionGroup section_groups[SECTION_COUNT]) {
+static void collect_section_data(Vector *section_lists[SECTION_COUNT],
+                                 SectionGroup section_groups[SECTION_COUNT]) {
   for (int secno = 0; secno < SECTION_COUNT; ++secno) {
     Vector *v = section_lists[secno];
     for (int i = 0; i < v->len; ++i) {

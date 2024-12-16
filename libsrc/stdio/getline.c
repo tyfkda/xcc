@@ -32,14 +32,14 @@ ssize_t getline(char **lineptr, size_t *pcapa, FILE *stream) {
       capa = newcapa;
     }
 
-    //assert(size < capa);
+    // assert(size < capa);
     top[size++] = c;
 
     if (c == '\n')
       break;
   }
 
-  //assert(size < capa);
+  // assert(size < capa);
   top[size] = '\0';
   *lineptr = top;
   *pcapa = capa;

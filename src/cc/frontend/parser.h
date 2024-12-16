@@ -20,7 +20,6 @@ void parse(Vector *decls);  // <Declaration*>
 typedef Expr *(*BuiltinExprProc)(const Token*);
 void add_builtin_expr_ident(const char *str, BuiltinExprProc *proc);
 
-Type *parse_raw_type(int *pstorage);
 Type *parse_pointer(Type *type);
 Type *parse_type_suffix(Type *type);
 Type *parse_declarator(Type *rawtype, Token **pident);
