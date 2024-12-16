@@ -835,14 +835,14 @@ static void add_builtins(int flag) {
 }
 
 static bool detect_compile_unit_sp(Function *func) {
-  if (func->flag & FUNCF_STACK_MODIFIED)
+  FuncInfo *finfo = table_get(&func_info_table, func->ident->ident);
+  assert(finfo != NULL);
+  if (finfo->flag & FF_STACK_MODIFIED)
     return true;
   FuncExtra *extra = func->extra;
   assert(extra != NULL);
   if (extra->setjmp_count > 0)
     return true;
-  FuncInfo *finfo = table_get(&func_info_table, func->ident->ident);
-  assert(finfo != NULL);
   if (finfo->lspname != NULL)
     return true;
 

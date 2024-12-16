@@ -656,7 +656,8 @@ void gen_stmt(Stmt *stmt) {
 ////////////////////////////////////////////////
 
 void prepare_register_allocation(Function *func) {
-  bool require_stack_frame = func->type->func.vaargs || (func->flag & FUNCF_STACK_MODIFIED) != 0;
+  FuncBackend *fnbe = func->extra;
+  bool require_stack_frame = func->type->func.vaargs || fnbe->stack_work_size_vreg != NULL;
 
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = (Scope*)func->scopes->data[i];
@@ -684,10 +685,8 @@ void prepare_register_allocation(Function *func) {
     }
   }
 
-  if (require_stack_frame) {
-    FuncBackend *fnbe = func->extra;
+  if (require_stack_frame)
     fnbe->ra->flag |= RAF_STACK_FRAME;
-  }
 }
 
 void map_virtual_to_physical_registers(RegAlloc *ra) {

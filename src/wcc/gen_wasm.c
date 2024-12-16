@@ -1523,7 +1523,7 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
   }
   FuncInfo *finfo = table_get(&func_info_table, func->ident->ident);
   assert(finfo != NULL);
-  if (frame_size > 0 || param_count != pparam_count || (func->flag & FUNCF_STACK_MODIFIED)) {
+  if (frame_size > 0 || param_count != pparam_count || (finfo->flag & FF_STACK_MODIFIED)) {
     frame_size = ALIGN(frame_size, 8);  // TODO:
 
     // Allocate a variable for base pointer in function top scope.
@@ -1711,7 +1711,7 @@ static void gen_defun(Function *func) {
     // Restore stack pointer: global.sp = bp;
     gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, gspvar, bpvar));
   } else if (lspname != NULL) {
-    assert(!(func->flag & FUNCF_STACK_MODIFIED));
+    assert(!(finfo->flag & FF_STACK_MODIFIED));
     assert(frame_size > 0);
     // Restore stack pointer: global.sp = local.sp + frame_size;
     gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, gspvar,
@@ -2011,9 +2011,11 @@ static Expr *proc_builtin_va_copy(const Token *ident) {
 }
 
 static void gen_alloca(Expr *expr, enum BuiltinFunctionPhase phase) {
+  assert(curfunc != NULL);
+  FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
+
   if (phase != BFP_GEN) {
-    assert(curfunc != NULL);
-    curfunc->flag |= FUNCF_STACK_MODIFIED;
+    finfo->flag |= FF_STACK_MODIFIED;
     return;
   }
 
@@ -2030,8 +2032,6 @@ static void gen_alloca(Expr *expr, enum BuiltinFunctionPhase phase) {
                       new_expr_fixlit(&tySSize, token, stack_align - 1)),
       new_expr_fixlit(&tySSize, token, -stack_align));
 
-  assert(curfunc != NULL);
-  FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
   assert(finfo != NULL);
   Expr *lspvar = NULL;
   if (finfo->lspname != NULL)

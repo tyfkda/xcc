@@ -296,7 +296,6 @@ static VReg *gen_alloca(Expr *expr) {
   VReg *addend = gen_expr(aligned_size);
   VReg *result = add_new_vreg(&tyVoidPtr);
   new_ir_subsp(addend, result);
-  curfunc->flag |= FUNCF_STACK_MODIFIED;
 
   // `stack_work_size` is not calculated in gen phase,
   // so prepare vreg for it and fill the value in emit phase.
