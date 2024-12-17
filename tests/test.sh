@@ -1,154 +1,10 @@
 #!/bin/bash
 
+set -o pipefail
+
 source ./test_sub.sh
 
-AOUT=${AOUT:-$(basename "$(mktemp -u)")}
-XCC=${XCC:-../xcc}
-RUN_AOUT=${RUN_AOUT:-./"$AOUT"}
-
-echo "Compile=[$XCC], Run=[$RUN_AOUT]"
-
-ARCH=$(arch)
-if [[ -z "$RE_SKIP" ]]; then
-  if [[ "$ARCH" = "arm64" ]] || [[ "$ARCH" = "aarch64" ]]; then
-    RE_SKIP='\/\/-AARCH64'
-  fi
-fi
-
-SILENT=' > /dev/null 2>&1'
-if [[ "$VERBOSE" != "" ]]; then
-  SILENT=''
-fi
-
-RE_WNOALL='\/\/-WNOALL'
-RE_WNOERR='\/\/-WNOERR'
-MAKE_ERR='err'
-
-try_direct() {
-  local title="$1"
-  local expected="$2"
-  local input="$3"
-
-  begin_test "$title"
-
-  if [[ -n "$RE_SKIP" ]]; then
-    echo -n "$input" | grep "$RE_SKIP" > /dev/null && {
-      end_test
-      return
-    };
-  fi
-  local OPT=''
-  echo -n "$input" | grep "$RE_WNOALL" > /dev/null || OPT+=' -Wall'
-  echo -n "$input" | grep "$RE_WNOERR" > /dev/null || OPT+=' -Werror'
-
-  echo -e "$input" | eval "$XCC" $OPT -o "$AOUT" -xc - "$SILENT" ||  {
-    end_test 'Compile failed'
-    return
-  }
-
-  $RUN_AOUT
-  local actual="$?"
-
-  local err=''; [[ "$actual" == "$expected" ]] || err="${expected} expected, but ${actual}"
-  end_test "$err"
-}
-
-try() {
-  try_direct "$1" "$2" "int main(void){$3\n}"
-}
-
-compile_error() {
-  local title="$1"
-  local input="$2"
-
-  begin_test "$title"
-
-  if [[ -n "$RE_SKIP" ]]; then
-    echo -n "$input" | grep "$RE_SKIP" > /dev/null && {
-      end_test
-      return
-    };
-  fi
-  local OPT=''
-  echo -n "$input" | grep "$RE_WNOALL" > /dev/null || OPT+=' -Wall'
-  echo -n "$input" | grep "$RE_WNOERR" > /dev/null || OPT+=' -Werror'
-
-  echo -e "$input" | eval "$XCC" $OPT -o "$AOUT" -xc - "$SILENT"
-  local exitcode="$?"
-
-  local err=''; [[ "$exitcode" -ne 0 ]] || err="Compile error expected, but succeeded"
-  end_test "$err"
-}
-
-check_error_line() {
-  local title="$1"
-  local expected
-  expected=$(echo -e "$2")
-  local input="$3"
-
-  begin_test "$title"
-
-  local actual
-  actual=$(echo -e "$input" | $XCC -o "$AOUT" -Wall -Werror -xc - 2>&1 | \
-      grep -E -o '\([0-9]+\)' | sed 's/[()]//g' | head -n 1)
-
-  local err=''; [[ "$actual" == "$expected" ]] || err="${expected} expected, but ${actual}"
-  end_test "$err"
-}
-
-link_success() {
-  local title="$1"
-  shift
-  local input="$@"
-
-  begin_test "${title}"
-
-  if [[ -n "$RE_SKIP" ]]; then
-    echo -n "$title" | grep "$RE_SKIP" > /dev/null && {
-      end_test
-      return
-    };
-  fi
-
-  local err=''
-  eval "$XCC" -o "$AOUT" -Wall -Werror ${input} "$SILENT" || {
-    end_test 'Compile failed'
-    return
-  }
-
-  local RE_NOEXEC='NOEXEC'
-  echo -n "$title" | grep "$RE_NOEXEC" > /dev/null && {
-    end_test
-    return
-  };
-
-  $RUN_AOUT
-  local actual="$?"
-  local err=''; [[ "$actual" == "0" ]] || err="exit with ${actual}"
-  end_test "$err"
-}
-
-link_error() {
-  local title="$1"
-  shift
-  local input="$@"
-
-  begin_test "${title}"
-
-  if [[ -n "$RE_SKIP" ]]; then
-    echo -n "$title" | grep "$RE_SKIP" > /dev/null && {
-      end_test
-      return
-    };
-  fi
-
-  eval "$XCC" -o "$AOUT" -Wall -Werror ${input} "$SILENT"
-  local exitcode="$?"
-  local err=''; [[ "$exitcode" -ne 0 ]] || err="Compile error expected, but succeeded"
-  end_test "$err"
-}
-
-test_basic() {
+function test_basic() {
   begin_test_suite "Basic"
 
   try 'data-bss alignment' 0 'static char data = 123; (void)data; static int bss; return (long)&bss & 3;'
@@ -164,7 +20,7 @@ test_basic() {
   end_test_suite
 }
 
-test_struct() {
+function test_struct() {
   begin_test_suite "Struct"
 
   compile_error 'init struct with variable on global' 'struct S {int x;}; const struct S s={123}; struct S a=s; int main(){return 0;}'
@@ -182,7 +38,7 @@ test_struct() {
   end_test_suite
 }
 
-test_bitfield() {
+function test_bitfield() {
   begin_test_suite "Bitfield"
 
   compile_error 'bit width 0' 'int main(){struct {int x:0;} s; (void)s;}'
@@ -195,7 +51,7 @@ test_bitfield() {
   end_test_suite
 }
 
-test_initializer() {
+function test_initializer() {
   begin_test_suite "Initializer"
 
   compile_error 'non exist field initializer' 'struct Foo{int x;}; int main(){ struct Foo foo = {.y=1}; (void)foo; }'
@@ -222,7 +78,7 @@ test_initializer() {
   end_test_suite
 }
 
-test_function() {
+function test_function() {
   begin_test_suite "Function"
 
   compile_error 'few arg num' 'void foo(int x){(void)x;} int main(){ foo(); }'
@@ -247,7 +103,7 @@ test_function() {
   end_test_suite
 }
 
-test_error() {
+function test_error() {
   begin_test_suite "Error"
 
   compile_error 'no main' 'void foo(){}'
@@ -357,7 +213,7 @@ test_error() {
   end_test_suite
 }
 
-test_error_line() {
+function test_error_line() {
   begin_test_suite "Error line no"
 
   check_error_line "Block comment" 5 "int main() {
@@ -393,7 +249,7 @@ test_error_line() {
   end_test_suite
 }
 
-test_link() {
+function test_link() {
   begin_test_suite "Link"
 
   # Duplicate symbol error expected.
