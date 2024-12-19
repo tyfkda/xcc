@@ -193,6 +193,17 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
       VReg *vreg;
       if (!vreg_read[i] && (vreg = ra->vregs->data[i]) != NULL) {
         ra->vregs->data[i] = NULL;
+        if (vreg->original != vreg) {
+          assert(vreg->original->virt < ra->original_vreg_count);
+          Vector *vt = ra->vreg_table[vreg->original->virt];
+          int j;
+          for (j = 0; j < vt->len; ++j) {
+            if (vt->data[j] == vreg)
+              break;
+          }
+          assert(j < vt->len);
+          vec_remove_at(vt, j);
+        }
         vreg->flag |= VRF_UNUSED;
         again = true;
       }

@@ -12,7 +12,9 @@
 
 #include "table.h"
 
-#define ORIG_VIRT(vreg)  ((vreg)->orig_virt >= 0 ? (vreg)->orig_virt : (vreg)->virt)
+static inline int ORIG_VIRT(VReg *vreg) {
+  return vreg->original->virt;
+}
 
 static inline void assign_new_vregs(RegAlloc *ra, Vector **vreg_table, BB *bb, VReg **vregs) {
   for (int iir = 0; iir < bb->irs->len; ++iir) {
@@ -28,7 +30,7 @@ static inline void assign_new_vregs(RegAlloc *ra, Vector **vreg_table, BB *bb, V
       Vector *vt = vreg_table[virt];
       VReg *dst = ra->vregs->data[virt];
       if (vt->len > 0)
-        ir->dst = dst = reg_alloc_with_version(ra, dst, vt->len);
+        ir->dst = dst = reg_alloc_with_original(ra, dst);
       vec_push(vt, dst);
       vregs[virt] = dst;
     }
@@ -123,7 +125,7 @@ static Vector **ssa_transform(RegAlloc *ra, BBContainer *bbcon) {
           continue;
         int virt = ORIG_VIRT(vreg);  // `vreg` must be original, though.
         Vector *vt = vreg_table[virt];
-        VReg *newver = reg_alloc_with_version(ra, ra->vregs->data[virt], vt->len);
+        VReg *newver = reg_alloc_with_original(ra, ra->vregs->data[virt]);
         bb->in_regs->data[i] = vregs[virt] = newver;
         vec_push(vt, newver);
       }
@@ -168,14 +170,14 @@ static void insert_phis(BBContainer *bbcon, int original_vreg_count) {
       BB *from = bb->from_bbs->data[ifrom];
       for (int j = 0; j < from->out_regs->len; ++j) {
         VReg *oreg = from->out_regs->data[j];
-        assert(0 <= oreg->orig_virt && oreg->orig_virt < original_vreg_count);
-        from_vregs[oreg->orig_virt] = oreg;
+        assert(0 <= ORIG_VIRT(oreg) && ORIG_VIRT(oreg) < original_vreg_count);
+        from_vregs[ORIG_VIRT(oreg)] = oreg;
       }
 
       for (int j = 0; j < reg_count; ++j) {
         VReg *vreg = bb->in_regs->data[j];
-        assert(0 <= vreg->orig_virt && vreg->orig_virt < original_vreg_count);
-        VReg *fv = from_vregs[vreg->orig_virt];
+        assert(vreg->original != vreg && 0 <= ORIG_VIRT(vreg) && ORIG_VIRT(vreg) < original_vreg_count);
+        VReg *fv = from_vregs[ORIG_VIRT(vreg)];
         vec_push(phi_params->data[j], fv);
       }
     }
@@ -389,11 +391,10 @@ static void replace_phis(RegAlloc *ra, BB *bb, int ifb, Vector *phis) {
       Phi *first = cyclic->data[0];
 
       // Allocate temporary vreg.
-      VReg *parent = first->dst;
-      assert(parent->orig_virt >= 0);  // phi's destination must not be an original virtual register.
-      Vector *vt = vreg_table[parent->orig_virt];
-      VReg *tmp = reg_alloc_with_version(ra, parent, vt->len);
-      tmp->orig_virt = parent->orig_virt;
+      assert(first->dst->original != first->dst);  // phi's destination must not be an original virtual register.
+      VReg *original = first->dst->original;
+      Vector *vt = vreg_table[original->virt];
+      VReg *tmp = reg_alloc_with_original(ra, original);
       vec_push(vt, tmp);
 
       for (int j = 0; j < cyclic->len; ++j) {

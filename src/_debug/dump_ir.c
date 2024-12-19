@@ -22,23 +22,30 @@ static bool keep_virtual_register;
 
 extern void install_builtins(void);
 
-static void dump_vvreg(FILE *fp, VReg *vreg) {
-  if (vreg->version == 0) {
+static void dump_vvreg(FILE *fp, VReg *vreg, RegAlloc *ra) {
+  if (vreg->original == vreg) {
     fprintf(fp, "V%d", vreg->virt);
   } else {
+    Vector *versions = ra->vreg_table[vreg->original->virt];
+    int version;
+    for (version = 0; version < versions->len; ++version) {
+      if (versions->data[version] == vreg)
+        break;
+    }
+    assert(version < versions->len);
+
     char buf[16], *p = buf + sizeof(buf);
     *(--p) = '\0';
-    int version = vreg->version;
     do {
       --version;
       *(--p) = 'a' + (version % 26);
       version /= 26;
     } while (version > 0);
-    fprintf(fp, "v%d%s", vreg->orig_virt, p);
+    fprintf(fp, "v%d%s", vreg->original->virt, p);
   }
 }
 
-static void dump_vreg(FILE *fp, VReg *vreg) {
+static void dump_vreg(FILE *fp, VReg *vreg, RegAlloc *ra) {
   assert(vreg != NULL);
   assert(!(vreg->flag & VRF_SPILLED));
   static const char *kSize[] = {"b", "w", "d", ""};
@@ -56,15 +63,15 @@ static void dump_vreg(FILE *fp, VReg *vreg) {
       regtype = 'F';
     fprintf(fp, "%c%d%s<v%d>", regtype, vreg->phys, kSize[vreg->vsize], vreg->virt);
   } else {
-    dump_vvreg(fp, vreg);
+    dump_vvreg(fp, vreg, ra);
   }
 }
 
-static void dump_vreg2(FILE *fp, VReg *vreg) {
+static void dump_vreg2(FILE *fp, VReg *vreg, RegAlloc *ra) {
   if (vreg->flag & VRF_SPILLED) {
     fprintf(fp, "spilled(v%d)", vreg->virt);
   } else {
-    dump_vreg(fp, vreg);
+    dump_vreg(fp, vreg, ra);
   }
 }
 
@@ -80,7 +87,7 @@ static void dump_vregs(FILE *fp, const char *title, Vector *regs, bool newline) 
     fprintf(fp, "]");
 }
 
-static void dump_ir(FILE *fp, IR *ir) {
+static void dump_ir(FILE *fp, IR *ir, RegAlloc *ra) {
   static char *kOps[] = {
     "BOFS", "IOFS", "SOFS", "LOAD", "LOAD_S", "STORE", "STORE_S",
     "ADD", "SUB", "MUL", "DIV", "MOD", "BITAND", "BITOR", "BITXOR", "LSHIFT", "RSHIFT", "COND",
@@ -105,55 +112,55 @@ static void dump_ir(FILE *fp, IR *ir) {
   }
 
   switch (ir->kind) {
-  case IR_BOFS:   { int64_t offset = ir->bofs.frameinfo->offset + ir->bofs.offset; dump_vreg(fp, ir->dst); fprintf(fp, " = &[rbp %c %" PRId64 "]\n", offset >= 0 ? '+' : '-', offset > 0 ? offset : -offset); } break;
-  case IR_IOFS:   dump_vreg(fp, ir->dst); fprintf(fp, " = &%.*s", NAMES(ir->iofs.label)); if (ir->iofs.offset != 0) { int64_t offset = ir->iofs.offset; fprintf(fp, " %c %" PRId64, offset >= 0 ? '+' : '-', offset > 0 ? offset : -offset); } fprintf(fp, "\n"); break;
-  case IR_SOFS:   dump_vreg(fp, ir->dst); fprintf(fp, " = &[rsp %c %" PRId64 "]\n", ir->opr1->fixnum >= 0 ? '+' : '-', ir->opr1->fixnum > 0 ? ir->opr1->fixnum : -ir->opr1->fixnum); break;
-  case IR_LOAD:   dump_vreg(fp, ir->dst); fprintf(fp, " = ["); dump_vreg(fp, ir->opr1); fprintf(fp, "]\n"); break;
-  case IR_LOAD_S: dump_vreg(fp, ir->dst); fprintf(fp, " = [v%d]\n", ir->opr1->virt); break;
-  case IR_STORE:  fprintf(fp, "["); dump_vreg(fp, ir->opr2); fprintf(fp, "] = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_STORE_S:fprintf(fp, "[v%d] = ", ir->opr2->virt); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_ADD:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " + "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_SUB:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " - "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_MUL:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " * "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_DIV:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " / "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_MOD:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " %% "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_BITAND: dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " & "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_BITOR:  dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " | "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_BITXOR: dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " ^ "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_LSHIFT: dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " << "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_RSHIFT: dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, " >> "); dump_vreg(fp, ir->opr2); fprintf(fp, "\n"); break;
-  case IR_COND:   dump_vreg(fp, ir->dst); fprintf(fp, " = "); if (ir->cond.kind != COND_ANY && ir->cond.kind != COND_NONE) {dump_vreg(fp, ir->opr1); fprintf(fp, " %s ", kCond2[ir->cond.kind & (COND_MASK | COND_UNSIGNED)]); dump_vreg(fp, ir->opr2);} fprintf(fp, "\n"); break;
-  case IR_NEG:    dump_vreg(fp, ir->dst); fprintf(fp, " = -"); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_BITNOT: dump_vreg(fp, ir->dst); fprintf(fp, " = ~"); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_CAST:   dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_MOV:    dump_vreg(fp, ir->dst); fprintf(fp, " = "); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_RESULT: if (ir->dst != NULL) { dump_vreg(fp, ir->dst); fprintf(fp, " = "); } dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
-  case IR_JMP:    if (ir->jmp.cond != COND_ANY && ir->jmp.cond != COND_NONE) {dump_vreg(fp, ir->opr1); fprintf(fp, ", "); dump_vreg(fp, ir->opr2); fprintf(fp, ", ");} fprintf(fp, "%.*s\n", NAMES(ir->jmp.bb->label)); break;
+  case IR_BOFS:   { int64_t offset = ir->bofs.frameinfo->offset + ir->bofs.offset; dump_vreg(fp, ir->dst, ra); fprintf(fp, " = &[rbp %c %" PRId64 "]\n", offset >= 0 ? '+' : '-', offset > 0 ? offset : -offset); } break;
+  case IR_IOFS:   dump_vreg(fp, ir->dst, ra); fprintf(fp, " = &%.*s", NAMES(ir->iofs.label)); if (ir->iofs.offset != 0) { int64_t offset = ir->iofs.offset; fprintf(fp, " %c %" PRId64, offset >= 0 ? '+' : '-', offset > 0 ? offset : -offset); } fprintf(fp, "\n"); break;
+  case IR_SOFS:   dump_vreg(fp, ir->dst, ra); fprintf(fp, " = &[rsp %c %" PRId64 "]\n", ir->opr1->fixnum >= 0 ? '+' : '-', ir->opr1->fixnum > 0 ? ir->opr1->fixnum : -ir->opr1->fixnum); break;
+  case IR_LOAD:   dump_vreg(fp, ir->dst, ra); fprintf(fp, " = ["); dump_vreg(fp, ir->opr1, ra); fprintf(fp, "]\n"); break;
+  case IR_LOAD_S: dump_vreg(fp, ir->dst, ra); fprintf(fp, " = [v%d]\n", ir->opr1->virt); break;
+  case IR_STORE:  fprintf(fp, "["); dump_vreg(fp, ir->opr2, ra); fprintf(fp, "] = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, "\n"); break;
+  case IR_STORE_S:fprintf(fp, "[v%d] = ", ir->opr2->virt); dump_vreg(fp, ir->opr1, ra); fprintf(fp, "\n"); break;
+  case IR_ADD:    dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, " + "); dump_vreg(fp, ir->opr2, ra); fprintf(fp, "\n"); break;
+  case IR_SUB:    dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, " - "); dump_vreg(fp, ir->opr2, ra); fprintf(fp, "\n"); break;
+  case IR_MUL:    dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, " * "); dump_vreg(fp, ir->opr2, ra); fprintf(fp, "\n"); break;
+  case IR_DIV:    dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, " / "); dump_vreg(fp, ir->opr2, ra); fprintf(fp, "\n"); break;
+  case IR_MOD:    dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, " %% "); dump_vreg(fp, ir->opr2, ra); fprintf(fp, "\n"); break;
+  case IR_BITAND: dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, " & "); dump_vreg(fp, ir->opr2, ra); fprintf(fp, "\n"); break;
+  case IR_BITOR:  dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, " | "); dump_vreg(fp, ir->opr2, ra); fprintf(fp, "\n"); break;
+  case IR_BITXOR: dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, " ^ "); dump_vreg(fp, ir->opr2, ra); fprintf(fp, "\n"); break;
+  case IR_LSHIFT: dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, " << "); dump_vreg(fp, ir->opr2, ra); fprintf(fp, "\n"); break;
+  case IR_RSHIFT: dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, " >> "); dump_vreg(fp, ir->opr2, ra); fprintf(fp, "\n"); break;
+  case IR_COND:   dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); if (ir->cond.kind != COND_ANY && ir->cond.kind != COND_NONE) {dump_vreg(fp, ir->opr1, ra); fprintf(fp, " %s ", kCond2[ir->cond.kind & (COND_MASK | COND_UNSIGNED)]); dump_vreg(fp, ir->opr2, ra);} fprintf(fp, "\n"); break;
+  case IR_NEG:    dump_vreg(fp, ir->dst, ra); fprintf(fp, " = -"); dump_vreg(fp, ir->opr1, ra); fprintf(fp, "\n"); break;
+  case IR_BITNOT: dump_vreg(fp, ir->dst, ra); fprintf(fp, " = ~"); dump_vreg(fp, ir->opr1, ra); fprintf(fp, "\n"); break;
+  case IR_CAST:   dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, "\n"); break;
+  case IR_MOV:    dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, "\n"); break;
+  case IR_RESULT: if (ir->dst != NULL) { dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); } dump_vreg(fp, ir->opr1, ra); fprintf(fp, "\n"); break;
+  case IR_JMP:    if (ir->jmp.cond != COND_ANY && ir->jmp.cond != COND_NONE) {dump_vreg(fp, ir->opr1, ra); fprintf(fp, ", "); dump_vreg(fp, ir->opr2, ra); fprintf(fp, ", ");} fprintf(fp, "%.*s\n", NAMES(ir->jmp.bb->label)); break;
   case IR_TJMP:
-    dump_vreg(fp, ir->opr1);
+    dump_vreg(fp, ir->opr1, ra);
     for (size_t i = 0; i < ir->tjmp.len; ++i)
       fprintf(fp, "%s%.*s", i == 0 ? ", [" : ", ", NAMES(((BB*)ir->tjmp.bbs[i])->label));
     fprintf(fp, "]");
-    if (ir->opr2 != NULL) {fprintf(fp, " (tmp="); dump_vreg(fp, ir->opr2); fprintf(fp, ")");}
+    if (ir->opr2 != NULL) {fprintf(fp, " (tmp="); dump_vreg(fp, ir->opr2, ra); fprintf(fp, ")");}
     fprintf(fp, "\n");
     break;
-  case IR_PUSHARG: fprintf(fp, "%d, ", ir->pusharg.index); dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
+  case IR_PUSHARG: fprintf(fp, "%d, ", ir->pusharg.index); dump_vreg(fp, ir->opr1, ra); fprintf(fp, "\n"); break;
   case IR_CALL:
-    if (ir->dst != NULL) { dump_vreg(fp, ir->dst); fprintf(fp, " = "); }
+    if (ir->dst != NULL) { dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); }
     if (ir->call->label != NULL) {
       fprintf(fp, "%.*s(args=#%d)\n", NAMES(ir->call->label), ir->call->reg_arg_count);
     } else {
-      fprintf(fp, "*"); dump_vreg(fp, ir->opr1); fprintf(fp, "(args=#%d)\n", ir->call->reg_arg_count);
+      fprintf(fp, "*"); dump_vreg(fp, ir->opr1, ra); fprintf(fp, "(args=#%d)\n", ir->call->reg_arg_count);
     }
     break;
-  case IR_SUBSP:  dump_vreg(fp, ir->opr1); fprintf(fp, "\n"); break;
+  case IR_SUBSP:  dump_vreg(fp, ir->opr1, ra); fprintf(fp, "\n"); break;
   case IR_KEEP:
-    if (ir->dst != NULL) { fprintf(fp, "dst:"); dump_vreg(fp, ir->dst); fprintf(fp, ", "); }
+    if (ir->dst != NULL) { fprintf(fp, "dst:"); dump_vreg(fp, ir->dst, ra); fprintf(fp, ", "); }
     if (ir->opr1 != NULL) {
-      dump_vreg(fp, ir->opr1);
+      dump_vreg(fp, ir->opr1, ra);
       if (ir->opr2 != NULL) {
         fprintf(fp, ", ");
-        dump_vreg(fp, ir->opr2);
+        dump_vreg(fp, ir->opr2, ra);
       }
     }
     fprintf(fp, "\n");
@@ -219,9 +226,9 @@ static void dump_func_ir(Function *func) {
         {
           fprintf(fp, "  V%3d (flag=%x): live %3d - %3d", li->virt, vreg->flag, li->start, li->end);
           if (keep_virtual_register) {
-            if (vreg->version > 0) {
+            if (vreg->original != vreg) {
               fprintf(fp, ", ");
-              dump_vvreg(fp, vreg);
+              dump_vvreg(fp, vreg, ra);
             }
           } else {
             char regtype = vreg->flag & VRF_FLONUM ? 'F' : 'R';
@@ -249,7 +256,7 @@ static void dump_func_ir(Function *func) {
         VReg *vreg = vregs->data[j];
         if (j > 0)
           fprintf(fp, ", ");
-        dump_vreg(fp, vreg);
+        dump_vreg(fp, vreg, ra);
         fprintf(fp, "(%d)", vreg->virt);
       }
       fprintf(fp, "]\n");
@@ -280,13 +287,13 @@ static void dump_func_ir(Function *func) {
       for (int j = 0; j < bb->phis->len; ++j) {
         Phi *phi = bb->phis->data[j];
         fprintf(fp, "       \tPHI ");
-        dump_vreg2(fp, phi->dst);
+        dump_vreg2(fp, phi->dst, ra);
         fprintf(fp, " = {");
         for (int i = 0; i < phi->params->len; ++i) {
           VReg *vreg = phi->params->data[i];
           if (i > 0)
             fprintf(fp, ", ");
-          dump_vreg2(fp, vreg);
+          dump_vreg2(fp, vreg, ra);
         }
         fprintf(fp, "}\n");
       }
@@ -295,7 +302,7 @@ static void dump_func_ir(Function *func) {
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
       fprintf(fp, "%6d|\t", nip);
       IR *ir = bb->irs->data[j];
-      dump_ir(fp, ir);
+      dump_ir(fp, ir, ra);
     }
   }
   fprintf(fp, "\n");

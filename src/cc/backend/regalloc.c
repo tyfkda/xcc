@@ -38,9 +38,9 @@ VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag) {
   assert(ra != NULL);
   VReg *vreg = reg_alloc_spawn_raw(vsize, vflag);
   if (!(vflag & VRF_CONST)) {
-    vreg->virt = vreg->orig_virt = ra->vregs->len;
+    vreg->original = vreg;  // I am the original.
+    vreg->virt = ra->vregs->len;
     vreg->phys = -1;
-    vreg->version = 0;
     vreg->reg_param_index = -1;
     vreg->frame.offset = 0;
     vec_push(ra->vregs, vreg);
@@ -50,10 +50,10 @@ VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag) {
   return vreg;
 }
 
-VReg *reg_alloc_with_version(RegAlloc *ra, VReg *parent, int version) {
-  VReg *vreg = reg_alloc_spawn(ra, parent->vsize, parent->flag & VRF_MASK);
-  vreg->orig_virt = parent->virt;
-  vreg->version = version;
+VReg *reg_alloc_with_original(RegAlloc *ra, VReg *original) {
+  assert(original->original == original);
+  VReg *vreg = reg_alloc_spawn(ra, original->vsize, original->flag & VRF_MASK);
+  vreg->original = original;
   return vreg;
 }
 
