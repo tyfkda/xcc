@@ -22,11 +22,6 @@ static IR *is_last_jmp(BB *bb) {
   return NULL;
 }
 
-static IR *is_last_any_jmp(BB *bb) {
-  IR *ir = is_last_jmp(bb);
-  return ir != NULL && ir->jmp.cond == COND_ANY ? ir : NULL;
-}
-
 static IR *is_last_jtable(BB *bb) {
   int len;
   IR *ir;
@@ -74,7 +69,7 @@ static void remove_unnecessary_bb(BBContainer *bbcon) {
         replace_jmp_destination(bbcon, bb, bb->next);
         remove = true;
       } else if (bb->irs->len == 1 && ir_jmp != NULL && ir_jmp->jmp.cond == COND_ANY &&
-                 !equal_name(bb->label, ir_jmp->jmp.bb->label)) {  // jmp only.
+                 bb != ir_jmp->jmp.bb) {  // jmp only.
         replace_jmp_destination(bbcon, bb, ir_jmp->jmp.bb);
         if (i > 0) {
           BB *pbb = bbcon->data[i - 1];
@@ -122,14 +117,6 @@ static void remove_unnecessary_bb(BBContainer *bbcon) {
     }
     if (!again)
       break;
-  }
-
-  // Remove jmp to next instruction.
-  for (int i = 0; i < bbcon->len - 1; ++i) {  // Make last one keeps alive.
-    BB *bb = bbcon->data[i];
-    IR *ir = is_last_any_jmp(bb);
-    if (ir != NULL && ir->jmp.bb == bb->next)
-      vec_pop(bb->irs);
   }
 }
 
