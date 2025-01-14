@@ -309,8 +309,10 @@ bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, c
 
 Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
   check_cast(type, sub->type, is_zero(sub), is_explicit, token);
-  if (same_type(type, sub->type))
+  if (same_type(type, sub->type)) {
+    sub->type = type;
     return sub;
+  }
 
   if (sub->kind == EX_FIXNUM || sub->kind == EX_FLONUM) {
 #ifndef __NO_FLONUM
@@ -441,10 +443,10 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool make_int) {
   if (make_int && lkind < FX_INT && rkind < FX_INT) {
     *pLhs = promote_to_int(lhs);
     *pRhs = promote_to_int(rhs);
-  } else {
+  } else if (!same_type_without_qualifier(ltype, rtype, true)) {
     int l = (lkind << 1) | (ltype->fixnum.is_unsigned ? 1 : 0);
     int r = (rkind << 1) | (rtype->fixnum.is_unsigned ? 1 : 0);
-    Type *type = l > r ? ltype : rtype;
+    Type *type = l >= r ? ltype : rtype;
     *pLhs = make_cast(type, lhs->token, lhs, false);
     *pRhs = make_cast(type, rhs->token, rhs, false);
   }

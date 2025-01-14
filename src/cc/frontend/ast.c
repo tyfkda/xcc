@@ -28,7 +28,8 @@ Token *alloc_ident(const Name *name, Line *line, const char *begin, const char *
 }
 
 bool is_const(Expr *expr) {
-  // TODO: Handle constant variable.
+  if (expr->type->qualifier & TQ_VOLATILE)
+    return false;
 
   switch (expr->kind) {
   case EX_FIXNUM:

@@ -33,8 +33,9 @@ enum VRegSize {
 #define VRF_SPILLED      (1 << 5)  // Spilled
 #define VRF_NO_SPILL     (1 << 6)  // No Spill
 #define VRF_UNUSED       (1 << 7)  // Unused
+#define VRF_VOLATILE     (1 << 8)  // Volatile
 
-#define VRF_MASK         (VRF_FLONUM)
+#define VRF_MASK         (VRF_FLONUM | VRF_VOLATILE)
 
 typedef struct VReg {
   enum VRegSize vsize;

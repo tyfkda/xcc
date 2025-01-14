@@ -103,6 +103,8 @@ static void alloc_variable_registers(Function *func) {
       VReg *vreg = add_new_vreg(varinfo->type);
       if (varinfo->storage & VS_REF_TAKEN)
         vreg->flag |= VRF_REF;
+      if (varinfo->type->qualifier & TQ_VOLATILE)
+        vreg->flag |= VRF_VOLATILE;
       varinfo->local.vreg = vreg;
       varinfo->local.frameinfo = &vreg->frame;
     }

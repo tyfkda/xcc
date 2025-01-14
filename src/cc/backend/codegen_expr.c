@@ -28,9 +28,12 @@ enum VRegSize to_vsize(const Type *type) {
 }
 
 int to_vflag(const Type *type) {
+  int flag = 0;
   if (is_flonum(type))
-    return VRF_FLONUM;
-  return 0;
+    flag |= VRF_FLONUM;
+  if (type->qualifier & TQ_VOLATILE)
+    flag |= VRF_VOLATILE;
+  return flag;
 }
 
 VReg *add_new_vreg(const Type *type) {
@@ -521,12 +524,24 @@ static VReg *gen_block_expr(Expr *expr) {
 }
 
 static VReg *gen_fixnum(Expr *expr) {
-  return new_const_vreg(expr->fixnum, to_vsize(expr->type));
+  VReg *vreg = new_const_vreg(expr->fixnum, to_vsize(expr->type));
+  if (expr->type->qualifier & TQ_VOLATILE) {
+    VReg *var = add_new_vreg(expr->type);
+    new_ir_mov(var, vreg, is_unsigned(expr->type) ? IRF_UNSIGNED : 0);
+    vreg = var;
+  }
+  return vreg;
 }
 
 static VReg *gen_flonum(Expr *expr) {
 #ifndef __NO_FLONUM
-  return new_const_vfreg(expr->flonum, to_vsize(expr->type));
+  VReg *vreg = new_const_vfreg(expr->flonum, to_vsize(expr->type));
+  if (expr->type->qualifier & TQ_VOLATILE) {
+    VReg *var = add_new_vreg(expr->type);
+    new_ir_mov(var, vreg, 0);
+    vreg = var;
+  }
+  return vreg;
 #else
   UNUSED(expr);
   assert(false);

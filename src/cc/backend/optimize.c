@@ -620,6 +620,8 @@ static void copy_propagation(RegAlloc *ra, BBContainer *bbcon) {
             break;
           // Fallthrough
         case IR_MOV:
+          if (ir->dst->flag & VRF_VOLATILE)
+            break;
           if (replace_register(bbcon, ir->dst, ir->opr1) < ip)  // Former instruction is replaced:
             again = true;  // Try again.
           break;
