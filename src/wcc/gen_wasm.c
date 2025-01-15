@@ -1323,12 +1323,14 @@ static void gen_for(Stmt *stmt) {
 
 static void gen_break(void) {
   assert(cur_depth > break_depth);
-  ADD_CODE(OP_BR, cur_depth - break_depth - 1);
+  ADD_CODE(OP_BR);
+  ADD_ULEB128(cur_depth - break_depth - 1);
 }
 
 static void gen_continue(void) {
   assert(cur_depth > continue_depth);
-  ADD_CODE(OP_BR, cur_depth - continue_depth - 1);
+  ADD_CODE(OP_BR);
+  ADD_ULEB128(cur_depth - continue_depth - 1);
 }
 
 static void gen_block(Stmt *stmt, bool is_last) {
