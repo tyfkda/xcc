@@ -1091,6 +1091,9 @@ static Expr *parse_cast_expr(void) {
     if (type != NULL) {  // Cast
       consume(TK_RPAR, "`)' expected");
 
+      if (storage & (VS_EXTERN | VS_STATIC | VS_TYPEDEF | VS_INLINE))
+        parse_error(PE_NOFATAL, token, "storage specifier not allowed");
+
       Token *token2 = fetch_token();
       if (token2->kind == TK_LBRACE) {
         Expr *complit = parse_compound_literal(type);

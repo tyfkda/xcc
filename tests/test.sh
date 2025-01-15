@@ -132,6 +132,8 @@ function test_error() {
   compile_error 'int*->' 'int main(){ int *p; p->x; }'
   compile_error 'void var' 'int main(){ void x; (void)x; }'
   compile_error 'void expr' 'int main(){ 1 + (void)2; }'
+  compile_error 'extern cast' 'int main(){ return (extern int)1; }'
+  compile_error 'static cast' 'int main(){ return (static int)1; }'
   compile_error 'empty char' "int main() { return ''; }"
   compile_error 'no single char' "int main() { return '12'; }"
   compile_error '+ str' 'int main(){ +"foo"; }'
