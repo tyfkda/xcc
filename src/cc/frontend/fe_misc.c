@@ -431,19 +431,22 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool make_int) {
   }
   enum FixnumKind lkind = ltype->fixnum.kind;
   enum FixnumKind rkind = rtype->fixnum.kind;
+  bool changed = false;
   if (ltype->fixnum.kind >= FX_ENUM) {
     ltype = &tyInt;
     lkind = FX_INT;
+    changed = true;
   }
   if (rtype->fixnum.kind >= FX_ENUM) {
     rtype = &tyInt;
     rkind = FX_INT;
+    changed = true;
   }
 
   if (make_int && lkind < FX_INT && rkind < FX_INT) {
     *pLhs = promote_to_int(lhs);
     *pRhs = promote_to_int(rhs);
-  } else if (!same_type_without_qualifier(ltype, rtype, true)) {
+  } else if (changed || !same_type_without_qualifier(ltype, rtype, true)) {
     int l = (lkind << 1) | (ltype->fixnum.is_unsigned ? 1 : 0);
     int r = (rkind << 1) | (rtype->fixnum.is_unsigned ? 1 : 0);
     Type *type = l >= r ? ltype : rtype;
