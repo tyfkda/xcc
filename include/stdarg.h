@@ -74,23 +74,20 @@ typedef __gnuc_va_list va_list;
     : __va_arg_mem(ap, sz, align))
 
 #ifndef __NO_FLONUM
-#define __builtin_va_arg_fp_case(ap, ty) \
-  case /*flonum*/ 2: \
-    p = __va_arg_fp(ap, sizeof(ty), _Alignof(ty)); break;
+#define __va_arg_fp_case(ap, ty) \
+  (__builtin_classify_type(ty) == __builtin_classify_type(double))
 #else
-#define __builtin_va_arg_fp_case(ap, ty)  /*none*/
+#define __va_arg_fp_case(ap, ty)  0
 #endif
 
-#define __builtin_va_arg(ap, ty) ({ \
-  char *p; \
-  switch (__builtin_type_kind(ty)) { \
-  __builtin_va_arg_fp_case(ap, ty) \
-  case /*fixnum*/ 1: case /*ptr*/ 3: \
-    p = __va_arg_gp(ap, sizeof(ty), _Alignof(ty)); break; \
-  default: \
-    p = __va_arg_mem(ap, sizeof(ty), _Alignof(ty)); break; \
-  } \
-  *(ty *)p; })
+#define __builtin_va_arg(ap, ty) ( \
+  *(ty *) \
+    (__va_arg_fp_case(ap, ty) \
+      ? __va_arg_fp(ap, sizeof(ty), _Alignof(ty)) \
+    : (__builtin_classify_type(ty) == __builtin_classify_type(int) || \
+       __builtin_classify_type(ty) == __builtin_classify_type(void*)) \
+      ? __va_arg_gp(ap, sizeof(ty), _Alignof(ty)) \
+    : __va_arg_mem(ap, sizeof(ty), _Alignof(ty))))
 
 #define __builtin_va_copy(dest, src) ((dest)[0] = (src)[0])
 
