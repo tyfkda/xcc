@@ -96,6 +96,8 @@ int oldfuncptr(int (*f)(), int x) {
 }
 #endif
 
+_Bool bool_inc(_Bool x) { return x + 1; }
+
 TEST(all) {
   int x, y;
 #if defined(__LP64__)
@@ -875,6 +877,7 @@ TEST(all) {
 #ifndef __NO_FLONUM
     EXPECT("_Bool from double", true, ({double x = 12.34; (_Bool)x;}));
 #endif
+    EXPECT("_Bool function", true, bool_inc(3));
 
     size_t m = 3;
     size_t n = 8;
