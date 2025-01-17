@@ -1122,8 +1122,12 @@ static void gen_switch_table_jump(Stmt *stmt, Expr *value, Fixnum min, Fixnum ma
     table[i] = default_index;
   for (int i = 0; i < case_count; ++i) {
     Stmt *c = cases->data[i];
-    if (c->case_.value != NULL)
-      table[c->case_.value->fixnum - min] = i;
+    if (c->case_.value != NULL) {
+      int index = c->case_.block_index;
+      if (index < 0)
+        index = ~index;
+      table[c->case_.value->fixnum - min] = index;
+    }
   }
 
   gen_expr(value, true);
@@ -1145,16 +1149,39 @@ static void gen_switch_table_jump(Stmt *stmt, Expr *value, Fixnum min, Fixnum ma
     free(table);
 }
 
+static void squash_cases(Vector *cases) {
+  int case_count = cases->len;
+  int index = 0;
+  for (int i = 0; i < case_count; ++i) {
+    Stmt *c = cases->data[i];
+    Stmt *prev;
+    if (i == 0 || (prev = cases->data[i - 1])->case_.stmt != c) {
+      if (i != 0)
+        ++index;
+      c->case_.block_index = index;
+    } else {
+      c->case_.block_index = ~index;
+    }
+  }
+}
+
 static void gen_switch(Stmt *stmt) {
   int save_depth = break_depth;
   break_depth = cur_depth;
 
   ADD_CODE(OP_BLOCK, WT_VOID);
   Vector *cases = stmt->switch_.cases;
+  squash_cases(cases);
   int case_count = cases->len;
-  for (int i = 0; i < case_count; ++i)
-    ADD_CODE(OP_BLOCK, WT_VOID);
-  cur_depth += case_count + 1;
+  int block_count = 0;
+  for (int i = 0; i < case_count; ++i) {
+    Stmt *c = cases->data[i];
+    if (c->case_.block_index >= 0) {
+      ADD_CODE(OP_BLOCK, WT_VOID);
+      ++block_count;
+    }
+  }
+  cur_depth += block_count + 1;
 
   Expr *value = stmt->switch_.value;
   if (value->kind == EX_COMMA) {
@@ -1165,13 +1192,15 @@ static void gen_switch(Stmt *stmt) {
   assert(is_const(value) || value->kind == EX_VAR);
   assert(is_fixnum(value->type->kind));
 
-  int default_index = case_count;
+  int default_index = block_count;
   Fixnum min = INTPTR_MAX;
   Fixnum max = INTPTR_MIN;
   for (int i = 0; i < case_count; ++i) {
     Stmt *c = cases->data[i];
     if (c->case_.value == NULL) {
-      default_index = i;
+      default_index = c->case_.block_index;
+      if (default_index < 0)
+        default_index = ~default_index;
       continue;
     }
     Fixnum v = c->case_.value->fixnum;
@@ -1189,15 +1218,16 @@ static void gen_switch(Stmt *stmt) {
     unsigned char op_eq = is_i64 ? OP_I64_EQ : OP_I32_EQ;
     for (int i = 0; i < case_count; ++i) {
       Stmt *c = cases->data[i];
-      if (c->case_.value == NULL) {  // default.
-        default_index = i;
+      if (c->case_.value == NULL)  // default.
         continue;
-      }
       gen_expr(value, true);
       ADD_CODE(op_const);
       ADD_LEB128(c->case_.value->fixnum);
       ADD_CODE(op_eq, OP_BR_IF);
-      ADD_ULEB128(i);
+      int index = c->case_.block_index;
+      if (index < 0)
+        index = ~index;
+      ADD_ULEB128(index);
     }
     // Jump to default.
     ADD_CODE(OP_BR);
@@ -1214,8 +1244,10 @@ static void gen_switch(Stmt *stmt) {
 }
 
 static void gen_case(Stmt *stmt, bool is_last) {
-  ADD_CODE(OP_END);
-  --cur_depth;
+  if (stmt->case_.block_index >= 0) {
+    ADD_CODE(OP_END);
+    --cur_depth;
+  }
   assert(cur_depth >= 0);
   gen_stmt(stmt->case_.stmt, is_last);
 }
