@@ -404,7 +404,10 @@ typedef struct Stmt {
       Expr *value;  // NULL => default
       struct Stmt *stmt;
       //
-      BB *bb;
+      union {
+        BB *bb;
+        int block_index;  // for WASM: >=0 if this case has block, < 0 otherwise.
+      };
     } case_;
     struct {
       Expr *cond;
