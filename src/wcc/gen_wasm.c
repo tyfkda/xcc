@@ -1381,8 +1381,7 @@ static void gen_return(Stmt *stmt, bool is_last) {
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
     const Type *rettype = val->type;
-    assert(rettype->kind != TY_VOID);
-    if (is_prim_type(rettype)) {
+    if (is_prim_type(rettype) || rettype->kind == TY_VOID) {
       gen_expr(val, true);
     } else {
       FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);

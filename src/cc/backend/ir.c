@@ -307,9 +307,8 @@ IR *new_ir_call(IrCallInfo *info, VReg *dst, VReg *freg) {
   return ir;
 }
 
-void new_ir_result(VReg *dst, VReg *vreg, int flag) {
+void new_ir_result(VReg *vreg, int flag) {
   IR *ir = new_ir(IR_RESULT);
-  ir->dst = dst;
   ir->opr1 = vreg;
   ir->flag = flag;
 }

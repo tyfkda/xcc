@@ -619,53 +619,37 @@ static void ei_cast(IR *ir) {
   }
 }
 
-static void ei_mov(IR *ir) {
-  if (ir->dst->flag & VRF_FLONUM) {
-    assert(!(ir->opr1->flag & VRF_CONST));
-    if (ir->opr1->phys != ir->dst->phys) {
+static void emit_mov(int dstphys, VReg *opr1) {
+  if (opr1->flag & VRF_FLONUM) {
+    assert(!(opr1->flag & VRF_CONST));
+    if (opr1->phys != dstphys) {
       const char *src, *dst;
-      switch (ir->dst->vsize) {
+      switch (opr1->vsize) {
       default: assert(false); // Fallthrough
-      case SZ_FLOAT:   dst = kFReg32s[ir->dst->phys]; src = kFReg32s[ir->opr1->phys]; break;
-      case SZ_DOUBLE:  dst = kFReg64s[ir->dst->phys]; src = kFReg64s[ir->opr1->phys]; break;
+      case SZ_FLOAT:   dst = kFReg32s[dstphys]; src = kFReg32s[opr1->phys]; break;
+      case SZ_DOUBLE:  dst = kFReg64s[dstphys]; src = kFReg64s[opr1->phys]; break;
       }
       FMV_D(dst, src);
     }
   } else {
-    assert(!(ir->dst->flag & VRF_CONST));
-    const char *dst = kReg64s[ir->dst->phys];
-    if (ir->opr1->flag & VRF_CONST) {
-      LI(dst, IM(ir->opr1->fixnum));
+    const char *dst = kReg64s[dstphys];
+    if (opr1->flag & VRF_CONST) {
+      LI(dst, IM(opr1->fixnum));
     } else {
-      if (ir->opr1->phys != ir->dst->phys) {
-        MV(dst, kReg64s[ir->opr1->phys]);
+      if (opr1->phys != dstphys) {
+        MV(dst, kReg64s[opr1->phys]);
       }
     }
   }
 }
 
+static void ei_mov(IR *ir) {
+  emit_mov(ir->dst->phys, ir->opr1);
+}
+
 static void ei_result(IR *ir) {
-  if (ir->opr1->flag & VRF_FLONUM) {
-    assert(!(ir->opr1->flag & VRF_CONST));
-    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_FA0_INDEX();
-    if (ir->opr1->phys != dstphys) {  // Source is not return register.
-      const char **regs;
-      switch (ir->opr1->vsize) {
-      default: assert(false);  // Fallthroguh
-      case SZ_FLOAT:  regs = kFReg32s; break;
-      case SZ_DOUBLE: regs = kFReg64s; break;
-      }
-      FMV_D(regs[dstphys], regs[ir->opr1->phys]);
-    }
-  } else {
-    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_A0_INDEX();
-    const char *dst = kReg64s[dstphys];
-    if (ir->opr1->flag & VRF_CONST) {
-      LI(dst, IM(ir->opr1->fixnum));
-    } else if (ir->opr1->phys != dstphys) {  // Source is not return register.
-      MV(dst, kReg64s[ir->opr1->phys]);
-    }
-  }
+  int dstphys = (ir->opr1->flag & VRF_FLONUM) ? GET_FA0_INDEX() : GET_A0_INDEX();
+  emit_mov(dstphys, ir->opr1);
 }
 
 static void ei_cond(IR *ir) {

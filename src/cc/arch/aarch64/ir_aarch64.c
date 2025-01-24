@@ -720,56 +720,38 @@ static void ei_cast(IR *ir) {
   }
 }
 
-static void ei_mov(IR *ir) {
-  if (ir->dst->flag & VRF_FLONUM) {
-    assert(!(ir->opr1->flag & VRF_CONST));
-    if (ir->opr1->phys != ir->dst->phys) {
+static void emit_mov(int dstphys, VReg *opr1, bool is_unsigned) {
+  if (opr1->flag & VRF_FLONUM) {
+    assert(!(opr1->flag & VRF_CONST));
+    if (opr1->phys != dstphys) {
       const char *src, *dst;
-      switch (ir->dst->vsize) {
+      switch (opr1->vsize) {
       default: assert(false); // Fallthrough
-      case SZ_FLOAT:   dst = kFReg32s[ir->dst->phys]; src = kFReg32s[ir->opr1->phys]; break;
-      case SZ_DOUBLE:  dst = kFReg64s[ir->dst->phys]; src = kFReg64s[ir->opr1->phys]; break;
+      case SZ_FLOAT:   dst = kFReg32s[dstphys]; src = kFReg32s[opr1->phys]; break;
+      case SZ_DOUBLE:  dst = kFReg64s[dstphys]; src = kFReg64s[opr1->phys]; break;
       }
       FMOV(dst, src);
     }
   } else {
-    assert(!(ir->dst->flag & VRF_CONST));
-    int pow = ir->dst->vsize;
+    int pow = opr1->vsize;
     assert(0 <= pow && pow < 4);
     const char **regs = kRegSizeTable[pow];
-    if (ir->opr1->flag & VRF_CONST) {
-      mov_immediate(regs[ir->dst->phys], ir->opr1->fixnum, pow >= 3, ir->flag & IRF_UNSIGNED);
+    if (opr1->flag & VRF_CONST) {
+      mov_immediate(regs[dstphys], opr1->fixnum, pow >= 3, is_unsigned);
     } else {
-      if (ir->opr1->phys != ir->dst->phys)
-        MOV(regs[ir->dst->phys], regs[ir->opr1->phys]);
+      if (opr1->phys != dstphys)
+        MOV(regs[dstphys], regs[opr1->phys]);
     }
   }
 }
 
+static void ei_mov(IR *ir) {
+  emit_mov(ir->dst->phys, ir->opr1, ir->flag & IRF_UNSIGNED);
+}
+
 static void ei_result(IR *ir) {
-  if (ir->opr1->flag & VRF_FLONUM) {
-    assert(!(ir->opr1->flag & VRF_CONST));
-    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_D0_INDEX();
-    if (ir->opr1->phys != dstphys) {  // Source is not return register.
-      const char **regs;
-      switch (ir->opr1->vsize) {
-      default: assert(false);  // Fallthroguh
-      case SZ_FLOAT:  regs = kFReg32s; break;
-      case SZ_DOUBLE: regs = kFReg64s; break;
-      }
-      FMOV(regs[dstphys], regs[ir->opr1->phys]);
-    }
-  } else {
-    int pow = ir->opr1->vsize;
-    assert(0 <= pow && pow < 4);
-    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_X0_INDEX();
-    const char *dst = kRegSizeTable[pow][dstphys];
-    if (ir->opr1->flag & VRF_CONST) {
-      mov_immediate(dst, ir->opr1->fixnum, pow >= 3, ir->flag & IRF_UNSIGNED);
-    } else if (ir->opr1->phys != dstphys) {  // Source is not return register.
-      MOV(dst, kRegSizeTable[pow][ir->opr1->phys]);
-    }
-  }
+  int dstphys = (ir->opr1->flag & VRF_FLONUM) ? GET_D0_INDEX() : GET_X0_INDEX();
+  emit_mov(dstphys, ir->opr1, ir->flag & IRF_UNSIGNED);
 }
 
 static void ei_cond(IR *ir) {

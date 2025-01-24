@@ -91,7 +91,7 @@ enum IrKind {
   IR_BITNOT,
   IR_CAST,    // dst <- opr1
   IR_MOV,     // dst = opr1
-  IR_RESULT,  // retval = opr1  (Or mov to dst if set)
+  IR_RESULT,  // retval = opr1
 
   IR_JMP,     // Non conditional jump, or conditional jmp (opr1 @@ opr2)
   IR_TJMP,    // Table jump (opr1).  opr2 is NULL, but it might be used to keep temporary vreg.
@@ -208,7 +208,7 @@ void new_ir_cjmp(VReg *opr1, VReg *opr2, enum ConditionKind cond, BB *bb);  // C
 void new_ir_tjmp(VReg *val, BB **bbs, size_t len);
 IR *new_ir_pusharg(VReg *vreg, int index);
 IR *new_ir_call(IrCallInfo *info, VReg *dst, VReg *freg);
-void new_ir_result(VReg *dst, VReg *vreg, int flag);
+void new_ir_result(VReg *vreg, int flag);
 void new_ir_subsp(VReg *value, VReg *dst);
 IR *new_ir_cast(VReg *vreg, enum VRegSize dstsize, int vflag);
 IR *new_ir_keep(VReg *dst, VReg *opr1, VReg *opr2);

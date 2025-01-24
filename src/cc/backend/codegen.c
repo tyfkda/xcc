@@ -344,12 +344,18 @@ extern inline void gen_return(Stmt *stmt) {
     VReg *vreg = gen_expr(val);
     if (is_prim_type(val->type)) {
       int flag = is_unsigned(val->type) ? IRF_UNSIGNED : 0;
-      new_ir_result(fnbe->result_dst, vreg, flag);
+      if (fnbe->result_dst == NULL)
+        new_ir_result(vreg, flag);
+      else
+        new_ir_mov(fnbe->result_dst, vreg, flag);
     } else if (val->type->kind != TY_VOID) {
       VReg *retval = fnbe->retval;
       if (retval != NULL) {
         gen_memcpy(val->type, retval, vreg);
-        new_ir_result(fnbe->result_dst, retval, IRF_UNSIGNED);  // Pointer is unsigned.
+        if (fnbe->result_dst == NULL)
+          new_ir_result(retval, IRF_UNSIGNED);  // Pointer is unsigned.
+        else
+          new_ir_mov(fnbe->result_dst, retval, IRF_UNSIGNED);  // Pointer is unsigned.
       } else {
         // Embedding inline function: lval (struct pointer) is returned.
         assert(fnbe->result_dst != NULL);

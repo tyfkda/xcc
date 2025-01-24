@@ -754,53 +754,36 @@ static void ei_cast(IR *ir) {
   }
 }
 
-static void ei_mov(IR *ir) {
-  if (ir->dst->flag & VRF_FLONUM) {
-    assert(!(ir->opr1->flag & VRF_CONST));
-    if (ir->opr1->phys != ir->dst->phys) {
-      switch (ir->dst->vsize) {
-      case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
-      case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], kFReg64s[ir->dst->phys]); break;
+static void emit_mov(int dstphys, VReg *opr1) {
+  if (opr1->flag & VRF_FLONUM) {
+    assert(!(opr1->flag & VRF_CONST));
+    if (opr1->phys != dstphys) {
+      switch (opr1->vsize) {
+      case SZ_FLOAT: MOVSS(kFReg64s[opr1->phys], kFReg64s[dstphys]); break;
+      case SZ_DOUBLE: MOVSD(kFReg64s[opr1->phys], kFReg64s[dstphys]); break;
       default: assert(false); break;
       }
     }
   } else {
-    assert(!(ir->dst->flag & VRF_CONST));
-    int pow = ir->dst->vsize;
+    int pow = opr1->vsize;
     assert(0 <= pow && pow < 4);
     const char **regs = kRegSizeTable[pow];
-    if (ir->opr1->flag & VRF_CONST) {
-      MOV(IM(ir->opr1->fixnum), regs[ir->dst->phys]);
+    if (opr1->flag & VRF_CONST) {
+      MOV(IM(opr1->fixnum), regs[dstphys]);
     } else {
-      if (ir->opr1->phys != ir->dst->phys)
-        MOV(regs[ir->opr1->phys], regs[ir->dst->phys]);
+      if (opr1->phys != dstphys)
+        MOV(regs[opr1->phys], regs[dstphys]);
     }
   }
 }
 
+static void ei_mov(IR *ir) {
+  emit_mov(ir->dst->phys, ir->opr1);
+}
+
 static void ei_result(IR *ir) {
-  if (ir->opr1->flag & VRF_FLONUM) {
-    assert(!(ir->opr1->flag & VRF_CONST));
-    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_XMM0_INDEX();
-    if (ir->opr1->phys != dstphys) {
-      const char *dst = kFReg64s[dstphys];
-      switch (ir->opr1->vsize) {
-      case SZ_FLOAT: MOVSS(kFReg64s[ir->opr1->phys], dst); break;
-      case SZ_DOUBLE: MOVSD(kFReg64s[ir->opr1->phys], dst); break;
-      default: assert(false); break;
-      }
-    }
-  } else {
-    int pow = ir->opr1->vsize;
-    assert(0 <= pow && pow < 4);
-    const char **regs = kRegSizeTable[pow];
-    int dstphys = ir->dst != NULL ? ir->dst->phys : GET_AREG_INDEX();
-    const char *dst = regs[dstphys];
-    if (ir->opr1->flag & VRF_CONST)
-      MOV(IM(ir->opr1->fixnum), dst);
-    else if (ir->opr1->phys != dstphys)
-      MOV(regs[ir->opr1->phys], dst);
-  }
+  int dstphys = (ir->opr1->flag & VRF_FLONUM) ? GET_XMM0_INDEX() : GET_AREG_INDEX();
+  emit_mov(dstphys, ir->opr1);
 }
 
 static void ei_cond(IR *ir) {
