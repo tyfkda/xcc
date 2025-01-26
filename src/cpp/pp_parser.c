@@ -13,8 +13,6 @@
 #include "table.h"
 #include "util.h"
 
-static PpResult pp_cast_expr(void);
-
 //
 
 static Stream *pp_stream;
@@ -158,287 +156,6 @@ static PpResult parse_defined(void) {
   return macro_get(alloc_name(start, end, false)) != NULL;
 }
 
-static PpResult pp_prim(void) {
-  Token *tok;
-  if ((tok = pp_match(TK_LPAR)) != NULL) {
-    PpResult result = pp_expr();
-    pp_consume(TK_RPAR, "No close paren");
-    return result;
-  }
-
-  if ((tok = pp_match(TK_CHARLIT)) != NULL ||
-      (tok = pp_match(TK_INTLIT)) != NULL ||
-      (tok = pp_match(TK_LONGLIT)) != NULL ||
-      (tok = pp_match(TK_LLONGLIT)) != NULL ||
-      (tok = pp_match(TK_UCHARLIT)) != NULL ||
-      (tok = pp_match(TK_UINTLIT)) != NULL ||
-      (tok = pp_match(TK_ULONGLIT)) != NULL ||
-      (tok = pp_match(TK_ULLONGLIT)) != NULL ||
-      (tok = pp_match(TK_WCHARLIT)) != NULL) {
-    return tok->fixnum;
-  }
-  //if ((tok = pp_match(TK_STR)) != NULL)
-  //  return new_expr_str(tok, tok->str.buf, tok->str.size);
-
-  Token *ident = pp_consume(TK_IDENT, "Number or Ident or open paren expected");
-  if (equal_name(ident->ident, alloc_name("defined", NULL, false)))
-    return parse_defined();
-  return 0;  // Undefined identifier is 0.
-}
-
-static PpResult pp_postfix(void) {
-  PpResult result = pp_prim();
-
-  // for (;;) {
-  //   Token *tok;
-  //   if (pp_match(TK_LPAR))
-  //     expr = parse_funcall(expr);
-  //   else if ((tok = pp_match(TK_LBRACKET)) != NULL)
-  //     expr = parse_array_index(tok, expr);
-  //   else if ((tok = pp_match(TK_INC)) != NULL)
-  //     expr = new_expr_unary(EX_POSTINC, NULL, tok, expr);
-  //   else if ((tok = pp_match(TK_DEC)) != NULL)
-  //     expr = new_expr_unary(EX_POSTDEC, NULL, tok, expr);
-  //   else
-      return result;
-  // }
-}
-
-static PpResult pp_unary(void) {
-  Token *tok;
-  if ((tok = pp_match(TK_ADD)) != NULL) {
-    return pp_cast_expr();
-  }
-
-  if ((tok = pp_match(TK_SUB)) != NULL) {
-    PpResult result = pp_cast_expr();
-    return -result;
-  }
-
-  if ((tok = pp_match(TK_NOT)) != NULL) {
-    PpResult result = pp_cast_expr();
-    return result ? 0 : 1;
-  }
-
-  if ((tok = pp_match(TK_TILDA)) != NULL) {
-    PpResult result = pp_cast_expr();
-    return ~result;
-  }
-
-  // if ((tok = pp_match(TK_AND)) != NULL) {
-  //   PpExpr *expr = pp_cast_expr();
-  //   return new_expr_unary(EX_REF, NULL, tok, expr);
-  // }
-
-  // if ((tok = pp_match(TK_MUL)) != NULL) {
-  //   PpExpr *expr = pp_cast_expr();
-  //   return new_expr_unary(EX_DEREF, NULL, tok, expr);
-  // }
-
-  // if ((tok = pp_match(TK_INC)) != NULL) {
-  //   PpExpr *expr = pp_unary();
-  //   return new_expr_unary(EX_PREINC, NULL, tok, expr);
-  // }
-
-  // if ((tok = pp_match(TK_DEC)) != NULL) {
-  //   PpExpr *expr = pp_unary();
-  //   return new_expr_unary(EX_PREDEC, NULL, tok, expr);
-  // }
-
-  return pp_postfix();
-}
-
-static PpResult pp_cast_expr(void) {
-  return pp_unary();
-}
-
-static PpResult pp_mul(void) {
-  PpResult result = pp_cast_expr();
-  for (;;) {
-    Token *tok;
-    if (!(((tok = pp_match(TK_MUL)) != NULL) ||
-          ((tok = pp_match(TK_DIV)) != NULL) ||
-          ((tok = pp_match(TK_MOD)) != NULL)))
-      return result;
-
-    PpResult rhs = pp_cast_expr();
-    switch (tok->kind) {
-    case TK_MUL:  result *= rhs; break;
-    case TK_DIV:
-      if (rhs != 0) {
-        result /= rhs;
-      } else {
-        // pp_parse_error(tok, "Division by zero");
-      }
-      break;
-    case TK_MOD:
-      if (rhs != 0) {
-        result %= rhs;
-      } else {
-        // pp_parse_error(tok, "Modulo by zero");
-      }
-      break;
-    default:  assert(false); break;
-    }
-  }
-}
-
-static PpResult pp_add(void) {
-  PpResult result = pp_mul();
-  for (;;) {
-    Token *tok;
-    if (!(((tok = pp_match(TK_ADD)) != NULL) ||
-          ((tok = pp_match(TK_SUB)) != NULL)))
-      return result;
-
-    PpResult rhs = pp_mul();
-    if (tok->kind == TK_ADD)
-      result += rhs;
-    else
-      result -= rhs;
-  }
-}
-
-static PpResult pp_shift(void) {
-  PpResult result = pp_add();
-  for (;;) {
-    Token *tok;
-    if (!(((tok = pp_match(TK_LSHIFT)) != NULL) ||
-          ((tok = pp_match(TK_RSHIFT)) != NULL)))
-      return result;
-
-    PpResult lhs = result, rhs = pp_add();
-    if (tok->kind == TK_LSHIFT)
-      result = lhs << rhs;
-    else
-      result = lhs >> rhs;
-  }
-}
-
-static PpResult pp_cmp(void) {
-  PpResult result = pp_shift();
-  for (;;) {
-    Token *tok;
-    if (!(((tok = pp_match(TK_LT)) != NULL) ||
-          ((tok = pp_match(TK_GT)) != NULL) ||
-          ((tok = pp_match(TK_LE)) != NULL) ||
-          ((tok = pp_match(TK_GE)) != NULL)))
-      return result;
-
-    PpResult lhs = result, rhs = pp_shift();
-    switch (tok->kind) {
-    case TK_LT:  result = lhs <  rhs ? 1 : 0; break;
-    case TK_LE:  result = lhs <= rhs ? 1 : 0; break;
-    case TK_GE:  result = lhs >= rhs ? 1 : 0; break;
-    case TK_GT:  result = lhs >  rhs ? 1 : 0; break;
-    default:  assert(false); break;
-    }
-  }
-}
-
-static PpResult pp_eq(void) {
-  PpResult result = pp_cmp();
-  for (;;) {
-    Token *tok;
-    if (!(((tok = pp_match(TK_EQ)) != NULL) ||
-          ((tok = pp_match(TK_NE)) != NULL)))
-      return result;
-
-    PpResult lhs = result, rhs = pp_cmp();
-    result = lhs == rhs ? 1 : 0;
-    if (tok->kind != TK_EQ)
-      result = 1 - result;
-  }
-}
-
-static PpResult pp_and(void) {
-  PpResult result = pp_eq();
-  for (;;) {
-    Token *tok;
-    if ((tok = pp_match(TK_AND)) != NULL) {
-      PpResult lhs = result, rhs = pp_eq();
-      result = lhs & rhs;
-    } else
-      return result;
-  }
-}
-
-static PpResult pp_xor(void) {
-  PpResult result = pp_and();
-  for (;;) {
-    Token *tok;
-    if ((tok = pp_match(TK_HAT)) != NULL) {
-      PpResult lhs = result, rhs = pp_and();
-      result = lhs ^ rhs;
-    } else
-      return result;
-  }
-}
-
-static PpResult pp_or(void) {
-  PpResult result = pp_xor();
-  for (;;) {
-    Token *tok;
-    if ((tok = pp_match(TK_OR)) != NULL) {
-      PpResult lhs = result, rhs = pp_xor();
-      result = lhs | rhs;
-    } else
-      return result;
-  }
-}
-
-static PpResult pp_logand(void) {
-  PpResult result = pp_or();
-  for (;;) {
-    Token *tok;
-    if ((tok = pp_match(TK_LOGAND)) != NULL) {
-      PpResult rhs = pp_logand();
-      result = result && rhs;
-    } else
-      return result;
-  }
-}
-
-static PpResult pp_logior(void) {
-  PpResult result = pp_logand();
-  for (;;) {
-    Token *tok;
-    if ((tok = pp_match(TK_LOGIOR)) != NULL) {
-      PpResult rhs = pp_logand();
-      result = result || rhs;
-    } else
-      return result;
-  }
-}
-
-static PpResult pp_conditional(void) {
-  PpResult result = pp_logior();
-  for (;;) {
-    const Token *tok;
-    if ((tok = pp_match(TK_QUESTION)) == NULL)
-      return result;
-    PpResult tval = pp_expr();
-    pp_consume(TK_COLON, "`:' expected");
-    PpResult fval = pp_conditional();
-
-    result = result ? tval : fval;
-  }
-}
-
-static PpResult pp_assign(void) {
-  return pp_conditional();
-}
-
-PpResult pp_expr(void) {
-  PpResult result = pp_assign();
-  const Token *tok;
-  while ((tok = pp_match(TK_COMMA)) != NULL) {
-    PpResult next_result = pp_assign();
-    result = next_result;
-  }
-  return result;
-}
-
 static Token *match2(enum TokenKind kind) {
   while (pp_match(TK_EOF)) {
     const char *line = get_processed_next_line();
@@ -521,4 +238,223 @@ Vector *pp_funargs(Vector *tokens, int *pindex, int vaarg) {
       vec_push(args, new_vector());
   }
   return args;
+}
+
+// Pratt parser.
+
+typedef enum {
+  PREC_NONE,
+  PREC_COMMA,    // ,
+  PREC_ASSIGN,   // =
+  PREC_TERNARY,  // ?:
+  PREC_LOGIOR,   // ||
+  PREC_LOGAND,   // &&
+  PREC_BITOR,    // |
+  PREC_BITXOR,   // ^
+  PREC_BITAND,   // &
+  PREC_EQ,       // == !=
+  PREC_CMP,      // < > <= >=
+  PREC_SHIFT,    // << >>
+  PREC_TERM,     // + -
+  PREC_FACTOR,   // * /
+  PREC_POSTFIX,  // ++ -- . -> [] ()
+} Precedence;
+
+typedef PpResult (*ParsePrefixFn)(Token *token);
+typedef PpResult (*ParseInfixFn)(PpResult lhs, Token *token);
+
+typedef struct {
+  ParsePrefixFn prefix;
+  ParseInfixFn infix;
+  Precedence precedence;
+} ParseRule;
+
+static const ParseRule *get_rule(enum TokenKind kind);
+
+static PpResult parse_precedence(Precedence precedence) {
+  Token *previous = match(-1);
+  ParsePrefixFn prefixRule = get_rule(previous->kind)->prefix;
+  if (prefixRule == NULL) {
+    pp_parse_error(previous, "Expect expression.");
+  }
+
+  PpResult expr = prefixRule(previous);
+
+  for (;;) {
+    Token *current = fetch_token();
+    const ParseRule *rule = get_rule(current->kind);
+    assert(rule != NULL);
+    if (precedence > rule->precedence)
+      break;
+    ParseInfixFn infixRule = rule->infix;
+    assert(infixRule != NULL);
+    expr = infixRule(expr, match(-1));
+    previous = current;
+  }
+  return expr;
+}
+
+static PpResult literal(Token *tok) {
+  switch (tok->kind) {
+  case TK_INTLIT:
+  case TK_CHARLIT:
+  case TK_LONGLIT:
+  case TK_LLONGLIT:
+  case TK_UINTLIT:
+  case TK_UCHARLIT:
+  case TK_ULONGLIT:
+  case TK_ULLONGLIT:
+  case TK_WCHARLIT:
+    return tok->fixnum;
+  // case TK_STR:     return string_expr(tok, tok->str.buf, tok->str.len, tok->str.kind);
+#ifndef __NO_FLONUM
+  case TK_FLOATLIT: case TK_DOUBLELIT: case TK_LDOUBLELIT:
+    return tok->flonum;
+#endif
+  default: assert(false); return 0;  // Unreachable.
+  }
+}
+
+static PpResult variable(Token *ident) {
+  if (equal_name(ident->ident, alloc_name("defined", NULL, false)))
+    return parse_defined();
+  return 0;  // Undefined identifier is 0.
+}
+
+static PpResult unary(Token *tok) {
+  PpResult expr = parse_precedence(PREC_POSTFIX);
+
+  enum TokenKind kind = tok->kind;
+  switch (kind) {
+  case TK_ADD: return expr;
+  case TK_SUB: return -expr;
+  case TK_NOT: return expr ? 0 : 1;
+  case TK_TILDA: return ~expr;
+  default: assert(false); return 0;  // Unreachable.
+  }
+}
+
+static PpResult binary(PpResult lhs, Token *tok) {
+  const ParseRule* rule = get_rule(tok->kind);
+  assert(rule != NULL);
+  PpResult rhs = parse_precedence(rule->precedence + 1);
+
+  enum TokenKind kind = tok->kind;
+  switch (kind) {
+  case TK_ADD:  return lhs + rhs;
+  case TK_SUB:  return lhs - rhs;
+  case TK_MUL:  return lhs * rhs;
+  case TK_DIV:
+    if (rhs != 0) {
+      return lhs / rhs;
+    } else {
+      // pp_parse_error(tok, "Division by zero");
+      return lhs;
+    }
+  case TK_MOD:
+    if (rhs != 0) {
+      return lhs % rhs;
+    } else {
+      // pp_parse_error(tok, "Modulo by zero");
+      return lhs;
+    }
+  case TK_LSHIFT:  return lhs << rhs;
+  case TK_RSHIFT:  return lhs >> rhs;
+  case TK_AND:  return lhs & rhs;
+  case TK_OR:   return lhs | rhs;
+  case TK_HAT:  return lhs ^ rhs;
+  case TK_EQ:  return lhs == rhs;
+  case TK_NE:  return lhs != rhs;
+  case TK_LT:  return lhs < rhs;
+  case TK_LE:  return lhs <= rhs;
+  case TK_GE:  return lhs >= rhs;
+  case TK_GT:  return lhs > rhs;
+  case TK_LOGAND:  return lhs && rhs;
+  case TK_LOGIOR:  return lhs || rhs;
+  case TK_COMMA:  return rhs;
+
+  default: assert(false); return 0;  // Unreachable.
+  }
+}
+
+static PpResult ternary(PpResult expr, Token *tok) {
+  const ParseRule* rule = get_rule(tok->kind);
+  assert(rule != NULL);
+  PpResult tval = pp_expr();
+
+  pp_consume(TK_COLON, "`:' expected");
+  PpResult fval = parse_precedence(rule->precedence);
+
+  return expr ? tval : fval;
+}
+
+static PpResult grouping(Token *tok) {
+  UNUSED(tok);
+  PpResult expr = pp_expr();
+  pp_consume(TK_RPAR, "Expect ')' after expression.");
+  return expr;
+}
+
+static const ParseRule *get_rule(enum TokenKind kind) {
+  static const ParseRule kRules[] = {
+    [TK_LPAR]          = {grouping},
+
+    [TK_MUL]           = {unary,    binary,    PREC_FACTOR},
+    [TK_DIV]           = {NULL,     binary,    PREC_FACTOR},
+    [TK_MOD]           = {NULL,     binary,    PREC_FACTOR},
+
+    [TK_ADD]           = {unary,    binary,    PREC_TERM},
+    [TK_SUB]           = {unary,    binary,    PREC_TERM},
+
+    [TK_LSHIFT]        = {NULL,     binary,    PREC_SHIFT},
+    [TK_RSHIFT]        = {NULL,     binary,    PREC_SHIFT},
+
+    [TK_LT]            = {NULL,     binary,    PREC_CMP},
+    [TK_LE]            = {NULL,     binary,    PREC_CMP},
+    [TK_GE]            = {NULL,     binary,    PREC_CMP},
+    [TK_GT]            = {NULL,     binary,    PREC_CMP},
+
+    [TK_EQ]            = {NULL,     binary,    PREC_EQ},
+    [TK_NE]            = {NULL,     binary,    PREC_EQ},
+
+    [TK_AND]           = {unary,    binary,    PREC_BITAND},
+    [TK_HAT]           = {NULL,     binary,    PREC_BITXOR},
+    [TK_OR]            = {NULL,     binary,    PREC_BITOR},
+
+    [TK_LOGAND]        = {NULL,     binary,    PREC_LOGAND},
+    [TK_LOGIOR]        = {NULL,     binary,    PREC_LOGIOR},
+
+    [TK_QUESTION]      = {NULL,     ternary,   PREC_TERNARY},
+
+    [TK_COMMA]         = {NULL,     binary,    PREC_COMMA},
+
+    [TK_NOT]           = {unary},
+    [TK_TILDA]         = {unary},
+
+    [TK_INTLIT]        = {literal},
+    [TK_CHARLIT]       = {literal},
+    [TK_LONGLIT]       = {literal},
+    [TK_LLONGLIT]      = {literal},
+    [TK_UINTLIT]       = {literal},
+    [TK_UCHARLIT]      = {literal},
+    [TK_ULONGLIT]      = {literal},
+    [TK_ULLONGLIT]     = {literal},
+    [TK_WCHARLIT]      = {literal},
+    [TK_STR]           = {literal},
+    [TK_FLOATLIT]      = {literal},
+    [TK_DOUBLELIT]     = {literal},
+    [TK_LDOUBLELIT]    = {literal},
+
+    [TK_IDENT]         = {variable},
+
+    [TK_EOF]           = {NULL},
+  };
+
+  if (kind >= ARRAY_SIZE(kRules))
+    kind = TK_EOF;
+  return &kRules[kind];
+}
+
+PpResult pp_expr(void) {
+  return parse_precedence(PREC_COMMA);
 }

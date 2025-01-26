@@ -207,7 +207,7 @@ TEST(all) {
   {
     int a, b, c;
     a = b = (c = 1) + 2;
-    EXPECT("assign", 1, a == b);
+    EXPECT("assign", a, b);
   }
   EXPECT("!=", 1, (x=123, x != 456));
   EXPECT("not true", 0, (x=1, !(x == 1)));
@@ -223,7 +223,7 @@ TEST(all) {
   {
     int x = 1;
     int y = --x;
-    EXPECT("preinc", 0, x + y);
+    EXPECT("predec", 0, x + y);
   }
   {
     int x = 1;
@@ -233,7 +233,7 @@ TEST(all) {
   {
     int x = 1;
     int y = x--;
-    EXPECT("postinc", 1, x + y);
+    EXPECT("postdec", 1, x + y);
   }
   {
     int x = 10;

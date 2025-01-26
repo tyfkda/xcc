@@ -15,8 +15,6 @@
 
 static Table builtin_expr_ident_table;
 
-static Expr *parse_unary(void);
-
 void add_builtin_expr_ident(const char *str, BuiltinExprProc *proc) {
   const Name *name = alloc_name(str, NULL, false);
   table_put(&builtin_expr_ident_table, name, proc);
@@ -38,63 +36,6 @@ Vector *parse_args(Token **ptoken) {
 
   *ptoken = token;
   return args;
-}
-
-static Expr *parse_funcall(Expr *func) {
-  Token *token;
-  Vector *args = parse_args(&token);
-
-  mark_var_used_for_func(func);
-  for (int i = 0; i < args->len; ++i)
-    mark_var_used(args->data[i]);
-
-  check_funcall_args(func, args, curscope);
-  Type *functype = get_callee_type(func->type);
-  if (functype == NULL) {
-    parse_error(PE_NOFATAL, func->token, "Cannot call except function");
-    return func;
-  }
-
-  Type *rettype = functype->func.ret;
-  ensure_struct(rettype, token, curscope);
-
-  if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
-    VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
-    assert(varinfo != NULL);
-    if (satisfy_inline_criteria(varinfo))
-      return new_expr_inlined(token, varinfo->ident->ident, rettype, args,
-                              embed_inline_funcall(varinfo));
-    // Not inlined.
-    if (varinfo->storage & VS_INLINE)
-      varinfo->storage |= VS_EXTERN;  // To emit inline function.
-  }
-
-  Expr *funcall = new_expr_funcall(token, functype, func, args);
-  return simplify_funcall(funcall);
-}
-
-static Expr *parse_array_index(const Token *token, Expr *expr) {
-  Expr *index = parse_expr();
-  consume(TK_RBRACKET, "`]' expected");
-  mark_var_used(expr);
-  mark_var_used(index);
-  expr = str_to_char_array_var(curscope, expr);
-  index = str_to_char_array_var(curscope, index);
-  if (!ptr_or_array(expr->type)) {
-    if (!ptr_or_array(index->type)) {
-      parse_error(PE_NOFATAL, expr->token, "array or pointer required for `['");
-      return expr;
-    }
-    Expr *tmp = expr;
-    expr = index;
-    index = tmp;
-  }
-  if (!is_fixnum(index->type->kind)) {
-    parse_error(PE_NOFATAL, index->token, "int required for `['");
-  } else {
-    expr = new_expr_addsub(EX_ADD, token, expr, index);
-  }
-  return new_expr_deref(token, expr);
 }
 
 static Expr *parse_member_access(Expr *target, Token *acctok) {
@@ -257,84 +198,108 @@ static Expr *parse_generic(void) {
   return default_value;
 }
 
-static Expr *parse_prim(void) {
-  Token *tok;
-  if ((tok = match(TK_LPAR)) != NULL) {
-    int storage;
-    Type *type = parse_var_def(NULL, &storage, NULL);
-    if (type != NULL) {  // Compound literal
-      consume(TK_RPAR, "`)' expected");
-      if (fetch_token()->kind != TK_LBRACE) {
-        parse_error(PE_NOFATAL, NULL, "`{' expected");
-        return alloc_tmp_var(curscope, type);  // Dummy
-      }
-      return parse_compound_literal(type);
-    } else if (match(TK_LBRACE)) {  // ({})
-      // gcc extension: Statement expression.
-      Stmt *block = parse_block(tok, NULL);
-      consume(TK_RPAR, "`)' expected");
-      Vector *stmts = block->block.stmts;
-      if (stmts->len > 0) {
-        Stmt *last = stmts->data[stmts->len - 1];
-        if (last->kind == ST_EXPR)
-          mark_var_used(last->expr);
-      }
-      return new_expr_block(block);
-    } else {
-      Expr *expr = parse_expr();
-      consume(TK_RPAR, "No close paren");
-      return expr;
-    }
+// Pratt parser.
+
+typedef enum {
+  PREC_NONE,
+  PREC_COMMA,    // ,
+  PREC_ASSIGN,   // =
+  PREC_TERNARY,  // ?:
+  PREC_LOGIOR,   // ||
+  PREC_LOGAND,   // &&
+  PREC_BITOR,    // |
+  PREC_BITXOR,   // ^
+  PREC_BITAND,   // &
+  PREC_EQ,       // == !=
+  PREC_CMP,      // < > <= >=
+  PREC_SHIFT,    // << >>
+  PREC_TERM,     // + -
+  PREC_FACTOR,   // * /
+  PREC_POSTFIX,  // ++ -- . -> [] ()
+} Precedence;
+
+typedef Expr *(*ParsePrefixFn)(Token *token);
+typedef Expr *(*ParseInfixFn)(Expr *lhs, Token *token);
+
+typedef struct {
+  ParsePrefixFn prefix;
+  ParseInfixFn infix;
+  Precedence precedence;
+} ParseRule;
+
+static const ParseRule *get_rule(enum TokenKind kind);
+
+static Expr *parse_precedence(Precedence precedence) {
+  Token *previous = match(-1);
+  ParsePrefixFn prefixRule = get_rule(previous->kind)->prefix;
+  if (prefixRule == NULL) {
+    parse_error(PE_NOFATAL, previous, "expression expected");
+    unget_token(previous);
+    return NULL;
   }
 
-  {
-    static const struct {
-      enum TokenKind tk;
-      enum FixnumKind fx;
-      bool is_unsigned;
-    } TABLE[] = {
-      {TK_CHARLIT, FX_CHAR, false},
-      {TK_INTLIT, FX_INT, false},
-      {TK_LONGLIT, FX_LONG, false},
-      {TK_LLONGLIT, FX_LLONG, false},
-      {TK_UCHARLIT, FX_CHAR, true},
-      {TK_UINTLIT, FX_INT, true},
-      {TK_ULONGLIT, FX_LONG, true},
-      {TK_ULLONGLIT, FX_LLONG, true},
+  Expr *expr = prefixRule(previous);
+
+  for (;;) {
+    Token *current = fetch_token();
+    const ParseRule *rule = get_rule(current->kind);
+    assert(rule != NULL);
+    if (rule->precedence < precedence)
+      break;
+    ParseInfixFn infixRule = rule->infix;
+    assert(infixRule != NULL);
+    expr = infixRule(expr, match(-1));
+  }
+  return expr;
+}
+
+static Expr *literal(Token *tok) {
+  switch (tok->kind) {
+  case TK_INTLIT:
+  case TK_CHARLIT:
+  case TK_LONGLIT:
+  case TK_LLONGLIT:
+  case TK_UINTLIT:
+  case TK_UCHARLIT:
+  case TK_ULONGLIT:
+  case TK_ULLONGLIT:
+  case TK_WCHARLIT:
+    {
+#define DEFFIXNUM(tk, fx, u)  [tk - TK_INTLIT] = {fx, u}
+      struct Table {
+        enum FixnumKind fx;
+        bool u;
+      };
+      static const struct Table kTable[] = {
+        DEFFIXNUM(TK_INTLIT, FX_INT, false),
+        DEFFIXNUM(TK_CHARLIT, FX_CHAR, false),
+        DEFFIXNUM(TK_LONGLIT, FX_LONG, false),
+        DEFFIXNUM(TK_LLONGLIT, FX_LLONG, false),
+        DEFFIXNUM(TK_UINTLIT, FX_INT, true),
+        DEFFIXNUM(TK_UCHARLIT, FX_CHAR, true),
+        DEFFIXNUM(TK_ULONGLIT, FX_LONG, true),
+        DEFFIXNUM(TK_ULLONGLIT, FX_LLONG, true),
 #ifndef __NO_WCHAR
-      {TK_WCHARLIT, FX_INT, true},  // TODO: Must match with target's wchar_t
+        DEFFIXNUM(TK_WCHARLIT, FX_INT, true),  // TODO: Must match with target's wchar_t
 #endif
-    };
-    for (int i = 0; i < (int)ARRAY_SIZE(TABLE); ++i) {
-      if ((tok = match(TABLE[i].tk)) != NULL) {
-        Type *type = get_fixnum_type(TABLE[i].fx, TABLE[i].is_unsigned, 0);
-        Fixnum fixnum = tok->fixnum;
-        return new_expr_fixlit(type, tok, fixnum);
-      }
+      };
+#undef DEFFIXNUM
+      const struct Table *p = &kTable[tok->kind - TK_INTLIT];
+      return new_expr_fixlit(get_fixnum_type(p->fx, p->u, 0), tok, tok->fixnum);
     }
-  }
 #ifndef __NO_FLONUM
-  if ((tok = match(TK_FLOATLIT)) != NULL) {
-    return new_expr_flolit(&tyFloat, tok, tok->flonum);
-  }
-  if ((tok = match(TK_DOUBLELIT)) != NULL) {
-    return new_expr_flolit(&tyDouble, tok, tok->flonum);
-  }
-  if ((tok = match(TK_LDOUBLELIT)) != NULL) {
-    return new_expr_flolit(&tyLDouble, tok, tok->flonum);
-  }
+  case TK_FLOATLIT: case TK_DOUBLELIT: case TK_LDOUBLELIT:
+    {
+      static Type *kTypes[] = {&tyFloat, &tyDouble, &tyLDouble};
+      return new_expr_flolit(kTypes[tok->kind - TK_FLOATLIT], tok, tok->flonum);
+    }
 #endif
+  case TK_STR:  return string_expr(tok, tok->str.buf, tok->str.len, tok->str.kind);
+  default: assert(false); return NULL;  // Unreachable.
+  }
+}
 
-  if ((tok = match(TK_STR)) != NULL)
-    return string_expr(tok, tok->str.buf, tok->str.len, tok->str.kind);
-
-  if (match(TK_GENERIC))
-    return parse_generic();
-
-  Token *ident = consume(TK_IDENT, "Number or Ident or open paren expected");
-  if (ident == NULL)
-    return new_expr_fixlit(&tyInt, NULL, 0);  // Dummy.
-
+static Expr *variable(Token *ident) {
   const Name *name = ident->ident;
   BuiltinExprProc *proc = table_get(&builtin_expr_ident_table, name);
   if (proc != NULL)
@@ -355,33 +320,350 @@ static Expr *parse_prim(void) {
   return new_expr_variable(name, type, ident, scope);
 }
 
-static Expr *parse_postfix_cont(Expr *expr) {
-  for (;;) {
-    Token *tok;
-    if (match(TK_LPAR))
-      expr = parse_funcall(expr);
-    else if ((tok = match(TK_LBRACKET)) != NULL)
-      expr = parse_array_index(tok, expr);
-    else if ((tok = match(TK_DOT)) != NULL || (tok = match(TK_ARROW)) != NULL)
-      expr = parse_member_access(expr, tok);
-    else if ((tok = match(TK_INC)) != NULL) {
-      not_const(expr->type, tok);
-      mark_var_used(expr);
-      expr = incdec_of(EX_POSTINC, expr, tok);
-    } else if ((tok = match(TK_DEC)) != NULL) {
-      not_const(expr->type, tok);
-      mark_var_used(expr);
-      expr = incdec_of(EX_POSTDEC, expr, tok);
-    } else
+static Expr *unary(Token *tok) {
+  Expr *expr = parse_precedence(PREC_POSTFIX);
+  mark_var_used(expr);
+
+  enum TokenKind kind = tok->kind;
+  switch (kind) {
+  case TK_ADD: case TK_SUB:
+    {
+      Type *type = expr->type;
+      if (!is_number(type)) {
+        parse_error(PE_NOFATAL, tok, "Cannot apply `%c' except number types", *tok->begin);
+        return expr;
+      }
+
+      if (is_fixnum(type->kind)) {
+        expr = promote_to_int(expr);
+        type = expr->type;
+        if (kind == TK_SUB && type->fixnum.is_unsigned)
+          type = get_fixnum_type(type->fixnum.kind, false, type->qualifier);  // Get signed type.
+      }
+      if (is_const(expr)) {
+        if (kind == TK_SUB) {
+#ifndef __NO_FLONUM
+          if (is_flonum(type)) {
+            expr->flonum = -expr->flonum;
+            return expr;
+          }
+#endif
+          assert(is_fixnum(type->kind));
+          expr->fixnum = wrap_value(-expr->fixnum, type_size(type), false);
+          expr->type = type;
+        }
+        return expr;
+      }
+      return new_expr_unary(kind + (EX_POS - TK_ADD), type, tok, expr);
+    }
+  case TK_INC: case TK_DEC:
+    not_const(expr->type, tok);
+    return incdec_of(kind + (EX_PREINC - TK_INC), expr, tok);
+  case TK_NOT:
+    if (!is_number(expr->type) && !ptr_or_array(expr->type)) {
+      parse_error(PE_NOFATAL, tok, "Cannot apply `!' except number or pointer types");
+      return new_expr_fixlit(&tyBool, tok, false);
+    }
+    return make_not_expr(tok, expr);
+  case TK_TILDA:
+    if (!is_fixnum(expr->type->kind)) {
+      parse_error(PE_NOFATAL, tok, "Cannot apply `~' except integer");
+      return new_expr_fixlit(&tyInt, expr->token, 0);
+    }
+    expr = promote_to_int(expr);
+    if (is_const(expr)) {
+      Type *type = expr->type;
+      expr->fixnum = wrap_value(~expr->fixnum, type_size(type), type->fixnum.is_unsigned);
       return expr;
+    }
+    return new_expr_unary(EX_BITNOT, expr->type, tok, expr);
+  case TK_MUL:
+    {
+      Type *type = expr->type;
+      assert(type != NULL);
+      switch (type->kind) {
+      case TY_PTR: case TY_ARRAY:
+        type = type->pa.ptrof;
+        break;
+      case TY_FUNC:
+        break;
+      default:
+        parse_error(PE_NOFATAL, tok, "Cannot dereference raw type");
+        return expr;
+      }
+      expr = str_to_char_array_var(curscope, expr);
+      return new_expr_unary(EX_DEREF, type, tok, expr);
+    }
+  case TK_AND:
+#ifndef __NO_BITFIELD
+    if (expr->kind == EX_MEMBER) {
+      const MemberInfo *minfo = expr->member.info;
+      if (minfo->bitfield.width > 0)
+        parse_error(PE_NOFATAL, tok, "Cannot take reference for bitfield");
+    }
+#endif
+    expr = str_to_char_array_var(curscope, expr);
+    return make_refer(tok, expr);
+  default: assert(false); return NULL;  // Unreachable.
   }
 }
-static Expr *parse_postfix(void) {
-  Expr *expr = parse_prim();
-  return parse_postfix_cont(expr);
+
+static Expr *binary(Expr *lhs, Token *tok) {
+  const ParseRule* rule = get_rule(tok->kind);
+  assert(rule != NULL);
+  Expr *rhs = parse_precedence(rule->precedence + 1);
+
+  mark_var_used(lhs);
+  mark_var_used(rhs);
+
+  enum TokenKind kind = tok->kind;
+  switch (kind) {
+  case TK_ADD: case TK_SUB:
+    return new_expr_addsub(kind + (EX_ADD - TK_ADD), tok, lhs, rhs);
+  case TK_MUL: case TK_DIV: case TK_MOD:
+    return new_expr_num_bop(kind + (EX_MUL - TK_MUL), tok, lhs, rhs);
+  case TK_LSHIFT: case TK_RSHIFT:
+    if (!is_fixnum(lhs->type->kind) ||
+        !is_fixnum(rhs->type->kind))
+      parse_error(PE_NOFATAL, tok, "Cannot use `%.*s' except numbers.", (int)(tok->end - tok->begin), tok->begin);
+
+    lhs = promote_to_int(lhs);
+    if (is_const(lhs) && is_const(rhs)) {
+      Type *type = lhs->type;
+      if (type->fixnum.kind < FX_INT)
+        type = get_fixnum_type(FX_INT, type->fixnum.is_unsigned, type->qualifier);
+      Fixnum value;
+      if (type->fixnum.is_unsigned) {
+        UFixnum lval = lhs->fixnum;
+        UFixnum rval = rhs->fixnum;
+        value = kind == TK_LSHIFT ? lval << rval : lval >> rval;
+      } else {
+        Fixnum lval = lhs->fixnum;
+        Fixnum rval = rhs->fixnum;
+        value = kind == TK_LSHIFT ? lval << rval : lval >> rval;
+      }
+      value = wrap_value(value, type_size(type), type->fixnum.is_unsigned);
+      return new_expr_fixlit(type, tok, value);
+    } else {
+      return new_expr_bop(kind + (EX_LSHIFT - TK_LSHIFT), lhs->type, tok, lhs, rhs);
+    }
+  case TK_AND: case TK_OR: case TK_HAT:
+    return new_expr_int_bop(kind + (EX_BITAND - TK_AND), tok, lhs, rhs);
+  case TK_EQ: case TK_NE: case TK_LT: case TK_LE: case TK_GE: case TK_GT:
+    return new_expr_cmp(kind + (EX_EQ - TK_EQ), tok, lhs, rhs);
+  case TK_LOGAND: case TK_LOGIOR:
+    lhs = make_cond(lhs);
+    rhs = make_cond(rhs);
+    if (lhs->kind == EX_FIXNUM)
+      return (kind == TK_LOGAND ? lhs->fixnum == 0 : lhs->fixnum != 0) ? lhs : rhs;
+    else
+      return new_expr_bop(kind + (EX_LOGAND - TK_LOGAND), &tyBool, tok, lhs, rhs);
+  case TK_COMMA:
+    if (is_const(lhs))
+      return rhs;
+    return new_expr_bop(EX_COMMA, rhs->type, tok, lhs, rhs);
+
+  default: assert(false); return NULL;  // Unreachable.
+  }
 }
 
-static Expr *parse_sizeof(const Token *token) {
+static Expr *ternary(Expr *expr, Token *tok) {
+  const ParseRule* rule = get_rule(tok->kind);
+  assert(rule != NULL);
+  Expr *tval = parse_expr();
+
+  consume(TK_COLON, "`:' expected");
+  Expr *fval = parse_precedence(rule->precedence);
+
+  mark_var_used(expr);
+  mark_var_used(tval);
+  mark_var_used(fval);
+
+  tval = str_to_char_array_var(curscope, tval);
+  fval = str_to_char_array_var(curscope, fval);
+
+  Type *type;
+  type = choose_ternary_result_type(tval, fval);
+  if (type == NULL) {
+    parse_error(PE_NOFATAL, tok, "lhs and rhs must be same type");
+    type = tval->type;  // Dummy to continue.
+  } else {
+    if (is_fixnum(type->kind) && type->fixnum.kind < FX_INT)
+      type = &tyInt;
+    if (type->kind != TY_VOID) {
+      tval = make_cast(type, tval->token, tval, false);
+      fval = make_cast(type, fval->token, fval, false);
+    }
+  }
+
+  expr = make_cond(expr);
+  if (expr->kind == EX_FIXNUM)
+    return expr->fixnum != 0 ? tval : fval;
+  else
+    return new_expr_ternary(tok, expr, tval, fval, type);
+}
+
+static Expr *assign(Expr *lhs, Token *tok) {
+  const ParseRule* rule = get_rule(tok->kind);
+  assert(rule != NULL);
+  Expr *rhs = parse_precedence(rule->precedence);  // Without +1 for right associativity.
+
+  mark_var_used(rhs);
+
+  check_lval(tok, lhs, "Cannot assign");
+  not_const(lhs->type, tok);
+
+  switch (lhs->type->kind) {
+  case TY_ARRAY:
+  case TY_FUNC:
+    parse_error(PE_NOFATAL, tok, "Cannot assign to %s", lhs->type->kind == TY_ARRAY ? "array" : "function");
+    return rhs;
+  default: break;
+  }
+
+  if (tok->kind == TK_ASSIGN) {
+    rhs = str_to_char_array_var(curscope, rhs);
+    if (lhs->type->kind == TY_STRUCT) {  // Struct assignment requires same type.
+      if (!same_type_without_qualifier(lhs->type, rhs->type, true))
+        parse_error(PE_NOFATAL, tok, "Cannot assign to incompatible struct");
+    } else {  // Otherwise, cast-ability required.
+      rhs = make_cast(lhs->type, tok, rhs, false);
+    }
+#ifndef __NO_BITFIELD
+    if (lhs->kind == EX_MEMBER) {
+      const MemberInfo *minfo = lhs->member.info;
+      if (minfo->bitfield.width > 0)
+        return assign_to_bitfield(tok, lhs, rhs, minfo);
+    }
+#endif
+    return new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs, rhs);
+  }
+
+  mark_var_used(lhs);
+  return transform_assign_with(tok, lhs, rhs);
+}
+
+static Expr *postfix(Expr *expr, Token *tok) {
+  mark_var_used(expr);
+
+  switch (tok->kind) {
+  case TK_INC: case TK_DEC:
+    not_const(expr->type, tok);
+    return incdec_of(tok->kind + (EX_POSTINC - TK_INC), expr, tok);
+  case TK_DOT: case TK_ARROW:
+    return parse_member_access(expr, tok);
+  default: assert(false); return NULL;  // Unreachable.
+  }
+}
+
+static Expr *array_index(Expr *expr, Token *token) {
+  Expr *index = parse_expr();
+  consume(TK_RBRACKET, "`]' expected");
+  mark_var_used(expr);
+  mark_var_used(index);
+  expr = str_to_char_array_var(curscope, expr);
+  index = str_to_char_array_var(curscope, index);
+  if (!ptr_or_array(expr->type)) {
+    if (!ptr_or_array(index->type)) {
+      parse_error(PE_NOFATAL, expr->token, "array or pointer required for `['");
+      return expr;
+    }
+    Expr *tmp = expr;
+    expr = index;
+    index = tmp;
+  }
+  if (!is_fixnum(index->type->kind)) {
+    parse_error(PE_NOFATAL, index->token, "int required for `['");
+  } else {
+    expr = new_expr_addsub(EX_ADD, token, expr, index);
+  }
+  return new_expr_deref(token, expr);
+}
+
+static Expr *grouping(void) {
+  Expr *expr = parse_expr();
+  consume(TK_RPAR, "Expect ')' after expression.");
+  return expr;
+}
+
+static Expr *lparen(Token *tok) {
+  UNUSED(tok);
+  int storage;
+  Token *token = fetch_token();
+  Type *type = parse_var_def(NULL, &storage, NULL);
+  if (type == NULL) {
+    if (!match(TK_LBRACE))
+      return grouping();
+
+    // gcc extension: Statement expression ({})
+    Stmt *block = parse_block(tok, NULL);
+    consume(TK_RPAR, "`)' expected");
+    Vector *stmts = block->block.stmts;
+    if (stmts->len > 0) {
+      Stmt *last = stmts->data[stmts->len - 1];
+      if (last->kind == ST_EXPR)
+        mark_var_used(last->expr);
+    }
+    return new_expr_block(block);
+  }
+
+  // (type)
+  consume(TK_RPAR, "`)' expected");
+
+  if (storage & (VS_EXTERN | VS_STATIC | VS_TYPEDEF | VS_INLINE))
+    parse_error(PE_NOFATAL, token, "storage specifier not allowed");
+
+  if (fetch_token()->kind == TK_LBRACE)
+    return parse_compound_literal(type);
+
+  // Cast expression.
+  Expr *sub = parse_precedence(PREC_POSTFIX);
+  mark_var_used(sub);
+  sub = str_to_char_array_var(curscope, sub);
+  check_cast(type, sub->type, is_zero(sub), true, token);
+
+  // Do not reduce cast expression using `make_cast`
+  // because it ignores `(int)x = 1`.
+
+  if (type->kind != TY_VOID && is_const(sub))
+    return make_cast(type, token, sub, true);
+  return sub->type->kind != TY_VOID ? new_expr_cast(type, token, sub) : sub;
+}
+
+static Expr *funcall(Expr *func, Token *tok) {
+  Token *dummy;
+  Vector *args = parse_args(&dummy);
+
+  mark_var_used_for_func(func);
+  for (int i = 0; i < args->len; ++i)
+    mark_var_used(args->data[i]);
+
+  check_funcall_args(func, args, curscope);
+  Type *functype = get_callee_type(func->type);
+  if (functype == NULL) {
+    parse_error(PE_NOFATAL, func->token, "Cannot call except function");
+    return func;
+  }
+
+  Type *rettype = functype->func.ret;
+  ensure_struct(rettype, tok, curscope);
+
+  if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
+    VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
+    assert(varinfo != NULL);
+    if (satisfy_inline_criteria(varinfo))
+      return new_expr_inlined(tok, varinfo->ident->ident, rettype, args,
+                              embed_inline_funcall(varinfo));
+    // Not inlined.
+    if (varinfo->storage & VS_INLINE)
+      varinfo->storage |= VS_EXTERN;  // To emit inline function.
+  }
+
+  Expr *funcall = new_expr_funcall(tok, functype, func, args);
+  return simplify_funcall(funcall);
+}
+
+static Expr *size_align_of(Token *token) {
   Type *type = NULL;
   const Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
@@ -395,14 +677,14 @@ static Expr *parse_sizeof(const Token *token) {
 #endif
     } else {
       unget_token((Token*)tok);
-      Expr *expr = parse_unary();
+      Expr *expr = parse_precedence(PREC_POSTFIX);
       mark_var_used(expr);
       not_bitfield_member(expr);
       type = expr->type;
       tok = expr->token;
     }
   } else {
-    Expr *expr = parse_unary();
+    Expr *expr = parse_precedence(PREC_POSTFIX);
     not_bitfield_member(expr);
     type = expr->type;
     tok = expr->token;
@@ -416,7 +698,6 @@ static Expr *parse_sizeof(const Token *token) {
 #endif
   if (type->kind == TY_ARRAY) {
     if (type->pa.length == -1) {
-      // TODO: assert `export` modifier.
       parse_error(PE_NOFATAL, tok, "size unknown");
       type->pa.length = 1;  // Continue parsing.
     }
@@ -427,491 +708,104 @@ static Expr *parse_sizeof(const Token *token) {
   return new_expr_fixlit(&tySize, token, size);
 }
 
-static Expr *parse_cast_expr(void) {
-  Token *lpar;
-  if ((lpar = match(TK_LPAR)) != NULL) {
-    int storage;
-    const Token *token = fetch_token();
-    Type *type = parse_var_def(NULL, &storage, NULL);
-    if (type != NULL) {  // Cast
-      consume(TK_RPAR, "`)' expected");
-
-      if (storage & (VS_EXTERN | VS_STATIC | VS_TYPEDEF | VS_INLINE))
-        parse_error(PE_NOFATAL, token, "storage specifier not allowed");
-
-      Token *token2 = fetch_token();
-      if (token2->kind == TK_LBRACE) {
-        Expr *complit = parse_compound_literal(type);
-        // Make compound literal priority as primary expression.
-        return parse_postfix_cont(complit);
-      }
-
-      Expr *sub = parse_cast_expr();
-      mark_var_used(sub);
-      sub = str_to_char_array_var(curscope, sub);
-      check_cast(type, sub->type, is_zero(sub), true, token);
-
-      // Do not reduce cast expression using `make_cast`
-      // because it ignores `(int)x = 1`.
-
-      if (type->kind != TY_VOID && is_const(sub))
-        return make_cast(type, token, sub, true);
-      return sub->type->kind != TY_VOID ? new_expr_cast(type, token, sub) : sub;
-    }
-    unget_token(lpar);
-  }
-  return parse_unary();
+static Expr *generic(Token *tok) {
+  UNUSED(tok);
+  return parse_generic();
 }
 
-static Expr *parse_unary(void) {
-  Token *tok;
-  if ((tok = match(TK_ADD)) != NULL) {
-    Expr *expr = parse_cast_expr();
-    mark_var_used(expr);
-    if (!is_number(expr->type)) {
-      parse_error(PE_NOFATAL, tok, "Cannot apply `+' except number types");
-      return expr;
-    }
-    if (is_fixnum(expr->type->kind))
-      expr = promote_to_int(expr);
-    if (is_const(expr))
-      return expr;
-    return new_expr_unary(EX_POS, expr->type, tok, expr);
-  }
+static const ParseRule *get_rule(enum TokenKind kind) {
+  static const ParseRule kRules[] = {
+    [TK_LPAR]          = {lparen,   funcall,   PREC_POSTFIX},
+    [TK_INC]           = {unary,    postfix,   PREC_POSTFIX},
+    [TK_DEC]           = {unary,    postfix,   PREC_POSTFIX},
+    [TK_DOT]           = {NULL,     postfix,   PREC_POSTFIX},
+    [TK_ARROW]         = {NULL,     postfix,   PREC_POSTFIX},
+    [TK_LBRACKET]      = {NULL, array_index,   PREC_POSTFIX},
 
-  if ((tok = match(TK_SUB)) != NULL) {
-    Expr *expr = parse_cast_expr();
-    mark_var_used(expr);
-    if (!is_number(expr->type)) {
-      parse_error(PE_NOFATAL, tok, "Cannot apply `-' except number types");
-      return expr;
-    }
+    [TK_MUL]           = {unary,    binary,    PREC_FACTOR},
+    [TK_DIV]           = {NULL,     binary,    PREC_FACTOR},
+    [TK_MOD]           = {NULL,     binary,    PREC_FACTOR},
 
-    Type *type = expr->type;
-    if (is_fixnum(type->kind)) {
-      expr = promote_to_int(expr);
-      type = expr->type;
-      if (type->fixnum.is_unsigned)
-        type = get_fixnum_type(type->fixnum.kind, false, type->qualifier);  // Get signed type.
-    }
-    if (is_const(expr)) {
-#ifndef __NO_FLONUM
-      if (is_flonum(type)) {
-        expr->flonum = -expr->flonum;
-        return expr;
-      }
-#endif
-      assert(is_fixnum(type->kind));
-      expr->fixnum = wrap_value(-expr->fixnum, type_size(type), false);
-      expr->type = type;
-      return expr;
-    }
-    return new_expr_unary(EX_NEG, type, tok, expr);
-  }
+    [TK_ADD]           = {unary,    binary,    PREC_TERM},
+    [TK_SUB]           = {unary,    binary,    PREC_TERM},
 
-  if ((tok = match(TK_NOT)) != NULL) {
-    Expr *expr = parse_cast_expr();
-    mark_var_used(expr);
-    if (!is_number(expr->type) && !ptr_or_array(expr->type)) {
-      parse_error(PE_NOFATAL, tok, "Cannot apply `!' except number or pointer types");
-      return new_expr_fixlit(&tyBool, tok, false);
-    }
-    return make_not_expr(tok, expr);
-  }
+    [TK_LSHIFT]        = {NULL,     binary,    PREC_SHIFT},
+    [TK_RSHIFT]        = {NULL,     binary,    PREC_SHIFT},
 
-  if ((tok = match(TK_TILDA)) != NULL) {
-    Expr *expr = parse_cast_expr();
-    mark_var_used(expr);
-    if (!is_fixnum(expr->type->kind)) {
-      parse_error(PE_NOFATAL, tok, "Cannot apply `~' except integer");
-      return new_expr_fixlit(&tyInt, expr->token, 0);
-    }
-    expr = promote_to_int(expr);
-    if (is_const(expr)) {
-      Type *type = expr->type;
-      expr->fixnum = wrap_value(~expr->fixnum, type_size(type), type->fixnum.is_unsigned);
-      return expr;
-    }
-    return new_expr_unary(EX_BITNOT, expr->type, tok, expr);
-  }
+    [TK_LT]            = {NULL,     binary,    PREC_CMP},
+    [TK_LE]            = {NULL,     binary,    PREC_CMP},
+    [TK_GE]            = {NULL,     binary,    PREC_CMP},
+    [TK_GT]            = {NULL,     binary,    PREC_CMP},
 
-  if ((tok = match(TK_AND)) != NULL) {
-    Expr *expr = parse_cast_expr();
-    mark_var_used(expr);
-    assert(expr->type != NULL);
-#ifndef __NO_BITFIELD
-    if (expr->kind == EX_MEMBER) {
-      const MemberInfo *minfo = expr->member.info;
-      if (minfo->bitfield.width > 0)
-        parse_error(PE_NOFATAL, tok, "Cannot take reference for bitfield");
-    }
-#endif
-    expr = str_to_char_array_var(curscope, expr);
-    return make_refer(tok, expr);
-  }
+    [TK_EQ]            = {NULL,     binary,    PREC_EQ},
+    [TK_NE]            = {NULL,     binary,    PREC_EQ},
 
-  if ((tok = match(TK_MUL)) != NULL) {
-    Expr *expr = parse_cast_expr();
-    mark_var_used(expr);
-    Type *type = expr->type;
-    assert(type != NULL);
-    switch (type->kind) {
-    case TY_PTR: case TY_ARRAY:
-      type = type->pa.ptrof;
-      break;
-    case TY_FUNC:
-      break;
-    default:
-      parse_error(PE_NOFATAL, tok, "Cannot dereference raw type");
-      return expr;
-    }
-    expr = str_to_char_array_var(curscope, expr);
-    return new_expr_unary(EX_DEREF, type, tok, expr);
-  }
+    [TK_AND]           = {unary,    binary,    PREC_BITAND},
+    [TK_HAT]           = {NULL,     binary,    PREC_BITXOR},
+    [TK_OR]            = {NULL,     binary,    PREC_BITOR},
 
-  if ((tok = match(TK_INC)) != NULL) {
-    Expr *expr = parse_unary();
-    mark_var_used(expr);
-    not_const(expr->type, tok);
-    return incdec_of(EX_PREINC, expr, tok);
-  }
+    [TK_LOGAND]        = {NULL,     binary,    PREC_LOGAND},
+    [TK_LOGIOR]        = {NULL,     binary,    PREC_LOGIOR},
 
-  if ((tok = match(TK_DEC)) != NULL) {
-    Expr *expr = parse_unary();
-    mark_var_used(expr);
-    not_const(expr->type, tok);
-    return incdec_of(EX_PREDEC, expr, tok);
-  }
+    [TK_QUESTION]      = {NULL,     ternary,   PREC_TERNARY},
 
-  if ((tok = match(TK_SIZEOF)) != NULL ||
-      (tok = match(TK_ALIGNOF)) != NULL)
-    return parse_sizeof(tok);
+    [TK_ASSIGN]        = {NULL,     assign,    PREC_ASSIGN},
+    [TK_ADD_ASSIGN]    = {NULL,     assign,    PREC_ASSIGN},
+    [TK_SUB_ASSIGN]    = {NULL,     assign,    PREC_ASSIGN},
+    [TK_MUL_ASSIGN]    = {NULL,     assign,    PREC_ASSIGN},
+    [TK_DIV_ASSIGN]    = {NULL,     assign,    PREC_ASSIGN},
+    [TK_MOD_ASSIGN]    = {NULL,     assign,    PREC_ASSIGN},
+    [TK_AND_ASSIGN]    = {NULL,     assign,    PREC_ASSIGN},
+    [TK_OR_ASSIGN]     = {NULL,     assign,    PREC_ASSIGN},
+    [TK_HAT_ASSIGN]    = {NULL,     assign,    PREC_ASSIGN},
+    [TK_LSHIFT_ASSIGN] = {NULL,     assign,    PREC_ASSIGN},
+    [TK_RSHIFT_ASSIGN] = {NULL,     assign,    PREC_ASSIGN},
 
-  return parse_postfix();
+    [TK_COMMA]         = {NULL,     binary,    PREC_COMMA},
+
+    [TK_NOT]           = {unary},
+    [TK_TILDA]         = {unary},
+
+    [TK_INTLIT]        = {literal},
+    [TK_CHARLIT]       = {literal},
+    [TK_LONGLIT]       = {literal},
+    [TK_LLONGLIT]      = {literal},
+    [TK_UINTLIT]       = {literal},
+    [TK_UCHARLIT]      = {literal},
+    [TK_ULONGLIT]      = {literal},
+    [TK_ULLONGLIT]     = {literal},
+    [TK_WCHARLIT]      = {literal},
+    [TK_STR]           = {literal},
+    [TK_FLOATLIT]      = {literal},
+    [TK_DOUBLELIT]     = {literal},
+    [TK_LDOUBLELIT]    = {literal},
+
+    [TK_IDENT]         = {variable},
+
+    [TK_SIZEOF]        = {size_align_of},
+    [TK_ALIGNOF]       = {size_align_of},
+    [TK_GENERIC]       = {generic},
+
+    [TK_EOF]           = {NULL},
+  };
+
+  if (kind >= ARRAY_SIZE(kRules))
+    kind = TK_EOF;
+  return &kRules[kind];
 }
 
-static Expr *parse_mul(void) {
-  Expr *expr = parse_cast_expr();
-
-  for (;;) {
-    enum ExprKind kind;
-    Token *tok;
-    if ((tok = match(TK_MUL)) != NULL)
-      kind = EX_MUL;
-    else if ((tok = match(TK_DIV)) != NULL)
-      kind = EX_DIV;
-    else if ((tok = match(TK_MOD)) != NULL)
-      kind = EX_MOD;
-    else
-      return expr;
-
-    Expr *lhs = expr, *rhs = parse_cast_expr();
-    mark_var_used(lhs);
-    mark_var_used(rhs);
-    expr = new_expr_num_bop(kind, tok, lhs, rhs);
-  }
-}
-
-static Expr *parse_add(void) {
-  Expr *expr = parse_mul();
-
-  for (;;) {
-    enum ExprKind kind;
-    Token *tok;
-    if ((tok = match(TK_ADD)) != NULL)
-      kind = EX_ADD;
-    else if ((tok = match(TK_SUB)) != NULL)
-      kind = EX_SUB;
-    else
-      return expr;
-
-    Expr *lhs = expr, *rhs = parse_mul();
-    mark_var_used(lhs);
-    mark_var_used(rhs);
-    expr = new_expr_addsub(kind, tok, lhs, rhs);
-  }
-}
-
-static Expr *parse_shift(void) {
-  Expr *expr = parse_add();
-
-  for (;;) {
-    enum ExprKind kind;
-    Token *tok;
-    if ((tok = match(TK_LSHIFT)) != NULL)
-      kind = EX_LSHIFT;
-    else if ((tok = match(TK_RSHIFT)) != NULL)
-      kind = EX_RSHIFT;
-    else
-      return expr;
-
-    Expr *lhs = expr, *rhs = parse_add();
-    mark_var_used(lhs);
-    mark_var_used(rhs);
-    if (!is_fixnum(lhs->type->kind) ||
-        !is_fixnum(rhs->type->kind))
-      parse_error(PE_FATAL, tok, "Cannot use `%.*s' except numbers.", (int)(tok->end - tok->begin), tok->begin);
-
-    lhs = promote_to_int(lhs);
-    if (is_const(lhs) && is_const(rhs)) {
-      Type *type = lhs->type;
-      if (type->fixnum.kind < FX_INT)
-        type = get_fixnum_type(FX_INT, type->fixnum.is_unsigned, type->qualifier);
-      Fixnum value;
-      if (type->fixnum.is_unsigned) {
-        UFixnum lval = lhs->fixnum;
-        UFixnum rval = rhs->fixnum;
-        value = kind == EX_LSHIFT ? lval << rval : lval >> rval;
-      } else {
-        Fixnum lval = lhs->fixnum;
-        Fixnum rval = rhs->fixnum;
-        value = kind == EX_LSHIFT ? lval << rval : lval >> rval;
-      }
-      value = wrap_value(value, type_size(type), type->fixnum.is_unsigned);
-      expr = new_expr_fixlit(type, tok, value);
-    } else {
-      expr = new_expr_bop(kind, lhs->type, tok, lhs, rhs);
-    }
-  }
-}
-
-static Expr *parse_cmp(void) {
-  Expr *expr = parse_shift();
-
-  for (;;) {
-    enum ExprKind kind;
-    Token *tok;
-    if ((tok = match(TK_LT)) != NULL)
-      kind = EX_LT;
-    else if ((tok = match(TK_GT)) != NULL)
-      kind = EX_GT;
-    else if ((tok = match(TK_LE)) != NULL)
-      kind = EX_LE;
-    else if ((tok = match(TK_GE)) != NULL)
-      kind = EX_GE;
-    else
-      return expr;
-
-    Expr *lhs = expr, *rhs = parse_shift();
-    mark_var_used(lhs);
-    mark_var_used(rhs);
-    expr = new_expr_cmp(kind, tok, lhs, rhs);
-  }
-}
-
-static Expr *parse_eq(void) {
-  Expr *expr = parse_cmp();
-
-  for (;;) {
-    enum ExprKind kind;
-    Token *tok;
-    if ((tok = match(TK_EQ)) != NULL)
-      kind = EX_EQ;
-    else if ((tok = match(TK_NE)) != NULL)
-      kind = EX_NE;
-    else
-      return expr;
-
-    Expr *lhs = expr, *rhs = parse_cmp();
-    mark_var_used(lhs);
-    mark_var_used(rhs);
-    expr = new_expr_cmp(kind, tok, lhs, rhs);
-  }
-}
-
-static Expr *parse_and(void) {
-  Expr *expr = parse_eq();
-  for (;;) {
-    Token *tok;
-    if ((tok = match(TK_AND)) == NULL)
-      return expr;
-
-    Expr *lhs = expr, *rhs = parse_eq();
-    mark_var_used(lhs);
-    mark_var_used(rhs);
-    expr = new_expr_int_bop(EX_BITAND, tok, lhs, rhs);
-  }
-}
-
-static Expr *parse_xor(void) {
-  Expr *expr = parse_and();
-  for (;;) {
-    Token *tok;
-    if ((tok = match(TK_HAT)) == NULL)
-      return expr;
-
-    Expr *lhs = expr, *rhs = parse_and();
-    mark_var_used(lhs);
-    mark_var_used(rhs);
-    expr = new_expr_int_bop(EX_BITXOR, tok, lhs, rhs);
-  }
-}
-
-static Expr *parse_or(void) {
-  Expr *expr = parse_xor();
-  for (;;) {
-    Token *tok;
-    if ((tok = match(TK_OR)) == NULL)
-      return expr;
-
-    Expr *lhs = expr, *rhs = parse_xor();
-    mark_var_used(lhs);
-    mark_var_used(rhs);
-    expr = new_expr_int_bop(EX_BITOR, tok, lhs, rhs);
-  }
-}
-
-static Expr *parse_logand(void) {
-  Expr *expr = parse_or();
-  Token *tok = match(TK_LOGAND);
-  if (tok != NULL) {
-    mark_var_used(expr);
-    expr = make_cond(expr);
-    do {
-      Expr *rhs = parse_or();
-      mark_var_used(rhs);
-      rhs = make_cond(rhs);
-      if (expr->kind == EX_FIXNUM)
-        expr = expr->fixnum == 0 ? expr : rhs;
-      else
-        expr = new_expr_bop(EX_LOGAND, &tyBool, tok, expr, rhs);
-    } while ((tok = match(TK_LOGAND)) != NULL);
-  }
-  return expr;
-}
-
-static Expr *parse_logior(void) {
-  Expr *expr = parse_logand();
-  Token *tok = match(TK_LOGIOR);
-  if (tok != NULL) {
-    mark_var_used(expr);
-    expr = make_cond(expr);
-    do {
-      Expr *rhs = parse_logand();
-      mark_var_used(rhs);
-      rhs = make_cond(rhs);
-      if (expr->kind == EX_FIXNUM)
-        expr = expr->fixnum != 0 ? expr : rhs;
-      else
-        expr = new_expr_bop(EX_LOGIOR, &tyBool, tok, expr, rhs);
-    } while ((tok = match(TK_LOGIOR)) != NULL);
-  }
-  return expr;
-}
-
-static Expr *parse_conditional(void) {
-  Expr *expr = parse_logior();
-  for (;;) {
-    const Token *tok;
-    if ((tok = match(TK_QUESTION)) == NULL)
-      return expr;
-    Expr *tval = parse_expr();
-    consume(TK_COLON, "`:' expected");
-    Expr *fval = parse_conditional();
-
-    mark_var_used(expr);
-    mark_var_used(tval);
-    mark_var_used(fval);
-    tval = str_to_char_array_var(curscope, tval);
-    fval = str_to_char_array_var(curscope, fval);
-
-    Type *type;
-    type = choose_ternary_result_type(tval, fval);
-    if (type == NULL) {
-      parse_error(PE_NOFATAL, tok, "lhs and rhs must be same type");
-      type = tval->type;  // Dummy to continue.
-    } else {
-      if (is_fixnum(type->kind) && type->fixnum.kind < FX_INT)
-        type = &tyInt;
-      if (type->kind != TY_VOID) {
-        tval = make_cast(type, tval->token, tval, false);
-        fval = make_cast(type, fval->token, fval, false);
-      }
-    }
-
-    expr = make_cond(expr);
-    if (expr->kind == EX_FIXNUM)
-      expr = expr->fixnum != 0 ? tval : fval;
-    else
-      expr = new_expr_ternary(tok, expr, tval, fval, type);
-  }
+Expr *parse_expr(void) {
+  return parse_precedence(PREC_COMMA);
 }
 
 Expr *parse_assign(void) {
-  static const enum TokenKind kAssignWithOps[] = {
-    TK_ASSIGN,
-    TK_ADD_ASSIGN, TK_SUB_ASSIGN,
-    TK_MUL_ASSIGN, TK_DIV_ASSIGN,
-    TK_MOD_ASSIGN, TK_AND_ASSIGN, TK_OR_ASSIGN, TK_HAT_ASSIGN,
-    TK_LSHIFT_ASSIGN, TK_RSHIFT_ASSIGN,
-  };
-
-  Expr *expr = parse_conditional();
-
-  for (int i = 0; i < (int)ARRAY_SIZE(kAssignWithOps); ++i) {
-    Token *tok;
-    if ((tok = match(kAssignWithOps[i])) != NULL) {
-      Expr *lhs = expr, *rhs = parse_assign();
-      mark_var_used(rhs);
-
-      check_lval(tok, lhs, "Cannot assign");
-      not_const(lhs->type, tok);
-
-      switch (lhs->type->kind) {
-      case TY_ARRAY:
-      case TY_FUNC:
-        parse_error(PE_NOFATAL, tok, "Cannot assign to %s", lhs->type->kind == TY_ARRAY ? "array" : "function");
-        return expr;
-      default: break;
-      }
-
-      if (tok->kind == TK_ASSIGN) {
-        rhs = str_to_char_array_var(curscope, rhs);
-        if (lhs->type->kind == TY_STRUCT) {  // Struct assignment requires same type.
-          if (!same_type_without_qualifier(lhs->type, rhs->type, true))
-            parse_error(PE_NOFATAL, tok, "Cannot assign to incompatible struct");
-        } else {  // Otherwise, cast-ability required.
-          rhs = make_cast(lhs->type, tok, rhs, false);
-        }
-#ifndef __NO_BITFIELD
-        if (lhs->kind == EX_MEMBER) {
-          const MemberInfo *minfo = lhs->member.info;
-          if (minfo->bitfield.width > 0)
-            return assign_to_bitfield(tok, lhs, rhs, minfo);
-        }
-#endif
-        return new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs, rhs);
-      }
-
-      mark_var_used(lhs);
-      return transform_assign_with(tok, lhs, rhs);
-    }
-  }
-  return expr;
+  return parse_precedence(PREC_ASSIGN);
 }
 
 Expr *parse_const_fixnum(void) {
-  Expr *expr = parse_conditional();
+  Expr *expr = parse_precedence(PREC_LOGIOR);
   if (is_const(expr) && is_fixnum(expr->type->kind))
     return expr;
   parse_error(PE_NOFATAL, expr->token, "constant integer expected");
   return new_expr_fixlit(&tyInt, expr->token, 1);
-}
-
-Expr *parse_expr(void) {
-  Expr *expr = parse_assign();
-  Expr *last = expr;
-  const Token *tok;
-  while ((tok = match(TK_COMMA)) != NULL) {
-    Expr *next_expr = parse_assign();
-    if (is_const(expr))
-      expr = last = next_expr;
-    else if (is_const(next_expr))
-      last = next_expr;
-    else
-      expr = last = new_expr_bop(EX_COMMA, next_expr->type, tok, expr, next_expr);
-  }
-  if (expr != last)
-    expr = new_expr_bop(EX_COMMA, last->type, tok, expr, last);
-  return expr;
 }

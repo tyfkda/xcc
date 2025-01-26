@@ -54,8 +54,6 @@ enum TokenKind {
   TK_AND,            // &
   TK_OR,             // |
   TK_HAT,            // ^
-  TK_LT,             // <
-  TK_GT,             // >
   TK_NOT,            // !
   TK_LPAR,           // (
   TK_RPAR,           // )
@@ -80,8 +78,8 @@ enum TokenKind {
   TK_ULLONGLIT,      // unsigned long long literal
   TK_WCHARLIT,       // wide-char literal
   TK_FLOAT,
-  TK_FLOATLIT,       // float literal
   TK_DOUBLE,
+  TK_FLOATLIT,       // float literal
   TK_DOUBLELIT,      // double literal
   TK_LDOUBLELIT,     // long double literal
   TK_STR,            // String literal
@@ -90,8 +88,10 @@ enum TokenKind {
   TK_RSHIFT,         // >>
   TK_EQ,             // ==
   TK_NE,             // !=
+  TK_LT,             // <
   TK_LE,             // <=
   TK_GE,             // >=
+  TK_GT,             // >
   TK_LOGAND,         // &&
   TK_LOGIOR,         // ||
   TK_ARROW,          // ->
