@@ -2015,7 +2015,7 @@ static Expr *proc_builtin_va_arg(const Token *ident) {
   // (ap = (char*)ap + sizeof(type), *(type*)((char*)ap - sizeof(type)))
   size_t size = type_size(type);
   Expr *size_lit = new_expr_fixlit(&tySize, ap->token, size);
-  Expr *cap = make_cast(ptrof(&tyUnsignedChar), ap->token, ap, true);
+  Expr *cap = make_cast(ptrof(&tyChar), ap->token, ap, true);
   Expr *add = new_expr_bop(EX_ASSIGN, &tyVoid, ap->token, ap,
                            new_expr_bop(EX_ADD, cap->type, cap->token, cap, size_lit));
   Expr *deref = new_expr_deref(

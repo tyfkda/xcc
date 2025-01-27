@@ -114,9 +114,6 @@ typedef struct Type {
 
 extern Type tyChar;
 extern Type tyInt;
-extern Type tyUnsignedChar;
-extern Type tyUnsignedInt;
-extern Type tyEnum;
 extern Type tyVoid;
 extern Type tyConstVoid;
 extern Type tyVoidPtr;

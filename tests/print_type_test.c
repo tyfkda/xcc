@@ -29,7 +29,7 @@ void check_print_type(const char *expected, const Type *type) {
 
 TEST(print_type) {
   check_print_type("char", &tyChar);
-  check_print_type("unsigned int", &tyUnsignedInt);
+  check_print_type("unsigned int", get_fixnum_type(FX_INT, true, 0));
   check_print_type("long long", get_fixnum_type(FX_LLONG, false, 0));
 #ifndef __NO_FLONUM
   check_print_type("float", &tyFloat);

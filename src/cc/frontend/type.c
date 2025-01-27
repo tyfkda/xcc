@@ -11,9 +11,6 @@
 
 Type tyChar =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_CHAR,  .is_unsigned=false}};
 Type tyInt =           {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=false}};
-Type tyUnsignedChar =  {.kind=TY_FIXNUM, .fixnum={.kind=FX_CHAR,  .is_unsigned=true}};
-Type tyUnsignedInt =   {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=true}};
-Type tyEnum =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_ENUM}};
 Type tyVoid =          {.kind=TY_VOID};
 Type tyConstVoid =     {.kind=TY_VOID, .qualifier=TQ_CONST};
 Type tyVoidPtr =       {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
