@@ -189,6 +189,42 @@ void define_enum_member(Type *type, const Token *ident, int value) {
   varinfo->enum_member.value = value;
 }
 
+Expr *string_expr(const Token *token, const char *str, ssize_t len, enum StrKind kind) {
+  enum FixnumKind fxkind = FX_CHAR;
+  bool is_unsigned = false;
+#ifndef __NO_WCHAR
+  switch (kind) {
+  case STR_CHAR:  break;
+  case STR_WIDE:  fxkind = FX_INT; is_unsigned = true; break;  // TODO: Match with wchar_t.
+  }
+#endif
+  Type *ctype = get_fixnum_type(fxkind, is_unsigned, 0);  // not const.
+  Type *type = arrayof(ctype, len);
+  type->qualifier = TQ_CONST;
+
+  Expr *expr = new_expr(EX_STR, type, token);
+  expr->str.buf = str;
+  expr->str.len = len;
+  expr->str.kind = kind;
+  return expr;
+}
+
+Expr *proc_builtin_function_name(const Token *tok) {
+  if (curfunc == NULL) {
+    parse_error(PE_NOFATAL, tok, "must be inside function");
+    static const char nulstr[] = "";
+    return string_expr(tok, nulstr, 0, STR_CHAR);
+  }
+
+  // Make nul-terminated function name.
+  const Name *name = curfunc->ident->ident;
+  size_t len = name->bytes;
+  char *str = malloc_or_die(len + 1);
+  memcpy(str, name->chars, len);
+  str[len] = '\0';
+  return string_expr(tok, str, len + 1, STR_CHAR);
+}
+
 Scope *enter_scope(Function *func) {
   Scope *scope = new_scope(curscope);
   curscope = scope;

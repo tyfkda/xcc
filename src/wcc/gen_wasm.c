@@ -2112,6 +2112,10 @@ static void gen_builtin_memory_grow(Expr *expr, enum BuiltinFunctionPhase phase)
 }
 
 void install_builtins(void) {
+  static BuiltinExprProc p_function_name = &proc_builtin_function_name;
+  add_builtin_expr_ident("__FUNCTION__", &p_function_name);
+  add_builtin_expr_ident("__func__", &p_function_name);
+
   // __builtin_va_list
   {
     Type *type = ptrof(&tyVoidPtr);

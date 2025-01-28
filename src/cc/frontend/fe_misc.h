@@ -77,6 +77,8 @@ VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int stor
 Token *alloc_dummy_ident(void);
 Expr *alloc_tmp_var(Scope *scope, Type *type);
 void define_enum_member(Type *type, const Token *ident, int value);
+Expr *string_expr(const Token *token, const char *str, ssize_t len, enum StrKind kind);
+Expr *proc_builtin_function_name(const Token *tok);
 
 Scope *enter_scope(Function *func);
 void exit_scope(void);

@@ -142,7 +142,6 @@ enum TokenKind {
   TK_ALIGNOF,
   TK_TYPEDEF,
   TK_ELLIPSIS,       // ...
-  TK_FUNCNAME,
   TK_ASM,
   TK_ATTRIBUTE,
   TK_NORETURN,

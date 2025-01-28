@@ -57,8 +57,6 @@ static const struct {
   {"float", TK_FLOAT},
   {"double", TK_DOUBLE},
 #endif
-  {"__FUNCTION__", TK_FUNCNAME},
-  {"__func__", TK_FUNCNAME},
   {"__attribute__", TK_ATTRIBUTE},
   {"_Noreturn", TK_NORETURN},
   {"_Generic", TK_GENERIC},

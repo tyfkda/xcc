@@ -1,6 +1,7 @@
 #include "../config.h"
 #include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifndef __NO_FLONUM
 #include <math.h>
@@ -317,6 +318,10 @@ static VReg *gen_alloca(Expr *expr) {
 }
 
 void install_builtins(void) {
+  static BuiltinExprProc p_function_name = &proc_builtin_function_name;
+  add_builtin_expr_ident("__FUNCTION__", &p_function_name);
+  add_builtin_expr_ident("__func__", &p_function_name);
+
   static BuiltinExprProc p_type_kind = &proc_builtin_classify_type;
   add_builtin_expr_ident("__builtin_classify_type", &p_type_kind);
 
