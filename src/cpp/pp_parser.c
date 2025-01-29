@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <stdarg.h>
 #include <stdbool.h>
-#include <stdlib.h>  // malloc
+#include <stdlib.h>  // exit
 #include <string.h>
 
 #include "lexer.h"
