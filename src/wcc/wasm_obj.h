@@ -122,6 +122,7 @@ typedef struct WasmObj {
   struct {
     Vector *functions;  // <SymbolInfo*>
     Vector *globals;    // <SymbolInfo*>
+    bool table_funcref;
   } import;
   struct {
     Vector *symtab;     // <SymbolInfo*>

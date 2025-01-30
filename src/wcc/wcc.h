@@ -131,6 +131,7 @@ enum OutType {
 
 #define CUF_LINEAR_MEMORY  (1 << 0)
 #define CUF_USE_SP         (1 << 1)
+#define CUF_INDIRECT_CALL  (1 << 2)
 
 extern const char SP_NAME[];
 extern const char BREAK_ADDRESS_NAME[];

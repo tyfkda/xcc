@@ -98,6 +98,7 @@ static void wasmobj_init(WasmObj *wasmobj) {
   memset(wasmobj, 0, sizeof(*wasmobj));
   wasmobj->import.functions = new_vector();
   wasmobj->import.globals = new_vector();
+  wasmobj->import.table_funcref = false;
   wasmobj->linking.symtab = new_vector();
 }
 
@@ -159,7 +160,8 @@ static void read_import_section(WasmObj *wasmobj, unsigned char *p) {
     case IMPORT_TABLE:
       {
         uint8_t wtype = read_type(p, &p);
-        UNUSED(wtype);
+        if (wtype == WT_FUNCREF)
+          wasmobj->import.table_funcref = true;
       }
       break;
     case IMPORT_MEMORY:
@@ -1219,9 +1221,32 @@ static void out_function_section(WasmLinker *linker) {
   }
 }
 
+static inline bool funcref_table_exist_wasmobj(WasmObj *wasmobj) {
+  return wasmobj->import.table_funcref;
+}
+
+static bool funcref_table_exist(WasmLinker *linker) {
+  for (int i = 0; i < linker->files->len; ++i) {
+    File *file = linker->files->data[i];
+    switch (file->kind) {
+    case FK_WASMOBJ:
+      if (funcref_table_exist_wasmobj(file->wasmobj))
+        return true;
+      break;
+    case FK_ARCHIVE:
+      FOREACH_FILE_ARCONTENT(file->archive, content, {
+        if (funcref_table_exist_wasmobj(content->obj))
+          return true;
+      });
+      break;
+    }
+  }
+  return false;
+}
+
 static void out_table_section(WasmLinker *linker) {
   Vector *indirect_functions = linker->indirect_functions;
-  if (indirect_functions->len == 0)
+  if (indirect_functions->len == 0 && !funcref_table_exist(linker))
     return;
 
   DataStorage table_section;

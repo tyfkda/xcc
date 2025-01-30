@@ -264,7 +264,7 @@ static void emit_import_section(EmitWasm *ew) {
     data_uleb128(&imports_section, -1, 0);  // size
     ++imports_count;
   }
-  if (indirect_function_table.count > 0) {
+  if (indirect_function_table.count > 0 || (compile_unit_flag & CUF_INDIRECT_CALL)) {
     static const char kTableName[] = "__indirect_function_table";
     data_string(&imports_section, env_module_name, sizeof(env_module_name) - 1);  // import module name
     data_string(&imports_section, kTableName, sizeof(kTableName) - 1);  // import name

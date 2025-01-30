@@ -200,9 +200,10 @@ static void traverse_func_expr(Expr **pexpr) {
   assert(type->kind == TY_FUNC ||
          (type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC));
   const Name *funcname = NULL;
-  if (expr->kind == EX_VAR) {
-    if (type->kind == TY_FUNC)  // Function must be placed in global scope.
-      funcname = expr->var.name;
+  if (expr->kind == EX_VAR && type->kind == TY_FUNC) {  // Function must be placed in global scope.
+    funcname = expr->var.name;
+  } else {
+    compile_unit_flag |= CUF_INDIRECT_CALL;
   }
   if (funcname != NULL) {
     BuiltinFunctionProc *proc;
@@ -943,7 +944,7 @@ void traverse_ast(Vector *decls) {
     traverse_decl(decl);
   }
 
-  compile_unit_flag = detect_compile_unit_flags(decls);
+  compile_unit_flag |= detect_compile_unit_flags(decls);
 
   add_builtins(compile_unit_flag);
 
