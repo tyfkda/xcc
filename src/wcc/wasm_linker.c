@@ -963,7 +963,7 @@ static uint32_t remap_data_address(WasmLinker *linker, uint32_t address) {
 }
 
 static void renumber_indirect_functions_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
-  Table *indirect_functions = &linker->indirect_functions;
+  Vector *indirect_functions = linker->indirect_functions;
   uint32_t segnum = wasmobj->elem.count;
   ElemSegmentForLink *segments = wasmobj->elem.segments;
   for (uint32_t i = 0; i < segnum; ++i) {
@@ -993,7 +993,7 @@ static void renumber_indirect_functions_wasmobj(WasmLinker *linker, WasmObj *was
           }
         }
       }
-      table_put(indirect_functions, sym->name, sym);
+      vec_push(indirect_functions, sym);
     }
   }
 }
@@ -1013,12 +1013,10 @@ static void renumber_indirect_functions(WasmLinker *linker) {
     }
   }
 
-  Table *indirect_functions = &linker->indirect_functions;
-  const Name *name;
-  SymbolInfo *sym;
-  uint32_t index = INDIRECT_FUNCTION_TABLE_START_INDEX;
-  for (int it = 0; (it = table_iterate(indirect_functions, it, &name, (void**)&sym)) != -1; ) {
-    sym->func.indirect_index = index++;
+  Vector *indirect_functions = linker->indirect_functions;
+  for (int i = 0; i < indirect_functions->len; ++i) {
+    SymbolInfo *sym = indirect_functions->data[i];
+    sym->func.indirect_index = i + INDIRECT_FUNCTION_TABLE_START_INDEX;
   }
 }
 
@@ -1222,8 +1220,8 @@ static void out_function_section(WasmLinker *linker) {
 }
 
 static void out_table_section(WasmLinker *linker) {
-  Table *indirect_functions = &linker->indirect_functions;
-  if (indirect_functions->count == 0)
+  Vector *indirect_functions = linker->indirect_functions;
+  if (indirect_functions->len == 0)
     return;
 
   DataStorage table_section;
@@ -1233,7 +1231,7 @@ static void out_table_section(WasmLinker *linker) {
   data_push(&table_section, WT_FUNCREF);
   data_push(&table_section, 0x00);  // limits: flags
   data_leb128(&table_section, -1,
-              INDIRECT_FUNCTION_TABLE_START_INDEX + indirect_functions->count);  // initial
+              INDIRECT_FUNCTION_TABLE_START_INDEX + indirect_functions->len);  // initial
   data_close_chunk(&table_section, -1);
 
   fputc(SEC_TABLE, linker->ofp);
@@ -1347,8 +1345,8 @@ static void out_export_section(WasmLinker *linker, Vector *exports) {
 }
 
 static void out_elems_section(WasmLinker *linker) {
-  Table *indirect_functions = &linker->indirect_functions;
-  if (indirect_functions->count == 0)
+  Vector *indirect_functions = linker->indirect_functions;
+  if (indirect_functions->len == 0)
     return;
 
   DataStorage elems_section;
@@ -1361,10 +1359,9 @@ static void out_elems_section(WasmLinker *linker) {
   data_push(&elems_section, OP_I32_CONST);
   data_leb128(&elems_section, -1, INDIRECT_FUNCTION_TABLE_START_INDEX);  // start index
   data_push(&elems_section, OP_END);
-  data_leb128(&elems_section, -1, indirect_functions->count);  // num elems
-  const Name *name;
-  SymbolInfo *sym;
-  for (int it = 0; (it = table_iterate(indirect_functions, it, &name, (void**)&sym)) != -1; ) {
+  data_leb128(&elems_section, -1, indirect_functions->len);  // num elems
+  for (int i = 0; i < indirect_functions->len; ++i) {
+    SymbolInfo *sym = indirect_functions->data[i];
     data_leb128(&elems_section, -1, sym->combined_index);  // elem function index
   }
   data_close_chunk(&elems_section, -1);
@@ -1476,7 +1473,7 @@ void linker_init(WasmLinker *linker) {
 
   table_init(&linker->defined);
   table_init(&linker->unresolved);
-  table_init(&linker->indirect_functions);
+  linker->indirect_functions = new_vector();
 
   linker->sp_name = alloc_name(SP_NAME, NULL, false);
   linker->curbrk_name = alloc_name(BREAK_ADDRESS_NAME, NULL, false);
