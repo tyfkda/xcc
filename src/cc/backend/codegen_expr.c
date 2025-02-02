@@ -369,7 +369,6 @@ static VReg *gen_funcall(Expr *expr) {
     int reg_index;
     int offset;
     int size;
-    bool stack_arg;
     bool is_flo;
 #if VAARG_FP_AS_GP
     bool fp_as_gp;
@@ -398,19 +397,23 @@ static VReg *gen_funcall(Expr *expr) {
       assert(arg->type->kind != TY_ARRAY);
       p->size = type_size(arg->type);
       p->is_flo = is_flonum(arg->type);
+      bool is_vaarg = functype->func.vaargs && functype->func.params != NULL &&
+                      i >= functype->func.params->len;
+      UNUSED(is_vaarg);
 #if VAARG_FP_AS_GP
       p->fp_as_gp = false;
-      if (functype->func.vaargs && functype->func.params != NULL && i >= functype->func.params->len) {
+      if (is_vaarg) {
         p->is_flo = false;
         p->fp_as_gp = true;
       }
 #endif
-      p->stack_arg = is_stack_param(arg->type);
+      bool stack_arg = is_stack_param(arg->type) ||
+                       (p->is_flo ? freg_index >= MAX_FREG_ARGS : ireg_index >= MAX_REG_ARGS);
 #if VAARG_ON_STACK
-      if (functype->func.vaargs && functype->func.params != NULL && i >= functype->func.params->len)
-        p->stack_arg = true;
+      if (is_vaarg)
+        stack_arg = true;
 #endif
-      if (p->stack_arg || (p->is_flo ? freg_index >= MAX_FREG_ARGS : ireg_index >= MAX_REG_ARGS)) {
+      if (stack_arg) {
         offset = ALIGN(offset, align_size(arg->type));
         p->offset = offset;
         offset += ALIGN(p->size, TARGET_POINTER_SIZE);
@@ -511,7 +514,7 @@ static VReg *gen_funcall(Expr *expr) {
     int vaarg_start = !functype->func.vaargs || functype->func.params == NULL ? -1 :
         functype->func.params->len + (ret_varinfo != NULL ? 1 : 0);
     set_call_info(callinfo, funcname, global, total_arg_count, reg_arg_count + freg_arg_count,
-                       arg_vregs, vaarg_start);
+                  arg_vregs, vaarg_start);
     call = new_ir_call(callinfo, dst, freg);
   }
 

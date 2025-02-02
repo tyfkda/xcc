@@ -212,38 +212,6 @@ static void traverse_func_expr(Expr **pexpr) {
   }
 }
 
-static size_t calc_funcall_work_size(Expr *expr) {
-  assert(expr->kind == EX_FUNCALL);
-  Expr *func = expr->funcall.func;
-  Type *functype = get_callee_type(func->type);
-  assert(functype != NULL);
-  int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
-  Vector *args = expr->funcall.args;
-
-  size_t sarg_siz = 0;
-  for (int i = 0; i < param_count; ++i) {
-    Expr *arg = args->data[i];
-    if (is_stack_param(arg->type))
-      sarg_siz += ALIGN(type_size(arg->type), 4);
-  }
-
-  size_t vaarg_bufsiz = 0;
-  if (functype->func.vaargs) {
-    int arg_count = args->len;
-    int d = arg_count - param_count;
-    if (d > 0) {
-      for (int i = 0; i < d; ++i) {
-        Expr *arg = args->data[i + param_count];
-        const Type *t = arg->type;
-        assert(!(t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT));
-        // vaargs are promoted to int, so alignment is not needed.
-        vaarg_bufsiz += type_size(t);
-      }
-    }
-  }
-  return sarg_siz + vaarg_bufsiz;
-}
-
 static void te_funcall(Expr **pexpr, bool needval) {
   Expr *expr = *pexpr;
   UNUSED(needval);

@@ -296,28 +296,8 @@ static void gen_funcall(Expr *expr) {
   assert(functype != NULL);
   int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
 
-  size_t sarg_siz = 0;
-  for (int i = 0; i < param_count; ++i) {
-    Expr *arg = args->data[i];
-    if (is_stack_param(arg->type))
-      sarg_siz += ALIGN(type_size(arg->type), 4);
-  }
+  size_t work_size = calc_funcall_work_size(expr);
 
-  size_t vaarg_bufsiz = 0;
-  if (functype->func.vaargs) {
-    int d = arg_count - param_count;
-    if (d > 0) {
-      for (int i = 0; i < d; ++i) {
-        Expr *arg = args->data[i + param_count];
-        const Type *t = arg->type;
-        assert(!(t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT));
-        // vaargs are promoted to int, so alignment is not needed.
-        vaarg_bufsiz += type_size(t);
-      }
-    }
-  }
-
-  size_t work_size = sarg_siz + vaarg_bufsiz;
   Expr *lspvar = NULL;
   if (work_size > 0) {
     FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
@@ -344,38 +324,34 @@ static void gen_funcall(Expr *expr) {
     gen_lval(e);
   }
 
-  size_t sarg_offset = 0;
-  size_t vaarg_offset = 0;
+  size_t offset = 0;
   for (int i = 0; i < arg_count; ++i) {
     Expr *arg = args->data[i];
-    if (i < param_count) {
-      if (!is_stack_param(arg->type)) {
-        gen_expr(arg, true);
-      } else {
-        assert(lspvar != NULL);
-        size_t size = type_size(arg->type);
-        if (size > 0) {
-          sarg_offset = ALIGN(sarg_offset, align_size(arg->type));
-          // _memcpy(global.sp + sarg_offset, &arg, size);
-          if (sarg_offset != 0) {
-            gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, lspvar,
-                                  new_expr_fixlit(&tySize, NULL, sarg_offset)),
-                     true);
-          } else {
-            gen_expr(lspvar, true);
-          }
-          gen_expr(arg, true);
-
-          ADD_CODE(OP_I32_CONST);
-          ADD_LEB128(size);
-          ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);  // src, dst
+    if (is_stack_param(arg->type)) {
+      assert(lspvar != NULL);
+      size_t size = type_size(arg->type);
+      if (size > 0) {
+        offset = ALIGN(offset, align_size(arg->type));
+        // _memcpy(global.sp + sarg_offset, &arg, size);
+        if (offset != 0) {
+          gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, lspvar,
+                                new_expr_fixlit(&tySize, NULL, offset)),
+                   true);
+        } else {
+          gen_expr(lspvar, true);
         }
-        sarg_offset += size;
+        gen_expr(arg, true);
+
+        ADD_CODE(OP_I32_CONST);
+        ADD_LEB128(size);
+        ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);  // src, dst
+        offset += size;
       }
+    } else if (i < param_count) {
+      gen_expr(arg, true);
     } else {
-      assert(!is_stack_param(arg->type));
-      // *(global.sp + sarg_siz + vaarg_offset) = arg
-      size_t offset = sarg_siz + vaarg_offset;
+      // *(global.sp + offset) = arg
+      offset = ALIGN(offset, align_size(arg->type));
       if (offset != 0) {
         gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, lspvar,
                               new_expr_fixlit(&tySize, NULL, offset)),
@@ -385,7 +361,7 @@ static void gen_funcall(Expr *expr) {
       }
       const Type *t = arg->type;
       assert(!(t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT));
-      vaarg_offset += type_size(t);
+      offset += type_size(t);
 
       gen_expr(arg, true);
       gen_store(t);
@@ -393,7 +369,7 @@ static void gen_funcall(Expr *expr) {
   }
   if (functype->func.vaargs) {
     // Top of vaargs.
-    if (vaarg_bufsiz > 0) {
+    if (arg_count > param_count) {
       gen_expr(lspvar, true);
     } else {
       ADD_CODE(OP_I32_CONST, 0);  // NULL

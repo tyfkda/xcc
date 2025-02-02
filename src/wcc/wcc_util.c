@@ -128,3 +128,33 @@ bool is_global_datsec_var(const VarInfo *varinfo, Scope *scope) {
 #endif
   return true;
 }
+
+size_t calc_funcall_work_size(Expr *expr) {
+  assert(expr->kind == EX_FUNCALL);
+  Expr *func = expr->funcall.func;
+  Type *functype = get_callee_type(func->type);
+  assert(functype != NULL);
+  int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
+  Vector *args = expr->funcall.args;
+
+  size_t work_size = 0;
+  for (int i = 0; i < param_count; ++i) {
+    Expr *arg = args->data[i];
+    if (is_stack_param(arg->type))
+      work_size = ALIGN(work_size, align_size(arg->type)) + type_size(arg->type);
+  }
+
+  if (functype->func.vaargs) {
+    int arg_count = args->len;
+    int d = arg_count - param_count;
+    if (d > 0) {
+      for (int i = 0; i < d; ++i) {
+        Expr *arg = args->data[i + param_count];
+        const Type *t = arg->type;
+        assert(!(t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT));
+        work_size = ALIGN(work_size, align_size(t)) + type_size(t);
+      }
+    }
+  }
+  return ALIGN(work_size, 8);
+}

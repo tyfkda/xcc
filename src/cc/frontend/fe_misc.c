@@ -1495,7 +1495,7 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
           parse_error(PE_NOFATAL, arg->token, "flexible array as an argument not allowed");
       }
     } else if (vaargs && i >= paramc) {
-      const Type *type = arg->type;
+      Type *type = arg->type;
       switch (type->kind) {
       case TY_FIXNUM:
         arg = promote_to_int(arg);
@@ -1504,6 +1504,21 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
         if (type->flonum.kind < FL_DOUBLE)  // Promote variadic argument.
           arg = make_cast(&tyDouble, arg->token, arg, false);
         break;
+#if VAARG_STRUCT_AS_POINTER
+      case TY_STRUCT:
+        {  // Convert to struct pointer using compound literal: &(type){arg}
+          const Token *tok = arg->token;
+          if (arg->kind != EX_COMPLIT) {
+            Expr *var = alloc_tmp_var(curscope, type);
+            Initializer *init = new_initializer(IK_SINGLE, tok);
+            init->single = arg;
+            Vector *inits = assign_initial_value(var, init, NULL);
+            arg = new_expr_complit(type, tok, var, inits, init);
+          }
+          arg = make_refer(tok, arg);
+        }
+        break;
+#endif
       default: break;
       }
     }

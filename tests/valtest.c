@@ -86,6 +86,20 @@ int vaargs_before_many(int a, int b, int c, int d, int e, int f, int g, int h, i
   return a + b + c + d + e + f + g + h + i + x;
 }
 
+typedef struct {long x, y, z;} VaargStruct;
+long vaargs_struct(int n, ...) {
+  va_list ap;
+  va_start(ap, n);
+  int a = 0;
+  for (int i = 0; i < n; ++i) {
+    VaargStruct s = va_arg(ap, VaargStruct);
+    int m = va_arg(ap, int);
+    a += (s.x * 100 + s.y * 10 + s.z) * m;
+  }
+  va_end(ap);
+  return a;
+}
+
 int static_local(void) {
   static int x = 42;
   return ++x;
@@ -874,6 +888,11 @@ TEST(all) {
     EXPECT("vaargs char", 65, vaargs(1, c));
   }
   EXPECT("vaargs before many", 145, vaargs_before_many(1, 2, 3, 4, 5, 6, 7, 8, 9, 100));
+  {
+    VaargStruct s1 = {1, 2, 3};
+    VaargStruct s2 = {4, 5, 6};
+    EXPECT("vaargs struct", 456369, vaargs_struct(2, s1, 3, s2, 1000));
+  }
 
   EXPECT("static local var", 44, (static_local(), static_local()));
   EXPECT("null initializer", 0L, (long)null);

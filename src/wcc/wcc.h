@@ -166,5 +166,6 @@ typedef struct FuncExtra {
 Expr *get_sp_var(void);
 unsigned char to_wtype(const Type *type);
 bool is_global_datsec_var(const VarInfo *varinfo, Scope *scope);  // Whether this global variable put on data section.
+size_t calc_funcall_work_size(Expr *expr);
 
 extern DataStorage *curcodeds;

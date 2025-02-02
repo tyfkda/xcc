@@ -19,8 +19,14 @@ typedef void **va_list;
 
 #define va_start(ap,p)    __builtin_va_start(ap,p)
 #define va_end(ap)        /*(void)*/(ap = 0)
-#define va_arg(ap, type)  (*(type*)(ap)++)  // Assume little endian
+#define va_arg(ap, ty)    __builtin_va_arg(ap,ty)
 #define va_copy(dst,src)  (dst = src)
+
+#define __builtin_va_arg(ap, ty) ( \
+  *(ty *) \
+    ((__builtin_classify_type(ty) == __builtin_classify_type(struct{}) \
+      ? (*((ap)++)) /* struct: pointer */ \
+      : ((ap)++)  /* Assume little endian */ )))
 
 #else  // not (__APPLE__ and __aarch64__) nor __riscv
 
