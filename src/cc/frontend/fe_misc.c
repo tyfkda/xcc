@@ -748,36 +748,36 @@ Expr *promote_to_int(Expr *expr) {
 Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
   cast_numbers(&lhs, &rhs, true);
 
-  if (is_const(lhs) && is_number(lhs->type) &&
-      is_const(rhs) && is_number(rhs->type)) {
+  do {
+    if (is_const(lhs) && is_number(lhs->type) &&
+        is_const(rhs) && is_number(rhs->type)) {
 #ifndef __NO_FLONUM
-    if (is_flonum(lhs->type) || is_flonum(rhs->type)) {
-      Flonum lval = is_flonum(lhs->type) ? lhs->flonum : lhs->fixnum;
-      Flonum rval = is_flonum(rhs->type) ? rhs->flonum : rhs->fixnum;
-      Flonum value;
-      switch (kind) {
-      case EX_MUL:     value = lval * rval; break;
-      case EX_DIV:     value = lval / rval; break;
-      default:
-        assert(!"err");
-        value = -1;  // Dummy
-        break;
+      if (is_flonum(lhs->type) || is_flonum(rhs->type)) {
+        Flonum lval = is_flonum(lhs->type) ? lhs->flonum : lhs->fixnum;
+        Flonum rval = is_flonum(rhs->type) ? rhs->flonum : rhs->fixnum;
+        Flonum value;
+        switch (kind) {
+        case EX_MUL:     value = lval * rval; break;
+        case EX_DIV:     value = lval / rval; break;
+        default:
+          assert(!"err");
+          value = -1;  // Dummy
+          break;
+        }
+        Type *type = lhs->type;
+        if (is_flonum(rhs->type))
+          type = rhs->type;
+        if (is_flonum(type)) {
+          return new_expr_flolit(type, lhs->token, value);
+        } else {
+          Fixnum fixnum = value;
+          return new_expr_fixlit(type, lhs->token, fixnum);
+        }
       }
-      Type *type = lhs->type;
-      if (is_flonum(rhs->type))
-        type = rhs->type;
-      if (is_flonum(type)) {
-        return new_expr_flolit(type, lhs->token, value);
-      } else {
-        Fixnum fixnum = value;
-        return new_expr_fixlit(type, lhs->token, fixnum);
-      }
-    }
 #endif
 
-    if ((kind == EX_DIV || kind == EX_MOD) && rhs->fixnum == 0) {
-      parse_error(PE_FATAL, rhs->token, "Divide by 0");
-    }
+      if ((kind == EX_DIV || kind == EX_MOD) && rhs->fixnum == 0)
+        break;
 
 #define CALC(kind, l, r, value) \
   switch (kind) { \
@@ -790,23 +790,24 @@ Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rh
   case EX_BITXOR:  value = l ^ r; break; \
   }
 
-    Fixnum value;
-    if (lhs->type->fixnum.is_unsigned) {
-      UFixnum l = lhs->fixnum;
-      UFixnum r = rhs->fixnum;
-      CALC(kind, l, r, value)
-    } else {
-      Fixnum l = lhs->fixnum;
-      Fixnum r = rhs->fixnum;
-      CALC(kind, l, r, value)
-    }
+      Fixnum value;
+      if (lhs->type->fixnum.is_unsigned) {
+        UFixnum l = lhs->fixnum;
+        UFixnum r = rhs->fixnum;
+        CALC(kind, l, r, value)
+      } else {
+        Fixnum l = lhs->fixnum;
+        Fixnum r = rhs->fixnum;
+        CALC(kind, l, r, value)
+      }
 #undef CALC
-    Type *type = lhs->type->fixnum.kind >= rhs->type->fixnum.kind ? lhs->type : rhs->type;
-    if (type->fixnum.kind < FX_INT)
-      type = &tyInt;
-    value = wrap_value(value, type_size(type), type->fixnum.is_unsigned);
-    return new_expr_fixlit(type, lhs->token, value);
-  }
+      Type *type = lhs->type->fixnum.kind >= rhs->type->fixnum.kind ? lhs->type : rhs->type;
+      if (type->fixnum.kind < FX_INT)
+        type = &tyInt;
+      value = wrap_value(value, type_size(type), type->fixnum.is_unsigned);
+      return new_expr_fixlit(type, lhs->token, value);
+    }
+  } while (0);
 
   if ((kind == EX_DIV || kind == EX_MOD) && is_const(rhs) &&
       is_fixnum(rhs->type->kind) && rhs->fixnum == 0) {
