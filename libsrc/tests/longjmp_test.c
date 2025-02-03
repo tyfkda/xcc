@@ -15,7 +15,7 @@
 
 jmp_buf env;
 
-void simple(int param) {
+static void simple(int param) {
   if (param)
     longjmp(env, param * 2);
 }
@@ -58,7 +58,7 @@ TEST(multiple_times) {
   }
 }
 
-void nested(jmp_buf env2) {
+static void nested(jmp_buf env2) {
   if (!setjmp(env))
     longjmp(env2, 777);
 }
@@ -71,6 +71,16 @@ TEST(nested) {
     nested(env2);
     fail("nested, unreachable");
   }
+}
+
+TEST(volatile_local_preserved) {
+  volatile int x = 0;
+  int result = setjmp(env);
+  if (result == 0) {
+    x = 99;
+    longjmp(env, 1);
+  }
+  EXPECT_EQ(99, x);
 }
 
 XTEST_MAIN();
