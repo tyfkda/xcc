@@ -332,7 +332,7 @@ bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, c
       level = PE_NOFATAL;
     else if (!cc_flags.warn_as_error)
       fprintf(stderr, "warning: ");
-    fprintf(stderr, "cannot convert value from type `");
+    fprintf(stderr, "convert value from type `");
     print_type(stderr, src);
     fprintf(stderr, "' to %s`", dst->kind == TY_ARRAY ? "array type " : "");
     print_type(stderr, dst);
@@ -1232,7 +1232,7 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
           (lt->kind == TY_PTR && lt->pa.ptrof->kind == TY_VOID) ||
           (rt->kind == TY_PTR && rt->pa.ptrof->kind == TY_VOID) ||
           is_zero(rhs) || is_zero(lhs))) {
-      enum ParseErrorLevel err = st ? PE_WARNING : PE_NOFATAL;
+      enum ParseErrorLevel err = st || (lt->kind == TY_PTR && rt->kind == TY_PTR) ? PE_WARNING : PE_NOFATAL;
       parse_error(err, tok, "Compare pointer to other types");
     }
     if (rt->kind != TY_PTR)
