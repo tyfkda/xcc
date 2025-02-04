@@ -62,13 +62,6 @@ static struct CompareExpr gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
 
   assert(EX_EQ <= kind && kind <= EX_GT);
   enum ConditionKind cond = kind + (COND_EQ - EX_EQ);
-  if (is_const(lhs)) {
-    assert(!is_const(rhs));
-    Expr *tmp = lhs;
-    lhs = rhs;
-    rhs = tmp;
-    cond = swap_cond(cond);
-  }
 
   int flag = 0;
   if ((is_fixnum(lhs->type->kind) && lhs->type->fixnum.is_unsigned) ||
@@ -81,30 +74,52 @@ static struct CompareExpr gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
 
   VReg *lhs_reg = gen_expr(lhs);
   VReg *rhs_reg = gen_expr(rhs);
-  if ((rhs_reg->flag & VRF_CONST) != 0 && (lhs_reg->flag & VRF_CONST) != 0) {
-    static struct CompareExpr kNone = {.cond = COND_NONE};
-    static struct CompareExpr kAny = {.cond = COND_ANY};
-    // Const VReg is must be non-flonum.
-    assert(!(lhs_reg->flag & VRF_FLONUM));
-    assert(!(rhs_reg->flag & VRF_FLONUM));
-    assert(!(flag & COND_FLONUM));
-    switch (cond | flag) {
-    case COND_NONE: return kNone;
-    case COND_ANY:  return kAny;
-    case COND_EQ:  return lhs_reg->fixnum == rhs_reg->fixnum ? kAny : kNone;
-    case COND_NE:  return lhs_reg->fixnum != rhs_reg->fixnum ? kAny : kNone;
-    case COND_LT:  return lhs_reg->fixnum <  rhs_reg->fixnum ? kAny : kNone;
-    case COND_LE:  return lhs_reg->fixnum <= rhs_reg->fixnum ? kAny : kNone;
-    case COND_GE:  return lhs_reg->fixnum >= rhs_reg->fixnum ? kAny : kNone;
-    case COND_GT:  return lhs_reg->fixnum >  rhs_reg->fixnum ? kAny : kNone;
-    case COND_EQ | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum == (uint64_t)rhs_reg->fixnum ? kAny : kNone;
-    case COND_NE | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum != (uint64_t)rhs_reg->fixnum ? kAny : kNone;
-    case COND_LT | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum <  (uint64_t)rhs_reg->fixnum ? kAny : kNone;
-    case COND_LE | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum <= (uint64_t)rhs_reg->fixnum ? kAny : kNone;
-    case COND_GE | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum >= (uint64_t)rhs_reg->fixnum ? kAny : kNone;
-    case COND_GT | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum >  (uint64_t)rhs_reg->fixnum ? kAny : kNone;
-    default: assert(false); break;
+  if ((lhs_reg->flag & VRF_CONST) != 0) {
+    if ((rhs_reg->flag & VRF_CONST) != 0) {
+      static struct CompareExpr kNone = {.cond = COND_NONE};
+      static struct CompareExpr kAny = {.cond = COND_ANY};
+#ifndef __NO_FLONUM
+      if (flag & COND_FLONUM) {
+        assert(lhs_reg->flag & VRF_FLONUM);
+        assert(rhs_reg->flag & VRF_FLONUM);
+        switch (cond) {
+        case COND_NONE: return kNone;
+        case COND_ANY:  return kAny;
+        case COND_EQ:  return lhs_reg->flonum.value == rhs_reg->flonum.value ? kAny : kNone;
+        case COND_NE:  return lhs_reg->flonum.value != rhs_reg->flonum.value ? kAny : kNone;
+        case COND_LT:  return lhs_reg->flonum.value <  rhs_reg->flonum.value ? kAny : kNone;
+        case COND_LE:  return lhs_reg->flonum.value <= rhs_reg->flonum.value ? kAny : kNone;
+        case COND_GE:  return lhs_reg->flonum.value >= rhs_reg->flonum.value ? kAny : kNone;
+        case COND_GT:  return lhs_reg->flonum.value >  rhs_reg->flonum.value ? kAny : kNone;
+        default: assert(false); break;
+        }
+      }
+#endif
+      assert(!(lhs_reg->flag & VRF_FLONUM));
+      assert(!(rhs_reg->flag & VRF_FLONUM));
+      switch (cond | flag) {
+      case COND_NONE: return kNone;
+      case COND_ANY:  return kAny;
+      case COND_EQ:  return lhs_reg->fixnum == rhs_reg->fixnum ? kAny : kNone;
+      case COND_NE:  return lhs_reg->fixnum != rhs_reg->fixnum ? kAny : kNone;
+      case COND_LT:  return lhs_reg->fixnum <  rhs_reg->fixnum ? kAny : kNone;
+      case COND_LE:  return lhs_reg->fixnum <= rhs_reg->fixnum ? kAny : kNone;
+      case COND_GE:  return lhs_reg->fixnum >= rhs_reg->fixnum ? kAny : kNone;
+      case COND_GT:  return lhs_reg->fixnum >  rhs_reg->fixnum ? kAny : kNone;
+      case COND_EQ | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum == (uint64_t)rhs_reg->fixnum ? kAny : kNone;
+      case COND_NE | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum != (uint64_t)rhs_reg->fixnum ? kAny : kNone;
+      case COND_LT | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum <  (uint64_t)rhs_reg->fixnum ? kAny : kNone;
+      case COND_LE | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum <= (uint64_t)rhs_reg->fixnum ? kAny : kNone;
+      case COND_GE | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum >= (uint64_t)rhs_reg->fixnum ? kAny : kNone;
+      case COND_GT | COND_UNSIGNED:  return (uint64_t)lhs_reg->fixnum >  (uint64_t)rhs_reg->fixnum ? kAny : kNone;
+      default: assert(false); break;
+      }
     }
+
+    VReg *tmp = lhs_reg;
+    lhs_reg = rhs_reg;
+    rhs_reg = tmp;
+    cond = swap_cond(cond);
   }
 
   assert(is_prim_type(lhs->type));
