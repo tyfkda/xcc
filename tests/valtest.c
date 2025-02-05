@@ -112,6 +112,7 @@ TEST(all) {
   EXPECT("octal", 83, 0123);
   EXPECT("binary", 14953, 0b0011101001101001);
   EXPECT("negative", -42, (x=42, -x));
+  EXPECT("negative unsigned literal is unsigned", ~0U, -1U);
   EXPECT("0 - x", -42, (x=42, 0-x));
   EXPECT("long", 123, 123L);
   { long long x = 9876543LL; EXPECT("long long", 9876543, x); }
@@ -312,6 +313,7 @@ TEST(all) {
     unsigned int uone = 1U;
     EXPECT("compare with different sign1", 1, minus > uone);  // !!!
     EXPECT("compare with different sign2", 1, uone < minus);  // !!!
+    EXPECT("compare with hex literal", 1, minus < 0xf6);  // Hex literal is signed.
   }
   EXPECT("condition is true", true, (x = 3, (x != 0) == true));
   EXPECT("condition is not true", false, (x = 4, (x > 0) != true));

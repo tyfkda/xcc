@@ -279,9 +279,14 @@ static Expr *literal(Token *tok) {
         while (fx < FX_LLONG) {
           Type *type = get_fixnum_type(fx, u, 0);
           int bits = type_size(type) * TARGET_CHAR_BIT - (u ? 0 : 1);
-          if ((value <= (((UFixnum)1 << bits) - 1)) &&
+          if ((value <= (((UFixnum)1U << bits) - 1U)) &&
               (u || (Fixnum)value >= -((Fixnum)1 << (bits - 1))))
             break;
+          if (!u && value <= ((UFixnum)1U << (bits + 1)) - 1U &&
+              (tok->fixnum.flag & TKF_KIND_MASK) != 0) {
+            u = true;
+            break;
+          }
           ++fx;
         }
         if (!u && fx >= FX_LLONG) {
@@ -342,12 +347,6 @@ static Expr *unary(Token *tok) {
         return expr;
       }
 
-      if (is_fixnum(type->kind)) {
-        expr = promote_to_int(expr);
-        type = expr->type;
-        if (kind == TK_SUB && type->fixnum.is_unsigned)
-          type = get_fixnum_type(type->fixnum.kind, false, type->qualifier);  // Get signed type.
-      }
       if (is_const(expr)) {
         if (kind == TK_SUB) {
 #ifndef __NO_FLONUM
@@ -357,10 +356,16 @@ static Expr *unary(Token *tok) {
           }
 #endif
           assert(is_fixnum(type->kind));
-          expr->fixnum = wrap_value(-expr->fixnum, type_size(type), false);
+          expr->fixnum = wrap_value(-expr->fixnum, type_size(type), type->fixnum.is_unsigned);
           expr->type = type;
         }
         return expr;
+      }
+      if (is_fixnum(type->kind)) {
+        expr = promote_to_int(expr);
+        type = expr->type;
+        if (kind == TK_SUB && type->fixnum.is_unsigned)
+          type = get_fixnum_type(type->fixnum.kind, false, type->qualifier);  // Get signed type.
       }
       return new_expr_unary(kind + (EX_POS - TK_ADD), type, tok, expr);
     }
