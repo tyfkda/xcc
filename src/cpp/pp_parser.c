@@ -297,15 +297,7 @@ static PpResult parse_precedence(Precedence precedence) {
 static PpResult literal(Token *tok) {
   switch (tok->kind) {
   case TK_INTLIT:
-  case TK_CHARLIT:
-  case TK_LONGLIT:
-  case TK_LLONGLIT:
-  case TK_UINTLIT:
-  case TK_UCHARLIT:
-  case TK_ULONGLIT:
-  case TK_ULLONGLIT:
-  case TK_WCHARLIT:
-    return tok->fixnum;
+    return tok->fixnum.value;
   // case TK_STR:     return string_expr(tok, tok->str.buf, tok->str.len, tok->str.kind);
 #ifndef __NO_FLONUM
   case TK_FLOATLIT: case TK_DOUBLELIT: case TK_LDOUBLELIT:
@@ -432,14 +424,6 @@ static const ParseRule *get_rule(enum TokenKind kind) {
     [TK_TILDA]         = {unary},
 
     [TK_INTLIT]        = {literal},
-    [TK_CHARLIT]       = {literal},
-    [TK_LONGLIT]       = {literal},
-    [TK_LLONGLIT]      = {literal},
-    [TK_UINTLIT]       = {literal},
-    [TK_UCHARLIT]      = {literal},
-    [TK_ULONGLIT]      = {literal},
-    [TK_ULLONGLIT]     = {literal},
-    [TK_WCHARLIT]      = {literal},
     [TK_STR]           = {literal},
     [TK_FLOATLIT]      = {literal},
     [TK_DOUBLELIT]     = {literal},

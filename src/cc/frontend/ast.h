@@ -68,15 +68,7 @@ enum TokenKind {
   TK_DOT,            // .
   TK_QUESTION,       // ?
   TK_TILDA,          // ~
-  TK_INTLIT,         // int literal
-  TK_CHARLIT,        // char literal
-  TK_LONGLIT,        // long literal
-  TK_LLONGLIT,       // long long literal
-  TK_UINTLIT,        // unsigned int literal
-  TK_UCHARLIT,       // unsigned char literal
-  TK_ULONGLIT,       // unsigned long literal
-  TK_ULLONGLIT,      // unsigned long long literal
-  TK_WCHARLIT,       // wide-char literal
+  TK_INTLIT,         // int literal (ULL, or 'c', L'W')
   TK_FLOAT,
   TK_DOUBLE,
   TK_FLOATLIT,       // float literal
@@ -154,6 +146,11 @@ enum TokenKind {
   PPTK_OTHERCHAR,    // Allows illegal character on preprocessor
 };
 
+#define TKF_LONG_BITS   2
+#define TKF_LONG_MASK   ((1 << TKF_LONG_BITS) - 1)
+#define TKF_UNSIGNED    (1 << (TKF_LONG_BITS + 0))
+#define TKF_CHAR        (1 << (TKF_LONG_BITS + 1))
+
 // Token
 typedef struct Token {
   enum TokenKind kind;
@@ -167,7 +164,10 @@ typedef struct Token {
       size_t len;  // String length, include last '\0'.
       enum StrKind kind;
     } str;
-    Fixnum fixnum;
+    struct {
+      Fixnum value;
+      int flag;
+    } fixnum;
 #ifndef __NO_FLONUM
     Flonum flonum;
 #endif

@@ -467,38 +467,26 @@ static Token *read_num(const char **pp) {
     return read_flonum(pp, 10);
   }
 #endif
-  enum TokenKind tt = TK_INTLIT;
   int unsigned_count = 0, long_count = 0;
   for (;; ++p) {
     int c = tolower(*p);
     if (c == 'u') {
-      if (unsigned_count > 0)
-        lex_error(p, "Illegal unsigned literal");
       is_unsigned = true;
       ++unsigned_count;
+      if (unsigned_count > 1)
+        lex_error(p, "Illegal unsigned literal");
       continue;
     } else if (c == 'l') {
-      switch (long_count) {
-      case 0:  tt = TK_LONGLIT; break;
-      case 1:  tt = TK_LLONGLIT; break;
-      default:
-        lex_error(p, "Illegal long literal");
-        break;
-      }
       ++long_count;
+      if (long_count > 2)
+        lex_error(p, "Illegal long literal");
       continue;
     }
     break;
   }
-  if (tt == TK_INTLIT) {
-    const int INT_BYTES = 4;  // TODO: Detect.
-    int bits = INT_BYTES * TARGET_CHAR_BIT;
-    unsigned long long threshold = 1UL << (bits - (is_unsigned ? 0 : 1));
-    if (val >= threshold)
-      tt = TK_LONGLIT;
-  }
-  Token *tok = alloc_token(tt + (is_unsigned ? (TK_UINTLIT - TK_INTLIT) : 0), lexer.line, start, p);
-  tok->fixnum = val;
+  Token *tok = alloc_token(TK_INTLIT, lexer.line, start, p);
+  tok->fixnum.value = val;
+  tok->fixnum.flag = (is_unsigned ? TKF_UNSIGNED : 0) | (long_count & TKF_LONG_MASK);
   *pp = p;
   return tok;
 }
@@ -558,8 +546,8 @@ static const char *read_utf8_char(const char *p, int *result) {
 static Token *read_char(const char **pp) {
   const char *p = *pp;
   const char *begin = p++;
-#ifndef __NO_WCHAR
   bool is_wide = false;
+#ifndef __NO_WCHAR
   if (*begin == 'L') {
     is_wide = true;
     assert(*p == '\'');
@@ -576,13 +564,9 @@ static Token *read_char(const char **pp) {
     lex_error(p, "Character not closed");
 
   ++p;
-  enum TokenKind kind = TK_CHARLIT;
-#ifndef __NO_WCHAR
-  if (is_wide)
-    kind = TK_WCHARLIT;
-#endif
-  Token *tok = alloc_token(kind, lexer.line, begin, p);
-  tok->fixnum = c;
+  Token *tok = alloc_token(TK_INTLIT, lexer.line, begin, p);
+  tok->fixnum.value = c;
+  tok->fixnum.flag = TKF_CHAR | (is_wide ? (1 | TKF_UNSIGNED) : 0);
   *pp = p;
   return tok;
 }

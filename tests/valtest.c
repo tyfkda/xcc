@@ -870,6 +870,10 @@ TEST(all) {
     EXPECT("64bit literal 3", 0x5678, (x >> 32) & 0xffff);
     EXPECT("64bit literal 4", 0x1234, (x >> 48) & 0xffff);
   }
+  {
+    int64_t x = 0;
+    EXPECT("literal auto unsigned", 1, 0x89abcdef01234567LL > x);
+  }
 
   {
     EXPECT("_Bool from int", true, ({int x = -123; (_Bool)x;}));

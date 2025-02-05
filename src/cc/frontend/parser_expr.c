@@ -256,36 +256,44 @@ static Expr *parse_precedence(Precedence precedence) {
 static Expr *literal(Token *tok) {
   switch (tok->kind) {
   case TK_INTLIT:
-  case TK_CHARLIT:
-  case TK_LONGLIT:
-  case TK_LLONGLIT:
-  case TK_UINTLIT:
-  case TK_UCHARLIT:
-  case TK_ULONGLIT:
-  case TK_ULLONGLIT:
-  case TK_WCHARLIT:
     {
-#define DEFFIXNUM(tk, fx, u)  [tk - TK_INTLIT] = {fx, u}
-      struct Table {
-        enum FixnumKind fx;
-        bool u;
-      };
-      static const struct Table kTable[] = {
-        DEFFIXNUM(TK_INTLIT, FX_INT, false),
-        DEFFIXNUM(TK_CHARLIT, FX_CHAR, false),
-        DEFFIXNUM(TK_LONGLIT, FX_LONG, false),
-        DEFFIXNUM(TK_LLONGLIT, FX_LLONG, false),
-        DEFFIXNUM(TK_UINTLIT, FX_INT, true),
-        DEFFIXNUM(TK_UCHARLIT, FX_CHAR, true),
-        DEFFIXNUM(TK_ULONGLIT, FX_LONG, true),
-        DEFFIXNUM(TK_ULLONGLIT, FX_LLONG, true),
+      int flag = tok->fixnum.flag;
+      int long_count = flag & TKF_LONG_MASK;
+      enum FixnumKind fx;
+      bool u = flag & TKF_UNSIGNED;
+      if (flag & TKF_CHAR) {
 #ifndef __NO_WCHAR
-        DEFFIXNUM(TK_WCHARLIT, FX_INT, true),  // TODO: Must match with target's wchar_t
+        static const enum FixnumKind kCharTable[] = { FX_CHAR, FX_INT };
+        assert(long_count < (int)ARRAY_SIZE(kCharTable));
+        fx = kCharTable[long_count];
+#else
+        fx = FX_CHAR;
 #endif
-      };
-#undef DEFFIXNUM
-      const struct Table *p = &kTable[tok->kind - TK_INTLIT];
-      return new_expr_fixlit(get_fixnum_type(p->fx, p->u, 0), tok, tok->fixnum);
+      } else {
+        static const enum FixnumKind kFxTable[] = { FX_INT, FX_LONG, FX_LLONG };
+        assert(long_count < (int)ARRAY_SIZE(kFxTable));
+        fx = kFxTable[long_count];
+
+        // Check auto upgrade.
+        UFixnum value = tok->fixnum.value;
+        while (fx < FX_LLONG) {
+          Type *type = get_fixnum_type(fx, u, 0);
+          int bits = type_size(type) * TARGET_CHAR_BIT - (u ? 0 : 1);
+          if ((value <= (((UFixnum)1 << bits) - 1)) &&
+              (u || (Fixnum)value >= -((Fixnum)1 << (bits - 1))))
+            break;
+          ++fx;
+        }
+        if (!u && fx >= FX_LLONG) {
+          // Check auto upgrade to unsigned.
+          Type *type = get_fixnum_type(fx, u, 0);
+          int bits = type_size(type) * TARGET_CHAR_BIT - (u ? 0 : 1);
+          if (value > (((UFixnum)1 << bits) - 1))
+            u = true;
+        }
+      }
+      Type *type = get_fixnum_type(fx, u, 0);
+      return new_expr_fixlit(type, tok, tok->fixnum.value);
     }
 #ifndef __NO_FLONUM
   case TK_FLOATLIT: case TK_DOUBLELIT: case TK_LDOUBLELIT:
@@ -767,14 +775,6 @@ static const ParseRule *get_rule(enum TokenKind kind) {
     [TK_TILDA]         = {unary},
 
     [TK_INTLIT]        = {literal},
-    [TK_CHARLIT]       = {literal},
-    [TK_LONGLIT]       = {literal},
-    [TK_LLONGLIT]      = {literal},
-    [TK_UINTLIT]       = {literal},
-    [TK_UCHARLIT]      = {literal},
-    [TK_ULONGLIT]      = {literal},
-    [TK_ULLONGLIT]     = {literal},
-    [TK_WCHARLIT]      = {literal},
     [TK_STR]           = {literal},
     [TK_FLOATLIT]      = {literal},
     [TK_DOUBLELIT]     = {literal},
