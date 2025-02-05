@@ -966,7 +966,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
 void not_bitfield_member(Expr *expr) {
   if (expr->kind == EX_MEMBER) {
     const MemberInfo *minfo = expr->member.info;
-    if (minfo->bitfield.width > 0)
+    if (minfo->bitfield.active)
       parse_error(PE_NOFATAL, expr->token, "cannot get size for bitfield");
   }
 }

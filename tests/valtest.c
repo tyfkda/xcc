@@ -1647,6 +1647,9 @@ TEST(bitfield) {
     };
     // Bit width zero breaks bit packing.
     EXPECT_TRUE(sizeof(struct S1) < sizeof(struct S2));
+
+    struct S2 s2 = {1, 2};
+    EXPECT("zero bitfield not consume initializer", 2, s2.y);
   }
 }
 #endif

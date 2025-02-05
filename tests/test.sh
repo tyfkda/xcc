@@ -43,7 +43,7 @@ function test_struct() {
 function test_bitfield() {
   begin_test_suite "Bitfield"
 
-  compile_error 'bit width 0' 'int main(){struct {int x:0;} s; (void)s;}'
+  compile_error 'bit width 0 with name' 'int main(){struct {int x:0;} s; (void)s;}'
   compile_error 'bit width neg' 'int main(){struct {int x:-1;} s; (void)s;}'
   compile_error 'require bit width' 'int main(){struct {int x:;} s; (void)s;}'
   compile_error 'bit size over' 'int main(){struct {int x:33;} s; (void)s;}'

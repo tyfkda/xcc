@@ -216,7 +216,7 @@ void construct_initial_value(const Type *type, const Initializer *init,
       for (int i = 0, n = sinfo->member_count; i < n; ++i) {
         const MemberInfo *member = &sinfo->members[i];
 #ifndef __NO_BITFIELD
-        if (member->bitfield.width >= 0) {
+        if (member->bitfield.active) {
           i = construct_initial_value_bitfield(sinfo, init, i, &offset, vtable, ud);
           ++count;
           continue;

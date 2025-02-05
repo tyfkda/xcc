@@ -247,10 +247,21 @@ static Initializer *find_next_indices(InitFlattener *flattener, Initializer *ele
           const StructInfo *sinfo = type->struct_.info;
           assert(sinfo != NULL);
           int member_count = sinfo->is_union ? 1 : sinfo->member_count;
-          if (last_index < member_count) {
-            type = sinfo->members[last_index].type;
-          } else {
-            upward = true;
+          for (;;) {
+            if (last_index >= member_count) {
+              upward = true;
+              break;
+            }
+            MemberInfo *member = &sinfo->members[last_index];
+#ifndef __NO_BITFIELD
+            if (member->bitfield.active && member->bitfield.width == 0) {  // Initializer not assigned to zero width bitfield.
+              ++last_index;
+              indices->data[depth - 1] = INT2VOIDP(last_index);
+              continue;
+            }
+#endif
+            type = member->type;
+            break;
           }
         }
         break;

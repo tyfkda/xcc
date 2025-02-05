@@ -146,11 +146,18 @@ static StructInfo *parse_struct(bool is_union) {
 
       members = realloc_or_die(members, sizeof(*members) * (count + 1));
       MemberInfo *p = &members[count++];
+      memset(p, 0, sizeof(*p));
       p->name = name;
       p->type = type;
       p->offset = 0;
 #ifndef __NO_BITFIELD
-      p->bitfield.width = bit == NULL ? -1 : bit->fixnum;
+      if (bit == NULL) {
+        p->bitfield.active = false;
+        p->bitfield.width = 0;
+      } else {
+        p->bitfield.active = true;
+        p->bitfield.width = bit->fixnum;
+      }
 #endif
     } while (flex_arr_mem == NULL && match(TK_COMMA));
     consume(TK_SEMICOL, "`;' expected");

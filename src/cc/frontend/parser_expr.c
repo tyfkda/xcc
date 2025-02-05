@@ -406,7 +406,7 @@ static Expr *unary(Token *tok) {
 #ifndef __NO_BITFIELD
     if (expr->kind == EX_MEMBER) {
       const MemberInfo *minfo = expr->member.info;
-      if (minfo->bitfield.width > 0)
+      if (minfo->bitfield.active)
         parse_error(PE_NOFATAL, tok, "Cannot take reference for bitfield");
     }
 #endif
@@ -540,7 +540,7 @@ static Expr *assign(Expr *lhs, Token *tok) {
 #ifndef __NO_BITFIELD
     if (lhs->kind == EX_MEMBER) {
       const MemberInfo *minfo = lhs->member.info;
-      if (minfo->bitfield.width > 0)
+      if (minfo->bitfield.active)
         return assign_to_bitfield(tok, lhs, rhs, minfo);
     }
 #endif

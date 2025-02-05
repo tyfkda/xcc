@@ -58,6 +58,7 @@ static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t
   enum FixnumKind kind;
   {
     MemberInfo *minfo = &sinfo->members[i];
+    assert(minfo->bitfield.active);
     if (minfo->bitfield.width == 0)
       return size;
 
@@ -95,6 +96,7 @@ static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t
     if (minfo->bitfield.width <= 0)
       break;
 
+    assert(minfo->bitfield.active);
     if (bit_position + minfo->bitfield.width > s) {
       enum FixnumKind k;
       for (k = kind; ++k <= FX_LLONG; ) {
@@ -149,7 +151,7 @@ static void calc_struct_size(StructInfo *sinfo) {
     size_t align = 1;
     if (!sinfo->is_union) {
 #ifndef __NO_BITFIELD
-      if (minfo->bitfield.width >= 0) {
+      if (minfo->bitfield.active) {
         size = calc_bitfield_size(sinfo, &i, size, &align);
       } else
 #endif
