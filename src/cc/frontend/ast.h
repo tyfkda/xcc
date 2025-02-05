@@ -150,6 +150,12 @@ enum TokenKind {
 #define TKF_LONG_MASK   ((1 << TKF_LONG_BITS) - 1)
 #define TKF_UNSIGNED    (1 << (TKF_LONG_BITS + 0))
 #define TKF_CHAR        (1 << (TKF_LONG_BITS + 1))
+#define TKF_KIND_SHIFT  (TKF_LONG_BITS + 2)
+#define TKF_KIND_PLANE  (0 << TKF_KIND_SHIFT)
+#define TKF_KIND_BIN    (1 << TKF_KIND_SHIFT)
+#define TKF_KIND_OCT    (2 << TKF_KIND_SHIFT)
+#define TKF_KIND_HEX    (3 << TKF_KIND_SHIFT)
+#define TKF_KIND_MASK   (3 << TKF_KIND_SHIFT)
 
 // Token
 typedef struct Token {

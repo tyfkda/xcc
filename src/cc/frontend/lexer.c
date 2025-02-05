@@ -433,12 +433,12 @@ static Token *read_flonum(const char **pp, int base) {
 static Token *read_num(const char **pp) {
   const char *start = *pp, *p = start;
   int base = 10;
-  bool is_unsigned = false;
+  int flag = 0;
   if (*p == '0') {
     char c = tolower(p[1]);
     if (c == 'x') {
       base = 16;
-      is_unsigned = true;
+      flag = TKF_KIND_HEX;
       p += 2;
 #ifndef __NO_FLONUM
       if (*p == '.')  // Hex float literal.
@@ -446,11 +446,11 @@ static Token *read_num(const char **pp) {
 #endif
     } else if (c == 'b') {
       base = 2;
-      is_unsigned = true;
+      flag = TKF_KIND_BIN;
       p += 2;
     } else if (isdigit(c)) {
       base = 8;
-      is_unsigned = true;
+      flag = TKF_KIND_OCT;
     }
   }
   const char *q = p;
@@ -471,7 +471,6 @@ static Token *read_num(const char **pp) {
   for (;; ++p) {
     int c = tolower(*p);
     if (c == 'u') {
-      is_unsigned = true;
       ++unsigned_count;
       if (unsigned_count > 1)
         lex_error(p, "Illegal unsigned literal");
@@ -486,7 +485,7 @@ static Token *read_num(const char **pp) {
   }
   Token *tok = alloc_token(TK_INTLIT, lexer.line, start, p);
   tok->fixnum.value = val;
-  tok->fixnum.flag = (is_unsigned ? TKF_UNSIGNED : 0) | (long_count & TKF_LONG_MASK);
+  tok->fixnum.flag = flag | (unsigned_count > 0 ? TKF_UNSIGNED : 0) | (long_count & TKF_LONG_MASK);
   *pp = p;
   return tok;
 }
