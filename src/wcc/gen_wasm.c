@@ -287,9 +287,9 @@ static void gen_funcall_by_name(const Name *funcname) {
 static void gen_funcall(Expr *expr) {
   Expr *func = expr->funcall.func;
   if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
-    void *proc = table_get(&builtin_function_table, func->var.name);
+    BuiltinFunctionProc *proc = table_get(&builtin_function_table, func->var.name);
     if (proc != NULL) {
-      (*(BuiltinFunctionProc*)proc)(expr, BFP_GEN);
+      (*proc)(expr, BFP_GEN);
       return;
     }
   }
@@ -1821,34 +1821,51 @@ static void gen_builtin_setjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
 }
 
 static void gen_builtin_longjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
-  if (phase == BFP_TRAVERSE)
-    register_longjmp_tag();
-  if (phase != BFP_GEN)
-    return;
-
   assert(expr->kind == EX_FUNCALL);
   Vector *args = expr->funcall.args;
   assert(args->len == 2);
 
-  Expr *env = args->data[0];  // TODO: Assume no side effect.
+  if (phase == BFP_TRAVERSE) {
+    register_longjmp_tag();
+
+    // Make args no side effect.
+    const Token *tok = expr->token;
+    for (int i = 0; i < args->len; ++i) {
+      Expr *arg = args->data[i];
+      if (!is_const(arg) && arg->kind != EX_VAR) {
+        // (tmp = arg, tmp)
+        Expr *tmp = alloc_tmp_var(curscope, arg->type);
+        Expr *comma = new_expr_bop(EX_COMMA, &tyVoid, tok,
+                                   new_expr_bop(EX_ASSIGN, &tyVoid, tok, tmp, arg),
+                                   tmp);
+        args->data[i] = comma;
+      }
+    }
+  }
+  if (phase != BFP_GEN)
+    return;
+
   // env[1] = result == 0 ? 1 : result;
-  gen_expr(env, true);
-  // result == 0 ? 1 : result
-  Expr *result = args->data[1];
-  if (is_const(result)) {
-    assert(result->kind == EX_FIXNUM);
-    if (result->fixnum != 0)
+  Expr *env_org = args->data[0];
+  gen_expr(env_org, true);
+
+  Expr *result_org = args->data[1];
+  if (is_const(result_org)) {
+    assert(result_org->kind == EX_FIXNUM);
+    if (result_org->fixnum != 0)
       gen_expr(args->data[1], true);
     else
       ADD_CODE(OP_I32_CONST, 1);
   } else {
-    gen_expr(args->data[1], true);
+    Expr *result = result_org->kind == EX_COMMA ? result_org->bop.rhs : result_org;
+    gen_expr(result_org, true);
     ADD_CODE(OP_I32_CONST, 1);
-    gen_expr(args->data[1], true);  // Assume result has no side effect.
+    gen_expr(result, true);
     ADD_CODE(OP_SELECT);
   }
   ADD_CODE(OP_I32_STORE, 2, 4);
 
+  Expr *env = env_org->kind == EX_COMMA ? env_org->bop.rhs : env_org;
   gen_expr(env, true);
   TagInfo *ti = register_longjmp_tag();
   ADD_CODE(OP_THROW);
@@ -1880,7 +1897,8 @@ static void gen_builtin_try_catch_longjmp(Expr *expr, enum BuiltinFunctionPhase 
         assert(try_block_expr->kind == EX_BLOCK);
         gen_stmt(try_block_expr->block, false);
         ADD_CODE(OP_BR, 2);
-      } ADD_CODE(OP_CATCH); {
+      }
+      ADD_CODE(OP_CATCH); {
         TagInfo *ti = register_longjmp_tag();
         FuncExtra *extra = curfunc->extra;
         DataStorage *code = extra->code;
@@ -1901,12 +1919,20 @@ static void gen_builtin_try_catch_longjmp(Expr *expr, enum BuiltinFunctionPhase 
                  OP_RETHROW, 1,
                  OP_END);
         Expr *var = args->data[1];
-        if (var != NULL) {
-          // var = env[1];
+        assert(var != NULL && var->kind == EX_VAR);
+
+        const VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
+        if (!(varinfo->storage & VS_REF_TAKEN) && !is_global_datsec_var(varinfo, var->var.scope)) {
           gen_expr(env, true);
           ADD_CODE(OP_I32_LOAD, 2, 4);
           gen_set_to_var(var);
+        } else {
+          gen_lval(var);
+          gen_expr(env, true);
+          ADD_CODE(OP_I32_LOAD, 2, 4);
+          gen_store(var->type);
         }
+
         // Restore stack pointer: sp = *env;
         const Token *token = expr->token;
         Expr *spvar = get_sp_var();

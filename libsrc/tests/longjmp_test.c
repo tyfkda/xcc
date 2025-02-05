@@ -34,6 +34,14 @@ TEST(simple) {
   } else {
     EXPECT_EQ(510, result);
   }
+
+  result = 0;
+  if (setjmp(env) == 0) {
+    simple(1);
+  } else {
+    result = 4321;
+  }
+  EXPECT_EQ(4321, result);
 }
 
 TEST(zero) {
@@ -81,6 +89,23 @@ TEST(volatile_local_preserved) {
     longjmp(env, 1);
   }
   EXPECT_EQ(99, x);
+}
+
+TEST(sideeffect) {
+  jmp_buf envs[2];
+  memset(&envs[1], -1, sizeof(envs[1]));
+  int result = -1;
+  volatile int i = 1;
+  if (setjmp(envs[i--]) == 0) {
+    jmp_buf *p = &envs[0];
+    volatile int val;
+    val = 55;
+    if ((result = setjmp(envs[0])) == 0) {
+      longjmp(*p++, ++val);
+    }
+  }
+  EXPECT_EQ(56, result);
+  EXPECT_EQ(0, i);
 }
 
 XTEST_MAIN();

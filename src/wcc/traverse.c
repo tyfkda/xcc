@@ -199,23 +199,16 @@ static void traverse_func_expr(Expr **pexpr) {
   Type *type = expr->type;
   assert(type->kind == TY_FUNC ||
          (type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC));
-  const Name *funcname = NULL;
   if (expr->kind == EX_VAR && type->kind == TY_FUNC) {  // Function must be placed in global scope.
-    funcname = expr->var.name;
-  } else {
-    compile_unit_flag |= CUF_INDIRECT_CALL;
-  }
-  if (funcname != NULL) {
-    BuiltinFunctionProc *proc;
-    if (!table_try_get(&builtin_function_table, funcname, (void**)&proc))
-      register_func_info(funcname, NULL, NULL, FF_REFERRED);
-    else
-      (*proc)(expr, BFP_TRAVERSE);
+    const Name *funcname = expr->var.name;;
+    if (!table_try_get(&builtin_function_table, funcname, NULL))
+     register_func_info(funcname, NULL, NULL, FF_REFERRED);
   } else {
     type = get_callee_type(type);
     assert(type != NULL && type->kind == TY_FUNC);
     getsert_func_type_index(type, true);
     traverse_expr(pexpr, true);
+    compile_unit_flag |= CUF_INDIRECT_CALL;
   }
 }
 
@@ -316,6 +309,12 @@ static void te_funcall(Expr **pexpr, bool needval) {
   traverse_func_expr(&expr->funcall.func);
   for (int i = 0, n = args->len; i < n; ++i)
     traverse_expr((Expr**)&args->data[i], true);
+
+  if (func->kind == EX_VAR && func->type->kind == TY_FUNC) {  // Function must be placed in global scope.
+    BuiltinFunctionProc *proc = table_get(&builtin_function_table, func->var.name);
+    if (proc != NULL)
+      (*proc)(expr, BFP_TRAVERSE);
+  }
 }
 
 static void te_noop(Expr **pexpr, bool needval) { UNUSED(pexpr); UNUSED(needval); }

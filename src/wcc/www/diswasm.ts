@@ -1210,7 +1210,11 @@ export class DisWasm {
                     let symname = ''
 
                     if (index < countTable.get(kind)! && !(flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
-                      symname = this.funcs.get(index)!.join('.')
+                      switch (kind) {
+                      case SymInfoKind.SYMTAB_FUNCTION:  symname = this.funcs.get(index)!.join('.'); break
+                      case SymInfoKind.SYMTAB_GLOBAL:    symname = this.globals.get(index)!.join('.'); break
+                      case SymInfoKind.SYMTAB_TABLE:     symname = this.tables.get(index)!.join('.'); break
+                      }
                     } else {
                       symname = this.bufferReader.readString()
                     }

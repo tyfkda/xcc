@@ -91,8 +91,7 @@ static bool traverse_ast_expr(Expr **pexpr, LexicalStack *parent, TraverseAstPar
            traverse_ast_expr(&expr->ternary.fval, &lstack, param);
 
   case EX_MEMBER:
-    traverse_ast_expr(&expr->member.target, &lstack, param);
-    break;
+    return traverse_ast_expr(&expr->member.target, &lstack, param);
 
   case EX_FUNCALL:
     {
@@ -107,16 +106,13 @@ static bool traverse_ast_expr(Expr **pexpr, LexicalStack *parent, TraverseAstPar
     break;
 
   case EX_INLINED:
-    traverse_ast_stmt(&expr->inlined.embedded, &lstack, param);
-    break;
+    return traverse_ast_stmt(&expr->inlined.embedded, &lstack, param);
 
   case EX_COMPLIT:
-    traverse_ast_stmts(expr->complit.inits, &lstack, param);
-    break;
+    return traverse_ast_stmts(expr->complit.inits, &lstack, param);
 
   case EX_BLOCK:
-    traverse_ast_stmt(&expr->block, &lstack, param);
-    break;
+    return traverse_ast_stmt(&expr->block, &lstack, param);
   }
   return false;
 }
@@ -192,6 +188,7 @@ static bool traverse_ast_stmt(Stmt **pstmt, LexicalStack *parent, TraverseAstPar
 static bool modify_if_setjmp(LexicalStack *lp, Expr *jmpbuf_env, Expr *var) {
   // Assume `lp' points compare expression.
   assert(lp->pexpr != NULL);
+  assert(var != NULL);
 
   // Move upward while comma expression.
   for (; lp->parent->pexpr != NULL; lp = lp->parent) {
@@ -208,13 +205,20 @@ static bool modify_if_setjmp(LexicalStack *lp, Expr *jmpbuf_env, Expr *var) {
   // and generate code by built-in function (`gen_builtin_try_catch_longjmp').
   // `try-block' is passed as block-expression.
 
+  Stmt *env_to_tmp = NULL;
+  if (jmpbuf_env->kind != EX_VAR) {
+    Expr *tmp = alloc_tmp_var(curscope, jmpbuf_env->type);
+    env_to_tmp = new_stmt_expr(new_expr_bop(EX_ASSIGN, &tyVoid, jmpbuf_env->token, tmp, jmpbuf_env));
+    jmpbuf_env = tmp;
+  }
+
   Token *token = NULL;
   Vector *try_stmts = new_vector();
   vec_push(try_stmts, ifstmt);
   Expr *try_block_expr = new_expr_block(new_stmt_block(token, try_stmts, NULL, token));
 
   Vector *params = new_vector();
-  vec_push(params, var != NULL ? var->type : &tyVoid);
+  vec_push(params, var->type);
   vec_push(params, try_block_expr->type);
   Type *functype = new_func_type(&tyVoid, params, false);
 
@@ -224,18 +228,19 @@ static bool modify_if_setjmp(LexicalStack *lp, Expr *jmpbuf_env, Expr *var) {
   vec_push(args, try_block_expr);
 
   Expr *try_catch_longjmp = new_expr_funcall(
-      token, functype, new_expr_variable(alloc_name("__builtin_try_catch_longjmp", NULL, false), functype, token, global_scope),
+      token, functype,
+      new_expr_variable(alloc_name("__builtin_try_catch_longjmp", NULL, false), functype, token,
+                        global_scope),
       args);
 
-  Expr *store_sp = new_expr_bop(EX_ASSIGN, &tyVoid, token,
-                                new_expr_unary(EX_DEREF, &tySize, token, jmpbuf_env), get_sp_var());
-
   Vector *stmts = new_vector();
-  vec_push(stmts, new_stmt_expr(store_sp));
-  if (var != NULL) {
-    vec_push(stmts, new_stmt_expr(new_expr_bop(EX_ASSIGN, &tyVoid, token, var,
-                                               new_expr_fixlit(var->type, token, 0))));
-  }
+  if (env_to_tmp != NULL)
+    vec_push(stmts, env_to_tmp);
+  vec_push(stmts, new_stmt_expr(new_expr_bop(EX_ASSIGN, &tyVoid, token,
+                                             new_expr_unary(EX_DEREF, &tySize, token, jmpbuf_env),
+                                             get_sp_var())));
+  vec_push(stmts, new_stmt_expr(new_expr_bop(EX_ASSIGN, &tyVoid, token, var,
+                                             new_expr_fixlit(var->type, token, 0))));
   vec_push(stmts, new_stmt_expr(try_catch_longjmp));
   Stmt *modified = new_stmt_block(token, stmts, NULL, token);
   *lp->parent->pstmt = modified;
@@ -245,12 +250,20 @@ static bool modify_if_setjmp(LexicalStack *lp, Expr *jmpbuf_env, Expr *var) {
 typedef struct {
   Expr *var;
   Expr *jmpbuf_env;
+  Stmt *holding_stmt;
+  bool stmt_found;
 } MafscbFindIfVar;
 static bool mafscb_find_if_var(LexicalStack *lstack, TraverseAstParam *param) {
+  MafscbFindIfVar *v = param->userdata;
+  if (!v->stmt_found) {
+    if (lstack->pstmt == NULL || *lstack->pstmt != v->holding_stmt)
+      return false;
+    v->stmt_found = true;
+  }
+
   if (lstack->pexpr != NULL) {
     LexicalStack *lp = lstack;
     Expr *expr = *lp->pexpr;
-    MafscbFindIfVar *v = param->userdata;
     Expr *var = v->var;
     if (expr->kind == EX_VAR && equal_name(expr->var.name, var->var.name)) {
       Expr *e = *lp->parent->pexpr;
@@ -274,17 +287,18 @@ static bool mafscb_find_setjmp(LexicalStack *lstack, TraverseAstParam *param) {
       if (lstack->parent->pexpr != NULL) {
         Expr *e = *lstack->parent->pexpr;
         if (e->kind == EX_ASSIGN && e->bop.lhs->kind == EX_VAR) {
-          Expr *var = e->bop.lhs;
-          const VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
-          assert(varinfo != NULL);
-          if (varinfo->storage & VS_REF_TAKEN) {
-            parse_error(PE_NOFATAL, var->token, "variable must not use with `&'");
-            return true;
+          // Find parent statement.
+          LexicalStack *lp = lstack;
+          while (lp->pstmt == NULL) {
+            lp = lp->parent;
+            assert(lp != NULL);
           }
 
           MafscbFindIfVar v = {
             .var = e->bop.lhs,
             .jmpbuf_env = expr->funcall.args->data[0],
+            .holding_stmt = *lp->pstmt,
+            .stmt_found = false,
           };
           TraverseAstParam param = {
             .callback = mafscb_find_if_var,
@@ -297,10 +311,11 @@ static bool mafscb_find_setjmp(LexicalStack *lstack, TraverseAstParam *param) {
           }
         } else if (e->kind == EX_EQ || e->kind == EX_NE) {
           // Int the case that the value of `setjmp' result directly.
+          Expr *tmp = alloc_tmp_var(curscope, &tyInt);
           Expr *jmpbuf_env = expr->funcall.args->data[0];
-          if (modify_if_setjmp(lstack->parent, jmpbuf_env, NULL)) {
-            // Replace setjmp funcall comparison to dummy expression.
-            *lstack->pexpr = new_expr_fixlit(expr->type, expr->token, 0);
+          if (modify_if_setjmp(lstack->parent, jmpbuf_env, tmp)) {
+            // Replace setjmp funcall comparison to temporary variable.
+            *lstack->pexpr = tmp;
             return true;
           }
         }
@@ -313,18 +328,16 @@ static bool mafscb_find_setjmp(LexicalStack *lstack, TraverseAstParam *param) {
 
 void modify_ast_for_setjmp(int n) {
   // Modify:
-  //   int var = setjmp(jmpbuf);
+  //   int var = setjmp(env);
   //   if (var == 0) { ... } else { ... }
   // to:
-  //   int var = 0;
-  //   jmpbuf[0] = __stack_pointer;
-  //   for (;;) {
-  //     __try_catch_longjmp(({
+  //   int var;
+  //   {
+  //     env[0] = __stack_pointer;
+  //     var = 0;
+  //     __builtin_try_catch_longjmp(env, var, ({
   //       if (var == 0) { ... } else { ... }
-  //       break;
-  //     }), var, /*catch*/ ({
-  //       var = jmpbuf[1];
-  //     });
+  //     }));
   //   }
 
   TraverseAstParam param = {
