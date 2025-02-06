@@ -65,8 +65,8 @@
 #define P_CMN(sz, rn, rm)                          W_ADDS_S(sz, ZERO, rn, rm, 0)
 #define P_CMN_I(sz, rd, imm)                       W_ADDS_I(sz, ZERO, rd, imm)
 #define P_LSL_I(sz, rd, rn, imm)                   W_UBFM(sz, opr1->reg.no, sz, opr2->reg.no, -(imm) & (63>>(1-(sz))), (63>>(1-(sz))) - (imm))
-#define P_LSR_I(sz, rd, rn, imm)                   W_UBFM(sz, opr1->reg.no, sz, opr2->reg.no, imm, 63>>(1-(sz)))
-#define P_ASR_I(sz, rd, rn, imm)                   W_SBFM(sz, opr1->reg.no, sz, opr2->reg.no, imm, 63>>(1-(sz)))
+#define P_LSR_I(sz, rd, rn, imm)                   W_UBFM(sz, opr1->reg.no, sz, opr2->reg.no, imm & (63>>(1-(sz))), 63>>(1-(sz)))
+#define P_ASR_I(sz, rd, rn, imm)                   W_SBFM(sz, opr1->reg.no, sz, opr2->reg.no, imm & (63>>(1-(sz))), 63>>(1-(sz)))
 #define P_CSET(sz, rd, cond)                       W_CSINC(sz, rd, ZERO, ZERO, (cond) ^ 1)
 
 // FP instructions.

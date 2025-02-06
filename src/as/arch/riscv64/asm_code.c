@@ -29,6 +29,10 @@ static inline bool is_im6(int64_t x) {
   return x <= ((1L << 5) - 1) && x >= -(1L << 5);
 }
 
+static inline bool is_uim6(uint64_t x) {
+  return x <= ((1UL << 6) - 1);
+}
+
 static inline bool is_im12(int64_t x) {
   return x <= ((1L << 11) - 1) && x >= -(1L << 11);
 }
@@ -66,6 +70,9 @@ static unsigned char *asm_3r(Inst *inst, Code *code) {
       switch (inst->op) {
       case ADD:   C_ADD(rd, rs1); return code->buf;
       case ADDW:  C_ADDW(rd, rs1); return code->buf;
+      case AND:   C_AND(rd, rs1); return code->buf;
+      case OR:    C_OR(rd, rs1); return code->buf;
+      case XOR:   C_XOR(rd, rs1); return code->buf;
       default: break;
       }
     }
@@ -97,8 +104,11 @@ static unsigned char *asm_3r(Inst *inst, Code *code) {
   case OR:     W_OR(rd, rs1, rs2); break;
   case XOR:    W_XOR(rd, rs1, rs2); break;
   case SLL:    W_SLL(rd, rs1, rs2); break;
+  case SLLW:   W_SLLW(rd, rs1, rs2); break;
   case SRL:    W_SRL(rd, rs1, rs2); break;
+  case SRLW:   W_SRLW(rd, rs1, rs2); break;
   case SRA:    W_SRA(rd, rs1, rs2); break;
+  case SRAW:   W_SRAW(rd, rs1, rs2); break;
   case SLT:    W_SLT(rd, rs1, rs2); break;
   case SLTU:   W_SLTU(rd, rs1, rs2); break;
   default: assert(false); return NULL;
@@ -121,34 +131,26 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
   }
 
   if (rd == rs) {
+    if (inst->op == ADDI && rd == SP && is_im6(imm >> 4) && (imm & 0xf) == 0 && imm != 0) {
+      C_ADDI16SP(imm);
+      return code->buf;
+    }
+
     if (is_im6(imm)) {
       switch (inst->op) {
       case ADDI:   if (imm != 0) { C_ADDI(rd, imm); return code->buf; } break;
       case ADDIW:  C_ADDIW(rd, imm); return code->buf;
       case ANDI:   if (is_rvc_reg(rd)) { C_ANDI(rd, imm); return code->buf; } break;
-      case SLLI:
-        if (rd != 0 && imm != 0) {
-          C_SLLI(rd, imm);
-          return code->buf;
-        }
-        break;
-      case SRLI:
-        if (is_rvc_reg(rd)) {
-          C_SRLI(rd, imm); return code->buf;
-        }
-        break;
-      case SRAI:
-        if (is_rvc_reg(rd)) {
-          C_SRAI(rd, imm); return code->buf;
-        }
-        break;
       default: break;
       }
     }
-
-    if (rd == SP && is_im6(imm >> 4) && (imm & 0xf) == 0 && imm != 0) {
-      C_ADDI16SP(imm);
-      return code->buf;
+    if (is_uim6(imm)) {
+      switch (inst->op) {
+      case SLLI:   if (rd != 0 && imm != 0) { C_SLLI(rd, imm); return code->buf; } break;
+      case SRLI:   if (is_rvc_reg(rd)) { C_SRLI(rd, imm); return code->buf; } break;
+      case SRAI:   if (is_rvc_reg(rd)) { C_SRAI(rd, imm); return code->buf; } break;
+      default: break;
+      }
     }
   }
   switch (inst->op) {
@@ -157,6 +159,8 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
   case ANDI:
   case ORI:
   case XORI:
+  case SLTI:
+  case SLTIU:
     if (imm >= 2048 || imm < -2048)
       return NULL;
     switch (inst->op) {
@@ -165,6 +169,8 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
     case ANDI:   W_ANDI(rd, rs, imm); break;
     case ORI:    W_ORI(rd, rs, imm); break;
     case XORI:   W_XORI(rd, rs, imm); break;
+    case SLTI:   W_SLTI(rd, rs, imm); break;
+    case SLTIU:  W_SLTIU(rd, rs, imm); break;
     default: assert(false); break;
     }
     break;
@@ -172,18 +178,18 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
   case SLLI:
   case SLLIW:
   case SRLI:
+  case SRLIW:
   case SRAI:
-  case SLTI:
-  case SLTIU:
+  case SRAIW:
     if (imm >= 64 || (inst->op == SLLIW && imm >= 32) || imm < 0)
       return NULL;
     switch (inst->op) {
     case SLLI:   W_SLLI(rd, rs, imm); break;
     case SLLIW:  W_SLLIW(rd, rs, imm); break;
     case SRLI:   W_SRLI(rd, rs, imm); break;
+    case SRLIW:  W_SRLIW(rd, rs, imm); break;
     case SRAI:   W_SRAI(rd, rs, imm); break;
-    case SLTI:   W_SLTI(rd, rs, imm); break;
-    case SLTIU:  W_SLTIU(rd, rs, imm); break;
+    case SRAIW:  W_SRAIW(rd, rs, imm); break;
     default: assert(false); break;
     }
     break;
@@ -616,9 +622,9 @@ static const AsmInstFunc table[] = {
   [NOT] = asm_2r,
   [SEXT_B] = asm_2r, [SEXT_H] = asm_2r, [SEXT_W] = asm_2r,
   [ZEXT_B] = asm_2r, [ZEXT_H] = asm_2r, [ZEXT_W] = asm_2r,
-  [SLL] = asm_3r, [SLLI] = asm_2ri, [SLLIW] = asm_2ri,
-  [SRL] = asm_3r, [SRLI] = asm_2ri, [SRLIW] = asm_2ri,
-  [SRA] = asm_3r, [SRAI] = asm_2ri,
+  [SLL] = asm_3r, [SLLW] = asm_3r, [SLLI] = asm_2ri, [SLLIW] = asm_2ri,
+  [SRL] = asm_3r, [SRLW] = asm_3r, [SRLI] = asm_2ri, [SRLIW] = asm_2ri,
+  [SRA] = asm_3r, [SRAW] = asm_3r, [SRAI] = asm_2ri, [SRAIW] = asm_2ri,
   [LB] = asm_ld, [LH] = asm_ld, [LW] = asm_ld, [LD] = asm_ld,
   [LBU] = asm_ld, [LHU] = asm_ld, [LWU] = asm_ld,
   [SB] = asm_sd, [SH] = asm_sd, [SW] = asm_sd, [SD] = asm_sd,

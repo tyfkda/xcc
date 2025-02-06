@@ -474,10 +474,16 @@ static void ei_bitxor(IR *ir) {
 
 static void ei_lshift(IR *ir) {
   assert(!(ir->opr1->flag & VRF_CONST));
-  if (ir->opr2->flag & VRF_CONST)
-    SLLI(kReg64s[ir->dst->phys], kReg64s[ir->opr1->phys], IM(ir->opr2->fixnum));
-  else
-    SLL(kReg64s[ir->dst->phys], kReg64s[ir->opr1->phys], kReg64s[ir->opr2->phys]);
+  const char *dst = kReg64s[ir->dst->phys];
+  const char *opr1 = kReg64s[ir->opr1->phys];
+  if (ir->opr2->flag & VRF_CONST) {
+    if (ir->opr1->vsize < 3)  SLLIW(dst, opr1, IM(ir->opr2->fixnum));
+    else                      SLLI(dst, opr1, IM(ir->opr2->fixnum));
+  } else {
+    const char *opr2 = kReg64s[ir->opr2->phys];
+    if (ir->opr1->vsize < 3)  SLLW(dst, opr1, opr2);
+    else                      SLL(dst, opr1, opr2);
+  }
 }
 
 static void ei_rshift(IR *ir) {
@@ -486,12 +492,22 @@ static void ei_rshift(IR *ir) {
   const char *opr1 = kReg64s[ir->opr1->phys];
   if (ir->opr2->flag & VRF_CONST) {
     const char *opr2 = IM(ir->opr2->fixnum);
-    if (ir->flag & IRF_UNSIGNED) SRLI(dst, opr1, opr2);
-    else                         SRAI(dst, opr1, opr2);
+    if (ir->dst->vsize < 3) {
+      if (ir->flag & IRF_UNSIGNED) SRLIW(dst, opr1, opr2);
+      else                         SRAIW(dst, opr1, opr2);
+    } else {
+      if (ir->flag & IRF_UNSIGNED) SRLI(dst, opr1, opr2);
+      else                         SRAI(dst, opr1, opr2);
+    }
   } else {
     const char *opr2 = kReg64s[ir->opr2->phys];
-    if (ir->flag & IRF_UNSIGNED) SRL(dst, opr1, opr2);
-    else                         SRA(dst, opr1, opr2);
+    if (ir->dst->vsize < 3) {
+      if (ir->flag & IRF_UNSIGNED) SRLW(dst, opr1, opr2);
+      else                         SRAW(dst, opr1, opr2);
+    } else {
+      if (ir->flag & IRF_UNSIGNED) SRL(dst, opr1, opr2);
+      else                         SRA(dst, opr1, opr2);
+    }
   }
 }
 

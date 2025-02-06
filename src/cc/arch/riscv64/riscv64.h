@@ -113,13 +113,17 @@
 #define XOR(o1, o2, o3)       EMIT_ASM("xor", o1, o2, o3)
 #define XORI(o1, o2, o3)      EMIT_ASM("xori", o1, o2, o3)
 #define SLL(o1, o2, o3)       EMIT_ASM("sll", o1, o2, o3)    // Logical left shift
+#define SLLW(o1, o2, o3)      EMIT_ASM("sllw", o1, o2, o3)   // Logical left shift, 32bit
 #define SLLI(o1, o2, o3)      EMIT_ASM("slli", o1, o2, o3)   // Logical left shift
 #define SLLIW(o1, o2, o3)     EMIT_ASM("slliw", o1, o2, o3)  // Logical left shift, 32bit
 #define SRL(o1, o2, o3)       EMIT_ASM("srl", o1, o2, o3)    // Logical right shift
+#define SRLW(o1, o2, o3)      EMIT_ASM("srlw", o1, o2, o3)   // Logical right shift, 32bit
 #define SRLI(o1, o2, o3)      EMIT_ASM("srli", o1, o2, o3)   // Logical right shift
-#define SRLIW(o1, o2, o3)     EMIT_ASM("srliw", o1, o2, o3)  // Logical right shift
+#define SRLIW(o1, o2, o3)     EMIT_ASM("srliw", o1, o2, o3)  // Logical right shift, 32bit
 #define SRA(o1, o2, o3)       EMIT_ASM("sra", o1, o2, o3)    // Arithmetic right shift
+#define SRAW(o1, o2, o3)      EMIT_ASM("sraw", o1, o2, o3)   // Arithmetic right shift, 32bit
 #define SRAI(o1, o2, o3)      EMIT_ASM("srai", o1, o2, o3)   // Arithmetic right shift
+#define SRAIW(o1, o2, o3)     EMIT_ASM("sraiw", o1, o2, o3)  // Arithmetic right shift, 32bit
 #define J(o1)                 EMIT_ASM("j", o1)              // => jal zero, o1
 #define JR(o1)                EMIT_ASM("jr", o1)             // => jalr zero, 0(o1)
 #define JALR(o1)              EMIT_ASM("jalr", o1)           // => jalr ra, 0(o1)

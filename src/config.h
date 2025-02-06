@@ -97,7 +97,7 @@
 
 #elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
 #define MACHINE_TYPE  EM_RISCV
-#define MINREGSIZE  (8)
+#define MINREGSIZE  (4)  // 8
 
 #elif XCC_TARGET_ARCH == XCC_ARCH_WASM
 #define MINREGSIZE  (4)

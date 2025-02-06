@@ -194,7 +194,7 @@ static VReg *gen_cast(Expr *expr) {
       // Assume that integer is represented in Two's complement
       size_t bit = dst_size * TARGET_CHAR_BIT;
       UFixnum mask = (-1UL) << bit;
-      if (!is_unsigned(dst_type) && (value & (1 << (bit - 1))))    // signed && negative
+      if (!is_unsigned(dst_type) && (value & ((Fixnum)1 << (bit - 1))))    // signed && negative
         value |= mask;
       else
         value &= ~mask;

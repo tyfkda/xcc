@@ -149,9 +149,16 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
   uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
   int64_t imm = 0;
   if (opr3->type == IMMEDIATE) {
-    if (opr3->immediate < -(1 << 12) || opr3->immediate >= (1 << 12))
-      return NULL;
     imm = opr3->immediate;
+    if (imm < -(1 << 12) || imm >= (1 << 12)) {
+      switch (inst->op) {
+      case LSL_I:  case LSR_I: case ASR_I:
+        imm &= 63;
+        break;
+      default:
+        return NULL;
+      }
+    }
   }
 
   switch (inst->op) {
@@ -197,7 +204,8 @@ static unsigned char *asm_2r(Inst *inst, Code *code) {
     }
     break;
   case UXTW:
-    P_MOV(0, opr1->reg.no, opr2->reg.no);
+    // P_MOV(0, opr1->reg.no, opr2->reg.no);
+    W_UBFM(1, opr1->reg.no, 1, opr2->reg.no, 0, 31);
     break;
   default: assert(false); return NULL;
   }

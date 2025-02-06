@@ -227,7 +227,12 @@ void emit_defun_body(Function *func) {
     if (fp_saved)
       MV(FP, SP);
     if (frame_size > 0) {
-      ADDI(SP, SP, IM(-frame_size));
+      if (frame_size < 2048) {
+        ADDI(SP, SP, IM(-frame_size));
+      } else {
+        LI(T1, IM(frame_size));
+        SUB(SP, SP, T1);
+      }
     }
 
     move_params_to_assigned(func);
@@ -251,8 +256,14 @@ void emit_defun_body(Function *func) {
         ADDI(SP, SP, IM(16));
       }
     }
-    if (vaarg_params_saved > 0)
-      ADDI(SP, SP, IM(vaarg_params_saved));
+    if (vaarg_params_saved > 0) {
+      if (vaarg_params_saved < 2048) {
+        ADDI(SP, SP, IM(vaarg_params_saved));
+      } else {
+        LI(T1, IM(vaarg_params_saved));
+        ADD(SP, SP, T1);
+      }
+    }
 
     RET();
   }

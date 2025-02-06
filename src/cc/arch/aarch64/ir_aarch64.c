@@ -239,8 +239,9 @@ static inline bool is_im9(int64_t x) {
   return x <= ((1L << 8) - 1) && x >= -(1L << 8);
 }
 
-static inline bool is_im13(int64_t x) {
-  return x <= ((1L << 12) - 1) && x >= -(1L << 12);
+static inline bool is_im13_addsubimm(int64_t x) {
+  // Immediate value for ADD/SUB instruction, only accept positive 12-bit value.
+  return x <= ((1L << 12) - 1) && x >= (-(1L << 12) + 1);
 }
 
 static inline bool is_im48(int64_t x) {
@@ -320,7 +321,7 @@ static void cmp_vregs(VReg *opr1, VReg *opr2) {
 static void ei_bofs(IR *ir) {
   const char *dst = kReg64s[ir->dst->phys];
   int64_t offset = ir->bofs.frameinfo->offset + ir->bofs.offset;
-  if (is_im13(offset)) {
+  if (is_im13_addsubimm(offset)) {
     ADD(dst, FP, IM(offset));
   } else {
     mov_immediate(dst, offset, true, false);
@@ -349,7 +350,7 @@ static void ei_sofs(IR *ir) {
   int ofs = ir->opr1->fixnum;
   if (ofs == 0) {
     MOV(dst, SP);
-  } else if (is_im13(ofs)) {
+  } else if (is_im13_addsubimm(ofs)) {
     ADD(dst, SP, IM(ofs));
   } else {
     mov_immediate(dst, ofs, true, false);
@@ -1007,7 +1008,7 @@ void tweak_irs(FuncBackend *fnbe) {
             ir->opr2 = reg_alloc_spawn_const(ra, -old->fixnum, old->vsize);
             ir->opr2->flag = old->flag;
           }
-          if (ir->opr2->fixnum > 0x0fff)
+          if (!is_im13_addsubimm(ir->opr2->fixnum))
             insert_tmp_mov(&ir->opr2, irs, j++);
         }
         break;
@@ -1029,7 +1030,7 @@ void tweak_irs(FuncBackend *fnbe) {
             ir->opr2 = reg_alloc_spawn_const(ra, -old->fixnum, old->vsize);
             ir->opr2->flag = old->flag;
           }
-          if (ir->opr2->fixnum > 0x0fff)
+          if (!is_im13_addsubimm(ir->opr2->fixnum))
             insert_tmp_mov(&ir->opr2, irs, j++);
         }
         break;

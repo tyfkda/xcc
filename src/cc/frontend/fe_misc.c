@@ -746,6 +746,8 @@ Expr *promote_to_int(Expr *expr) {
 }
 
 Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
+  cast_numbers(&lhs, &rhs, true);
+
   if (is_const(lhs) && is_number(lhs->type) &&
       is_const(rhs) && is_number(rhs->type)) {
 #ifndef __NO_FLONUM
@@ -811,7 +813,6 @@ Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rh
     parse_error(PE_WARNING, rhs->token, "Divide by 0");
   }
 
-  cast_numbers(&lhs, &rhs, true);
   return new_expr_bop(kind, lhs->type, tok, lhs, rhs);
 }
 
