@@ -313,6 +313,10 @@ TEST(all) {
     EXPECT("compare with different sign1", 1, minus > uone);  // !!!
     EXPECT("compare with different sign2", 1, uone < minus);  // !!!
   }
+  EXPECT("condition is true", true, (x = 3, (x != 0) == true));
+  EXPECT("condition is not true", false, (x = 4, (x > 0) != true));
+  EXPECT("condition is false", true, (x = 3, (x && !x) == false));
+  EXPECT("condition is not false", false, (x = 4, (x <= -5 || x >= 5) != false));
 
   EXPECT("t && t", 1, (x=1, y=1, x && y));
   EXPECT("f && t", 0, (x=0, y=1, x && y));

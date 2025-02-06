@@ -1189,26 +1189,78 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
 #undef JUDGE
   }
 
-  if (is_zero(rhs) || is_zero(lhs)) {
-    Expr *p = strip_cast(is_zero(rhs) ? lhs : rhs);
-    switch (p->kind) {
-    case EX_EQ: case EX_NE:
-      if (kind == EX_EQ)
-        p->kind = (EX_EQ + EX_NE) - p->kind;  // EQ <-> NE
-      return p;
-    case EX_LT: case EX_LE: case EX_GE: case EX_GT:
-      if (kind == EX_EQ)
-        p->kind = EX_LT + ((p->kind - EX_LT) ^ 2);  // LT <-> GE, LE <-> GT
-      return p;
-    case EX_LOGAND: case EX_LOGIOR:
-      if (kind == EX_EQ)
-        return new_expr_bop(
-            (EX_LOGAND + EX_LOGIOR) - p->kind,  // LOGAND <-> LOGIOR
-            &tyBool, p->token,
-            make_not_expr(p->bop.lhs->token, p->bop.lhs),
-            make_not_expr(p->bop.rhs->token, p->bop.rhs));
-      return p;
+  if ((kind == EX_EQ || kind == EX_NE) && (is_const(rhs) || is_const(lhs))) {
+    Expr *v, *c;
+    if (is_const(lhs)) {
+      v = rhs;
+      c = lhs;
+    } else {
+      v = lhs;
+      c = rhs;
+    }
+    enum { NEVER = -1, UNKNOWN = -2 };
+    int value = UNKNOWN;
+    switch (c->kind) {
+#ifndef __NO_FLONUM
+    case EX_FLONUM:
+      if (c->flonum == 0.0)
+        value = 0;
+      else if (c->flonum == 1.0)
+        value = 1;
+      else
+        value = NEVER;
+      break;
+#endif
+    case EX_FIXNUM:
+      value = c->fixnum == 0 || c->fixnum == 1 ? c->fixnum : NEVER;
+      break;
+    case EX_STR:
+      value = NEVER;
+      break;
     default:
+      break;
+    }
+
+    Expr *p = strip_cast(v);
+    int k = kind;
+    switch (value) {
+    case 1:
+      // Swap condition that regard the value as 0.
+      k = (EX_EQ + EX_NE) - k;  // EQ <-> NE
+      // Fallthrough
+    case 0:
+      // Eliminate comparing comparison result with 0.
+      switch (p->kind) {
+      case EX_EQ: case EX_NE:
+        if (k == EX_EQ)
+          p->kind = (EX_EQ + EX_NE) - p->kind;  // EQ <-> NE
+        return p;
+      case EX_LT: case EX_LE: case EX_GE: case EX_GT:
+        if (k == EX_EQ)
+          p->kind = EX_LT + ((p->kind - EX_LT) ^ 2);  // LT <-> GE, LE <-> GT
+        return p;
+      case EX_LOGAND: case EX_LOGIOR:
+        if (k == EX_EQ)
+          p = new_expr_bop(
+              (EX_LOGAND + EX_LOGIOR) - p->kind,  // LOGAND <-> LOGIOR
+              &tyBool, p->token,
+              make_not_expr(p->bop.lhs->token, p->bop.lhs),
+              make_not_expr(p->bop.rhs->token, p->bop.rhs));
+        return p;
+      default: break;
+      }
+      break;
+    case NEVER:
+      switch (p->kind) {
+      case EX_EQ: case EX_NE:
+      case EX_LT: case EX_LE: case EX_GE: case EX_GT:
+      case EX_LOGAND: case EX_LOGIOR:
+        parse_error(PE_WARNING, tok, "Always %s", kind != EX_EQ ? "true" : "false");
+        return new_expr_bop(EX_COMMA, &tyBool, tok, v, new_expr_fixlit(&tyBool, tok, (kind != EX_EQ)));
+      default: break;
+      }
+      break;
+    case UNKNOWN: default:
       break;
     }
   }
