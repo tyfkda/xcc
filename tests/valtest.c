@@ -1683,6 +1683,13 @@ TEST(bitfield) {
     } s = {5};
     EXPECT_FALSE(-1 > s.x);
   }
+
+  {
+    struct {
+      signed int x : 2;
+    } s;
+    EXPECT("signed bitfield assigned overflow", -2, s.x = 2);
+  }
 }
 #endif
 
