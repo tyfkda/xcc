@@ -586,17 +586,6 @@ static VReg *gen_deref(Expr *expr) {
 }
 
 static VReg *gen_member(Expr *expr) {
-#ifndef __NO_BITFIELD
-  const MemberInfo *minfo = expr->member.info;
-  if (minfo->bitfield.width > 0) {
-    Type *type = get_fixnum_type(minfo->bitfield.base_kind, minfo->type->fixnum.is_unsigned, 0);
-    Expr *ptr = make_cast(ptrof(type), expr->token, make_refer(expr->token, expr), true);
-    Expr *load = new_expr_deref(NULL, ptr);
-    Expr *e = extract_bitfield_value(load, minfo);
-    return gen_expr(e);
-  }
-#endif
-
   VReg *vreg = gen_lval(expr);
   VReg *result = vreg;
   if (is_prim_type(expr->type)) {
