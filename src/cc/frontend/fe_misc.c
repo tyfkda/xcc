@@ -1140,9 +1140,11 @@ Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInf
 
   Expr *dst = new_expr_unary(EX_DEREF, type, tok, ptr);
   Expr *assign = assign_bitfield_member(tok, dst, dst, val, minfo);
-  return new_expr_bop(EX_COMMA, vtype, tok, ptr_assign,
-                      new_expr_bop(EX_COMMA, vtype, tok, val_assign,
-                                   new_expr_bop(EX_COMMA, vtype, tok, assign, val)));
+  Expr *result = extract_bitfield_value(dst, minfo);
+  return new_expr_bop(EX_COMMA, result->type, tok,
+                      new_expr_bop(EX_COMMA, vtype, tok, ptr_assign,
+                                   new_expr_bop(EX_COMMA, vtype, tok, val_assign, assign)),
+                      result);
 }
 
 static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, const Token *tok,
@@ -1682,10 +1684,11 @@ static Expr *transform_assign_with_bitfield(const Token *tok, Expr *lhs, Expr *r
   Expr *store = assign_bitfield_member(tok, dst, src, tmp, minfo);
 
   Type *vtype = rhs->type;
-  return new_expr_bop(EX_COMMA, vtype, tok,
+  Expr *result = extract_bitfield_value(dst, minfo);
+  return new_expr_bop(EX_COMMA, result->type, tok,
                       new_expr_bop(EX_COMMA, vtype, tok, ptr_assign,
                                    new_expr_bop(EX_COMMA, vtype, tok, src_assign, store)),
-                      extract_bitfield_value(dst, minfo));
+                      result);
 }
 #endif
 
