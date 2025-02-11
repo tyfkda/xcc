@@ -1128,9 +1128,10 @@ Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInf
 
   Expr *dst = new_expr_unary(EX_DEREF, type, tok, ptr);
   Expr *assign = assign_bitfield_member(tok, dst, dst, val, minfo);
-  return new_expr_bop(EX_COMMA, vtype, tok, ptr_assign,
-                      new_expr_bop(EX_COMMA, vtype, tok, val_assign,
-                                   new_expr_bop(EX_COMMA, vtype, tok, assign, val)));
+  return new_expr_bop(EX_COMMA, type, tok,
+                      new_expr_bop(EX_COMMA, vtype, tok, ptr_assign,
+                                   new_expr_bop(EX_COMMA, vtype, tok, val_assign, assign)),
+                      make_cast(type, tok, val, false));
 }
 
 static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, const Token *tok,
