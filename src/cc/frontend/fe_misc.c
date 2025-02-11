@@ -516,10 +516,10 @@ static void mark_var_used_sub(Expr *expr, bool for_func) {
     }
     break;
   case EX_COMPLIT:
-    mark_var_used(expr->complit.var);
+    mark_var_used_sub(expr->complit.var, false);
     break;
   case EX_ASSIGN:
-    mark_var_used(expr->bop.lhs);
+    mark_var_used_sub(expr->bop.lhs, false);
     break;
   default: break;
   }

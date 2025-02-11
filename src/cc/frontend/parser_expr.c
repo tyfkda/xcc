@@ -80,8 +80,13 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
   int index = find_struct_member(type->struct_.info, ident->ident);
   if (index >= 0) {
     const MemberInfo *minfo = &type->struct_.info->members[index];
-    Type *type = acctok->kind == TK_DOT ? qualified_type(minfo->type, target->type->qualifier)
-                                        : minfo->type;
+    Type *type = minfo->type;
+#ifndef __NO_BITFIELD
+    if (minfo->bitfield.width > 0 && type->kind == TY_FIXNUM && type->fixnum.is_unsigned)
+      type = get_fixnum_type(type->fixnum.kind, false, type->qualifier);  // Get signed type.
+#endif
+    if (acctok->kind == TK_DOT)
+      type = qualified_type(type, target->type->qualifier);
     return new_expr_member(acctok, type, target, ident->ident, minfo);
   } else {
     Vector *stack = new_vector();

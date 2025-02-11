@@ -9,6 +9,10 @@
 
 #include "./xtest.h"
 
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wimplicit-int"
+#endif
+
 #define EXPECT(title, expected, actual)  expecti64(title, expected, actual)
 
 int g_zero, g_work;
@@ -1521,9 +1525,11 @@ struct {
   0x03,
   222,
 };
-#endif
 
-#ifndef __NO_BITFIELD
+static int return_bitfield_value(void) {
+  return g_bfwinit.b1;
+}
+
 TEST(bitfield) {
   {
     union {
@@ -1714,6 +1720,8 @@ TEST(bitfield) {
     EXPECT("global w/init b2", 0x0a, g_bfwinit.b2);
     EXPECT("global w/init b3", 0x03, g_bfwinit.b3);
     EXPECT("global w/init z", 222, g_bfwinit.z);
+
+    EXPECT("return bitfield value", 0x05, return_bitfield_value());
   }
 
   {
@@ -1731,6 +1739,13 @@ TEST(bitfield) {
 
     struct S2 s2 = {1, 2};
     EXPECT("zero bitfield not consume initializer", 2, s2.y);
+  }
+
+  {
+    struct {
+      unsigned int x : 8;
+    } s = {5};
+    EXPECT_FALSE(-1 > s.x);
   }
 }
 #endif
