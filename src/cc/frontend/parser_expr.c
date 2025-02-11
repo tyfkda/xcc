@@ -17,6 +17,23 @@ static Table builtin_expr_ident_table;
 
 extern bool parsing_stmt;
 
+static Expr *used_as_value(Expr *expr) {
+#ifndef __NO_BITFIELD
+  if (expr->kind == EX_MEMBER) {
+    const MemberInfo *minfo = expr->member.info;
+    if (minfo->bitfield.width > 0) {
+      mark_var_used(expr);
+      Type *type = get_fixnum_type(minfo->bitfield.base_kind, minfo->type->fixnum.is_unsigned, 0);
+      Expr *ptr = make_cast(ptrof(type), expr->token, make_refer(expr->token, expr), true);
+      Expr *load = new_expr_deref(NULL, ptr);
+      expr = extract_bitfield_value(load, minfo);
+    }
+  }
+#endif
+  mark_var_used(expr);
+  return expr;
+}
+
 void add_builtin_expr_ident(const char *str, BuiltinExprProc *proc) {
   const Name *name = alloc_name(str, NULL, false);
   table_put(&builtin_expr_ident_table, name, proc);
@@ -42,7 +59,7 @@ Vector *parse_args(Token **ptoken) {
 
 static Expr *parse_member_access(Expr *target, Token *acctok) {
   Token *ident = consume(TK_IDENT, "member name expected");
-  mark_var_used(target);
+  target = used_as_value(target);
 
   // Find member's type from struct info.
   Type *type = target->type;
@@ -152,7 +169,7 @@ static Expr *parse_compound_literal(Type *type) {
 static Expr *parse_generic(void) {
   consume(TK_LPAR, "`(' expected");
   Expr *target = parse_assign();
-  mark_var_used(target);
+  target = used_as_value(target);
   consume(TK_COMMA, "`,' expected");
 
   Vector *types = new_vector();
@@ -340,7 +357,7 @@ static Expr *variable(Token *ident) {
 
 static Expr *unary(Token *tok) {
   Expr *expr = parse_precedence(PREC_POSTFIX);
-  mark_var_used(expr);
+  expr = used_as_value(expr);
 
   enum TokenKind kind = tok->kind;
   switch (kind) {
@@ -372,9 +389,6 @@ static Expr *unary(Token *tok) {
       }
       return new_expr_unary(kind + (EX_POS - TK_ADD), type, tok, expr);
     }
-  case TK_INC: case TK_DEC:
-    not_const(expr->type, tok);
-    return incdec_of(kind + (EX_PREINC - TK_INC), expr, tok);
   case TK_NOT:
     if (!is_number(expr->type) && !ptr_or_array(expr->type)) {
       parse_error(PE_NOFATAL, tok, "Cannot apply `!' except number or pointer types");
@@ -424,13 +438,26 @@ static Expr *unary(Token *tok) {
   }
 }
 
+static Expr *unary_inc(Token *tok) {
+  Expr *expr = parse_precedence(PREC_POSTFIX);
+  mark_var_used(expr);
+
+  enum TokenKind kind = tok->kind;
+  switch (kind) {
+  case TK_INC: case TK_DEC:
+    not_const(expr->type, tok);
+    return incdec_of(kind + (EX_PREINC - TK_INC), expr, tok);
+  default: assert(false); return NULL;  // Unreachable.
+  }
+}
+
 static Expr *binary(Expr *lhs, Token *tok) {
   const ParseRule* rule = get_rule(tok->kind);
   assert(rule != NULL);
   Expr *rhs = parse_precedence(rule->precedence + 1);
 
-  mark_var_used(lhs);
-  mark_var_used(rhs);
+  lhs = used_as_value(lhs);
+  rhs = used_as_value(rhs);
 
   enum TokenKind kind = tok->kind;
   switch (kind) {
@@ -491,9 +518,9 @@ static Expr *ternary(Expr *expr, Token *tok) {
   consume(TK_COLON, "`:' expected");
   Expr *fval = parse_precedence(rule->precedence);
 
-  mark_var_used(expr);
-  mark_var_used(tval);
-  mark_var_used(fval);
+  expr = used_as_value(expr);
+  tval = used_as_value(tval);
+  fval = used_as_value(fval);
 
   tval = str_to_char_array_var(curscope, tval);
   fval = str_to_char_array_var(curscope, fval);
@@ -524,7 +551,7 @@ static Expr *assign(Expr *lhs, Token *tok) {
   assert(rule != NULL);
   Expr *rhs = parse_precedence(rule->precedence);  // Without +1 for right associativity.
 
-  mark_var_used(rhs);
+  rhs = used_as_value(rhs);
 
   check_lval(tok, lhs, "Cannot assign");
   not_const(lhs->type, tok);
@@ -575,8 +602,8 @@ static Expr *postfix(Expr *expr, Token *tok) {
 static Expr *array_index(Expr *expr, Token *token) {
   Expr *index = parse_expr();
   consume(TK_RBRACKET, "`]' expected");
-  mark_var_used(expr);
-  mark_var_used(index);
+  expr = used_as_value(expr);
+  index = used_as_value(index);
   expr = str_to_char_array_var(curscope, expr);
   index = str_to_char_array_var(curscope, index);
   if (!ptr_or_array(expr->type)) {
@@ -617,7 +644,7 @@ static Expr *lparen(Token *tok) {
     if (stmts->len > 0) {
       Stmt *last = stmts->data[stmts->len - 1];
       if (last->kind == ST_EXPR)
-        mark_var_used(last->expr);
+        last->expr = used_as_value(last->expr);
     }
     return new_expr_block(block);
   }
@@ -637,7 +664,7 @@ static Expr *lparen(Token *tok) {
 
   // Cast expression.
   Expr *sub = parse_precedence(PREC_POSTFIX);
-  mark_var_used(sub);
+  sub = used_as_value(sub);
   sub = str_to_char_array_var(curscope, sub);
   check_cast(type, sub->type, is_zero(sub), true, token);
 
@@ -655,7 +682,7 @@ static Expr *funcall(Expr *func, Token *tok) {
 
   mark_var_used_for_func(func);
   for (int i = 0; i < args->len; ++i)
-    mark_var_used(args->data[i]);
+    args->data[i] = used_as_value(args->data[i]);
 
   check_funcall_args(func, args, curscope);
   Type *functype = get_callee_type(func->type);
@@ -697,8 +724,8 @@ static Expr *size_align_of(Token *token) {
     } else {
       unget_token((Token*)tok);
       Expr *expr = parse_precedence(PREC_POSTFIX);
-      mark_var_used(expr);
       not_bitfield_member(expr);
+      expr = used_as_value(expr);
       type = expr->type;
       tok = expr->token;
     }
@@ -742,8 +769,8 @@ static Expr *generic(Token *tok) {
 static const ParseRule *get_rule(enum TokenKind kind) {
   static const ParseRule kRules[] = {
     [TK_LPAR]          = {lparen,   funcall,   PREC_POSTFIX},
-    [TK_INC]           = {unary,    postfix,   PREC_POSTFIX},
-    [TK_DEC]           = {unary,    postfix,   PREC_POSTFIX},
+    [TK_INC]           = {unary_inc, postfix,   PREC_POSTFIX},
+    [TK_DEC]           = {unary_inc, postfix,   PREC_POSTFIX},
     [TK_DOT]           = {NULL,     postfix,   PREC_POSTFIX},
     [TK_ARROW]         = {NULL,     postfix,   PREC_POSTFIX},
     [TK_LBRACKET]      = {NULL, array_index,   PREC_POSTFIX},
