@@ -1065,27 +1065,33 @@ void not_bitfield_member(Expr *expr) {
 
 Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo) {
   Expr *tmp = src;
-  Type *type = src->type;
-  if (type->fixnum.is_unsigned) {
-    tmp = src;
+  Type *stype = src->type;
+  assert(stype->kind == TY_FIXNUM);
+  if (stype->fixnum.is_unsigned) {
     if (minfo->bitfield.position > 0)
-      tmp = new_expr_bop(EX_RSHIFT, tmp->type, tmp->token, tmp,
-                         new_expr_fixlit(tmp->type, tmp->token, minfo->bitfield.position));
+      tmp = new_expr_bop(EX_RSHIFT, stype, tmp->token, tmp,
+                         new_expr_fixlit(stype, tmp->token, minfo->bitfield.position));
     UFixnum mask = ((UFixnum)1 << minfo->bitfield.width) - 1;
-    tmp = new_expr_bop(EX_BITAND, tmp->type, tmp->token, tmp,
-                       new_expr_fixlit(tmp->type, tmp->token, mask));
+    tmp = new_expr_bop(EX_BITAND, stype, tmp->token, tmp,
+                       new_expr_fixlit(stype, tmp->token, mask));
   } else {
-    int w = MAX(type_size(type), MINREGSIZE) * TARGET_CHAR_BIT;
+    int w = MAX(type_size(stype), MINREGSIZE) * TARGET_CHAR_BIT;
     int l = w - (minfo->bitfield.position + minfo->bitfield.width);
-    tmp = src;
     if (l > 0)
-      tmp = new_expr_bop(EX_LSHIFT, tmp->type, tmp->token, tmp,
-                         new_expr_fixlit(tmp->type, tmp->token, l));
+      tmp = new_expr_bop(EX_LSHIFT, stype, tmp->token, tmp,
+                         new_expr_fixlit(stype, tmp->token, l));
     if (minfo->bitfield.width < w)
-      tmp = new_expr_bop(EX_RSHIFT, tmp->type, tmp->token, tmp,
-                         new_expr_fixlit(tmp->type, tmp->token, w - minfo->bitfield.width));
+      tmp = new_expr_bop(EX_RSHIFT, stype, tmp->token, tmp,
+                         new_expr_fixlit(stype, tmp->token, w - minfo->bitfield.width));
   }
-  return make_cast(minfo->type, src->token, tmp, false);
+
+  Type *mtype = minfo->type;
+  assert(mtype->kind == TY_FIXNUM);
+  if (mtype->fixnum.is_unsigned && minfo->bitfield.width < (int)type_size(mtype) * TARGET_CHAR_BIT) {
+    // Make signed type.
+    mtype = get_fixnum_type(mtype->fixnum.kind, false, 0);
+  }
+  return make_cast(mtype, src->token, tmp, false);
 }
 
 Expr *assign_bitfield_member(const Token *tok, Expr *dst, Expr *src, Expr *val,
