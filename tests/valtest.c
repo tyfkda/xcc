@@ -1676,6 +1676,13 @@ TEST(bitfield) {
     struct S2 s2 = {1, 2};
     EXPECT("zero bitfield not consume initializer", 2, s2.y);
   }
+
+  {
+    struct {
+      unsigned int x : 8;
+    } s = {5};
+    EXPECT_FALSE(-1 > s.x);
+  }
 }
 #endif
 
