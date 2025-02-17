@@ -100,9 +100,9 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, 
           break;
         case IR_MOD:
           if (flag & IRF_UNSIGNED)
-            value = (uint64_t)opr1->fixnum / (uint64_t)opr2->fixnum;
+            value = (uint64_t)opr1->fixnum % (uint64_t)opr2->fixnum;
           else
-            value = opr1->fixnum / opr2->fixnum;
+            value = opr1->fixnum % opr2->fixnum;
           break;
         case IR_BITAND:  value = opr1->fixnum & opr2->fixnum; break;
         case IR_BITOR:   value = opr1->fixnum | opr2->fixnum; break;
