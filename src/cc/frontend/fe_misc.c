@@ -1104,6 +1104,21 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
   if (rhs->type->kind == TY_FUNC)
     rhs = make_refer(rhs->token, rhs);
 
+  // Adjust type for comparison.
+  {
+    Type *lt = lhs->type, *rt = rhs->type;
+    if (is_number(lt) && is_number(rt)) {
+      if (is_fixnum(lt->kind) && is_fixnum(rt->kind)) {
+        if (lt->fixnum.kind < FX_INT)
+          lhs = promote_to_int(lhs);
+        if (rt->fixnum.kind < FX_INT)
+          rhs = promote_to_int(rhs);
+      }
+      if (!cast_numbers(&lhs, &rhs, false))
+        parse_error(PE_FATAL, tok, "Cannot compare except numbers");
+    }
+  }
+
   if (is_const(lhs) && is_const(rhs)) {
 #define JUDGE(kind, tf, l, r)               \
   switch (kind) {                           \
@@ -1132,13 +1147,7 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
         }
         break;
 #ifndef __NO_FLONUM
-      case EX_FLONUM:
-        {
-          Flonum l = lhs->type->fixnum.is_unsigned ? (Flonum)(UFixnum)lhs->fixnum : (Flonum)lhs->fixnum;
-          Flonum r = rhs->flonum;
-          JUDGE(kind, tf, l, r);
-        }
-        break;
+      case EX_FLONUM: assert(false); break;
 #endif
       case EX_STR:
         if (is_zero(lhs)) {
@@ -1157,7 +1166,7 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
       switch (rhs->kind) {
       case EX_STR:
         break;
-      case EX_FIXNUM:
+      case EX_FIXNUM: assert(false); break;
       case EX_FLONUM:
         {
           Flonum l = lhs->flonum;
@@ -1293,9 +1302,6 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
       rhs = make_cast(lhs->type, rhs->token, rhs, false);
     else if (lt->kind != TY_PTR)
       lhs = make_cast(rhs->type, lhs->token, lhs, false);
-  } else {
-    if (!cast_numbers(&lhs, &rhs, false))
-      parse_error(PE_FATAL, tok, "Cannot compare except numbers");
   }
 
   return new_expr_bop(kind, &tyBool, tok, lhs, rhs);

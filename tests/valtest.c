@@ -303,9 +303,17 @@ TEST(all) {
 
   {
     unsigned char x = 255;
-    EXPECT("unsigned cmp", 1, (x > (unsigned char)0));
+    EXPECT("unsigned cmp", 1, x > (unsigned char)0);
+    EXPECT("unsigned cmp2", 1, x > 0);
     if (x <= (unsigned char)0)
       fail("unsigned cmp jmp");
+    if (x <= 0)
+      fail("unsigned cmp jmp2");
+  }
+  {
+    int8_t x = 0xe7;
+    uint16_t y = 1;
+    EXPECT("cmp signed with unsigned under int", 0, x >= y);
   }
   {
     // C implicitly cast to unsigned type if it handles mixed signed values.
