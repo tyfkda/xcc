@@ -364,8 +364,6 @@ static Expr *unary(Token *tok) {
       if (is_fixnum(type->kind)) {
         expr = promote_to_int(expr);
         type = expr->type;
-        if (kind == TK_SUB && type->fixnum.is_unsigned)
-          type = get_fixnum_type(type->fixnum.kind, false, type->qualifier);  // Get signed type.
       }
       return new_expr_unary(kind + (EX_POS - TK_ADD), type, tok, expr);
     }
