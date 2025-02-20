@@ -1406,7 +1406,7 @@ static void gen_return(Stmt *stmt, bool is_last) {
   FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
   assert(finfo != NULL);
   if (!is_last) {
-    if (finfo->bpname != NULL || finfo->flag & FF_INLINING) {
+    if (finfo->bpname != NULL || finfo->lspname != NULL || finfo->flag & FF_INLINING) {
       assert(cur_depth > 0);
       ADD_CODE(OP_BR);
       ADD_ULEB128(cur_depth - 1);
@@ -1717,7 +1717,7 @@ static void gen_defun(Function *func) {
   }
 
   // Statements
-  if (bpname != NULL) {
+  if (bpvar != NULL || lspvar != NULL) {
     unsigned char wt = get_func_ret_wtype(functype->func.ret);
     ADD_CODE(OP_BLOCK, wt);
     cur_depth += 1;
@@ -1737,13 +1737,16 @@ static void gen_defun(Function *func) {
   }
 
   // Epilogue
-  if (bpname != NULL) {
+  if (bpvar != NULL) {
     ADD_CODE(OP_END);
     cur_depth -= 1;
 
     // Restore stack pointer: global.sp = bp;
     gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, gspvar, bpvar));
-  } else if (lspname != NULL) {
+  } else if (lspvar != NULL) {
+    ADD_CODE(OP_END);
+    cur_depth -= 1;
+
     assert(!(finfo->flag & FF_STACK_MODIFIED));
     assert(frame_size > 0);
     // Restore stack pointer: global.sp = local.sp + frame_size;
