@@ -660,7 +660,7 @@ static void emit_linking_section(EmitWasm *ew) {
       int flags = WASM_SYM_BINDING_WEAK;
       data_push(&linking_section, SIK_SYMTAB_EVENT);  // kind
       data_uleb128(&linking_section, -1, flags);
-      data_uleb128(&linking_section, -1, ti->typeindex);
+      data_uleb128(&linking_section, -1, ti->index);
       data_string(&linking_section, ti->name->chars, ti->name->bytes);
       ++count;
     }

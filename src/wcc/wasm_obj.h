@@ -104,7 +104,7 @@ typedef struct {
       uint32_t address;
     } data;
     struct {
-      uint32_t typeindex;
+      uint32_t index;
     } tag;
   };
 
@@ -137,6 +137,10 @@ typedef struct WasmObj {
     struct DataSegmentForLink *segments;
     uint32_t count;
   } data;
+  struct {
+    struct TagData *data;
+    uint32_t count;
+  } tag;
   struct {
     struct ElemSegmentForLink *segments;
     uint32_t count;

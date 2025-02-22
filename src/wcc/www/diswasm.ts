@@ -38,6 +38,7 @@ const enum Opcode {
   RETURN        = 0x0f,
   CALL          = 0x10,
   CALL_INDIRECT = 0x11,
+  DELEGATE      = 0x18,
   CATCH_ALL     = 0x19,
   DROP          = 0x1a,
   SELECT        = 0x1b,
@@ -336,6 +337,7 @@ const InstTable = new Map([
   [Opcode.RETURN, {op: 'return'}],
   [Opcode.CALL, {op: 'call', operands: [OperandKind.ULEB128], opKind: OpKind.CALL}],
   [Opcode.CALL_INDIRECT, {op: 'call_indirect', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.CALL_INDIRECT}],
+  [Opcode.DELEGATE, {op: 'delegate', operands: [OperandKind.I32CONST]}],
   [Opcode.CATCH_ALL, {op: 'catch_all', opKind: OpKind.ELSE}],
   [Opcode.DROP, {op: 'drop'}],
   [Opcode.SELECT, {op: 'select'}],
@@ -1239,9 +1241,9 @@ export class DisWasm {
                   break
                 case SymInfoKind.SYMTAB_EVENT:
                   {
-                    const typeindex = this.bufferReader.readUleb128()
+                    const index = this.bufferReader.readUleb128()
                     const symname = this.bufferReader.readString()
-                    this.log(`${this.addr(offset)};;     (${kSymInfoKindNames[kind]} (name "${symname}") (typeindex ${typeindex}) (flags ${flagStr}))`)
+                    this.log(`${this.addr(offset)};;     (${kSymInfoKindNames[kind]} (name "${symname}") (index ${index}) (flags ${flagStr}))`)
                     symbols.push(symname)
                   }
                   break

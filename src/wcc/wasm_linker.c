@@ -208,6 +208,23 @@ static void read_func_section(WasmObj *wasmobj, unsigned char *p) {
   wasmobj->func.count = num;
 }
 
+typedef struct TagData {
+  uint32_t attribute;
+  uint32_t typeindex;
+} TagData;
+
+static void read_tag_section(WasmObj *wasmobj, unsigned char *p) {
+  uint32_t num = read_uleb128(p, &p);
+  TagData *data = malloc_or_die(sizeof(*data) * num);
+  for (uint32_t i = 0; i < num; ++i) {
+    TagData *d = &data[i];
+    d->attribute = read_uleb128(p, &p);
+    d->typeindex = read_uleb128(p, &p);
+  }
+  wasmobj->tag.data = data;
+  wasmobj->tag.count = num;
+}
+
 typedef struct DataSegmentForLink {
   unsigned char *content;
   uint32_t start;
@@ -358,10 +375,10 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
             break;
           case SIK_SYMTAB_EVENT:
             {
-              uint32_t typeindex = read_uleb128(p, &p);
+              uint32_t index = read_uleb128(p, &p);
               const Name *symname = read_wasm_string(p, &p);
-              if (typeindex >= (uint32_t)wasmobj->types->len)
-                error("illegal type index for event: %.*s", NAMES(symname));
+              if (index >= wasmobj->tag.count)
+                error("illegal tag index: %.*s", NAMES(symname));
 
               SymbolInfo *sym = calloc_or_die(sizeof(*sym));
               sym->module_name = NULL;
@@ -369,7 +386,7 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
               sym->kind = kind;
               sym->flags = flags;
               sym->local_index = -1;  // Unused.
-              sym->tag.typeindex = typeindex;
+              sym->tag.index = index;
               vec_push(wasmobj->linking.symtab, sym);
             }
             break;
@@ -536,6 +553,9 @@ static WasmObj *read_wasm(FILE *fp, const char *filename, size_t filesize) {
         break;
       case SEC_FUNC:
         read_func_section(wasmobj, p);
+        break;
+      case SEC_TAG:
+        read_tag_section(wasmobj, p);
         break;
       case SEC_DATA:
         read_data_section(wasmobj, p);
@@ -844,9 +864,11 @@ static void renumber_symbols_wasmobj(WasmObj *wasmobj, uint32_t *defined_count) 
       break;
     case SIK_SYMTAB_EVENT:
       {
-        if (sym->tag.typeindex >= (uint32_t)wasmobj->types->len)
-          error("illegal type index for event: %.*s", NAMES(sym->name));
-        uint32_t typeindex = VOIDP2INT(wasmobj->types->data[sym->tag.typeindex]);
+        if (sym->tag.index >= wasmobj->tag.count)
+          error("illegal index for event: %.*s", NAMES(sym->name));
+
+        const TagData *d = &wasmobj->tag.data[sym->tag.index];
+        uint32_t typeindex = VOIDP2INT(wasmobj->types->data[d->typeindex]);
         TagInfo *ti = getsert_tag(sym->name, typeindex);
         sym->combined_index = ti->index;
       }
