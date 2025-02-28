@@ -849,8 +849,8 @@ static void renumber_symbols_wasmobj(WasmObj *wasmobj, uint32_t *defined_count) 
   uint32_t import_count[3];
   import_count[SIK_SYMTAB_FUNCTION] = wasmobj->import.functions != NULL ? wasmobj->import.functions->len : 0;
   import_count[SIK_SYMTAB_DATA] = 0;
-  for (int j = 0; j < symtab->len; ++j) {
-    SymbolInfo *sym = symtab->data[j];
+  for (int i = 0; i < symtab->len; ++i) {
+    SymbolInfo *sym = symtab->data[i];
     if (sym->flags & WASM_SYM_UNDEFINED)
       continue;
     switch (sym->kind) {
@@ -917,8 +917,8 @@ static void renumber_symbols(WasmLinker *linker) {
 static void renumber_func_types_wasmobj(WasmObj *wasmobj) {
   Vector *type_indices = wasmobj->types;
   Vector *symtab = wasmobj->linking.symtab;
-  for (int j = 0; j < symtab->len; ++j) {
-    SymbolInfo *sym = symtab->data[j];
+  for (int i = 0; i < symtab->len; ++i) {
+    SymbolInfo *sym = symtab->data[i];
     if (sym->kind != SIK_SYMTAB_FUNCTION)
       continue;
     if (sym->func.type_index >= (uint32_t)type_indices->len)
@@ -944,10 +944,22 @@ static void renumber_func_types(WasmLinker *linker) {
 }
 
 static uint32_t remap_data_address_wasmobj(WasmObj *wasmobj, uint32_t address) {
-  address = ALIGN(address, 16);  // TODO:
+  // Detect max p2align.
+  uint32_t p2align = 0;
+  Vector *symtab = wasmobj->linking.symtab;
+  for (int i = 0; i < symtab->len; ++i) {
+    SymbolInfo *sym = symtab->data[i];
+    if (sym->kind != SIK_SYMTAB_DATA || sym->flags & WASM_SYM_UNDEFINED)
+      continue;
+    if (sym->data.p2align > p2align)
+      p2align = sym->data.p2align;
+  }
+
+  // Remap data segments.
+  address = ALIGN(address, 1U << p2align);
   uint32_t max = address;
-  for (uint32_t j = 0; j < wasmobj->data.count; ++j) {
-    DataSegmentForLink *d = &wasmobj->data.segments[j];
+  for (uint32_t i = 0; i < wasmobj->data.count; ++i) {
+    DataSegmentForLink *d = &wasmobj->data.segments[i];
     d->start += address;
     uint32_t end = d->start + d->size;
     if (end > max)
@@ -955,16 +967,15 @@ static uint32_t remap_data_address_wasmobj(WasmObj *wasmobj, uint32_t address) {
   }
   address = max;
 
-  Vector *symtab = wasmobj->linking.symtab;
-  for (int k = 0; k < symtab->len; ++k) {
-    SymbolInfo *sym = symtab->data[k];
+  // Apply to data symbols.
+  for (int i = 0; i < symtab->len; ++i) {
+    SymbolInfo *sym = symtab->data[i];
     if (sym->kind != SIK_SYMTAB_DATA || sym->flags & WASM_SYM_UNDEFINED)
       continue;
     if (sym->local_index >= wasmobj->data.count)
       error("illegal index for data segment %.*s: %d\n", NAMES(sym->name), sym->local_index);
     DataSegmentForLink *d = &wasmobj->data.segments[sym->local_index];
-    uint32_t addr = d->start + sym->data.offset;
-    sym->data.address = addr;
+    sym->data.address = d->start + sym->data.offset;
   }
   return address;
 }
@@ -974,7 +985,7 @@ static uint32_t remap_data_address(WasmLinker *linker, uint32_t address) {
     File *file = linker->files->data[i];
     switch (file->kind) {
     case FK_WASMOBJ:
-      address = remap_data_address_wasmobj(file->wasmobj, address);
+    address = remap_data_address_wasmobj(file->wasmobj, address);
       break;
     case FK_ARCHIVE:
       FOREACH_FILE_ARCONTENT(file->archive, content, {
@@ -1084,16 +1095,16 @@ static void put_i32(unsigned char *p, int32_t x) {
 
 static void apply_relocation_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
   Vector *symtab = wasmobj->linking.symtab;
-  for (int j = 0; j < 2; ++j) {
-    uint32_t count = wasmobj->reloc[j].count;
+  for (int i = 0; i < 2; ++i) {
+    uint32_t count = wasmobj->reloc[i].count;
     if (count == 0)
       continue;
 
-    uint32_t section_index = wasmobj->reloc[j].section_index;
+    uint32_t section_index = wasmobj->reloc[i].section_index;
     WasmSection *sec = &wasmobj->sections[section_index];
-    RelocInfo *relocs = wasmobj->reloc[j].relocs;
-    for (uint32_t k = 0; k < count; ++k) {
-      RelocInfo *p = &relocs[k];
+    RelocInfo *relocs = wasmobj->reloc[i].relocs;
+    for (uint32_t j = 0; j < count; ++j) {
+      RelocInfo *p = &relocs[j];
       unsigned char *q = sec->start + p->offset;
       switch (p->type) {
       case R_WASM_TYPE_INDEX_LEB:

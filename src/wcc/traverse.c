@@ -1038,7 +1038,7 @@ void traverse_ast(Vector *decls) {
 
   {
     // Enumerate global variables.
-    const uint32_t START_ADDRESS = 1;  // Avoid valid poiter is NULL.
+    const uint32_t START_ADDRESS = 0;  // Physical address is assigned by linker, so start from 0 here.
     uint32_t address = START_ADDRESS;
 
     VERBOSE("### Memory  0x%x\n", address);
