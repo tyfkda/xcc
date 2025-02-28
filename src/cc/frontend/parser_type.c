@@ -169,6 +169,22 @@ static StructInfo *parse_struct(bool is_union) {
   return create_struct_info(members, count, is_union, flex_arr_mem != NULL);
 }
 
+static Type *parse_typeof(const Token *tok) {
+  consume(TK_LPAR, "`(' expected");
+  Type *type = parse_var_def(NULL, NULL, NULL);
+  if (type == NULL) {
+    Expr *e = parse_expr();
+    if (e == NULL) {
+      parse_error(PE_FATAL, tok, "type expected");
+      type = &tyInt;  // Dummy.
+    } else {
+      type = e->type;
+    }
+  }
+  consume(TK_RPAR, "`)' expected");
+  return type;
+}
+
 #define ASSERT_PARSE_ERROR(cond, tok, ...)  do { if (!(cond)) parse_error(PE_FATAL, tok, __VA_ARGS__); } while (0)
 
 Type *parse_raw_type(int *pstorage) {
@@ -253,66 +269,79 @@ Type *parse_raw_type(int *pstorage) {
       break;
     }
 
-    if (tok->kind == TK_STRUCT || tok->kind == TK_UNION) {
-      if (!no_type_combination(&tc, 0, 0))
-        parse_error(PE_NOFATAL, tok, ILLEGAL_TYPE_COMBINATION);
+    switch (tok->kind) {
+    case TK_STRUCT: case TK_UNION:
+      {
+        if (!no_type_combination(&tc, 0, 0))
+          parse_error(PE_NOFATAL, tok, ILLEGAL_TYPE_COMBINATION);
 
-      bool is_union = tok->kind == TK_UNION;
-      const Name *name = NULL;
-      Token *ident;
-      if ((ident = match(TK_IDENT)) != NULL)
-        name = ident->ident;
+        bool is_union = tok->kind == TK_UNION;
+        const Name *name = NULL;
+        Token *ident;
+        if ((ident = match(TK_IDENT)) != NULL)
+          name = ident->ident;
 
-      StructInfo *sinfo = NULL;
-      if (match(TK_LBRACE)) {  // Definition
-        sinfo = parse_struct(is_union);
-        if (name != NULL) {
-          Scope *scope;
-          StructInfo *exist = find_struct(curscope, name, &scope);
-          if (exist != NULL && scope == curscope)
-            parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(name));
-          else
-            define_struct(curscope, name, sinfo);
-        }
-      } else {
-        if (name != NULL) {
-          sinfo = find_struct(curscope, name, NULL);
-          if (sinfo != NULL) {
-            if (sinfo->is_union != is_union)
-              parse_error(PE_NOFATAL, tok, "Wrong tag for `%.*s'", NAMES(name));
+        StructInfo *sinfo = NULL;
+        if (match(TK_LBRACE)) {  // Definition
+          sinfo = parse_struct(is_union);
+          if (name != NULL) {
+            Scope *scope;
+            StructInfo *exist = find_struct(curscope, name, &scope);
+            if (exist != NULL && scope == curscope)
+              parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(name));
+            else
+              define_struct(curscope, name, sinfo);
+          }
+        } else {
+          if (name != NULL) {
+            sinfo = find_struct(curscope, name, NULL);
+            if (sinfo != NULL) {
+              if (sinfo->is_union != is_union)
+                parse_error(PE_NOFATAL, tok, "Wrong tag for `%.*s'", NAMES(name));
+            }
           }
         }
+
+        if (name == NULL && sinfo == NULL)
+          parse_error(PE_FATAL, tok, "Illegal struct/union usage");
+
+        type = create_struct_type(sinfo, name, tc.qualifier);
       }
-
-      if (name == NULL && sinfo == NULL)
-        parse_error(PE_FATAL, tok, "Illegal struct/union usage");
-
-      type = create_struct_type(sinfo, name, tc.qualifier);
-    } else if (tok->kind == TK_ENUM) {
+      break;
+    case TK_ENUM:
       if (!no_type_combination(&tc, 0, 0))
         parse_error(PE_NOFATAL, tok, ILLEGAL_TYPE_COMBINATION);
 
       type = parse_enum();
-    } else if (tok->kind == TK_BOOL) {
+      break;
+    case TK_BOOL:
       if (!no_type_combination(&tc, 0, 0))
         parse_error(PE_NOFATAL, tok, ILLEGAL_TYPE_COMBINATION);
 
       type = &tyBool;
-    } else if (tok->kind == TK_IDENT) {
+      break;
+    case TK_IDENT:
       if (no_type_combination(&tc, 0, 0)) {
         Token *next = match(-1);
         if (next->kind != TK_COLON)
           type = find_typedef(curscope, tok->ident, NULL);
         unget_token(next);
       }
-    } else if (tok->kind == TK_VOID) {
+      break;
+    case TK_VOID:
       type = tc.qualifier & TQ_CONST ? &tyConstVoid : &tyVoid;
-    } else if (tok->kind == TK_AUTO_TYPE) {
+      break;
+    case TK_AUTO_TYPE:
       if (!no_type_combination(&tc, 0, 0))
         parse_error(PE_NOFATAL, tok, ILLEGAL_TYPE_COMBINATION);
 
       type = calloc_or_die(sizeof(*type));
       type->kind = TY_AUTO;
+      break;
+    case TK_TYPEOF:
+      type = parse_typeof(tok);
+      break;
+    default: break;
     }
     if (type == NULL) {
       unget_token(tok);

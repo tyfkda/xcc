@@ -139,6 +139,7 @@ enum TokenKind {
   TK_NORETURN,
   TK_GENERIC,
   TK_AUTO_TYPE,
+  TK_TYPEOF,
 
   // For preprocessor.
   PPTK_CONCAT,       // ##
