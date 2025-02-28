@@ -164,7 +164,7 @@ static enum TokenKind reserved_word(const Name *name) {
   return kind != NULL ? (enum TokenKind)VOIDP2INT(kind) : TK_EOF;
 }
 
-static int backslash(int c, const char **pp) {
+static int backslash(int c, bool is_wide, const char **pp) {
   switch (c) {
   case '0':
     if (!isoctal((*pp)[1]))
@@ -173,28 +173,28 @@ static int backslash(int c, const char **pp) {
   case '1': case '2': case '3': case '4': case '5': case '6': case '7':
     {
       const char *p = *pp + 1;
-      int v = c - '0';
-      for (int i = 0; i < 2; ++i, ++p) {
+      char vv = c - '0';
+      for (int i = 0, n = is_wide ? 11 : 2; i < n; ++i, ++p) {
         char c2 = *p;
         if (!isoctal(c2))
           break;
-        v = (v << 3) | (c2 - '0');
+        vv = (vv << 3) | (c2 - '0');
       }
       *pp = p - 1;
-      return v;
+      return vv;
     }
   case 'x':
     {
       const char *p = *pp + 1;
-      c = 0;
-      for (int i = 0; i < 2; ++i, ++p) {
+      char vv = 0;
+      for (int i = 0, n = is_wide ? 8 : 2; i < n; ++i, ++p) {
         int v = xvalue(*p);
         if (v < 0)
           break;  // TODO: Error
-        c = (c << 4) | v;
+        vv = (vv << 4) | v;
       }
       *pp = p - 1;
-      return c;
+      return vv;
     }
   case 'a':  return '\a';
   case 'b':  return '\b';
@@ -516,20 +516,20 @@ const char *read_ident(const char *p_) {
   return (const char*)p;
 }
 
-static const char *read_utf8_char(const char *p, int *result) {
-  int c = *(unsigned char*)p;
+static const char *read_utf8_char(const char *p, bool is_wide, int *result) {
+  int c = *p;
   if (c == '\\') {
-    c = *(unsigned char*)(++p);
+    c = *(++p);
     if (c == '\0')
       --p;
     else
-      c = backslash(c, &p);
+      c = backslash(c, is_wide, &p);
   }
 #ifndef __NO_WCHAR
   else {
-    int ucc = isutf8first(c);
+    int ucc = isutf8first((unsigned char)c);
     if (ucc > 0) {
-      c &= ((1 << (8 - ucc)) - 1);
+      c &= (1 << (8 - ucc)) - 1;
       for (int i = 1; i < ucc; ++i) {
         int c2 = *(unsigned char*)(++p);
         if (!isutf8follow(c2)) {
@@ -560,7 +560,7 @@ static Token *read_char(const char **pp) {
     lex_error(p, "Empty character");
 
   int c;
-  p = read_utf8_char(p, &c);
+  p = read_utf8_char(p, is_wide, &c);
   if (*p != '\'')
     lex_error(p, "Character not closed");
 
@@ -578,7 +578,7 @@ static void *convert_str_to_wstr(const char *src, size_t *plen) {
   size_t len = 0;  // Include '\0'.
   for (const char *p = src;; ) {
     int c;
-    p = read_utf8_char(p, &c);
+    p = read_utf8_char(p, true, &c);
     ++len;
     if (c == '\0')
       break;
@@ -588,7 +588,7 @@ static void *convert_str_to_wstr(const char *src, size_t *plen) {
   wchar_t *q = wstr;
   for (const char *p = src;; ) {
     int c;
-    p = read_utf8_char(p, &c);
+    p = read_utf8_char(p, true, &c);
     *q++ = c;
     if (c == '\0')
       break;
@@ -604,9 +604,7 @@ static Token *read_string(const char **pp) {
   const char *begin, *end;
   size_t capa = 16, len = 0;
   char *str = malloc_or_die(capa * sizeof(*str));
-#ifndef __NO_WCHAR
   bool is_wide = false;
-#endif
   for (;;) {
     begin = p++;  // Skip first '"'
 #ifndef __NO_WCHAR
@@ -630,7 +628,7 @@ static Token *read_string(const char **pp) {
         c = *(unsigned char*)p;
         if (c == '\0')
           lex_error(p, "String not closed");
-        c = backslash(c, &p);
+        c = backslash(c, is_wide, &p);
         ++p;
       }
       assert(len < capa);
