@@ -113,6 +113,7 @@ TEST(all) {
   EXPECT("binary", 14953, 0b0011101001101001);
   EXPECT("negative", -42, (x=42, -x));
   EXPECT("negative unsigned literal is unsigned", ~0U, -1U);
+  EXPECT_TRUE(-(unsigned short)1 < 0);
   EXPECT("0 - x", -42, (x=42, 0-x));
   EXPECT("long", 123, 123L);
   { long long x = 9876543LL; EXPECT("long long", 9876543, x); }

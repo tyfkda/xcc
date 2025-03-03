@@ -350,6 +350,10 @@ static Expr *unary(Token *tok) {
         return expr;
       }
 
+      if (is_fixnum(type->kind)) {
+        expr = promote_to_int(expr);
+        type = expr->type;
+      }
       if (is_const(expr)) {
         if (kind == TK_SUB) {
 #ifndef __NO_FLONUM
@@ -363,10 +367,6 @@ static Expr *unary(Token *tok) {
           expr->type = type;
         }
         return expr;
-      }
-      if (is_fixnum(type->kind)) {
-        expr = promote_to_int(expr);
-        type = expr->type;
       }
       return new_expr_unary(kind + (EX_POS - TK_ADD), type, tok, expr);
     }
