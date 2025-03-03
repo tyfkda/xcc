@@ -686,7 +686,7 @@ void prepare_register_allocation(Function *func) {
       }
 
       assert(is_prim_type(varinfo->type));
-      if (vreg->flag & (VRF_REF | VRF_STACK_PARAM | VRF_VOLATILE)) {
+      if (vreg->flag & (VRF_FORCEMEMORY | VRF_STACK_PARAM)) {
         spill_vreg(vreg);
         require_stack_frame = true;
       }

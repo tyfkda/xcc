@@ -36,6 +36,7 @@ enum VRegSize {
 #define VRF_VOLATILE     (1 << 8)  // Volatile
 
 #define VRF_MASK         (VRF_FLONUM | VRF_VOLATILE)
+#define VRF_FORCEMEMORY  (VRF_REF | VRF_VOLATILE)
 
 typedef struct VReg {
   enum VRegSize vsize;
