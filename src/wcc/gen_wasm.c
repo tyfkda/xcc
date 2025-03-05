@@ -1529,6 +1529,10 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
         // Enum members are replaced to constant value.
         continue;
       }
+      if (varinfo->type->kind == TY_FUNC) {
+        // Function declaration has no entity.
+        continue;
+      }
 
       int param_index = -1;
       if (i == 0 && param_count > 0) {
