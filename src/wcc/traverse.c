@@ -737,6 +737,9 @@ static void modify_func_name(Function *func) {
 static void traverse_defun(Function *func) {
   if (func->scopes == NULL)  // Prototype definition
     return;
+  VarInfo *funcvi = scope_find(global_scope, func->ident->ident, NULL);
+  if (!(funcvi->storage & VS_USED) && is_function_omitted(funcvi))
+    return;
 
   // Static variables.
   Vector *static_vars = func->static_vars;
@@ -953,6 +956,9 @@ void traverse_ast(Vector *decls) {
     if (decl->kind != DCL_DEFUN)
       continue;
     Function *func = decl->defun.func;
+    VarInfo *funcvi = scope_find(global_scope, func->ident->ident, NULL);
+    if (!(funcvi->storage & VS_USED) && is_function_omitted(funcvi))
+      continue;
     int count = ((FuncExtra*)func->extra)->setjmp_count;
     if (count > 0) {
       curfunc = func;
