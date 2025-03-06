@@ -483,8 +483,8 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool make_int) {
     *pLhs = promote_to_int(lhs);
     *pRhs = promote_to_int(rhs);
   } else if (changed || !same_type_without_qualifier(ltype, rtype, true)) {
-    int l = (lkind << 1) | (ltype->fixnum.is_unsigned ? 1 : 0);
-    int r = (rkind << 1) | (rtype->fixnum.is_unsigned ? 1 : 0);
+    int l = (type_size(ltype) << 1) | (ltype->fixnum.is_unsigned ? 1 : 0);
+    int r = (type_size(rtype) << 1) | (rtype->fixnum.is_unsigned ? 1 : 0);
     Type *type = l >= r ? ltype : rtype;
     *pLhs = make_cast(type, lhs->token, lhs, false);
     *pRhs = make_cast(type, rhs->token, rhs, false);

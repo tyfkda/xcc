@@ -13,6 +13,8 @@
 #include "util.h"
 #include "var.h"
 
+extern bool parsing_stmt;
+
 static void parse_enum_members(Type *type) {
   assert(type != NULL && type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM);
   Type *ctype = qualified_type(type, TQ_CONST);
@@ -322,10 +324,8 @@ Type *parse_raw_type(int *pstorage) {
       break;
     case TK_IDENT:
       if (no_type_combination(&tc, 0, 0)) {
-        Token *next = match(-1);
-        if (next->kind != TK_COLON)
+        if (!parsing_stmt || fetch_token()->kind != TK_COLON)
           type = find_typedef(curscope, tok->ident, NULL);
-        unget_token(next);
       }
       break;
     case TK_VOID:

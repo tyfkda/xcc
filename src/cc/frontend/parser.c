@@ -17,6 +17,8 @@
 
 static Stmt *parse_stmt(void);
 
+bool parsing_stmt;
+
 Token *consume(enum TokenKind kind, const char *error) {
   Token *tok = match(kind);
   if (tok == NULL)
@@ -598,10 +600,10 @@ extern inline Stmt *parse_asm(const Token *tok) {
   return new_stmt_asm(tok, str, arg);
 }
 
-// Multiple stmt-s, also accept `case` and `default`.
 static Vector *parse_stmts(const Token **prbrace) {
   Vector *stmts = new_vector();
   for (;;) {
+    parsing_stmt = true;
     if (parse_vardecl(stmts))
       continue;
 
@@ -630,6 +632,7 @@ Stmt *parse_block(const Token *tok, Scope *scope) {
 }
 
 static Stmt *parse_stmt(void) {
+  parsing_stmt = true;
   Token *tok = match(-1);
   switch (tok->kind) {
   case TK_RBRACE:

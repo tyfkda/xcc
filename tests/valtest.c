@@ -2058,18 +2058,19 @@ TEST(vla) {
 
 TEST(extension) {
   {
-#define GENERIC_FUNC(x) _Generic((x), int: 1, long: 2, char*: 3, const char*: 4, void*: 8, default: 9)
+#define GENERIC_FUNC(x) _Generic((x), int: 1, long: 2, uint64_t: 3, char*: 10, const char*: 11, void*: 12, default: 99)
     EXPECT("generic int",         1, GENERIC_FUNC(123));
     EXPECT("generic long",        2, GENERIC_FUNC(456L));
-    EXPECT("generic str literal", 3, GENERIC_FUNC("str"));
+    EXPECT("generic uint64_t",    3, GENERIC_FUNC((uint64_t)789));
+    EXPECT("generic str literal", 10, GENERIC_FUNC("str"));
     const char str[] = "str";
-    EXPECT("generic char array",  4, GENERIC_FUNC(str));
+    EXPECT("generic char array",  11, GENERIC_FUNC(str));
     int a[] = {1, 2, 3};
-    EXPECT("generic pointer",     9, GENERIC_FUNC(a));
-    EXPECT("generic pointer",     9, GENERIC_FUNC((char)'x'));
+    EXPECT("generic pointer",     99, GENERIC_FUNC(a));
+    EXPECT("generic pointer",     99, GENERIC_FUNC((char)'x'));
 
 #ifndef __NO_FLONUM
-#define GENERIC_FLONUM(x) _Generic((x), int: 1, float: 2, double: 3, long double: 4, default: 9)
+#define GENERIC_FLONUM(x) _Generic((x), int: 1, float: 2, double: 3, long double: 4, default: 99)
     EXPECT("generic float",       2, GENERIC_FLONUM(1.0f));
     EXPECT("generic double",      3, GENERIC_FLONUM(2.3));
     EXPECT("generic long double", 4, GENERIC_FLONUM(4.5L));

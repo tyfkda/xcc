@@ -61,6 +61,8 @@ double fmod(double x, double m);
 double frexp(double x, int *p);
 double ldexp(double x, int exp);
 
+float fabsf(float);
+
 int finite(double x);
 
 inline int signbit(double x) {

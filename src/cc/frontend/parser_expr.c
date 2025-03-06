@@ -15,6 +15,8 @@
 
 static Table builtin_expr_ident_table;
 
+extern bool parsing_stmt;
+
 void add_builtin_expr_ident(const char *str, BuiltinExprProc *proc) {
   const Name *name = alloc_name(str, NULL, false);
   table_put(&builtin_expr_ident_table, name, proc);
@@ -811,14 +813,17 @@ static const ParseRule *get_rule(enum TokenKind kind) {
 }
 
 Expr *parse_expr(void) {
+  parsing_stmt = false;
   return parse_precedence(PREC_COMMA);
 }
 
 Expr *parse_assign(void) {
+  parsing_stmt = false;
   return parse_precedence(PREC_ASSIGN);
 }
 
 Expr *parse_const_fixnum(void) {
+  parsing_stmt = false;
   Expr *expr = parse_precedence(PREC_LOGIOR);
   if (is_const(expr) && is_fixnum(expr->type->kind))
     return expr;
