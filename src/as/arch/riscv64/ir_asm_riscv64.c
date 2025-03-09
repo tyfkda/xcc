@@ -13,6 +13,15 @@
 #include "table.h"
 #include "util.h"
 
+static const Name *alloc_dummy_label(void) {
+  // TODO: Ensure label is unique.
+  static int label_no;
+  ++label_no;
+  char buf[2 + sizeof(int) * 3 + 1];
+  snprintf(buf, sizeof(buf), "._%d", label_no);
+  return alloc_name(buf, NULL, true);
+}
+
 static void sec_add_data(SectionInfo *section, const void *data, size_t bytes) {
   assert(!(section->flag & SF_BSS));
   data_append(section->ds, data, bytes);
@@ -143,19 +152,30 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
     SectionInfo *section = sections->data[sec];
     Vector *irs = section->irs;
     uint64_t start_address = irs->len > 0 ? ((IR*)irs->data[0])->address : 0;
+    const Name *last_label = NULL;
     for (int i = 0, len = irs->len; i < len; ++i) {
       IR *ir = irs->data[i];
       uint64_t address = ir->address;
       switch (ir->kind) {
+      case IR_LABEL:
+        last_label = ir->label;
+        break;
       case IR_CODE:
         {
           Inst *inst = ir->code.inst;
           switch (inst->op) {
           case LA:
-            assert(inst->opr[2].type == DIRECT);
             if (inst->opr[1].type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr[1].direct.expr);
               if (value.label != NULL) {
+                if (last_label == NULL) {
+                  const Name *label = alloc_dummy_label();
+                  IR *ir = new_ir_label(label);
+                  vec_insert(irs, i++, ir);
+                  ++len;
+                  last_label = label;
+                }
+
                 uint64_t offset = address - start_address;
                 UnresolvedInfo *info;
                 info = calloc_or_die(sizeof(*info));
@@ -175,8 +195,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                 vec_push(unresolved, info);
 
                 // hilabel points to AUIPC instruction, just above one.
-                assert(inst->opr[2].direct.expr->kind == EX_LABEL);
-                const Name *hilabel = inst->opr[2].direct.expr->label.name;
+                const Name *hilabel = last_label;
                 info = calloc_or_die(sizeof(*info));
                 info->kind = UNRES_PCREL_LO;
                 info->label = hilabel;
@@ -307,7 +326,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                     asm_bxx(inst, &ir->code);  // Reassemble the instruction.
 
                     // `J`
-                    Code jcode, *code = &jcode;
+                    Code jcode, *code = &jcode;  // `code` is referred in instruction macro.
                     {
                       Inst *inst = calloc_or_die(sizeof(*inst));
                       inst->op = J;
@@ -317,12 +336,12 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                       W_JAL(ZERO, 0);
                       code->flag = INST_LONG_OFFSET;  // Start with long offset.
                     }
-                    skip->fixnum = 4 + jcode.len;  // Skip `J` instruction.
-
                     IR *jmp = new_ir_code(code);
                     jmp->address = address;  // Temporary address.
                     vec_insert(irs, i + 1, jmp);
-                    size_upgraded = true;
+
+                    skip->fixnum = ir->code.len + jcode.len;  // Skip `J` instruction.
+                    size_upgraded = true;  // Force retry.
                   }
                 }
               }
@@ -374,7 +393,6 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
           vec_push(unresolved, info);
         }
         break;
-      case IR_LABEL:
       case IR_DATA:
       case IR_BSS:
       case IR_ZERO:

@@ -85,7 +85,14 @@ static void move_params_to_assigned(Function *func) {
     if (vreg->flag & VRF_SPILLED) {
       int offset = vreg->frame.offset;
       assert(offset != 0);
-      const char *dst = IMMEDIATE_OFFSET(offset, FP);
+      const char *dst;
+      if (offset >= -2048) {
+        dst = IMMEDIATE_OFFSET(offset, FP);
+      } else {
+        LI(T0, IM(offset));
+        ADD(T0, T0, FP);
+        dst = IMMEDIATE_OFFSET0(T0);
+      }
       switch (pow) {
       case 0:  SB(src, dst); break;
       case 1:  SH(src, dst); break;

@@ -338,7 +338,7 @@ static void ei_add(IR *ir) {
   } else {
     assert(!(ir->opr1->flag & VRF_CONST));
     const char *dst = kReg64s[ir->dst->phys];
-    if (ir->dst->vsize <= 2 && !(ir->flag & IRF_UNSIGNED)) {
+    if (ir->dst->vsize <= 2) {
       if (ir->opr2->flag & VRF_CONST) {
         ADDIW(dst, kReg64s[ir->opr1->phys], IM(ir->opr2->fixnum));
       } else {
@@ -369,7 +369,7 @@ static void ei_sub(IR *ir) {
   } else {
     assert(!(ir->opr1->flag & VRF_CONST));
     const char *dst = kReg64s[ir->dst->phys];
-    if (ir->dst->vsize <= 2 && !(ir->flag & IRF_UNSIGNED)) {
+    if (ir->dst->vsize <= 2) {
       if (ir->opr2->flag & VRF_CONST) {
         ADDIW(dst, kReg64s[ir->opr1->phys], IM(-ir->opr2->fixnum));
       } else {
@@ -477,8 +477,12 @@ static void ei_lshift(IR *ir) {
   const char *dst = kReg64s[ir->dst->phys];
   const char *opr1 = kReg64s[ir->opr1->phys];
   if (ir->opr2->flag & VRF_CONST) {
-    if (ir->opr1->vsize < 3)  SLLIW(dst, opr1, IM(ir->opr2->fixnum));
-    else                      SLLI(dst, opr1, IM(ir->opr2->fixnum));
+    if ((uint64_t)ir->opr2->fixnum >= (ir->dst->vsize < 3 ? 32 : 64)) {
+      LI(dst, IM(0));
+    } else {
+      if (ir->opr1->vsize < 3)  SLLIW(dst, opr1, IM(ir->opr2->fixnum));
+      else                      SLLI(dst, opr1, IM(ir->opr2->fixnum));
+    }
   } else {
     const char *opr2 = kReg64s[ir->opr2->phys];
     if (ir->opr1->vsize < 3)  SLLW(dst, opr1, opr2);
@@ -491,13 +495,20 @@ static void ei_rshift(IR *ir) {
   const char *dst = kReg64s[ir->dst->phys];
   const char *opr1 = kReg64s[ir->opr1->phys];
   if (ir->opr2->flag & VRF_CONST) {
-    const char *opr2 = IM(ir->opr2->fixnum);
-    if (ir->dst->vsize < 3) {
-      if (ir->flag & IRF_UNSIGNED) SRLIW(dst, opr1, opr2);
-      else                         SRAIW(dst, opr1, opr2);
+    if (ir->flag & IRF_UNSIGNED) {
+      if ((uint64_t)ir->opr2->fixnum >= (ir->dst->vsize < 3 ? 32 : 64)) {
+        LI(dst, IM(0));
+      } else {
+        const char *opr2 = IM(ir->opr2->fixnum);
+        if (ir->dst->vsize < 3)  SRLIW(dst, opr1, opr2);
+        else                     SRLI(dst, opr1, opr2);
+      }
     } else {
-      if (ir->flag & IRF_UNSIGNED) SRLI(dst, opr1, opr2);
-      else                         SRAI(dst, opr1, opr2);
+      uint64_t max = ir->dst->vsize < 3 ? 31 : 63;
+      uint64_t shift = ir->opr2->fixnum;
+      const char *opr2 = IM(MIN(shift, max));
+      if (ir->dst->vsize < 3)  SRAIW(dst, opr1, opr2);
+      else                     SRAI(dst, opr1, opr2);
     }
   } else {
     const char *opr2 = kReg64s[ir->opr2->phys];

@@ -131,11 +131,6 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
   }
 
   if (rd == rs) {
-    if (inst->op == ADDI && rd == SP && is_im6(imm >> 4) && (imm & 0xf) == 0 && imm != 0) {
-      C_ADDI16SP(imm);
-      return code->buf;
-    }
-
     if (is_im6(imm)) {
       switch (inst->op) {
       case ADDI:   if (imm != 0) { C_ADDI(rd, imm); return code->buf; } break;
@@ -151,6 +146,11 @@ static unsigned char *asm_2ri(Inst *inst, Code *code) {
       case SRAI:   if (is_rvc_reg(rd)) { C_SRAI(rd, imm); return code->buf; } break;
       default: break;
       }
+    }
+
+    if (inst->op == ADDI && rd == SP && is_im6(imm >> 4) && (imm & 0xf) == 0 && imm != 0) {
+      C_ADDI16SP(imm);
+      return code->buf;
     }
   }
   switch (inst->op) {
