@@ -86,34 +86,36 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, 
     }
 
     if ((opr1->flag & (VRF_FLONUM | VRF_CONST)) == VRF_CONST) {
+      int64_t lval = opr1->fixnum;
       if ((opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_CONST) {
+        int64_t rval = opr2->fixnum;
         int64_t value = 0;
         switch (kind) {
-        case IR_ADD:     value = opr1->fixnum + opr2->fixnum; break;
-        case IR_SUB:     value = opr1->fixnum - opr2->fixnum; break;
-        case IR_MUL:     value = opr1->fixnum * opr2->fixnum; break;
+        case IR_ADD:     value = lval + rval; break;
+        case IR_SUB:     value = lval - rval; break;
+        case IR_MUL:     value = lval * rval; break;
         case IR_DIV:
           if (flag & IRF_UNSIGNED)
-            value = (uint64_t)opr1->fixnum / (uint64_t)opr2->fixnum;
+            value = (uint64_t)lval / (uint64_t)rval;
           else
-            value = opr1->fixnum / opr2->fixnum;
+            value = lval / rval;
           break;
         case IR_MOD:
           if (flag & IRF_UNSIGNED)
-            value = (uint64_t)opr1->fixnum % (uint64_t)opr2->fixnum;
+            value = (uint64_t)lval % (uint64_t)rval;
           else
-            value = opr1->fixnum % opr2->fixnum;
+            value = lval % rval;
           break;
-        case IR_BITAND:  value = opr1->fixnum & opr2->fixnum; break;
-        case IR_BITOR:   value = opr1->fixnum | opr2->fixnum; break;
-        case IR_BITXOR:  value = opr1->fixnum ^ opr2->fixnum; break;
-        case IR_LSHIFT:  value = opr1->fixnum << opr2->fixnum; break;
+        case IR_BITAND:  value = lval & rval; break;
+        case IR_BITOR:   value = lval | rval; break;
+        case IR_BITXOR:  value = lval ^ rval; break;
+        case IR_LSHIFT:  value = lval << rval; break;
         case IR_RSHIFT:
           //assert(opr1->type->kind == TY_FIXNUM);
           if (flag & IRF_UNSIGNED)
-            value = (uint64_t)opr1->fixnum >> opr2->fixnum;
+            value = (uint64_t)lval >> rval;
           else
-            value = opr1->fixnum >> opr2->fixnum;
+            value = lval >> rval;
           break;
         default: assert(false); break;
         }
@@ -121,34 +123,38 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, 
       } else {
         switch (kind) {
         case IR_ADD:
-          if (opr1->fixnum == 0)
-            return opr2;
+          if (lval == 0)
+            return opr2;  // no effect.
           break;
         case IR_SUB:
-          if (opr1->fixnum == 0)
+          if (lval == 0)
             return new_ir_unary(IR_NEG, opr2, opr2->vsize, flag);
           break;
         case IR_MUL:
-          if (opr1->fixnum == 1)
-            return opr2;
+          switch (lval) {
+          case 1:   return opr2;  // no effect.
+          case 0:   return opr1;  // 0
+          case -1:  return new_ir_unary(IR_NEG, opr2, opr2->vsize, flag);  // -opr2
+          default: break;
+          }
           break;
         case IR_DIV:
         case IR_MOD:
-          if (opr1->fixnum == 0)
+          if (lval == 0)
             return opr1;  // TODO: whether opr2 is zero.
           break;
         case IR_BITAND:
-          if (opr1->fixnum == 0)
+          if (lval == 0)
             return opr1;  // 0
           break;
         case IR_BITOR:
         case IR_BITXOR:
-          if (opr1->fixnum == 0)
-            return opr2;
+          if (lval == 0)
+            return opr2;  // no effect.
           break;
         case IR_LSHIFT:
         case IR_RSHIFT:
-          if (opr1->fixnum == 0)
+          if (lval == 0)
             return opr1;  // 0
           break;
         default:
@@ -157,30 +163,38 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, 
       }
     } else {
       if ((opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_CONST) {
+        int64_t rval = opr2->fixnum;
         switch (kind) {
         case IR_ADD:
         case IR_SUB:
-          if (opr2->fixnum == 0)
-            return opr1;
+          if (rval == 0)
+            return opr1;  // no effect.
           break;
-        case IR_MUL:
         case IR_DIV:
-          if (opr2->fixnum == 1)
-            return opr1;
+          if (rval == 0)
+            return opr1;  // Detect zero division.
+          // Fallthrough
+        case IR_MUL:
+          switch (rval) {
+          case 1:   return opr1;  // no effect.
+          case 0:   return opr2;  // 0
+          case -1:  return new_ir_unary(IR_NEG, opr1, opr1->vsize, flag);  // -opr1
+          default: break;
+          }
           break;
         case IR_BITAND:
-          if (opr2->fixnum == 0)
+          if (rval == 0)
             return opr2;  // 0
           break;
         case IR_BITOR:
         case IR_BITXOR:
-          if (opr2->fixnum == 0)
-            return opr1;
+          if (rval == 0)
+            return opr1;  // no effect.
           break;
         case IR_LSHIFT:
         case IR_RSHIFT:
           if (opr2->fixnum == 0)
-            return opr1;
+            return opr1;  // no effect.
           break;
         default:
           break;

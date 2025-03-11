@@ -749,63 +749,153 @@ Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rh
   cast_numbers(&lhs, &rhs, true);
 
   do {
-    if (is_const(lhs) && is_number(lhs->type) &&
-        is_const(rhs) && is_number(rhs->type)) {
+    if (is_const(rhs) && is_number(rhs->type)) {
+      if (is_const(lhs) && is_number(lhs->type)) {
 #ifndef __NO_FLONUM
-      if (is_flonum(lhs->type) || is_flonum(rhs->type)) {
-        Flonum lval = is_flonum(lhs->type) ? lhs->flonum : lhs->fixnum;
-        Flonum rval = is_flonum(rhs->type) ? rhs->flonum : rhs->fixnum;
-        Flonum value;
-        switch (kind) {
-        case EX_MUL:     value = lval * rval; break;
-        case EX_DIV:     value = lval / rval; break;
-        default:
-          assert(!"err");
-          value = -1;  // Dummy
-          break;
+        if (is_flonum(lhs->type)) {
+          assert(is_flonum(rhs->type));
+          Flonum lval = lhs->flonum;
+          Flonum rval = rhs->flonum;
+          Flonum value;
+          switch (kind) {
+          case EX_MUL:     value = lval * rval; break;
+          case EX_DIV:     value = lval / rval; break;
+          default:
+            assert(!"err");
+            value = -1;  // Dummy
+            break;
+          }
+          Type *type = lhs->type;
+          if (is_flonum(rhs->type))
+            type = rhs->type;
+          if (is_flonum(type)) {
+            return new_expr_flolit(type, lhs->token, value);
+          } else {
+            Fixnum fixnum = value;
+            return new_expr_fixlit(type, lhs->token, fixnum);
+          }
         }
-        Type *type = lhs->type;
-        if (is_flonum(rhs->type))
-          type = rhs->type;
-        if (is_flonum(type)) {
-          return new_expr_flolit(type, lhs->token, value);
-        } else {
-          Fixnum fixnum = value;
-          return new_expr_fixlit(type, lhs->token, fixnum);
-        }
-      }
 #endif
 
-      if ((kind == EX_DIV || kind == EX_MOD) && rhs->fixnum == 0)
-        break;
+        if ((kind == EX_DIV || kind == EX_MOD) && rhs->fixnum == 0)
+          break;
 
-#define CALC(kind, l, r, value) \
+#define CALC(kind, lval, rval, value) \
   switch (kind) { \
   default: assert(false); /* Fallthrough */ \
-  case EX_MUL:     value = l * r; break; \
-  case EX_DIV:     value = l / r; break; \
-  case EX_MOD:     value = l % r; break; \
-  case EX_BITAND:  value = l & r; break; \
-  case EX_BITOR:   value = l | r; break; \
-  case EX_BITXOR:  value = l ^ r; break; \
+  case EX_MUL:     value = lval * rval; break; \
+  case EX_DIV:     value = lval / rval; break; \
+  case EX_MOD:     value = lval % rval; break; \
+  case EX_BITAND:  value = lval & rval; break; \
+  case EX_BITOR:   value = lval | rval; break; \
+  case EX_BITXOR:  value = lval ^ rval; break; \
   }
 
-      Fixnum value;
-      if (lhs->type->fixnum.is_unsigned) {
-        UFixnum l = lhs->fixnum;
-        UFixnum r = rhs->fixnum;
-        CALC(kind, l, r, value)
-      } else {
-        Fixnum l = lhs->fixnum;
-        Fixnum r = rhs->fixnum;
-        CALC(kind, l, r, value)
-      }
+        Fixnum value;
+        if (lhs->type->fixnum.is_unsigned) {
+          UFixnum lval = lhs->fixnum;
+          UFixnum rval = rhs->fixnum;
+          CALC(kind, lval, rval, value)
+        } else {
+          Fixnum lval = lhs->fixnum;
+          Fixnum rval = rhs->fixnum;
+          CALC(kind, lval, rval, value)
+        }
 #undef CALC
-      Type *type = lhs->type->fixnum.kind >= rhs->type->fixnum.kind ? lhs->type : rhs->type;
-      if (type->fixnum.kind < FX_INT)
-        type = &tyInt;
-      value = wrap_value(value, type_size(type), type->fixnum.is_unsigned);
-      return new_expr_fixlit(type, lhs->token, value);
+        Type *type = lhs->type->fixnum.kind >= rhs->type->fixnum.kind ? lhs->type : rhs->type;
+        if (type->fixnum.kind < FX_INT)
+          type = &tyInt;
+        value = wrap_value(value, type_size(type), type->fixnum.is_unsigned);
+        return new_expr_fixlit(type, lhs->token, value);
+      } else {
+#ifndef __NO_FLONUM
+        if (is_flonum(rhs->type)) {
+          assert(is_flonum(lhs->type));
+          Flonum rval = rhs->flonum;
+          switch (kind) {
+          case EX_MUL:
+            if (rval == 0.0)
+              return new_expr_bop(EX_COMMA, rhs->type, tok, lhs, rhs);  // 0.0
+            if (rval == -1.0)
+              return new_expr_unary(EX_NEG, lhs->type, lhs->token, lhs);  // -lhs
+            // Fallthrough.
+          case EX_DIV:
+            if (rval == 1.0)
+              return lhs;  // no effect.
+            break;
+          default: break;
+          }
+          break;
+        }
+#endif
+        Fixnum rval = rhs->fixnum;
+        switch (kind) {
+        case EX_MUL:
+          if (rval == 0)
+            return new_expr_bop(EX_COMMA, rhs->type, tok, lhs, rhs);  // 0
+          if (rval == -1)
+            return new_expr_unary(EX_NEG, lhs->type, lhs->token, lhs);
+          // Fallthrough.
+        case EX_DIV:
+          if (rval == 1)
+            return lhs;  // no effect.
+          break;
+        case EX_BITAND:
+          if (rval == 0)
+            return new_expr_bop(EX_COMMA, rhs->type, tok, lhs, rhs);  // 0
+          break;
+        case EX_BITOR:
+        case EX_BITXOR:
+          if (rval == 0)
+            return lhs;  // no effect.
+          break;
+        default: break;
+        }
+      }
+    } else {
+      if (is_const(lhs) && is_number(lhs->type)) {
+#ifndef __NO_FLONUM
+        if (is_flonum(lhs->type)) {
+          assert(is_flonum(rhs->type));
+          Flonum lval = lhs->flonum;
+          switch (kind) {
+          case EX_MUL:
+            if (lval == 0.0)
+              return new_expr_bop(EX_COMMA, lhs->type, tok, rhs, lhs);  // 0.0
+            if (lval == 1.0)
+              return rhs;  // no effect.
+            if (lval == -1.0)
+              return new_expr_unary(EX_NEG, rhs->type, rhs->token, rhs);  // -rhs
+            break;
+          default: break;
+          }
+          break;
+        }
+#endif
+        Fixnum lval = rhs->fixnum;
+        switch (kind) {
+        case EX_MUL:
+          if (lval == 0)
+            return new_expr_bop(EX_COMMA, lhs->type, tok, rhs, lhs);  // 0
+          if (lval == -1)
+            return new_expr_unary(EX_NEG, rhs->type, rhs->token, rhs);  // -rhs
+          // Fallthrough.
+        case EX_DIV:
+          if (lval == 1)
+            return rhs;  // no effect.
+          break;
+        case EX_BITAND:
+          if (lval == 0)
+            return new_expr_bop(EX_COMMA, lhs->type, tok, rhs, lhs);  // 0
+          break;
+        case EX_BITOR:
+        case EX_BITXOR:
+          if (lval == 0)
+            return rhs;  // no effect.
+          break;
+        default: break;
+        }
+      }
     }
   } while (0);
 
