@@ -192,7 +192,7 @@ function start() {
 
     // Compile
     const objFn = 'main.o'
-    const extraOptions = compileAndDump ? ['-c', '-o', objFn, '--import-module-name=env'] : undefined
+    const extraOptions = compileAndDump ? ['-c', '-o', objFn] : undefined
     const compiledPath = await compile(editor.getValue(), extraOptions)
     if (compiledPath == null)
       return
