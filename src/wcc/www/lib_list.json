@@ -10,10 +10,12 @@
         "types.h": "./include/sys/types.h"
       },
       "alloca.h": "./include/alloca.h",
+      "ar.h": "./include/ar.h",
       "assert.h": "./include/assert.h",
       "ctype.h": "./include/ctype.h",
       "errno.h": "./include/errno.h",
       "fcntl.h": "./include/fcntl.h",
+      "float.h": "./include/float.h",
       "inttypes.h": "./include/inttypes.h",
       "libgen.h": "./include/libgen.h",
       "limits.h": "./include/limits.h",
@@ -25,11 +27,13 @@
       "stdint.h": "./include/stdint.h",
       "stdio.h": "./include/stdio.h",
       "stdlib.h": "./include/stdlib.h",
+      "stdnoreturn.h": "./include/stdnoreturn.h",
       "string.h": "./include/string.h",
       "strings.h": "./include/strings.h",
       "time.h": "./include/time.h",
       "unistd.h": "./include/unistd.h",
-      "wasi.h": "./libsrc/_wasm/wasi.h"
+      "wasi.h": "./libsrc/_wasm/wasi.h",
+      "wchar.h": "./include/wchar.h"
     },
     "lib": {
       "wcrt0.a": "./lib/wcrt0.a",
