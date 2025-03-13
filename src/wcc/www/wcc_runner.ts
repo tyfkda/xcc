@@ -1,5 +1,5 @@
 import path from 'path-browserify'
-import {unzip} from 'fflate'
+import {unzip, Unzipped} from 'fflate'
 
 import WasiWorker from './wasi_worker.ts?worker'
 
@@ -23,6 +23,15 @@ async function loadFromServer(path: string, opt: any = null): Promise<string|Arr
   if (opt != null && opt.binary)
     return await response.arrayBuffer()
   return await response.text()
+}
+
+function unzipAsync(data: Uint8Array): Promise<Unzipped> {
+  return new Promise((resolve, reject) => unzip(data, async (err, unzipped) => {
+    if (err)
+      reject(err)
+    else
+      resolve(unzipped)
+  }))
 }
 
 export class WccRunner {
@@ -68,38 +77,23 @@ export class WccRunner {
   public async setUp(): Promise<void> {
     const recursiveTrue = {recursive: true}
 
-    await Promise.all([
-      loadFromServer(PACKED_ZIP_PATH, {binary: true})
-        .then((binary) => new Promise((resolve, reject) => {
-          return unzip(new Uint8Array(binary as ArrayBuffer), (err, unzipped) => {
-            if (err) {
-              reject(err)
-              return
-            }
+    await this.mkdir(TMP_PATH, recursiveTrue)
+    await this.mkdir(this.curDir, recursiveTrue)
 
-            let ccExists = false
-            const promises = Object.entries(unzipped).map(async ([filename, data]) => {
-              if (data == null || data.byteLength === 0)  // Skip directories.
-                return
-              const filepath = `/${filename}`
-              await this.mkdir(path.dirname(filepath), recursiveTrue)
-              await this.writeFile(filepath, data)
-              ccExists ||= filepath === CC_PATH
-            })
-            Promise.all(promises)
-              .then((result) => {
-                if (!ccExists)
-                  throw 'C-compiler not found in the zip file'
-                resolve(result)
-              })
-              .catch(reject)
-          })
-        })),
+    const binary = await loadFromServer(PACKED_ZIP_PATH, {binary: true})
+    const unzipped = await unzipAsync(new Uint8Array(binary as ArrayBuffer))
 
-      this.mkdir(TMP_PATH, recursiveTrue),
-
-      this.mkdir(this.curDir, recursiveTrue),
-    ])
+    let ccExists = false
+    for (const [filename, data] of Object.entries(unzipped)) {
+      if (data == null || data.byteLength === 0)  // Skip directories.
+        continue
+      const filepath = `/${filename}`
+      await this.mkdir(path.dirname(filepath), recursiveTrue)
+      await this.writeFile(filepath, data)
+      ccExists ||= filepath === CC_PATH
+    }
+    if (!ccExists)
+      throw new Error('C-compiler not found in the zip file')
 
     await this.chdir(this.curDir)
   }
