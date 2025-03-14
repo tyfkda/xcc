@@ -2,14 +2,12 @@
 
 #include "../wasi.h"
 
-extern void __wasm_call_ctors(void);
+extern void _start0(void);
 
 void _start(void) {
+  _start0();
+
   extern int __main_void(void);
-
-  __wasm_call_ctors();
-
   int ec = __main_void();
   exit(ec);
-#undef main
 }
