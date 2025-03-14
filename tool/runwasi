@@ -13,5 +13,5 @@ if [ "$exitcode" -eq 0 ]; then
 fi
 
 CURRENT=$(cd "$(dirname "$0")";pwd)
-npx node ${option} --no-warnings=ExperimentalWarning "${CURRENT}/runwasi.js" "$@"
+node ${option} --no-warnings=ExperimentalWarning "${CURRENT}/runwasi.js" "$@"
 exit "$?"
