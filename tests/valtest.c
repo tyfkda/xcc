@@ -1393,6 +1393,8 @@ TEST(struct) {
     EXPECT("return struct member", 12, return_struct().x);
     int y = return_struct().y;
     EXPECT("return struct member", 34, y);
+
+    return_struct();  // Call only.
   }
   {
     int dummy[1]; (void)dummy;

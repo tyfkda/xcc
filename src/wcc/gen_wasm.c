@@ -931,7 +931,7 @@ static void gen_member(Expr *expr, bool needval) {
 
 static void gen_funcall_expr(Expr *expr, bool needval) {
   gen_funcall(expr);
-  if (!needval && is_prim_type(expr->type))
+  if (!needval && expr->type->kind != TY_VOID)
     ADD_CODE(OP_DROP);
 }
 
