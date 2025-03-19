@@ -339,6 +339,12 @@ static void te_bop(Expr **pexpr, bool needval) {
   traverse_expr(&expr->bop.rhs, needval);
 }
 
+static void te_logical(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+  traverse_expr(&expr->bop.lhs, true);
+  traverse_expr(&expr->bop.rhs, needval);
+}
+
 static void te_shift(Expr **pexpr, bool needval) {
   Expr *expr = *pexpr;
   // Make sure that RHS type is same as LHS.
@@ -357,7 +363,6 @@ static void te_assign(Expr **pexpr, bool needval) {
   Expr *expr = *pexpr;
   traverse_expr(&expr->bop.lhs, false);
   traverse_expr(&expr->bop.rhs, true);
-  expr->type = &tyVoid;  // Make assigment expression as void.
   if (needval) {
     Expr *rhs = expr->bop.rhs;
     Type *type = rhs->type;
@@ -507,7 +512,7 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     [EX_BITAND] = te_bop, [EX_BITOR] = te_bop, [EX_BITXOR] = te_bop,
     [EX_EQ] = te_bop, [EX_NE] = te_bop, [EX_LT] = te_bop,
     [EX_LE] = te_bop, [EX_GE] = te_bop, [EX_GT] = te_bop,
-    [EX_LOGAND] = te_bop, [EX_LOGIOR] = te_bop, [EX_LSHIFT] = te_shift, [EX_RSHIFT] = te_shift,
+    [EX_LOGAND] = te_logical, [EX_LOGIOR] = te_logical, [EX_LSHIFT] = te_shift, [EX_RSHIFT] = te_shift,
     [EX_POS] = te_unary, [EX_NEG] = te_unary, [EX_BITNOT] = te_unary,
     [EX_REF] = te_unary, [EX_DEREF] = te_unary,
     [EX_ASSIGN] = te_assign, [EX_COMMA] = te_comma,

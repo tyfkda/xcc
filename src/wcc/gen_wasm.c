@@ -856,7 +856,6 @@ static void gen_assign_sub(Expr *lhs, Expr *rhs) {
 
 static void gen_assign(Expr *expr, bool needval) {
   UNUSED(needval);
-  assert(expr->type->kind == TY_VOID);
   gen_assign_sub(expr->bop.lhs, expr->bop.rhs);
 }
 
