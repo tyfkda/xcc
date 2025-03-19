@@ -134,7 +134,10 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, 
           switch (lval) {
           case 1:   return opr2;  // no effect.
           case 0:   return opr1;  // 0
-          case -1:  return new_ir_unary(IR_NEG, opr2, opr2->vsize, flag);  // -opr2
+          case -1:
+            if (!(flag & IRF_UNSIGNED))
+              return new_ir_unary(IR_NEG, opr2, opr2->vsize, flag);  // -opr2
+            break;
           default: break;
           }
           break;
@@ -178,7 +181,10 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, 
           switch (rval) {
           case 1:   return opr1;  // no effect.
           case 0:   return opr2;  // 0
-          case -1:  return new_ir_unary(IR_NEG, opr1, opr1->vsize, flag);  // -opr1
+          case -1:
+            if (!(flag & IRF_UNSIGNED))
+              return new_ir_unary(IR_NEG, opr1, opr1->vsize, flag);  // -opr1
+            break;
           default: break;
           }
           break;
