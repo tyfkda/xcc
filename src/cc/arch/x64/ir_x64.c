@@ -566,7 +566,7 @@ static void ei_lshift(IR *ir) {
   const char **regs = kRegSizeTable[pow];
   const char *dst = regs[ir->dst->phys];
   if (ir->opr2->flag & VRF_CONST) {
-    SHL(IM(ir->opr2->fixnum), dst);
+    SHL(IM(ir->opr2->fixnum & 255), dst);
   } else {
     assert(ir->opr2->phys != GET_CREG_INDEX());
     assert(ir->dst->phys != GET_CREG_INDEX());
@@ -584,7 +584,7 @@ static void ei_rshift(IR *ir) {
   const char **regs = kRegSizeTable[pow];
   const char *dst = regs[ir->dst->phys];
   if (ir->opr2->flag & VRF_CONST) {
-    RSHIFT_INST(IM(ir->opr2->fixnum), dst);
+    RSHIFT_INST(IM(ir->opr2->fixnum & 255), dst);
   } else {
     assert(ir->opr2->phys != GET_CREG_INDEX());
     assert(ir->dst->phys != GET_CREG_INDEX());

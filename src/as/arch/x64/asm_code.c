@@ -1236,13 +1236,16 @@ static unsigned char *asm_shl_rr(Inst *inst, Code *code) {
 static unsigned char *asm_shl_imr(Inst *inst, Code *code) {
   enum RegSize size = inst->opr[1].reg.size;
   unsigned char *p = code->buf;
-  if (inst->opr[0].immediate == 1) {
+  uint64_t shift = inst->opr[0].immediate;
+  if (shift >= 256)
+    return NULL;
+  if (shift == 1) {
     p = put_rex1(p, size, 0xe0, opr_regno(&inst->opr[1].reg),
                  size == REG8 ? 0xd0 : 0xd1);
   } else {
     p = put_rex1(p, size, 0xe0, opr_regno(&inst->opr[1].reg),
                  size == REG8 ? 0xc0 : 0xc1);
-    *p++ = IM8(inst->opr[0].immediate);
+    *p++ = IM8(shift);
   }
   return p;
 }
@@ -1258,13 +1261,16 @@ static unsigned char *asm_shr_rr(Inst *inst, Code *code) {
 static unsigned char *asm_shr_imr(Inst *inst, Code *code) {
   enum RegSize size = inst->opr[1].reg.size;
   unsigned char *p = code->buf;
-  if (inst->opr[0].immediate == 1) {
+  uint64_t shift = inst->opr[0].immediate;
+  if (shift >= 256)
+    return NULL;
+  if (shift == 1) {
     p = put_rex1(p, size, 0xe8, opr_regno(&inst->opr[1].reg),
                  size == REG8 ? 0xd0 : 0xd1);
   } else {
     p = put_rex1(p, size, 0xe8, opr_regno(&inst->opr[1].reg),
                  size == REG8 ? 0xc0 : 0xc1);
-    *p++ = IM8(inst->opr[0].immediate);
+    *p++ = IM8(shift);
   }
   return p;
 }
@@ -1280,13 +1286,16 @@ static unsigned char *asm_sar_rr(Inst *inst, Code *code) {
 static unsigned char *asm_sar_imr(Inst *inst, Code *code) {
   enum RegSize size = inst->opr[1].reg.size;
   unsigned char *p = code->buf;
-  if (inst->opr[0].immediate == 1) {
+  uint64_t shift = inst->opr[0].immediate;
+  if (shift >= 256)
+    return NULL;
+  if (shift == 1) {
     p = put_rex1(p, size, 0xf8, opr_regno(&inst->opr[1].reg),
                  size == REG8 ? 0xd0 : 0xd1);
   } else {
     p = put_rex1(p, size, 0xf8, opr_regno(&inst->opr[1].reg),
                  size == REG8 ? 0xc0 : 0xc1);
-    *p++ = IM8(inst->opr[0].immediate);
+    *p++ = IM8(shift);
   }
   return p;
 }

@@ -594,10 +594,13 @@ static void ei_lshift(IR *ir) {
   int pow = ir->dst->vsize;
   assert(0 <= pow && pow < 4);
   const char **regs = kRegSizeTable[pow];
-  if (ir->opr2->flag & VRF_CONST)
-    LSL(regs[ir->dst->phys], regs[ir->opr1->phys], IM(ir->opr2->fixnum));
-  else
+  if (ir->opr2->flag & VRF_CONST) {
+    uint64_t shift = ir->opr2->fixnum;
+    shift &= pow < 3 ? 31 : 63;
+    LSL(regs[ir->dst->phys], regs[ir->opr1->phys], IM(shift));
+  } else {
     LSL(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
+  }
 }
 
 static void ei_rshift(IR *ir) {
@@ -606,10 +609,21 @@ static void ei_rshift(IR *ir) {
   int pow = ir->dst->vsize;
   assert(0 <= pow && pow < 4);
   const char **regs = kRegSizeTable[pow];
-  if (ir->opr2->flag & VRF_CONST)
-    RSHIFT_INST(regs[ir->dst->phys], regs[ir->opr1->phys], IM(ir->opr2->fixnum));
-  else
+  if (ir->opr2->flag & VRF_CONST) {
+    if (ir->flag & IRF_UNSIGNED) {
+      if ((uint64_t)ir->opr2->fixnum >= (pow < 3 ? 32 : 64))
+        mov_immediate(regs[ir->dst->phys], 0, pow >= 3, true);
+      else
+        RSHIFT_INST(regs[ir->dst->phys], regs[ir->opr1->phys], IM(ir->opr2->fixnum));
+    } else {
+      uint64_t shift = ir->opr2->fixnum;
+      shift &= pow < 3 ? 31 : 63;
+      const char *opr2 = IM(shift);
+      RSHIFT_INST(regs[ir->dst->phys], regs[ir->opr1->phys], opr2);
+    }
+  } else {
     RSHIFT_INST(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
+  }
 #undef RSHIFT_INST
 }
 
