@@ -292,6 +292,18 @@ TEST(all) {
     x ^= 0xa5;
     EXPECT("^=", 0x186, x);
   }
+
+  {
+    uint8_t b = 0xff;
+    EXPECT("uint8_t pre-inc overlapping", 0, ++b);
+    uint16_t s = 0x0;
+    EXPECT("uint16_t post-dec overlapping", 0xffff, (s--, s));
+    uint32_t i = 0x0;
+    EXPECT("uint32_t pre-dec overlapping", 0xffffffff, --i);
+    uint64_t l = 0xffffffffffffffff;
+    EXPECT("uint64_t post-inc overlapping", 0, (l++, l));
+  }
+
   EXPECT("var < num", 0, (x=1, x < 0));
   EXPECT("var <= num", 0, (x=1, x <= 0));
   EXPECT("var > num", 1, (x=1, x > 0));

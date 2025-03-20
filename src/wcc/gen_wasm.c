@@ -767,6 +767,9 @@ static void gen_incdec(Expr *expr, bool needval) {
         ADD_CODE(CONST_OP[i1]);
         ADD_ULEB128(addend);
         ADD_CODE(ADDSUB_OP[i1 | i2]);
+
+        if (type_size(type) < type_size(&tyInt))
+          gen_cast_to(target->type, &tyInt);
       }
       break;
 #ifndef __NO_FLONUM
