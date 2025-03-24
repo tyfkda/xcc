@@ -11,9 +11,6 @@ OnExitChain *__on_exit_chain;
 #else
 #include "../unistd/_syscall.h"
 
-#if defined(__GNUC__)
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif
 _Noreturn static void proc_exit(int code);
 static void proc_exit(int code) {
 #ifdef __NR_exit_group

@@ -36,5 +36,6 @@ int rmdir(const char *fn) {
     if (result == 0)
       return 0;
   }
+  errno = ENOENT;
   return -1;
 }

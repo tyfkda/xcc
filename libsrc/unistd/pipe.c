@@ -1,19 +1,11 @@
 #include "unistd.h"
 #include "_syscall.h"
-#include "errno.h"
-
-#if defined(__GNUC__)
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif
 
 #if defined(__NR_pipe)
 int pipe(int *pipefd) {
   int ret;
   SYSCALL_RET(__NR_pipe, ret);
-  if (ret < 0) {
-    errno = -ret;
-    ret = -1;
-  }
+  SET_ERRNO(ret);
   return ret;
 }
 #elif defined(__NR_pipe2)

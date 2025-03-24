@@ -1,10 +1,6 @@
 #include "sys/stat.h"  // mode_t
 #include "_syscall.h"
 
-#if defined(__GNUC__)
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif
-
 #if defined(__NR_fchmodat)
 int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags) {
   int ret;
@@ -12,6 +8,7 @@ int fchmodat(int dirfd, const char *pathname, mode_t mode, int flags) {
   SYSCALL_ARGCOUNT(4);
 #endif
   SYSCALL_RET(__NR_fchmodat, ret);
+  SET_ERRNO(ret);
   return ret;
 }
 #endif

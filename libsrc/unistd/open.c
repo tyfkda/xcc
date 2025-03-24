@@ -1,20 +1,12 @@
 // #include "fcntl.h"  // Avoid conflicting with prototype definition.
-#include "errno.h"
 #include "sys/stat.h"  // mode_t
 #include "_syscall.h"
-
-#if defined(__GNUC__)
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif
 
 #if defined(__NR_open)
 int open(const char *fn, int flag, mode_t mode) {
   int ret;
   SYSCALL_RET(__NR_open, ret);
-  if (ret < 0) {
-    errno = -ret;
-    ret = -1;
-  }
+  SET_ERRNO(ret);
   return ret;
 }
 #elif defined(__NR_openat)

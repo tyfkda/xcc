@@ -1,10 +1,6 @@
 #include "unistd.h"
 #include "stdio.h"  // EOF
 
-#if defined(__GNUC__)
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif
-
 #if defined(__linux__)
 #include "_syscall.h"
 

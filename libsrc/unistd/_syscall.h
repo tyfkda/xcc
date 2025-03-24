@@ -1,5 +1,7 @@
 #pragma once
 
+#include "errno.h"
+
 #if defined(__x86_64__)
 
 #define SYSCALL(no)  _SYSCALL2(no)
@@ -116,4 +118,10 @@
 
 #else
 #error unknown
+#endif
+
+#define SET_ERRNO(res)  do { if ((res) < 0) { errno = -(res); res = -1; } } while (0)
+
+#if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 #endif

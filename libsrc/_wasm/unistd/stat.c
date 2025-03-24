@@ -1,4 +1,5 @@
 #include "sys/stat.h"
+#include "errno.h"
 #include "string.h"  // memset, strncmp
 #include "../wasi.h"
 
@@ -39,5 +40,6 @@ int stat(const char *fn, struct stat *st) {
       return 0;
     }
   }
+  errno = ENOENT;
   return -1;
 }

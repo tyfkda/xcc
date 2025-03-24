@@ -36,5 +36,6 @@ int unlink(const char *fn) {
     if (result == 0)
       return 0;
   }
+  errno = ENOENT;  // TODO
   return -1;
 }

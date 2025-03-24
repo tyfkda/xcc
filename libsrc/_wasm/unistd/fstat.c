@@ -1,4 +1,5 @@
 #include "sys/stat.h"
+#include "errno.h"
 #include "../wasi.h"
 
 extern void _set_stat(Filestat *fs, struct stat *st);
@@ -10,5 +11,6 @@ int fstat(int fd, struct stat *st) {
     _set_stat(&fs, st);
     return 0;
   }
-  return 1;
+  errno = ENOENT;
+  return -1;
 }

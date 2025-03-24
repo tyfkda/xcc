@@ -1,4 +1,5 @@
 #include "sys/stat.h"
+#include "errno.h"
 #include "string.h"  // memset, strncmp
 #include "../wasi.h"
 
@@ -34,5 +35,6 @@ int mkdir(const char *fn, mode_t mode) {
     if (result == 0)
       return 0;
   }
+  errno = EPERM;  // TODO
   return -1;
 }

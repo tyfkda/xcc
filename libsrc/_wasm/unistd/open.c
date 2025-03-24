@@ -1,4 +1,5 @@
 #include "unistd.h"
+#include "errno.h"
 #include "fcntl.h"
 #include "string.h"
 #include "../wasi.h"
@@ -21,6 +22,7 @@ int open(const char *fn, int flag, ...) {
     fs_rights_base = FD_DATASYNC | FD_READ | FD_SEEK | FD_FDSTAT_SET_FLAGS | FD_SYNC | FD_TELL | FD_WRITE | FD_ADVISE | FD_ALLOCATE | PATH_CREATE_DIRECTORY | PATH_CREATE_FILE | PATH_LINK_SOURCE | PATH_LINK_TARGET | PATH_OPEN | FD_READDIR | PATH_READLINK | PATH_RENAME_SOURCE | PATH_RENAME_TARGET | PATH_FILESTAT_GET | FD_FILESTAT_GET | FD_FILESTAT_SET_SIZE | FD_FILESTAT_SET_TIMES | PATH_SYMLINK | PATH_REMOVE_DIRECTORY | PATH_UNLINK_FILE | POLL_FD_READWRITE;
     break;
   default:
+    errno = EINVAL;
     return -1;
   }
   uint64_t fs_rights_inheriting = fs_rights_base;
@@ -62,5 +64,6 @@ int open(const char *fn, int flag, ...) {
     if (result == 0)
       return opened;
   }
+  errno = ENOENT;  // (flag & O_CREAT) ? EEXIST, or something.
   return -1;
 }

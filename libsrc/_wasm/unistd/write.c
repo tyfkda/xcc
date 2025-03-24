@@ -1,4 +1,5 @@
 #include "unistd.h"
+#include "errno.h"
 #include "../wasi.h"
 
 ssize_t write(int fd, const void *str, size_t len) {
@@ -7,5 +8,8 @@ ssize_t write(int fd, const void *str, size_t len) {
   iov.n = len;
   size_t written;
   int result = fd_write(fd, &iov, 1, &written);
-  return result == 0 ? written : -1;
+  if (result == 0)
+    return written;
+  errno = EIO;  // TODO
+  return -1;
 }

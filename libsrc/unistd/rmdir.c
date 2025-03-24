@@ -1,15 +1,11 @@
 #include "sys/stat.h"
 #include "_syscall.h"
-#include "errno.h"
 
 #if defined(__NR_rmdir)
 int rmdir(const char *pathname) {
   int ret;
   SYSCALL_RET(__NR_rmdir, ret);
-  if (ret < 0) {
-    errno = -ret;
-    ret = -1;
-  }
+  SET_ERRNO(ret);
   return ret;
 }
 

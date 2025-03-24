@@ -1,10 +1,6 @@
 #include "time.h"
 #include "_syscall.h"
 
-#if defined(__GNUC__)
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#endif
-
 #if defined(__NR_time)
 time_t time(time_t *timer) {
   time_t ret;

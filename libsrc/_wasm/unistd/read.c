@@ -1,4 +1,5 @@
 #include "unistd.h"
+#include "errno.h"
 #include "../wasi.h"
 
 ssize_t read(int fd, void *buf, size_t size) {
@@ -7,5 +8,8 @@ ssize_t read(int fd, void *buf, size_t size) {
   iov.n = size;
   size_t readed;
   int result = fd_read(fd, &iov, 1, &readed);
-  return result == 0 ? readed : -1;
+  if (result == 0)
+    return readed;
+  errno = EIO;  // TODO
+  return -1;
 }
