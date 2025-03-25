@@ -168,9 +168,10 @@
 #define __NR_execve    221
 #define __NR_wait4     260
 #define __NR_fstat     80
-#define __NR_fstatat   79
 #define __NR_mkdirat   34
 #define __NR_unlinkat  35
+#define __NR_fchmod    52
+#define __NR_fchmodat   53
 #define __NR_readlinkat  78
 #define __NR_newfstatat  79
 
