@@ -296,6 +296,13 @@ const enum RelocType {
   R_WASM_TABLE_NUMBER_LEB,         // 20
 }
 
+const enum SegmentFlags {
+  // enum SegmentFlags
+  WASM_SEG_FLAG_STRINGS,
+  WASM_SEG_FLAG_TLS,
+  WASM_SEG_FLAG_RETAIN,
+}
+
 const enum OpKind {
   MISC,
   BLOCK,
@@ -1131,6 +1138,12 @@ export class DisWasm {
       [CustomNameType.DATASEG]:              'dataseg',
     }
 
+    const kSegmentFlagNames: Map<SegmentFlags, string> = new Map([
+      [SegmentFlags.WASM_SEG_FLAG_STRINGS, 'STRINGS'],
+      [SegmentFlags.WASM_SEG_FLAG_TLS, 'TLS'],
+      [SegmentFlags.WASM_SEG_FLAG_RETAIN, 'RETAIN'],
+    ])
+
     const customSectionOffset = this.bufferReader.getOffset()
     const name = this.bufferReader.readString()
     const symbols = new Array<string>()
@@ -1162,7 +1175,14 @@ export class DisWasm {
                 const name = this.bufferReader.readString()
                 const p2align = this.bufferReader.readUleb128()
                 const flags = this.bufferReader.readUleb128()
-                this.log(`${this.addr(offset)};;     (data-seg (name ${name}) (p2align ${p2align}) (flags ${flags}))`)
+
+                const flagElems: Array<string> = []
+                for (const [bit, str] of kSegmentFlagNames) {
+                  if (flags & (1 << bit))
+                    flagElems.push(str)
+                }
+
+                this.log(`${this.addr(offset)};;     (data-seg (name ${name}) (p2align ${p2align}) (flags ${flagElems.join(',')}))`)
               }
               this.log(';;     )')
             }

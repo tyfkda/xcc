@@ -1052,7 +1052,9 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
         const Name *modname = parse_section_name(info);
         if (modname != NULL) {
           if (equal_name(modname, alloc_name("mod_init_funcs", NULL, false))) {
-            flag = SF_INIT_FUNCS;
+            flag |= SF_INIT_FUNCS;
+          } else if (equal_name(modname, alloc_name("cstring_literals", NULL, false))) {
+            flag |= SF_CSTRLITERALS;
           }
         }
         if (flag == 0) {

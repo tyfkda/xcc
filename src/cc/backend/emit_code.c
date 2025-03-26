@@ -232,6 +232,18 @@ static void emit_string(void *ud, Expr *str, size_t size) {
     _ASCII(escaped);
 }
 
+static bool is_cstring(const VarInfo *varinfo, const Initializer *init) {
+  assert(init != NULL);
+  if (!(varinfo->storage & VS_STRING) || init->kind != IK_SINGLE)
+    return false;
+  Expr *expr = init->single;
+  const Type *type = varinfo->type;
+  assert(type->kind == TY_ARRAY);
+  ssize_t len = MIN(type->pa.length, (ssize_t)expr->str.len);
+  return expr->kind == EX_STR && type->pa.ptrof->fixnum.kind == FX_CHAR &&
+         len > 0 && expr->str.buf[len - 1] == '\0';
+}
+
 static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
   static const ConstructInitialValueVTable kVtable = {
     .emit_align = emit_align,
@@ -241,7 +253,9 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
 
   const Name *name = varinfo->ident->ident;
   if (init != NULL) {
-    if (varinfo->type->qualifier & TQ_CONST)
+    if (is_cstring(varinfo, init))
+      _CSTRING();
+    else if (varinfo->type->qualifier & TQ_CONST)
       _RODATA();
     else
       _DATA();

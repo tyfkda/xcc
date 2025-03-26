@@ -40,10 +40,11 @@ enum DirectiveType {
 #endif
 };
 
-#define SF_EXECUTABLE  (1 << 0)
-#define SF_WRITABLE    (1 << 1)
-#define SF_BSS         (1 << 2)
-#define SF_INIT_FUNCS  (1 << 8)
+#define SF_EXECUTABLE    (1 << 0)
+#define SF_WRITABLE      (1 << 1)
+#define SF_BSS           (1 << 2)
+#define SF_INIT_FUNCS    (1 << 8)
+#define SF_CSTRLITERALS  (1 << 9)
 
 typedef struct SectionInfo {
   const Name *name;

@@ -379,6 +379,8 @@ int emit_macho_obj(const char *ofn, Vector *sections, Table *label_table, Vector
     uint32_t flags = 0;
     if (section->flag & SF_INIT_FUNCS)
       flags |= S_MOD_INIT_FUNC_POINTERS;
+    else if (section->flag & SF_CSTRLITERALS)
+      flags |= S_CSTRING_LITERALS;
     else if (section->flag & SF_BSS)
       flags |= S_ZEROFILL;
     else if (section->flag & SF_EXECUTABLE)
