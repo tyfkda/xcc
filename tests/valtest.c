@@ -335,6 +335,11 @@ TEST(all) {
     EXPECT("compare with different sign1", 1, minus > uone);  // !!!
     EXPECT("compare with different sign2", 1, uone < minus);  // !!!
     EXPECT("compare with hex literal", 1, minus < 0xf6);  // Hex literal is signed.
+
+    int32_t x = -20;
+    uint32_t y = -10;
+    EXPECT_TRUE(y > x);
+    EXPECT("compare with different sign3", 111, y > x ? 111 : -111);
   }
   EXPECT("condition is true", true, (x = 3, (x != 0) == true));
   EXPECT("condition is not true", false, (x = 4, (x > 0) != true));

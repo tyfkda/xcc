@@ -727,8 +727,7 @@ static void ei_cast(IR *ir) {
     }
   } else {
     // fix->fix
-    assert(ir->dst->vsize != ir->opr1->vsize);
-    if (ir->dst->vsize < ir->opr1->vsize) {
+    if (ir->dst->vsize <= ir->opr1->vsize) {
       if (ir->dst->phys != ir->opr1->phys) {
         int pow = ir->dst->vsize;
         assert(0 <= pow && pow < 4);

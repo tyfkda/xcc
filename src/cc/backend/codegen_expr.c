@@ -206,7 +206,8 @@ static VReg *gen_cast(Expr *expr) {
 
   size_t src_size = 1U << vreg->vsize;
   if (dst_size == src_size &&
-      is_flonum(dst_type) == ((vreg->flag & VRF_FLONUM) != 0))
+      is_flonum(dst_type) == ((vreg->flag & VRF_FLONUM) != 0) &&
+      (is_flonum(dst_type) || is_unsigned(dst_type) == is_unsigned(src->type)))
     return vreg;
 
   IR *ir = new_ir_cast(vreg, to_vsize(dst_type), to_vflag(dst_type));

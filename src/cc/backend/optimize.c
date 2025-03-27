@@ -268,8 +268,9 @@ static bool calc_const_cond(enum ConditionKind cond, VReg *opr1, VReg *opr2) {
   } else
 #endif
   {
-    int64_t n1 = opr1->fixnum;
-    int64_t n2 = opr2->fixnum;
+    bool is_unsigned = (cond & COND_UNSIGNED) != 0;
+    int64_t n1 = wrap_value(opr1->fixnum, 1 << opr1->vsize, is_unsigned);
+    int64_t n2 = wrap_value(opr2->fixnum, 1 << opr2->vsize, is_unsigned);
     switch ((int)cond) {
     case COND_EQ | COND_UNSIGNED:  // Fallthrough
     case COND_EQ:  return n1 == n2;
