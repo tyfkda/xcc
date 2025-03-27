@@ -620,28 +620,30 @@ static void ei_cast(IR *ir) {
     }
   } else {
     // fix->fix
-    assert(ir->dst->vsize != ir->opr1->vsize);
     int pows = ir->opr1->vsize;
     int powd = ir->dst->vsize;
     assert(0 <= pows && pows < 4);
     assert(0 <= powd && powd < 4);
     int pow = MIN(powd, pows);
     const char *dst = kReg64s[ir->dst->phys], *src = kReg64s[ir->opr1->phys];
-
-    if (ir->flag & IRF_UNSIGNED) {
-      switch (pow) {
-      case 0:  ZEXT_B(dst, src); break;
-      case 1:  ZEXT_H(dst, src); break;
-      case 2:  ZEXT_W(dst, src); break;
-      default: assert(false); break;
+    if (pow < 3) {
+      if (((ir->flag & IRF_UNSIGNED) != 0) == (powd > pows)) {
+        switch (pow) {
+        case 0:  ZEXT_B(dst, src); break;
+        case 1:  ZEXT_H(dst, src); break;
+        case 2:  ZEXT_W(dst, src); break;
+        default: assert(false); break;
+        }
+      } else {
+        switch (pow) {
+        case 0:  SEXT_B(dst, src); break;
+        case 1:  SEXT_H(dst, src); break;
+        case 2:  SEXT_W(dst, src); break;
+        default: assert(false); break;
+        }
       }
-    } else {
-      switch (pow) {
-      case 0:  SEXT_B(dst, src); break;
-      case 1:  SEXT_H(dst, src); break;
-      case 2:  SEXT_W(dst, src); break;
-      default: assert(false); break;
-      }
+    } else if (ir->dst->phys != ir->opr1->phys) {
+      MV(dst, src);
     }
   }
 }
