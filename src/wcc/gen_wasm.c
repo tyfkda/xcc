@@ -162,41 +162,36 @@ static void gen_cast_to(const Type *dst, Type *src) {
     switch (src->kind) {
     case TY_FIXNUM: case TY_PTR: case TY_FUNC:
       {
-        int d = type_size(dst);
-        int s = type_size(src);
+        size_t d = type_size(dst), s = type_size(src);
         bool du = dst->kind != TY_FIXNUM || dst->fixnum.is_unsigned;
         bool su = src->kind != TY_FIXNUM || src->fixnum.is_unsigned;
+        enum { I64TO32 = 1, I32TO64 = 2 };
         switch ((d > I32_SIZE ? 2 : 0) + (s > I32_SIZE ? 1 : 0)) {
-        case 1: ADD_CODE(OP_I32_WRAP_I64); break;
-        case 2: ADD_CODE(su ? OP_I64_EXTEND_I32_U : OP_I64_EXTEND_I32_S); break;
+        case I64TO32: ADD_CODE(OP_I32_WRAP_I64); break;
+        case I32TO64: ADD_CODE(su ? OP_I64_EXTEND_I32_U : OP_I64_EXTEND_I32_S); break;
+        default: break;
         }
         if (d < s) {
           assert(d <= I32_SIZE);
           if (d < I32_SIZE) {
             if (du) {
               ADD_CODE(OP_I32_CONST);
-              ADD_LEB128((1 << (d * TARGET_CHAR_BIT)) - 1);
+              ADD_LEB128((1U << (d * TARGET_CHAR_BIT)) - 1);
               ADD_CODE(OP_I32_AND);
             } else {
-              int shift = (I32_SIZE - d) * TARGET_CHAR_BIT;
-              ADD_CODE(OP_I32_CONST);
-              ADD_LEB128(shift);
-              ADD_CODE(OP_I32_SHL);
-              ADD_CODE(OP_I32_CONST);
-              ADD_LEB128(shift);
-              ADD_CODE(OP_I32_SHR_S);
+              ADD_CODE(OP_I32_EXTEND8_S + most_significant_bit(d));
             }
           }
         } else if (du != su) {
           if (du) {  // unsigned <- signed
             if (d < I32_SIZE && s < I32_SIZE) {
               ADD_CODE(OP_I32_CONST);
-              ADD_LEB128((1 << (d * TARGET_CHAR_BIT)) - 1);
+              ADD_LEB128((1U << (d * TARGET_CHAR_BIT)) - 1);
               ADD_CODE(OP_I32_AND);
             }
           } else {  // signed <- unsigned
-            // Should be handled in traverse.
-            assert(d != s || d >= I32_SIZE);
+            if (d < I32_SIZE)
+              ADD_CODE(OP_I32_EXTEND8_S + most_significant_bit(d));
           }
         }
       }
@@ -373,7 +368,7 @@ static void gen_funcall(Expr *expr) {
 
           ADD_CODE(OP_I32_CONST);
           ADD_LEB128(size);
-          ADD_CODE(OP_EXTENSION, OPEX_MEMORY_COPY, 0, 0);  // src, dst
+          ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);  // src, dst
         }
         sarg_offset += size;
       }
@@ -454,7 +449,7 @@ static void gen_clear_local_var(const VarInfo *varinfo) {
   gen_bpofs(vreg->non_prim.offset);
   ADD_CODE(OP_I32_CONST, 0, OP_I32_CONST);
   ADD_LEB128(size);
-  ADD_CODE(OP_EXTENSION, OPEX_MEMORY_FILL, 0);
+  ADD_CODE(OP_0xFC, OPFC_MEMORY_FILL, 0);
 }
 
 static void gen_ref_sub(Expr *expr) {
@@ -849,7 +844,7 @@ static void gen_assign_sub(Expr *lhs, Expr *rhs) {
         gen_expr(rhs, true);
         ADD_CODE(OP_I32_CONST);
         ADD_LEB128(size);
-        ADD_CODE(OP_EXTENSION, OPEX_MEMORY_COPY, 0, 0);  // src, dst
+        ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);  // src, dst
       }
     }
     break;
@@ -1394,7 +1389,7 @@ static void gen_return(Stmt *stmt, bool is_last) {
         gen_expr(val, true);
         ADD_CODE(OP_I32_CONST);
         ADD_LEB128(type_size(rettype));
-        ADD_CODE(OP_EXTENSION, OPEX_MEMORY_COPY, 0, 0);  // src, dst
+        ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);  // src, dst
         // Result.
         ADD_CODE(OP_LOCAL_GET, 0);
       } else {
