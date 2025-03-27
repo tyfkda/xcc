@@ -173,10 +173,15 @@ typedef struct {
 #define OP_F64_CONVERT_I64_S  (0xb9)  // f64 <- i64
 #define OP_F64_CONVERT_I64_U  (0xba)  // f64 <- i64
 #define OP_F64_PROMOTE_F32    (0xbb)  // f64 <- f32
-#define OP_EXTENSION      (0xfc)
+#define OP_I32_EXTEND8_S  (0xc0)
+#define OP_I32_EXTEND16_S (0xc1)
+#define OP_I64_EXTEND8_S  (0xc2)
+#define OP_I64_EXTEND16_S (0xc3)
+#define OP_I64_EXTEND32_S (0xc4)
+#define OP_0xFC           (0xfc)
 
-#define OPEX_MEMORY_COPY  (0x0a)
-#define OPEX_MEMORY_FILL  (0x0b)
+#define OPFC_MEMORY_COPY  (0x0a)
+#define OPFC_MEMORY_FILL  (0x0b)
 
 // Types
 #define WT_VOID           (0x40)

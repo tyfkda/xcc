@@ -199,11 +199,24 @@ const enum Opcode {
   I64_REINTERPRET_F64 = 0xbd,  // i64 <- f64
   F32_REINTERPRET_I32 = 0xbe,  // f32 <- i32
   F64_REINTERPRET_I64 = 0xbf,  // f64 <- i64
-  EXTENSION     = 0xfc,
+  I32_EXTEND8_S     = 0xc0,
+  I32_EXTEND16_S    = 0xc1,
+  I64_EXTEND8_S     = 0xc2,
+  I64_EXTEND16_S    = 0xc3,
+  I64_EXTEND32_S    = 0xc4,
+  _0xFC         = 0xfc,
 }
 
 // Wasm opcode
 const enum OpcodeEx {
+  I32_TRUNC_SAT_F32_S = 0x00,
+  I32_TRUNC_SAT_F32_U = 0x01,
+  I32_TRUNC_SAT_F64_S = 0x02,
+  I32_TRUNC_SAT_F64_U = 0x03,
+  I64_TRUNC_SAT_F32_S = 0x04,
+  I64_TRUNC_SAT_F32_U = 0x05,
+  I64_TRUNC_SAT_F64_S = 0x06,
+  I64_TRUNC_SAT_F64_U = 0x07,
   MEMORY_COPY  = 0x0a,
   MEMORY_FILL  = 0x0b,
 }
@@ -506,10 +519,24 @@ const InstTable = new Map([
   [Opcode.I64_REINTERPRET_F64, {op: 'i64.reinterpret_f64'}],
   [Opcode.F32_REINTERPRET_I32, {op: 'f32.reinterpret_i32'}],
   [Opcode.F64_REINTERPRET_I64, {op: 'f64.reinterpret_i64'}],
+
+  [Opcode.I32_EXTEND8_S, {op: 'i32.extend8_s'}],
+  [Opcode.I32_EXTEND16_S, {op: 'i32.extend16_s'}],
+  [Opcode.I64_EXTEND8_S, {op: 'i64.extend8_s'}],
+  [Opcode.I64_EXTEND16_S, {op: 'i64.extend16_s'}],
+  [Opcode.I64_EXTEND32_S, {op: 'i64.extend32_s'}],
 ])
 
 
-const InstTableEx = new Map([
+const InstTableFc = new Map([
+  [OpcodeEx.I32_TRUNC_SAT_F32_S, {op: 'i32.trunc_sat_f32_s'}],
+  [OpcodeEx.I32_TRUNC_SAT_F32_U, {op: 'i32.trunc_sat_f32_u'}],
+  [OpcodeEx.I32_TRUNC_SAT_F64_S, {op: 'i32.trunc_sat_f64_s'}],
+  [OpcodeEx.I32_TRUNC_SAT_F64_U, {op: 'i32.trunc_sat_f32_u'}],
+  [OpcodeEx.I64_TRUNC_SAT_F32_S, {op: 'i64.trunc_sat_f32_s'}],
+  [OpcodeEx.I64_TRUNC_SAT_F32_U, {op: 'i64.trunc_sat_f32_u'}],
+  [OpcodeEx.I64_TRUNC_SAT_F64_S, {op: 'i64.trunc_sat_f64_s'}],
+  [OpcodeEx.I64_TRUNC_SAT_F64_U, {op: 'i64.trunc_sat_f32_u'}],
   [OpcodeEx.MEMORY_COPY, {op: 'memory.copy', operands: [OperandKind.ULEB128, OperandKind.ULEB128], opKind: OpKind.OMIT_OPERANDS}],  // src, dst
   [OpcodeEx.MEMORY_FILL, {op: 'memory.fill', operands: [OperandKind.ULEB128], opKind: OpKind.OMIT_OPERANDS}],  // dst
 ])
@@ -765,9 +792,9 @@ class Inst {
 
 function readInst(bufferReader: BufferReader): Inst {
   const op = bufferReader.readu8()
-  if (op === Opcode.EXTENSION) {
+  if (op === Opcode._0xFC) {
     const opex = bufferReader.readu8()
-    const table = InstTableEx.get(opex)
+    const table = InstTableFc.get(opex)
     if (table == null) {
       throw `Unhandled opex: 0x${opex.toString(16).padStart(2, '0')} at 0x${(bufferReader.getOffset() - 1).toString(16)}`
     }
