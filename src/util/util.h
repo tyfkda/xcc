@@ -98,6 +98,7 @@ void data_uleb128(DataStorage *data, ssize_t pos, uint64_t val);
 void data_string(DataStorage *data, const void *str, size_t len);
 void data_open_chunk(DataStorage *data);
 void data_close_chunk(DataStorage *data, ssize_t num);
+void data_varint32(DataStorage *data, ssize_t pos, int64_t val);
 void data_varuint32(DataStorage *data, ssize_t pos, uint64_t val);
 
 // StringBuffer

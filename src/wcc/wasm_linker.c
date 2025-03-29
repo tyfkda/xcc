@@ -98,7 +98,7 @@ static void wasmobj_init(WasmObj *wasmobj) {
   memset(wasmobj, 0, sizeof(*wasmobj));
   wasmobj->import.functions = new_vector();
   wasmobj->import.globals = new_vector();
-  wasmobj->import.table_funcref = false;
+  wasmobj->import.tables = NULL;
   wasmobj->linking.symtab = new_vector();
 }
 
@@ -159,9 +159,20 @@ static void read_import_section(WasmObj *wasmobj, unsigned char *p) {
       break;
     case IMPORT_TABLE:
       {
+        Vector *tables = wasmobj->import.tables;
+        if (tables == NULL)
+          wasmobj->import.tables = tables = new_vector();
+        uint32_t index = tables->len;
         uint8_t wtype = read_type(p, &p);
-        if (wtype == WT_FUNCREF)
-          wasmobj->import.table_funcref = true;
+
+        SymbolInfo *sym = calloc_or_die(sizeof(*sym));
+        sym->module_name = module_name;
+        sym->name = name;
+        sym->kind = SIK_SYMTAB_TABLE;
+        sym->flags = 0;
+        sym->local_index = index;
+        sym->table.wtype = wtype;
+        vec_push(tables, sym);
       }
       break;
     case IMPORT_MEMORY:
@@ -294,6 +305,7 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
   Vector *import_symbols[] = {
     [SIK_SYMTAB_FUNCTION] = wasmobj->import.functions,
     [SIK_SYMTAB_GLOBAL] = wasmobj->import.globals,
+    [SIK_SYMTAB_TABLE] = wasmobj->import.tables,
   };
 
   while (p < end) {
@@ -313,12 +325,13 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
           switch (kind) {
           case SIK_SYMTAB_FUNCTION:
           case SIK_SYMTAB_GLOBAL:
+          case SIK_SYMTAB_TABLE:
             {
               SymbolInfo *sym = NULL;
 
               uint32_t index = read_uleb128(p, &p);
               Vector *import = import_symbols[kind];
-              if (index < (uint32_t)import->len && !(flags & WASM_SYM_EXPLICIT_NAME)) {
+              if (import != NULL && index < (uint32_t)import->len && !(flags & WASM_SYM_EXPLICIT_NAME)) {
                 sym = import->data[index];
               } else {
                 const Name *name = read_wasm_string(p, &p);
@@ -392,7 +405,7 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
             break;
 
           default:
-            error("linking not handled: %d", linking_type);
+            error("symbol not handled: %d", kind);
             break;
           }
         }
@@ -471,15 +484,17 @@ static void read_reloc(WasmObj *wasmobj, unsigned char *p, int is_data) {
 
       int32_t addend = 0;
       switch (type) {
-      case R_WASM_MEMORY_ADDR_LEB:
       case R_WASM_MEMORY_ADDR_SLEB:
       case R_WASM_MEMORY_ADDR_I32:
-      case R_WASM_MEMORY_ADDR_LEB64:
       case R_WASM_MEMORY_ADDR_SLEB64:
       case R_WASM_MEMORY_ADDR_I64:
       case R_WASM_FUNCTION_OFFSET_I32:
       case R_WASM_SECTION_OFFSET_I32:
         addend = read_leb128(p, &p);
+        break;
+      case R_WASM_MEMORY_ADDR_LEB:
+      case R_WASM_MEMORY_ADDR_LEB64:
+        addend = read_uleb128(p, &p);
         break;
       default: break;
       }
@@ -613,12 +628,13 @@ static int resolve_symbols_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
     if (sym->flags & WASM_SYM_UNDEFINED) {
       SymbolInfo *prev;
       if (!table_try_get(&linker->defined, sym->name, (void**)&prev) || prev == NULL) {
-        table_put(&linker->unresolved, sym->name, sym);
+        if (!table_try_get(&linker->unresolved, sym->name, NULL))
+          table_put(&linker->unresolved, sym->name, sym);
       } else if (sym->kind != prev->kind) {
         fprintf(stderr, "different symbol type: %.*s\n", NAMES(sym->name));
         ++err_count;
       }
-    } else if (!(sym->flags & (WASM_SYM_BINDING_LOCAL | WASM_SYM_VISIBILITY_HIDDEN))) {
+    } else if (!(sym->flags & WASM_SYM_BINDING_LOCAL)) {
       SymbolInfo *prev, *unre;
       if ((prev = table_get(&linker->defined, sym->name)) != NULL &&
           !(prev->flags & WASM_SYM_BINDING_WEAK) && !(sym->flags & WASM_SYM_BINDING_WEAK)) {
@@ -675,7 +691,7 @@ static void resolve_symbols_auto_fill(WasmLinker *linker) {
   if (table_get(&linker->unresolved, call_ctors_name) != NULL) {
     // Prepare linker generated wasmobj.
     obj = calloc_or_die(sizeof(*obj));
-    obj->linking.symtab = new_vector();
+    wasmobj_init(obj);
 
     // Funcion type.
     obj->types = new_vector();
@@ -778,6 +794,16 @@ static bool resolve_symbols(WasmLinker *linker) {
       fprintf(stderr, "Unresolved: %.*s\n", NAMES(name));
       ++err_count;
       break;
+
+    case SIK_SYMTAB_TABLE:
+      if (equal_name(name, linker->indirect_function_table_name)) {
+        table_delete(&linker->unresolved, name);
+        table_put(&linker->defined, name, (void*)sym);
+        break;
+      }
+      fprintf(stderr, "Unresolved: %.*s\n", NAMES(name));
+      ++err_count;
+      break;
     }
   }
   linker->unresolved_func_count = unresolved_func_count;
@@ -846,10 +872,10 @@ static void generate_init_funcs(WasmLinker *linker) {
 
 static void renumber_symbols_wasmobj(WasmObj *wasmobj, uint32_t *defined_count) {
   Vector *symtab = wasmobj->linking.symtab;
-  uint32_t import_count[3];
-  import_count[SIK_SYMTAB_FUNCTION] =
-      wasmobj->import.functions != NULL ? wasmobj->import.functions->len : 0;
+  uint32_t import_count[6];
+  import_count[SIK_SYMTAB_FUNCTION] = wasmobj->import.functions->len;
   import_count[SIK_SYMTAB_DATA] = 0;
+  import_count[SIK_SYMTAB_TABLE] = wasmobj->import.tables != NULL ? wasmobj->import.tables->len : 0;
   for (int i = 0; i < symtab->len; ++i) {
     SymbolInfo *sym = symtab->data[i];
     if (sym->flags & WASM_SYM_UNDEFINED)
@@ -858,6 +884,7 @@ static void renumber_symbols_wasmobj(WasmObj *wasmobj, uint32_t *defined_count) 
     default: assert(false); // Fallthrough to suppress warning.
     case SIK_SYMTAB_FUNCTION:
     case SIK_SYMTAB_DATA:
+    case SIK_SYMTAB_TABLE:
       sym->combined_index = sym->local_index + defined_count[sym->kind] - import_count[sym->kind];
       break;
     case SIK_SYMTAB_GLOBAL:
@@ -880,6 +907,7 @@ static void renumber_symbols_wasmobj(WasmObj *wasmobj, uint32_t *defined_count) 
   // Increment count_table according to defined counts.
   defined_count[0] += wasmobj->func.count;
   defined_count[1] += wasmobj->data.count;
+  // Assume table is not defined in wasmobj.
 }
 
 static void renumber_symbols(WasmLinker *linker) {
@@ -887,6 +915,7 @@ static void renumber_symbols(WasmLinker *linker) {
   uint32_t defined_count[] = {
     [SIK_SYMTAB_FUNCTION] = linker->unresolved_func_count,
     [SIK_SYMTAB_DATA] = 0,
+    [SIK_SYMTAB_TABLE] = 0,
   };
   for (int i = 0; i < linker->files->len; ++i) {
     File *file = linker->files->data[i];
@@ -1002,20 +1031,18 @@ static void renumber_indirect_functions_wasmobj(WasmLinker *linker, WasmObj *was
   Vector *indirect_functions = linker->indirect_functions;
   uint32_t segnum = wasmobj->elem.count;
   ElemSegmentForLink *segments = wasmobj->elem.segments;
+  Vector *symtab = wasmobj->linking.symtab;
   for (uint32_t i = 0; i < segnum; ++i) {
     ElemSegmentForLink *segment = &segments[i];
     uint32_t count = segment->count;
     for (uint32_t j = 0; j < count; ++j) {
       uint32_t index = segment->content[j];
       SymbolInfo *sym = NULL;
-      {
-        Vector *symtab = wasmobj->linking.symtab;
-        for (int k = 0; k < symtab->len; ++k) {
-          SymbolInfo *p = symtab->data[k];
-          if (p->kind == SIK_SYMTAB_FUNCTION && p->local_index == index) {
-            sym = p;
-            break;
-          }
+      for (int k = 0; k < symtab->len; ++k) {
+        SymbolInfo *p = symtab->data[k];
+        if (p->kind == SIK_SYMTAB_FUNCTION && p->local_index == index) {
+          sym = p;
+          break;
         }
       }
       if (sym == NULL) {
@@ -1057,16 +1084,15 @@ static void renumber_indirect_functions(WasmLinker *linker) {
 }
 
 static void put_varint32(unsigned char *p, int32_t x, RelocInfo *reloc) {
-  if (!(p[0] & 0x80) || !(p[1] & 0x80) || !(p[2] & 0x80) || !(p[3] & 0x80) || (p[4] & 0x80))
-    error("Illegal reloc varint32: at 0x%x", reloc->offset);
-
   for (uint32_t count = 0; ; ++count) {
-    assert(count <= 5);
     if (!(*p & 0x80)) {
-      assert(x <= 0x7f);
+      if (x > 0x7f)
+        error("Cannot fit reloc varint32: at 0x%x", reloc->offset);
       *p = x & 0x7f;
       break;
     }
+    if (count >= 5)
+      error("Malformed varint32: at 0x%x", reloc->offset);
     *p++ = (x & 0x7f) | 0x80;
     x >>= 7;
   }
@@ -1076,12 +1102,12 @@ static void put_varuint32(unsigned char *p, uint32_t x, RelocInfo *reloc) {
   for (uint32_t count = 0;; ++count) {
     if (!(*p & 0x80)) {
       if (x > 0x7f)
-        error("Cannot fit reloc varuint32: at 0x%x in %s", reloc->offset);
+        error("Cannot fit reloc varuint32: at 0x%x", reloc->offset);
       *p = x & 0x7f;
       break;
     }
     if (count >= 5)
-      error("Malformed varuint32: at 0x%x in %s", reloc->offset);
+      error("Malformed varuint32: at 0x%x", reloc->offset);
     *p++ = (x & 0x7f) | 0x80;
     x >>= 7;
   }
@@ -1117,14 +1143,6 @@ static void apply_relocation_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
           put_varuint32(q, index, p);
         }
         continue;
-      case R_WASM_TAG_INDEX_LEB:
-        {
-          if (p->index >= (uint32_t)symtab->len)
-            error("illegal symbol index: %d", p->index);
-          SymbolInfo *sym = symtab->data[p->index];
-          put_varuint32(q, sym->combined_index, p);
-        }
-        continue;
 
       default: break;
       }
@@ -1137,26 +1155,40 @@ static void apply_relocation_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
       if (!table_try_get(&linker->defined, sym->name, (void**)&target))
         table_try_get(&linker->unresolved, sym->name, (void**)&target);
 
-      switch (p->type) {
-      case R_WASM_FUNCTION_INDEX_LEB:
-      case R_WASM_GLOBAL_INDEX_LEB:
-        put_varuint32(q, target->combined_index, p);
-        break;
-      case R_WASM_MEMORY_ADDR_LEB:
-        put_varuint32(q, target->data.address, p);
-        break;
-      case R_WASM_MEMORY_ADDR_I32:
-        put_i32(q, target->data.address + p->addend);
-        break;
-      case R_WASM_TABLE_INDEX_SLEB:
-        put_varint32(q, target->func.indirect_index, p);
-        break;
-      case R_WASM_TABLE_INDEX_I32:
-        put_i32(q, target->func.indirect_index);
-        break;
-      default:
-        error("Relocation not handled: type=%d", p->type);
-        break;
+      enum ValueType { COMBIDX = 1, MEMADDR, FUNCIDX };
+      enum DstType { VARU = 1, VARI, I32 };
+      static const struct {
+        enum ValueType val;
+        enum DstType dst;
+      } kTable[] = {
+        [R_WASM_FUNCTION_INDEX_LEB] = { COMBIDX, VARU },
+        [R_WASM_TABLE_INDEX_SLEB]   = { FUNCIDX, VARI },
+        [R_WASM_TABLE_INDEX_I32]    = { FUNCIDX, I32 },
+        [R_WASM_MEMORY_ADDR_LEB]    = { MEMADDR, VARU },
+        [R_WASM_MEMORY_ADDR_SLEB]   = { MEMADDR, VARI },
+        [R_WASM_MEMORY_ADDR_I32]    = { MEMADDR, I32 },
+        [R_WASM_GLOBAL_INDEX_LEB]   = { COMBIDX, VARU },
+        [R_WASM_TAG_INDEX_LEB]      = { COMBIDX, VARU },
+        [R_WASM_TABLE_NUMBER_LEB]   = { COMBIDX, VARU },
+      };
+
+      unsigned int type = p->type;
+      uint32_t value = 0;
+      if (type >= ARRAY_SIZE(kTable) || kTable[type].val == 0) {
+        error("Relocation not handled: type=%d", type);
+      } else {
+        switch (kTable[type].val) {
+        case COMBIDX:  value = target->combined_index; break;
+        case MEMADDR:  value = target->data.address + p->addend; break;
+        case FUNCIDX:  value = target->func.indirect_index; break;
+        default: assert(false); break;
+        }
+        switch (kTable[type].dst) {
+        case VARU:  put_varuint32(q, value, p); break;
+        case VARI:  put_varint32(q, value, p); break;
+        case I32:   put_i32(q, value); break;
+        default: assert(false); break;
+        }
       }
     }
   }
@@ -1213,11 +1245,16 @@ static void out_import_section(WasmLinker *linker) {
 static uint32_t out_function_section_wasmobj(WasmObj *wasmobj, DataStorage *functions_section) {
   Vector *symtab = wasmobj->linking.symtab;
   uint32_t function_count = 0;
+  uint32_t import_function_count = wasmobj->import.functions->len;
   for (int j = 0; j < symtab->len; ++j) {
     SymbolInfo *sym = symtab->data[j];
     if (sym->kind != SIK_SYMTAB_FUNCTION || (sym->flags & WASM_SYM_UNDEFINED))
       continue;
-    // assert(sym->combined_index == function_count + linker->unresolved_func_count);
+    assert(sym->local_index >= import_function_count);
+    uint32_t index = sym->local_index - import_function_count;
+    if (index < function_count)
+      continue;
+    assert(index == function_count);  // Assume symtab order is arranged in ascending order.
     ++function_count;
     int type_index = sym->func.type_index;
     data_uleb128(functions_section, -1, type_index);  // function i signature index
@@ -1255,27 +1292,8 @@ static void out_function_section(WasmLinker *linker) {
   }
 }
 
-static inline bool funcref_table_exist_wasmobj(WasmObj *wasmobj) {
-  return wasmobj->import.table_funcref;
-}
-
-static bool funcref_table_exist(WasmLinker *linker) {
-  for (int i = 0; i < linker->files->len; ++i) {
-    File *file = linker->files->data[i];
-    switch (file->kind) {
-    case FK_WASMOBJ:
-      if (funcref_table_exist_wasmobj(file->wasmobj))
-        return true;
-      break;
-    case FK_ARCHIVE:
-      FOREACH_FILE_ARCONTENT(file->archive, content, {
-        if (funcref_table_exist_wasmobj(content->obj))
-          return true;
-      });
-      break;
-    }
-  }
-  return false;
+inline bool funcref_table_exist(WasmLinker *linker) {
+  return table_try_get(&linker->defined, linker->indirect_function_table_name, NULL);
 }
 
 static void out_table_section(WasmLinker *linker) {
@@ -1537,6 +1555,7 @@ void linker_init(WasmLinker *linker) {
 
   linker->sp_name = alloc_name(SP_NAME, NULL, false);
   linker->curbrk_name = alloc_name(BREAK_ADDRESS_NAME, NULL, false);
+  linker->indirect_function_table_name = alloc_name(INDIRECT_FUNCALL_TABLE_NAME, NULL, false);
 }
 
 bool read_wasm_obj(WasmLinker *linker, const char *filename) {

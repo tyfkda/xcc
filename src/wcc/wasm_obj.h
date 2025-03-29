@@ -60,6 +60,10 @@ enum RelocType {
   R_WASM_TABLE_INDEX_SLEB64    = 18,
   R_WASM_TABLE_INDEX_I64       = 19,
   R_WASM_TABLE_NUMBER_LEB      = 20,
+  R_WASM_FUNCTION_OFFSET_I64   = 22,
+  R_WASM_MEMORY_ADDR_LOCREL_I32 = 23,
+  R_WASM_TABLE_INDEX_REL_SLEB64 = 24,
+  R_WASM_FUNCTION_INDEX_I32    = 26,
 };
 
 typedef struct {
@@ -106,6 +110,9 @@ typedef struct {
     struct {
       uint32_t index;
     } tag;
+    struct {
+      uint8_t wtype;
+    } table;
   };
 
   uint32_t combined_index;
@@ -122,7 +129,7 @@ typedef struct WasmObj {
   struct {
     Vector *functions;  // <SymbolInfo*>
     Vector *globals;    // <SymbolInfo*>
-    bool table_funcref;
+    Vector *tables;     // <SymbolInfo*>
   } import;
   struct {
     Vector *symtab;     // <SymbolInfo*>

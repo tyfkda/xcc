@@ -876,6 +876,7 @@ export class DisWasm {
     let offset = 0
     let importFuncCount = 0
     let importGlobalCount = 0
+    let importTableCount = 0
     for (; !this.bufferReader.isEof(); this.bufferReader.setOffset(offset + len)) {
       const sec = this.bufferReader.readu8() as Section
       len = this.bufferReader.readUleb128()
@@ -898,6 +899,7 @@ export class DisWasm {
             {
               /*const tt =*/ readType(this.bufferReader)
               // this.log(`${this.addr(offset)}(import "${modName}" "${name}" (table ${tt}))`)
+              ++importTableCount
             }
             break
           case ImportKind.MEMORY:
@@ -946,7 +948,8 @@ export class DisWasm {
                 switch (kind) {
                 case SymInfoKind.SYMTAB_FUNCTION:
                 case SymInfoKind.SYMTAB_GLOBAL:
-                  {
+                case SymInfoKind.SYMTAB_TABLE:
+                    {
                     const index = this.bufferReader.readUleb128()
 
                     switch (kind) {
@@ -960,6 +963,12 @@ export class DisWasm {
                       if (index >= importGlobalCount || (flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
                         const symname = this.bufferReader.readString()
                         this.setCustomName(CustomNameType.GLOBAL, index, symname)
+                      }
+                      break
+                    case SymInfoKind.SYMTAB_TABLE:
+                      if (index >= importTableCount || (flags & SymFlags.WASM_SYM_EXPLICIT_NAME)) {
+                        const symname = this.bufferReader.readString()
+                        this.setCustomName(CustomNameType.TABLE, index, symname)
                       }
                       break
                     default: break
@@ -1674,7 +1683,11 @@ export class DisWasm {
           }
           break
         case OpKind.CALL_INDIRECT:
-          operands = `(type ${inst.operands[0]})`
+          {
+            const tableIndex = inst.operands[1]
+            const tableIndexStr = tableIndex === 0 ? '' :  ` (tableIndex ${tableIndex})`
+            operands = `(type ${inst.operands[0]})${tableIndexStr}`
+          }
           break
         case OpKind.OMIT_OPERANDS:
           // Omit operands.

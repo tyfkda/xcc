@@ -76,6 +76,13 @@ typedef struct {
   uint32_t symbol_index;
 } TagInfo;
 
+typedef struct {
+  const Name *name;
+  int type;
+  uint32_t index;
+  uint32_t symbol_index;
+} TableInfo;
+
 // traverse
 void traverse_ast(Vector *decls);
 
@@ -132,16 +139,17 @@ enum OutType {
 
 #define CUF_LINEAR_MEMORY  (1 << 0)
 #define CUF_USE_SP         (1 << 1)
-#define CUF_INDIRECT_CALL  (1 << 2)
 
 extern const char SP_NAME[];
 extern const char BREAK_ADDRESS_NAME[];
+extern const char INDIRECT_FUNCALL_TABLE_NAME[];
 
 extern bool verbose;
 extern Table func_info_table;
 extern Table gvar_info_table;
 extern Table indirect_function_table;  // <FuncInfo*>
 extern Vector *tags;  // <TagInfo*>
+extern Vector *tables;  // <TableInfo*>
 extern Vector *init_funcs;  // <Function*>
 extern int compile_unit_flag;
 
@@ -153,6 +161,8 @@ GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo);
 GVarInfo *get_gvar_info_from_name(const Name *name);
 int getsert_func_type(unsigned char *buf, size_t size, bool reg);
 TagInfo *getsert_tag(const Name *name, int typeindex);
+TableInfo *getsert_table(const Name *name, int type);
+TableInfo *getsert_indirect_function_table(void);
 
 void write_wasm_header(FILE *ofp);
 

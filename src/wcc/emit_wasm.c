@@ -264,15 +264,17 @@ static void emit_import_section(EmitWasm *ew) {
     data_uleb128(&imports_section, -1, 0);  // size
     ++imports_count;
   }
-  if (indirect_function_table.count > 0 || (compile_unit_flag & CUF_INDIRECT_CALL)) {
-    static const char kTableName[] = "__indirect_function_table";
-    data_string(&imports_section, env_module_name, sizeof(env_module_name) - 1);  // import module name
-    data_string(&imports_section, kTableName, sizeof(kTableName) - 1);  // import name
-    data_push(&imports_section, IMPORT_TABLE);  // import kind
-    data_push(&imports_section, WT_FUNCREF);
-    data_push(&imports_section, 0x00);  // limits: flags
-    data_leb128(&imports_section, -1, INDIRECT_FUNCTION_TABLE_START_INDEX);  // initial
-    ++imports_count;
+  if (tables->len > 0) {
+    for (int i = 0; i < tables->len; ++i) {
+      TableInfo *t = tables->data[i];
+      data_string(&imports_section, env_module_name, sizeof(env_module_name) - 1);  // import module name
+      data_string(&imports_section, t->name->chars, t->name->bytes);  // import name
+      data_push(&imports_section, IMPORT_TABLE);  // import kind
+      data_push(&imports_section, t->type);
+      data_push(&imports_section, 0x00);  // limits: flags
+      data_leb128(&imports_section, -1, INDIRECT_FUNCTION_TABLE_START_INDEX);  // initial
+      ++imports_count;
+    }
   }
 
   {
@@ -655,6 +657,16 @@ static void emit_linking_section(EmitWasm *ew) {
       ++count;
     }
   }
+  if (tables->len > 0) {  // Table
+    for (int i = 0, len = tables->len; i < len; ++i) {
+      TableInfo *ti = tables->data[i];
+      int flags = WASM_SYM_UNDEFINED | WASM_SYM_EXPORTED | WASM_SYM_NO_STRIP;
+      data_push(&linking_section, SIK_SYMTAB_TABLE);  // kind
+      data_uleb128(&linking_section, -1, flags);
+      data_uleb128(&linking_section, -1, ti->index);
+      ++count;
+    }
+  }
   if (tags->len > 0) {  // Tag
     for (int i = 0, len = tags->len; i < len; ++i) {
       TagInfo *ti = tags->data[i];
@@ -739,13 +751,15 @@ static void emit_reloc_section(EmitWasm *ew, int section_index, Vector *relocs, 
       data_uleb128(&ds, -1, reloc->index);
       switch (reloc->type) {
       case R_WASM_MEMORY_ADDR_LEB:
-      case R_WASM_MEMORY_ADDR_SLEB:
       case R_WASM_MEMORY_ADDR_I32:
       case R_WASM_MEMORY_ADDR_LEB64:
-      case R_WASM_MEMORY_ADDR_SLEB64:
       case R_WASM_MEMORY_ADDR_I64:
       case R_WASM_FUNCTION_OFFSET_I32:
       case R_WASM_SECTION_OFFSET_I32:
+        data_uleb128(&ds, -1, reloc->addend);
+        break;
+      case R_WASM_MEMORY_ADDR_SLEB:
+      case R_WASM_MEMORY_ADDR_SLEB64:
         data_leb128(&ds, -1, reloc->addend);
         break;
       default: break;

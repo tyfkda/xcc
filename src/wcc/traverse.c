@@ -130,6 +130,7 @@ static uint32_t register_indirect_function(const Name *name) {
   info = register_func_info(name, NULL, NULL, FF_INDIRECT | FF_REFERRED);
   uint32_t index = indirect_function_table.count;
   table_put(&indirect_function_table, name, info);
+  getsert_indirect_function_table();
   return index;
 }
 
@@ -208,7 +209,7 @@ static void traverse_func_expr(Expr **pexpr) {
     assert(type != NULL && type->kind == TY_FUNC);
     getsert_func_type_index(type, true);
     traverse_expr(pexpr, true);
-    compile_unit_flag |= CUF_INDIRECT_CALL;
+    getsert_indirect_function_table();
   }
 }
 
@@ -956,6 +957,12 @@ void traverse_ast(Vector *decls) {
         VERBOSE("%2d: %.*s (%d)\n", info->item_index, NAMES(varinfo->ident->ident),
                 info->symbol_index);
       }
+    }
+
+    // Table
+    for (int i = 0, len = tables->len; i < len; ++i) {
+      TableInfo *ti = tables->data[i];
+      ti->symbol_index = symbol_index++;
     }
 
     // Tag

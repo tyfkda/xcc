@@ -27,6 +27,7 @@
 
 #define ADD_LEB128(x)  data_leb128(CODE, -1, x)
 #define ADD_ULEB128(x) data_uleb128(CODE, -1, x)
+#define ADD_VARINT32(x)   data_varint32(CODE, -1, x)
 #define ADD_VARUINT32(x)  data_varuint32(CODE, -1, x)
 
 // TODO: Endian.
@@ -389,19 +390,29 @@ static void gen_funcall(Expr *expr) {
     gen_funcall_by_name(func->var.name);
   } else {
     gen_expr(func, true);
-    int index = get_func_type_index(functype);
-    assert(index >= 0);
     ADD_CODE(OP_CALL_INDIRECT);
+
     FuncExtra *extra = curfunc->extra;
     DataStorage *code = extra->code;
-    RelocInfo *ri = calloc_or_die(sizeof(*ri));
-    ri->type = R_WASM_TYPE_INDEX_LEB;
-    ri->index = index;
-    ri->offset = code->len;
-    vec_push(extra->reloc_code, ri);
-
-    ADD_VARUINT32(index);
-    ADD_ULEB128(0);      // table index
+    {
+      int index = get_func_type_index(functype);
+      assert(index >= 0);
+      RelocInfo *ri = calloc_or_die(sizeof(*ri));
+      ri->type = R_WASM_TYPE_INDEX_LEB;
+      ri->index = index;
+      ri->offset = code->len;
+      vec_push(extra->reloc_code, ri);
+      ADD_VARUINT32(index);
+    }
+    {
+      TableInfo *ti = getsert_indirect_function_table();
+      RelocInfo *ri = calloc_or_die(sizeof(*ri));
+      ri->type = R_WASM_TABLE_NUMBER_LEB;
+      ri->index = ti->symbol_index;
+      ri->offset = code->len;
+      vec_push(extra->reloc_code, ri);
+      ADD_VARUINT32(ti->index);  // table index
+    }
   }
 }
 
@@ -459,7 +470,7 @@ static void gen_ref_sub(Expr *expr) {
           ri->index = info->index;  // Assume that symtab index is same as function index.
           vec_push(extra->reloc_code, ri);
 
-          ADD_VARUINT32(info->indirect_index);
+          ADD_VARINT32(info->indirect_index);
         } else {
           GVarInfo *info = get_gvar_info(expr);
           assert(info != NULL);
@@ -467,13 +478,13 @@ static void gen_ref_sub(Expr *expr) {
           FuncExtra *extra = curfunc->extra;
           DataStorage *code = extra->code;
           RelocInfo *ri = calloc_or_die(sizeof(*ri));
-          ri->type = R_WASM_MEMORY_ADDR_LEB;
+          ri->type = R_WASM_MEMORY_ADDR_SLEB;
           ri->offset = code->len;
           ri->addend = 0;
           ri->index = info->symbol_index;
           vec_push(extra->reloc_code, ri);
 
-          ADD_VARUINT32(info->non_prim.address);
+          ADD_VARINT32(info->non_prim.address);
         }
       } else {
         VReg *vreg = varinfo->local.vreg;

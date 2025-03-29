@@ -102,6 +102,7 @@ static void init_compiler(void) {
   table_init(&gvar_info_table);
   functypes = new_vector();
   tags = new_vector();
+  tables = new_vector();
   table_init(&indirect_function_table);
   init_global();
 
@@ -527,6 +528,7 @@ static int do_link(Vector *obj_files, Options *opts) {
 
   functypes = new_vector();
   tags = new_vector();
+  tables = new_vector();
   table_init(&indirect_function_table);
 
   WasmLinker linker_body;

@@ -13,6 +13,7 @@
 static void init(void) {
   functypes = new_vector();
   tags = new_vector();
+  tables = new_vector();
   table_init(&indirect_function_table);
 }
 

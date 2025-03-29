@@ -13,6 +13,7 @@
 
 const char SP_NAME[] = "__stack_pointer";  // Variable name for stack pointer (global).
 const char BREAK_ADDRESS_NAME[] = "__curbrk";
+const char INDIRECT_FUNCALL_TABLE_NAME[] = "__indirect_function_table";
 
 bool verbose;
 Table func_info_table;
@@ -20,6 +21,7 @@ Table gvar_info_table;
 Vector *functypes;  // <DataStorage*>
 Table indirect_function_table;
 Vector *tags;
+Vector *tables;
 Vector *init_funcs;
 int compile_unit_flag;
 
@@ -64,20 +66,43 @@ int getsert_func_type(unsigned char *buf, size_t size, bool reg) {
 TagInfo *getsert_tag(const Name *name, int typeindex) {
   uint32_t len = tags->len;
   for (uint32_t i = 0; i < len; ++i) {
-    TagInfo *t = tags->data[i];
-    if (equal_name(t->name, name)) {
-      if (t->typeindex != typeindex)
+    TagInfo *ti = tags->data[i];
+    if (equal_name(ti->name, name)) {
+      if (ti->typeindex != typeindex)
         error("Tag type mismatch: %.*s", NAMES(name));
-      return t;
+      return ti;
     }
   }
 
-  TagInfo *t = calloc_or_die(sizeof(*t));
-  t->name = name;
-  t->typeindex = typeindex;
-  t->index = len;
-  vec_push(tags, t);
-  return t;
+  TagInfo *ti = calloc_or_die(sizeof(*ti));
+  ti->name = name;
+  ti->typeindex = typeindex;
+  ti->index = len;
+  vec_push(tags, ti);
+  return ti;
+}
+
+TableInfo *getsert_table(const Name *name, int type) {
+  uint32_t len = tables->len;
+  for (uint32_t i = 0; i < len; ++i) {
+    TableInfo *ti = tables->data[i];
+    if (equal_name(ti->name, name)) {
+      if (ti->type != type)
+        error("Table type mismatch: %.*s", NAMES(name));
+      return ti;
+    }
+  }
+
+  TableInfo *ti = calloc_or_die(sizeof(*ti));
+  ti->name = name;
+  ti->type = type;
+  ti->index = len;
+  vec_push(tables, ti);
+  return ti;
+}
+
+TableInfo *getsert_indirect_function_table(void) {
+  return getsert_table(alloc_name(INDIRECT_FUNCALL_TABLE_NAME, NULL, false), WT_FUNCREF);
 }
 
 //
