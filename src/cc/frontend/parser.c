@@ -676,6 +676,8 @@ static Stmt *parse_stmt(void) {
 
   // expression statement.
   Expr *val = parse_expr();
+  if (val == NULL)
+    val = new_expr_fixlit(&tyInt, tok, 0);  // Dummy
   consume(TK_SEMICOL, "`;' expected");
   return new_stmt_expr(str_to_char_array_var(curscope, val));
 }

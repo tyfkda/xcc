@@ -825,6 +825,8 @@ Expr *parse_assign(void) {
 Expr *parse_const_fixnum(void) {
   parsing_stmt = false;
   Expr *expr = parse_precedence(PREC_LOGIOR);
+  if (expr == NULL)
+    return NULL;  // Error is already reported.
   if (is_const(expr) && is_fixnum(expr->type->kind))
     return expr;
   parse_error(PE_NOFATAL, expr->token, "constant integer expected");
