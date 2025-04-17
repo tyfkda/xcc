@@ -78,7 +78,10 @@ struct section_64 { /* for 64-bit architectures */
   uint32_t reserved3;
 };
 
+#define S_REGULAR                0x0
 #define S_ZEROFILL               0x1
+#define S_CSTRING_LITERALS       0x2
+#define S_MOD_INIT_FUNC_POINTERS 0x9
+
 #define S_ATTR_PURE_INSTRUCTIONS 0x80000000
 #define S_ATTR_SOME_INSTRUCTIONS 0x00000400
-#define S_MOD_INIT_FUNC_POINTERS 0x00000009
