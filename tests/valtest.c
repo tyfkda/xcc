@@ -4,6 +4,7 @@
 #include "stdint.h"
 #include "stdio.h"
 #include "stdlib.h"  // exit
+#include "string.h"  // memcmp
 
 #include "./xtest.h"
 
@@ -1090,6 +1091,11 @@ TEST(basic) {
   {
     const char *const ccc = "foobar";
     EXPECT_STREQ("const char* const", "foobar", ccc);
+  }
+  {
+    static const char nulchr_contained[12] = "foo\0bar\0\0";
+    const char *expected = "foo\0bar\0\0\0\0";
+    EXPECT("nulchr contained string", 0, memcmp(expected, nulchr_contained, sizeof(nulchr_contained)));
   }
 
 #if !defined(__WASM)

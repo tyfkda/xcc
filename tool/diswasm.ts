@@ -9,6 +9,7 @@ async function main(argv: string[]) {
   const {program} = require('commander')
   program
     .option('--dump-addr', 'Dump address')
+    .allowExcessArguments()
     .parse(argv)
   const opts = program.opts()
   const args = program.args

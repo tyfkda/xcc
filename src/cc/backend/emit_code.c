@@ -212,8 +212,16 @@ static void emit_string(void *ud, Expr *str, size_t size) {
   if (src_size > size)
     src_size = size;
 
-  bool is_string = (csize == 1 && src_size > 0 && src_size == size &&
-                    str->str.buf[src_size - 1] == '\0');
+  bool is_string = false;
+  if (csize == 1 && src_size > 0 && src_size == size && str->str.buf[src_size - 1] == '\0') {
+    is_string = true;
+    for (size_t i = 0, len = src_size - 1; i < len; ++i) {
+      if (str->str.buf[i] == '\0') {
+        is_string = false;
+        break;
+      }
+    }
+  }
 
   StringBuffer sb;
   sb_init(&sb);

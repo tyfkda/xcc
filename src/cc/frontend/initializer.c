@@ -71,12 +71,27 @@ Type *fix_array_size(Type *type, Initializer *init, const Token *token) {
   }
 }
 
+static inline bool is_pure_string(Expr *expr) {
+  assert(expr->kind == EX_STR);
+  size_t len = expr->str.len;
+  if (len == 0)
+    return false;
+  --len;
+  const char *s = expr->str.buf;
+  for (size_t i = 0; i < len; ++i) {
+    if (s[i] == '\0')
+      return false;
+  }
+  return true;
+}
+
 // Returns created global variable info.
 static VarInfo *str_to_char_array(Scope *scope, Type *type, Initializer *init) {
   assert(init->kind == IK_SINGLE && init->single->kind == EX_STR);
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof, init->single->str.kind));
   const Token *ident = alloc_dummy_ident();
-  VarInfo *varinfo = add_var_to_scope(scope, ident, type, VS_STATIC | VS_USED | VS_STRING);
+  int flag = VS_STATIC | VS_USED | (is_pure_string(init->single) ? VS_STRING : 0);
+  VarInfo *varinfo = add_var_to_scope(scope, ident, type, flag);
   if (is_global_scope(scope))
     varinfo->global.init = init;
   else

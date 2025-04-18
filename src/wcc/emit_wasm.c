@@ -682,7 +682,7 @@ static void emit_linking_section(EmitWasm *ew) {
         Expr *e = varinfo->global.init->single;
         if (e->kind == EX_STR && e->str.kind == STR_CHAR) {
           const Type *type = varinfo->type;
-          if (type->kind == TY_ARRAY && type->pa.length > 0 &&
+          if (type->kind == TY_ARRAY && type->pa.length > 0 && (varinfo->storage & VS_STRING) &&
               type->pa.length == (ssize_t)e->str.len && e->str.buf[type->pa.length - 1] == '\0')
             flags |= WASM_SEG_FLAG_STRINGS;
         }
