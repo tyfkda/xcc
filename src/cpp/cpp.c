@@ -13,7 +13,6 @@ int main(int argc, char *argv[]) {
   enum {
     OPT_ISYSTEM = 128,
     OPT_IDIRAFTER,
-    OPT_PRESERVE_COMMENT,
   };
 
   static const struct option options[] = {

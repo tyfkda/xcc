@@ -22,7 +22,6 @@
 #include "wasm_linker.h"
 
 // #define USE_EMCC_AS_LINKER  1
-// #define USE_WCCLD_AS_LINKER  1
 
 static const char DEFAULT_IMPORT_MODULE_NAME[] = "env";
 
@@ -506,7 +505,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
 }
 
 static int do_link(Vector *obj_files, Options *opts) {
-#if USE_EMCC_AS_LINKER || USE_WCCLD_AS_LINKER
+#if USE_EMCC_AS_LINKER
   UNUSED(add_lib);
 
   char *finalfn = (char*)opts->ofn;
@@ -516,20 +515,11 @@ static int do_link(Vector *obj_files, Options *opts) {
     finalfn = change_ext(finalfn, "wasm");
   }
 
-#if USE_EMCC_AS_LINKER
-  char *cc = "emcc";
-#else  // if USE_WCCLD_AS_LINKER
-  const char *root = opts->root;
-  char *cc = JOIN_PATHS(root, "wcc-ld");
-#endif
+  const char *cc = "emcc";
 
   vec_insert(obj_files, 0, cc);
   vec_insert(obj_files, 1, "-o");
   vec_insert(obj_files, 2, finalfn);
-#if USE_WCCLD_AS_LINKER
-  vec_push(obj_files, JOIN_PATHS(root, "lib/wcrt0.a"));
-  vec_push(obj_files, JOIN_PATHS(root, "lib/wlibc.a"));
-#endif
   vec_push(obj_files, NULL);
   char **argv = (char**)obj_files->data;
   execvp(cc, argv);
