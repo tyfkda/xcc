@@ -337,7 +337,8 @@ Declaration *new_decl_asm(Expr *str) {
 
 // Function
 
-Function *new_func(Type *type, const Token *ident, const Vector *params, Table *attributes, int flag) {
+Function *new_func(Type *type, const Token *ident, const Vector *params, Table *attributes,
+                   int flag) {
   assert(type->kind == TY_FUNC);
   assert(ident->kind == TK_IDENT);
   Function *func = calloc_or_die(sizeof(*func));

@@ -39,7 +39,8 @@
 #define SET_RELOCATION_INFO(rela, adr, sym, pcr, len, ext, typ) \
   do { \
     (rela)->r_address = (adr); \
-    (rela)->r_pack = (((sym) & ((1U<<24)-1U)) | (((pcr) & 1U) << 24) | (((len) & 3U) << 25) | (((ext) & 1U) << 27) | (((typ) & 0x0f) << 28)); \
+    (rela)->r_pack = (((sym) & ((1U << 24) - 1U)) | (((pcr) & 1U) << 24) | (((len) & 3U) << 25) | \
+                      (((ext) & 1U) << 27) | (((typ) & 0x0f) << 28));                             \
   } while (0)
 #endif
 
@@ -273,7 +274,9 @@ int emit_macho_obj(const char *ofn, Vector *sections, Table *label_table, Vector
     }
   }
 
-  uint32_t size_of_cmds = sizeof(struct segment_command_64) + sizeof(struct section_64) * section_count + sizeof(struct build_version_command) + sizeof(struct symtab_command);
+  uint32_t size_of_cmds = sizeof(struct segment_command_64) +
+                          sizeof(struct section_64) * section_count +
+                          sizeof(struct build_version_command) + sizeof(struct symtab_command);
   uint64_t section_start_off = sizeof(struct mach_header_64) + size_of_cmds;
   uint64_t addr = 0, off_p = section_start_off;
   for (int sec = 0; sec < sections->len; ++sec) {

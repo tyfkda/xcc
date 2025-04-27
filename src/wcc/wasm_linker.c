@@ -847,7 +847,8 @@ static void generate_init_funcs(WasmLinker *linker) {
 static void renumber_symbols_wasmobj(WasmObj *wasmobj, uint32_t *defined_count) {
   Vector *symtab = wasmobj->linking.symtab;
   uint32_t import_count[3];
-  import_count[SIK_SYMTAB_FUNCTION] = wasmobj->import.functions != NULL ? wasmobj->import.functions->len : 0;
+  import_count[SIK_SYMTAB_FUNCTION] =
+      wasmobj->import.functions != NULL ? wasmobj->import.functions->len : 0;
   import_count[SIK_SYMTAB_DATA] = 0;
   for (int i = 0; i < symtab->len; ++i) {
     SymbolInfo *sym = symtab->data[i];
@@ -1381,7 +1382,8 @@ static void out_export_section(WasmLinker *linker, Vector *exports) {
     case SIK_SYMTAB_FUNCTION:
     case SIK_SYMTAB_GLOBAL:
       data_string(&exports_section, name->chars, name->bytes);  // export name
-      data_uleb128(&exports_section, -1, sym->kind == SIK_SYMTAB_FUNCTION ? IMPORT_FUNC : IMPORT_GLOBAL);  // export kind
+      data_uleb128(&exports_section, -1,
+                   sym->kind == SIK_SYMTAB_FUNCTION ? IMPORT_FUNC : IMPORT_GLOBAL);  // export kind
       data_uleb128(&exports_section, -1, sym->combined_index);  // export func index
       break;
     default: assert(false); break;

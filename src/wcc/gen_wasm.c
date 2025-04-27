@@ -320,7 +320,8 @@ static void gen_funcall(Expr *expr) {
     }
     assert(varinfo != NULL);
     // &ret_buf
-    Expr *e = new_expr_variable(varinfo->ident->ident, varinfo->type, NULL, curfunc->scopes->data[0]);
+    Expr *e = new_expr_variable(varinfo->ident->ident, varinfo->type, NULL,
+                                curfunc->scopes->data[0]);
     gen_lval(e);
   }
 
@@ -1481,7 +1482,8 @@ static void gen_stmts(Vector *stmts, bool is_last) {
 
 static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
   const Type *functype = func->type;
-  unsigned int ret_param = functype->func.ret->kind != TY_VOID && !is_prim_type(functype->func.ret) ? 1 : 0;
+  const Type *rettype = functype->func.ret;
+  unsigned int ret_param = rettype->kind != TY_VOID && !is_prim_type(rettype) ? 1 : 0;
   unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
   unsigned int pparam_count = 0;  // Primitive parameter count
 
@@ -1655,9 +1657,13 @@ static void gen_defun(Function *func) {
   FuncInfo *finfo = table_get(&func_info_table, func->ident->ident);
   assert(finfo != NULL);
   const Name *bpname = finfo->bpname;
-  Expr *bpvar = bpname == NULL ? NULL : new_expr_variable(bpname, &tyVoidPtr, NULL, func->scopes->data[0]);
+  Expr *bpvar = NULL;
+  if (bpname != NULL)
+    bpvar = new_expr_variable(bpname, &tyVoidPtr, NULL, func->scopes->data[0]);
   const Name *lspname = finfo->lspname;
-  Expr *lspvar = lspname == NULL ? NULL : new_expr_variable(lspname, &tyVoidPtr, NULL, func->scopes->data[0]);
+  Expr *lspvar = NULL;
+  if (lspname != NULL)
+    lspvar = new_expr_variable(lspname, &tyVoidPtr, NULL, func->scopes->data[0]);
   Expr *gspvar = NULL;
   if (bpname != NULL || lspname != NULL) {
     gspvar = get_sp_var();
@@ -1973,7 +1979,8 @@ static Expr *proc_builtin_va_start(const Token *ident) {
     parse_error(PE_FATAL, param->token, "variable expected");
   const Vector *funparams = curfunc->params;
   if (funparams == NULL ||
-      !equal_name(((VarInfo*)funparams->data[funparams->len - 1])->ident->ident, param->var.name)) {
+      !equal_name(((VarInfo*)funparams->data[funparams->len - 1])->ident->ident,
+                  param->var.name)) {
     parse_error(PE_FATAL, param->token, "must be the last parameter");
     return NULL;
   }

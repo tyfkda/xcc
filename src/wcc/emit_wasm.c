@@ -533,7 +533,8 @@ static Vector *emit_data_section(EmitWasm *ew) {
       data_push(&datasec, 0);  // flags
       // Init (address).
       uint32_t address = segment->gvarinfo->non_prim.address;
-      VERBOSE("%04x: %.*s  (size=0x%zx)\n", address, NAMES(segment->gvarinfo->varinfo->ident->ident),
+      VERBOSE("%04x: %.*s  (size=0x%zx)\n", address,
+              NAMES(segment->gvarinfo->varinfo->ident->ident),
               type_size(segment->gvarinfo->varinfo->type));
       data_push(&datasec, OP_I32_CONST);
       data_leb128(&datasec, -1, address);

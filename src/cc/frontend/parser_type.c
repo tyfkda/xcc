@@ -214,7 +214,8 @@ Type *parse_raw_type(int *pstorage) {
       tc.storage |= VS_STATIC;
       continue;
     case TK_INLINE:
-      ASSERT_PARSE_ERROR((tc.storage & ~(VS_STATIC | VS_EXTERN)) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
+      ASSERT_PARSE_ERROR((tc.storage & ~(VS_STATIC | VS_EXTERN)) == 0, tok,
+                         MULTIPLE_STORAGE_SPECIFIED);
       tc.storage |= VS_INLINE;
       continue;
     case TK_EXTERN:
@@ -527,7 +528,7 @@ static Type *parse_direct_declarator_suffix(Type *type) {
       if (var != NULL && parsing_funparams != NULL &&
           (index = var_find(parsing_funparams, var->ident)) >= 0) {
         VarInfo *varinfo = parsing_funparams->data[index];
-        vla = new_expr_variable(var->ident, varinfo->type, var, curscope);  // TODO: curscopeはその関数のルートスコープにする必要がある
+        vla = new_expr_variable(var->ident, varinfo->type, var, curscope);  // TODO: Use function root scope.
       } else {
         if (var != NULL)
           unget_token(var);

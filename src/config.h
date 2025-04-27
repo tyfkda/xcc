@@ -51,7 +51,8 @@
 #define ALLOCA(size)  malloc(size)
 #endif
 
-#if !defined(VAARG_ON_STACK) && XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE && XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+#if !defined(VAARG_ON_STACK) && XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE && \
+    XCC_TARGET_ARCH == XCC_ARCH_AARCH64
 // variadic arguments are passed through stack, not registers.
 #define VAARG_ON_STACK  1
 #endif

@@ -1015,10 +1015,10 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         return new_expr_fixlit(&tySize, tok,
                                (lhs->fixnum - rhs->fixnum) / type_size(ltype->pa.ptrof));
       }
-      return new_expr_bop(EX_DIV, &tySSize, tok,
-                          make_cast(&tySSize, tok,
-                                    new_expr_bop(EX_SUB, &tySize, tok, lhs, rhs), false),
-                          new_expr_fixlit(&tySSize, tok, type_size(ltype->pa.ptrof)));
+      return new_expr_bop(
+          EX_DIV, &tySSize, tok,
+          make_cast(&tySSize, tok, new_expr_bop(EX_SUB, &tySize, tok, lhs, rhs), false),
+          new_expr_fixlit(&tySSize, tok, type_size(ltype->pa.ptrof)));
     }
   } else if (ptr_or_array(rtype)) {
     if (kind == EX_ADD && is_fixnum(ltype->kind)) {
@@ -1168,11 +1168,12 @@ static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, cons
   }
   Expr *store = assign_bitfield_member(tok, dst, src, after, minfo);
 
-  return new_expr_bop(EX_COMMA, vtype, tok,
-                      new_expr_bop(EX_COMMA, vtype, tok, ptr_assign,
-                                   new_expr_bop(EX_COMMA, vtype, tok, src_assign,
-                                                new_expr_bop(EX_COMMA, vtype, tok, val_assign, store))),
-                      val);
+  return new_expr_bop(
+      EX_COMMA, vtype, tok,
+      new_expr_bop(EX_COMMA, vtype, tok, ptr_assign,
+                    new_expr_bop(EX_COMMA, vtype, tok, src_assign,
+                                new_expr_bop(EX_COMMA, vtype, tok, val_assign, store))),
+      val);
 }
 #endif
 
@@ -1357,7 +1358,8 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
       case EX_LT: case EX_LE: case EX_GE: case EX_GT:
       case EX_LOGAND: case EX_LOGIOR:
         parse_error(PE_WARNING, tok, "Always %s", kind != EX_EQ ? "true" : "false");
-        return new_expr_bop(EX_COMMA, &tyBool, tok, v, new_expr_fixlit(&tyBool, tok, (kind != EX_EQ)));
+        return new_expr_bop(EX_COMMA, &tyBool, tok, v,
+                            new_expr_fixlit(&tyBool, tok, (kind != EX_EQ)));
       default: break;
       }
       break;
@@ -1896,7 +1898,8 @@ void check_unused_variables(Function *func) {
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
       if (!(varinfo->storage & (VS_USED | VS_ENUM_MEMBER | VS_EXTERN)) && varinfo->ident != NULL) {
-        parse_error(PE_WARNING, varinfo->ident, "Unused variable `%.*s'", NAMES(varinfo->ident->ident));
+        parse_error(PE_WARNING, varinfo->ident, "Unused variable `%.*s'",
+                    NAMES(varinfo->ident->ident));
       }
     }
   }
@@ -1920,7 +1923,7 @@ static void check_reachability_stmt(Stmt *stmt) {
     break;
   case ST_SWITCH:
     stmt->reach = (stmt->reach & ~REACH_STOP) |
-        ((stmt->switch_.default_ != NULL) ? REACH_STOP : 0);
+                  ((stmt->switch_.default_ != NULL) ? REACH_STOP : 0);
     check_reachability_stmt(stmt->switch_.body);
     stmt->reach &= stmt->switch_.body->reach;
     break;

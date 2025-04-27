@@ -252,8 +252,9 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                   if (offset < (1 << 20) && offset >= -(1 << 20)) {
                     uint32_t *buf = (uint32_t*)code->buf;
                     // jal: imm[20|10:1|11|19:12]
-                    buf[0] = (buf[0] & 0x000007ff) | (IMM(offset, 20, 20) << 31) | (IMM(offset, 10, 1) << 21) |
-                      (IMM(offset, 11, 11) << 20) | (IMM(offset, 19, 12) << 12);
+                    buf[0] = (buf[0] & 0x000007ff) | (IMM(offset, 20, 20) << 31) |
+                             (IMM(offset, 10, 1) << 21) | (IMM(offset, 11, 11) << 20) |
+                             (IMM(offset, 19, 12) << 12);
                   } else {
                     // Linker extends the branch instruction to long offset?
                     fprintf(stderr, "jump offset too large: %+" PRId64 "\n", offset);
@@ -275,8 +276,8 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
 
                 int64_t offset = target_address - address;
                 comp = inst->opr[1].reg.no == 0 && is_rvc_reg(inst->opr[0].reg.no) &&
-                  (inst->op == BEQ || inst->op == BNE) &&
-                  offset < (1 << 8) && offset >= -(1 << 8);
+                       (inst->op == BEQ || inst->op == BNE) && offset < (1 << 8) &&
+                       offset >= -(1 << 8);
 
                 assert(inst->opr[1].type == REG);
                 // Put rela even if the label is defined in the same object file.

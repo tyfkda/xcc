@@ -14,7 +14,6 @@ typedef struct Vector Vector;
 typedef struct {
   Vector *files;  // <File*>
   Table defined, unresolved;  // <SymbolInfo*>
-  // Table public_indirect_function_table;  // public function only, <SymbolInfo*>
   Vector *indirect_functions;  // public/static indirect functions, <SymbolInfo*>
   uint32_t unresolved_func_count;
   uint32_t address_bottom;

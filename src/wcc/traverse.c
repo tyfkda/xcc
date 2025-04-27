@@ -200,7 +200,7 @@ static void traverse_func_expr(Expr **pexpr) {
   assert(type->kind == TY_FUNC ||
          (type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC));
   if (expr->kind == EX_VAR && type->kind == TY_FUNC) {  // Function must be placed in global scope.
-    const Name *funcname = expr->var.name;;
+    const Name *funcname = expr->var.name;
     if (!table_try_get(&builtin_function_table, funcname, NULL))
      register_func_info(funcname, NULL, NULL, FF_REFERRED);
   } else {
@@ -714,7 +714,8 @@ static void traverse_defun(Function *func) {
     assert(tyvalist != NULL);
 
     const Name *name = alloc_name(VA_ARGS_NAME, NULL, false);
-    scope_add(func->scopes->data[0], alloc_ident(name, NULL, name->chars, name->chars + name->bytes), tyvalist, 0);
+    scope_add(func->scopes->data[0],
+              alloc_ident(name, NULL, name->chars, name->chars + name->bytes), tyvalist, 0);
   }
 
   register_func_info(func->ident->ident, func, NULL, 0);
@@ -952,7 +953,8 @@ void traverse_ast(Vector *decls) {
           info->item_index = (uint32_t)-1;
         }
         info->symbol_index = symbol_index++;
-        VERBOSE("%2d: %.*s (%d)\n", info->item_index, NAMES(varinfo->ident->ident), info->symbol_index);
+        VERBOSE("%2d: %.*s (%d)\n", info->item_index, NAMES(varinfo->ident->ident),
+                info->symbol_index);
       }
     }
 
@@ -1001,7 +1003,8 @@ void traverse_ast(Vector *decls) {
             (storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
             (storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
           continue;
-        if ((varinfo->global.init == NULL) == (k == 0) || !is_global_datsec_var(varinfo, global_scope))
+        if ((varinfo->global.init == NULL) == (k == 0) ||
+            !is_global_datsec_var(varinfo, global_scope))
           continue;
 
         // Mapped to memory
@@ -1009,7 +1012,8 @@ void traverse_ast(Vector *decls) {
         info->non_prim.address = address;
         size_t size = type_size(varinfo->type);
         address += size;
-        VERBOSE("%04x: %.*s  (size=0x%zx)\n", info->non_prim.address, NAMES(varinfo->ident->ident), size);
+        VERBOSE("%04x: %.*s  (size=0x%zx)\n", info->non_prim.address, NAMES(varinfo->ident->ident),
+                size);
       }
     }
   }

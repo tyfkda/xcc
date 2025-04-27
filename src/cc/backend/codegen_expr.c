@@ -335,8 +335,9 @@ static VReg *gen_ternary(Expr *expr) {
   return result;
 }
 
-static inline void set_call_info(IrCallInfo *call, const Name *label, bool global, int total_arg_count,
-                int reg_arg_count, VReg **args, int vaarg_start) {
+static inline void set_call_info(IrCallInfo *call, const Name *label, bool global,
+                                 int total_arg_count, int reg_arg_count, VReg **args,
+                                 int vaarg_start) {
   call->label = label;
   call->global = global;
   call->args = args;
@@ -431,7 +432,8 @@ static VReg *gen_funcall(Expr *expr) {
   }
 
   int total_arg_count = arg_count + (ret_varinfo != NULL ? 1 : 0);
-  VReg **arg_vregs = total_arg_count == 0 ? NULL : calloc_or_die(total_arg_count * sizeof(*arg_vregs));
+  VReg **arg_vregs = total_arg_count == 0 ? NULL
+                                          : calloc_or_die(total_arg_count * sizeof(*arg_vregs));
 
   {
     // Register arguments.
@@ -714,12 +716,14 @@ static VReg *gen_pos(Expr *expr) {
 
 static VReg *gen_neg(Expr *expr) {
   VReg *vreg = gen_expr(expr->unary.sub);
-  return new_ir_unary(IR_NEG, vreg, to_vsize(expr->type), is_unsigned(expr->type) ? IRF_UNSIGNED : 0);
+  return new_ir_unary(IR_NEG, vreg, to_vsize(expr->type),
+                      is_unsigned(expr->type) ? IRF_UNSIGNED : 0);
 }
 
 static VReg *gen_bitnot(Expr *expr) {
   VReg *vreg = gen_expr(expr->unary.sub);
-  return new_ir_unary(IR_BITNOT, vreg, to_vsize(expr->type), is_unsigned(expr->type) ? IRF_UNSIGNED : 0);
+  return new_ir_unary(IR_BITNOT, vreg, to_vsize(expr->type),
+                      is_unsigned(expr->type) ? IRF_UNSIGNED : 0);
 }
 
 static VReg *gen_relation(Expr *expr) {

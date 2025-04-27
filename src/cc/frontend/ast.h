@@ -484,7 +484,8 @@ typedef struct Function {
 
 #define FUNCF_NORETURN        (1 << 0)
 
-Function *new_func(Type *type, const Token *ident, const Vector *params, Table *attributes, int flag);
+Function *new_func(Type *type, const Token *ident, const Vector *params, Table *attributes,
+                   int flag);
 
 // Declaration
 

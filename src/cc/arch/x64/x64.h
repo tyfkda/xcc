@@ -181,7 +181,6 @@
 #define CQTO()         EMIT_ASM("cqto")
 #define ENDBR64()      EMIT_ASM("endbr64")
 
-
 // SIMD
 #define MOVSD(o1, o2)      EMIT_ASM("movsd", o1, o2)
 #define ADDSD(o1, o2)      EMIT_ASM("addsd", o1, o2)

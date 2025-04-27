@@ -162,7 +162,6 @@
 #define SLTU(o1, o2, o3)      EMIT_ASM("sltu", o1, o2, o3)
 #define SLTIU(o1, o2, o3)     EMIT_ASM("sltiu", o1, o2, o3)
 
-
 #define FMV_D(o1, o2)         EMIT_ASM("fmv.d", o1, o2)  // dst <- src
 #define FADD_D(o1, o2, o3)    EMIT_ASM("fadd.d", o1, o2, o3)
 #define FADD_S(o1, o2, o3)    EMIT_ASM("fadd.s", o1, o2, o3)

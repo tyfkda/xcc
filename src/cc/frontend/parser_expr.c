@@ -532,7 +532,8 @@ static Expr *assign(Expr *lhs, Token *tok) {
   switch (lhs->type->kind) {
   case TY_ARRAY:
   case TY_FUNC:
-    parse_error(PE_NOFATAL, tok, "Cannot assign to %s", lhs->type->kind == TY_ARRAY ? "array" : "function");
+    parse_error(PE_NOFATAL, tok, "Cannot assign to %s",
+                lhs->type->kind == TY_ARRAY ? "array" : "function");
     return rhs;
   default: break;
   }

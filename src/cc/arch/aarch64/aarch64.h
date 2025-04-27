@@ -237,7 +237,6 @@
 
 #define ADRP(o1, o2)          EMIT_ASM("adrp", o1, o2)
 
-
 #define FMOV(o1, o2)       EMIT_ASM("fmov", o1, o2)  // dst <- src
 #define FADD(o1, o2, o3)   EMIT_ASM("fadd", o1, o2, o3)
 #define FSUB(o1, o2, o3)   EMIT_ASM("fsub", o1, o2, o3)

@@ -339,7 +339,8 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
           uint64_t hiaddress = calc_rela_sym_address(ld, elfobj, hirela, hisym, strinfo);
           uint64_t hipc = elfobj->section_infos[shdr->sh_info].progbits.address + hirela->r_offset;
 
-          int64_t offset = hiaddress - (ELF64_R_TYPE(rela->r_info) == R_RISCV_PCREL_LO12_I ? hipc : 0);
+          int64_t offset =
+              hiaddress - (ELF64_R_TYPE(rela->r_info) == R_RISCV_PCREL_LO12_I ? hipc : 0);
           assert(offset < (1L << 31) && offset >= -(1L << 31));
           const uint32_t MASK20 = (1U << 20) - 1;
           const uint32_t MASK12 = (1U << 12) - 1;
@@ -644,7 +645,8 @@ static void ld_load_elf_objects(Vector *section_lists[SECTION_COUNT]) {
                 assert(size > 0);
 
                 ElfObj *elfobj = p->elfobj;
-                void *buf = read_or_die(elfobj->fp, NULL, shdr->sh_offset + elfobj->start_offset, size, "read error");
+                void *buf = read_or_die(elfobj->fp, NULL, shdr->sh_offset + elfobj->start_offset,
+                                        size, "read error");
                 p->progbits.content = buf;
               }
               break;
@@ -777,7 +779,8 @@ static void dump_map_elfobj(LinkEditor *ld, ElfObj *elfobj, File *file, ArConten
 static void dump_map_file(LinkEditor *ld, Vector *symbols) {
   LinkElem *elem;
   const Name *name;
-  for (int it = 0; (it = table_iterate(ld->generated_symbol_table, it, &name, (void**)&elem)) != -1; ) {
+  for (int it = 0;
+       (it = table_iterate(ld->generated_symbol_table, it, &name, (void **)&elem)) != -1;) {
     assert(elem->kind == LEK_SYMBOL);
     uint64_t address = elem->symbol.address;
     DumpSymbol *ds = calloc_or_die(sizeof(*ds));

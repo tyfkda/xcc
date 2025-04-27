@@ -69,7 +69,8 @@ static void eval_initial_value(Expr *expr, Expr **pvar, int64_t *poffset) {
 }
 
 #ifndef __NO_BITFIELD
-static Fixnum calc_bitfield_initial_value(const StructInfo *sinfo, const Initializer *init, int *pi) {
+static Fixnum calc_bitfield_initial_value(const StructInfo *sinfo, const Initializer *init,
+                                          int *pi) {
   assert(!sinfo->is_union);  // TODO
   assert(init == NULL || (init->kind == IK_MULTI && init->multi->len == sinfo->member_count));
   Fixnum x = 0;

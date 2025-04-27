@@ -395,7 +395,8 @@ static int compare_cases(const void *pa, const void *pb) {
   return d > 0 ? 1 : d < 0 ? -1 : 0;
 }
 
-static void gen_switch_cond_table_jump(Stmt *swtch, VReg *vreg, Stmt **cases, int len, int cond_flag) {
+static void gen_switch_cond_table_jump(Stmt *swtch, VReg *vreg, Stmt **cases, int len,
+                                       int cond_flag) {
   Fixnum min = (cases[0])->case_.value->fixnum;
   Fixnum max = (cases[len - 1])->case_.value->fixnum;
   Fixnum range = max - min + 1;

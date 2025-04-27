@@ -176,7 +176,8 @@ static void insert_phis(BBContainer *bbcon, int original_vreg_count) {
 
       for (int j = 0; j < reg_count; ++j) {
         VReg *vreg = bb->in_regs->data[j];
-        assert(vreg->original != vreg && 0 <= ORIG_VIRT(vreg) && ORIG_VIRT(vreg) < original_vreg_count);
+        assert(vreg->original != vreg && 0 <= ORIG_VIRT(vreg) &&
+               ORIG_VIRT(vreg) < original_vreg_count);
         VReg *fv = from_vregs[ORIG_VIRT(vreg)];
         vec_push(phi_params->data[j], fv);
       }

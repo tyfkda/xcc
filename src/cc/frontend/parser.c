@@ -377,7 +377,8 @@ static Stmt *parse_case(const Token *tok) {
 
   Stmt *swtch = loop_scope.swtch;
   if (swtch == NULL) {
-    parse_error(PE_NOFATAL, tok, "`%s' cannot use outside of `switch`", tok->kind == TK_CASE ? "case" : "default");
+    parse_error(PE_NOFATAL, tok, "`%s' cannot use outside of `switch`",
+                tok->kind == TK_CASE ? "case" : "default");
     return parse_stmt();  // Expecting next statement.
   }
 
@@ -774,7 +775,8 @@ static Function *define_func(Type *functype, const Token *ident, const Vector *p
           if (predecl->defun.func->attributes != NULL) {
             const Name *name;
             Vector *params;
-            for (int it = 0; (it = table_iterate(predecl->defun.func->attributes, it, &name, (void**)&params)) != -1; ) {
+            for (int it = 0; (it = table_iterate(predecl->defun.func->attributes, it, &name,
+                                                 (void**)&params)) != -1;) {
               if (!table_try_get(attributes, name, NULL))
                 table_put(attributes, name, params);
             }
@@ -1084,7 +1086,10 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
 
   // Declare: extern void *__dso_handle;
   const Name *dso_handle_name = alloc_name("__dso_handle", NULL, false);
-  scope_add(global_scope, alloc_ident(dso_handle_name, NULL, dso_handle_name->chars, dso_handle_name->chars + dso_handle_name->bytes), &tyVoidPtr, VS_EXTERN | VS_USED);
+  scope_add(global_scope,
+            alloc_ident(dso_handle_name, NULL, dso_handle_name->chars,
+                        dso_handle_name->chars + dso_handle_name->bytes),
+            &tyVoidPtr, VS_EXTERN | VS_USED);
 
   // Declare: extern int __cxa_atexit(void (*)(void*), void*, void*);
   const Name *cxa_atexit_name = alloc_name("__cxa_atexit", NULL, false);
@@ -1101,7 +1106,9 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
     var_add(param_vars, alloc_dummy_ident(), &tyVoidPtr, VS_PARAM);
 
     cxa_atexit_functype = new_func_type(&tyInt, cxa_atexit_param_types, false);
-    define_func(cxa_atexit_functype, alloc_ident(cxa_atexit_name, NULL, cxa_atexit_name->chars, NULL), param_vars, VS_EXTERN | VS_USED, NULL);
+    define_func(cxa_atexit_functype,
+                alloc_ident(cxa_atexit_name, NULL, cxa_atexit_name->chars, NULL), param_vars,
+                VS_EXTERN | VS_USED, NULL);
   }
 
   Vector *param_types = new_vector();
@@ -1125,12 +1132,18 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
   Vector *stmts = new_vector();
   const Token *token = NULL;
   Vector *args = new_vector();
-  vec_push(args, make_refer(token, new_expr_variable(dtor_caller_func->ident->ident, dtor_caller_func->type, token, global_scope)));
+  vec_push(args, make_refer(token, new_expr_variable(dtor_caller_func->ident->ident,
+                                                     dtor_caller_func->type, token, global_scope)));
   vec_push(args, new_expr_fixlit(&tyVoidPtr, token, 0));
-  vec_push(args, new_expr_unary(EX_REF, &tyVoidPtr, NULL, new_expr_variable(dso_handle_name, &tyVoidPtr, token, global_scope)));
+  vec_push(args,
+           new_expr_unary(EX_REF, &tyVoidPtr, NULL,
+                          new_expr_variable(dso_handle_name, &tyVoidPtr, token, global_scope)));
   // __cxa_atexit(dtor_caller, NULL, &__dso_handle);
-  vec_push(stmts, new_stmt_expr(
-      new_expr_funcall(token, cxa_atexit_functype, new_expr_variable(cxa_atexit_name, cxa_atexit_functype, token, global_scope), args)));
+  Expr *funcall = new_expr_funcall(
+      token, cxa_atexit_functype,
+      new_expr_variable(cxa_atexit_name, cxa_atexit_functype, token, global_scope),
+      args);
+  vec_push(stmts, new_stmt_expr(funcall));
 
   func->body_block = new_stmt_block(NULL, stmts, scope, NULL);
 
@@ -1151,8 +1164,10 @@ static void modify_dtor_func(Vector *decls) {
     if (func->attributes != NULL) {
       if (table_try_get(func->attributes, destructor_name, NULL)) {
         const Type *type = func->type;
-        if (type->func.params == NULL || type->func.params->len > 0 || type->func.ret->kind != TY_VOID) {
-          parse_error(PE_NOFATAL, func->ident, "destructor must have no parameters and return void");
+        if (type->func.params == NULL || type->func.params->len > 0 ||
+            type->func.ret->kind != TY_VOID) {
+          parse_error(PE_NOFATAL, func->ident,
+                      "destructor must have no parameters and return void");
         } else {
           if (dtors == NULL)
             dtors = new_vector();

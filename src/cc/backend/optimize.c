@@ -427,7 +427,8 @@ static bool constant_folding(RegAlloc *ra, IR *ir) {
       } else
 #endif
       {
-        int64_t value = wrap_value(calc_const_expr(ir), 1 << ir->dst->vsize, ir->flag & IRF_UNSIGNED);
+        int64_t value = wrap_value(calc_const_expr(ir), 1 << ir->dst->vsize,
+                                   ir->flag & IRF_UNSIGNED);
         // Replace to MOV.
         ir->kind = IR_MOV;
         ir->opr1 = reg_alloc_spawn_const(ra, value, ir->dst->vsize);
@@ -445,7 +446,8 @@ static bool constant_folding(RegAlloc *ra, IR *ir) {
       if (ir->dst->flag & VRF_FLONUM) {
         double value;
         if (!(ir->opr1->flag & VRF_FLONUM)) {
-          value = (ir->flag & IRF_UNSIGNED) ? (double)(uint64_t)ir->opr1->fixnum : (double)ir->opr1->fixnum;
+          value = (ir->flag & IRF_UNSIGNED) ? (double)(uint64_t)ir->opr1->fixnum
+                                            : (double)ir->opr1->fixnum;
         } else {
           value = ir->opr1->flonum.value;
         }
