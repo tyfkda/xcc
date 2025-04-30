@@ -1,5 +1,6 @@
 #include <stdio.h>
 
+#include <inttypes.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>  // intptr_t
@@ -107,6 +108,7 @@ TEST(vsnprintf) {
   EXPECT("size_t:0x54321", "size_t:0x%zx", (size_t)0x54321);
   EXPECT("PRId64:1311768467463790320", "PRId64:%" PRId64, (int64_t)0x123456789abcdef0);
   EXPECT("PRIu64:18364758544493064720", "PRIu64:%" PRIu64, (uint64_t)0xfedcba9876543210);
+  EXPECT("int:0x123,d64:0x456", "int:0x%x,d64:0x%" PRIx64, 0x123, (int64_t)0x456);
 
   EXPECT("String:Foo.", "String:%s.", "Foo");
   EXPECT("BeginPadding:  Bar", "BeginPadding:%5s", "Bar");

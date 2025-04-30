@@ -256,7 +256,7 @@ static void te_funcall(Expr **pexpr, bool needval) {
 
   size_t work_size = calc_funcall_work_size(expr);
   if (work_size > 0) {
-    work_size = ALIGN(work_size, 8);
+    work_size = ALIGN(work_size, STACK_ALIGN);
     assert(curfunc != NULL);
     FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
     assert(finfo != NULL);

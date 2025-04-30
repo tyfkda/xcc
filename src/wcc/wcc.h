@@ -18,6 +18,7 @@ typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 
 #define DEFAULT_STACK_SIZE  (8 * 1024)
+#define STACK_ALIGN         (16)
 
 #define I32_SIZE  (4)  //sizeof(int32_t)
 

@@ -1536,7 +1536,7 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
   FuncInfo *finfo = table_get(&func_info_table, func->ident->ident);
   assert(finfo != NULL);
   if (frame_size > 0 || param_count != pparam_count || (finfo->flag & FF_STACK_MODIFIED)) {
-    frame_size = ALIGN(frame_size, 8);  // TODO:
+    frame_size = ALIGN(frame_size, STACK_ALIGN);
 
     // Allocate a variable for base pointer in function top scope.
     const Token *bpident = alloc_dummy_ident();
@@ -1613,7 +1613,7 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
     }
   }
 
-  assert((finfo->stack_work_size & 7) == 0);
+  assert(((frame_size + finfo->stack_work_size) & (STACK_ALIGN - 1)) == 0);
   return frame_size + finfo->stack_work_size;
 }
 
@@ -2025,16 +2025,25 @@ static Expr *proc_builtin_va_arg(const Token *ident) {
 
   mark_var_used(ap);
 
-  // (ap = (char*)ap + sizeof(type), *(type*)((char*)ap - sizeof(type)))
+  // (ap = ALIGN((size_t)ap, _Alignof(type)) + sizeof(type), *(type*)((size_t)ap - sizeof(type)))
+  const Token *tok = ap->token;
   size_t size = type_size(type);
-  Expr *size_lit = new_expr_fixlit(&tySize, ap->token, size);
-  Expr *cap = make_cast(ptrof(&tyChar), ap->token, ap, true);
-  Expr *add = new_expr_bop(EX_ASSIGN, &tyVoid, ap->token, ap,
-                           new_expr_bop(EX_ADD, cap->type, cap->token, cap, size_lit));
+  Expr *size_lit = new_expr_fixlit(&tySize, tok, size);
+  if (size <= 0)
+    return make_cast(&tyVoid, tok, size_lit, true);
+  size_t align = align_size(type);
+  assert(align > 0);
+  Expr *cap = make_cast(&tySize, tok, ap, true);
+  Expr *and = new_expr_bop(EX_BITAND, &tySize, tok,
+                           new_expr_bop(EX_ADD, &tySize, tok, cap,
+                                        new_expr_fixlit(&tySize, tok, align - 1)),
+                           new_expr_fixlit(&tySize, tok, -align));
+  Expr *add = new_expr_bop(EX_ASSIGN, &tyVoid, tok, ap,
+                           new_expr_bop(EX_ADD, cap->type, tok, and, size_lit));
   Expr *deref = new_expr_deref(
-      ap->token,
-      make_cast(ptrof(type), ap->token,
-                new_expr_bop(EX_SUB, cap->type, cap->token, cap, size_lit),
+      tok,
+      make_cast(ptrof(type), tok,
+                new_expr_bop(EX_SUB, cap->type, tok, cap, size_lit),
                 true));
   return new_expr_bop(EX_COMMA, type, ident, add, deref);
 }
@@ -2065,7 +2074,6 @@ static void gen_alloca(Expr *expr, enum BuiltinFunctionPhase phase) {
     return;
   }
 
-  const int stack_align = 8;  // TODO
   assert(expr->kind == EX_FUNCALL);
   Vector *args = expr->funcall.args;
   assert(args->len == 1);
@@ -2075,8 +2083,8 @@ static void gen_alloca(Expr *expr, enum BuiltinFunctionPhase phase) {
   Expr *aligned_size = new_expr_int_bop(
       EX_BITAND, token,
       new_expr_addsub(EX_ADD, token, make_cast(&tySSize, token, size, false),
-                      new_expr_fixlit(&tySSize, token, stack_align - 1)),
-      new_expr_fixlit(&tySSize, token, -stack_align));
+                      new_expr_fixlit(&tySSize, token, STACK_ALIGN - 1)),
+      new_expr_fixlit(&tySSize, token, -STACK_ALIGN));
 
   assert(finfo != NULL);
   Expr *lspvar = NULL;
