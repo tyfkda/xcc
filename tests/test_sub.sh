@@ -42,7 +42,7 @@ function end_test() {
 AOUT=${AOUT:-$(basename "$(mktemp -u)")}
 XCC=${XCC:-../xcc}
 CPP=${CPP:-../cpp}
-RUN_AOUT=${RUN_AOUT:-./"$AOUT"}
+RUN_AOUT=${RUN_AOUT:-"$RUN_EXE ./$AOUT"}
 
 CC=${CC:-cc}
 REMOVE_TOP_LINEMARKER="tail -n +2"  # First line of preprocessor output is linemarker, so remove it.
@@ -112,7 +112,7 @@ function try_file() {
 
   declare -a args=( "$@" )
   local actual
-  actual=$(${RUN_EXE} ./"$AOUT" "${args[@]:3}") > /dev/null 2>&1 || {
+  actual=$(${RUN_AOUT} "${args[@]:3}") > /dev/null 2>&1 || {
     end_test 'Exec failed'
     return
   }
@@ -135,7 +135,7 @@ function try_cmp() {
   }
 
   declare -a args=( "$@" )
-  ${RUN_EXE} ./"$AOUT" "${args[@]:4}" > /dev/null 2>&1 || {
+  ${RUN_AOUT} "${args[@]:4}" > /dev/null 2>&1 || {
     end_test 'Exec failed'
     return
   }

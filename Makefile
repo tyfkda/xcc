@@ -281,7 +281,9 @@ wcc-gen2:	wcc
 	$(MAKE) HOST_TARGET=wcc HOST_WCC="./wcc" CC="./wcc" WCC_TARGET= wcc-self-hosting
 .PHONY: test-wcc-gen2
 test-wcc-gen2: wcc-gen2
-	$(MAKE) TARGET_CC="../tool/run-gen2wcc.sh" test-wcc-self-hosting
+	$(MAKE) XCC_TEST_EXAMPLES_DIR=/examples \
+		TEST_CC="../tool/run-gen2wcc.sh --mapdir=/examples::../examples --" \
+		test-wcc-self-hosting
 
 .PHONY: wcc-gen3
 wcc-gen3:	wcc-gen2
@@ -297,7 +299,7 @@ wcc-self-hosting:	$(WCC_TARGET)cc.wasm
 
 .PHONY: test-wcc-self-hosting
 test-wcc-self-hosting:
-	$(MAKE) -C tests clean && $(MAKE) WCC="$(TARGET_CC)" -C tests test-wcc
+	$(MAKE) -C tests clean && $(MAKE) WCC="$(TEST_CC)" -C tests test-wcc
 
 $(WCC_TARGET)cc.wasm:	$(WCC_OBJS)  # $(WCC_PARENT)
 	$(HOST_WCC) -o $@ $(WCC_OBJS)

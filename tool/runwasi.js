@@ -42,7 +42,7 @@ async function getRealpaths(map) {
 
   if (program.args.length <= 0) {
     program.help()
-    process.exit(1)
+    // unreachable.
   }
 
   const wasmFileName = program.args[0]

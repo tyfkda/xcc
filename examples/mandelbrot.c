@@ -71,6 +71,7 @@ int main(int argc, char *argv[]) {
 
     FILE *fp = fopen("mandelbrot.ppm", "wb");
     if (fp == NULL) {
+        perror("fopen");
         exit(1);
     }
     fprintf(fp, "P6\n%d %d\n255\n", (int)W, (int)H);

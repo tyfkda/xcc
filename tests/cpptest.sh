@@ -15,7 +15,7 @@ function try_run() {
 
   echo -e "$input" | $CPP $ppflags | $CC -o "$AOUT" -Wall -Werror -xc - || exit 1
 
-  $RUN_AOUT
+  ./"$AOUT"
   local actual="$?"
 
   local err=''; [[ "$actual" == "$expected" ]] || err="${expected} expected, but ${actual}"

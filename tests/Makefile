@@ -160,7 +160,7 @@ WCC:=../wcc
 WCC_TESTS:=valtest dvaltest fvaltest
 
 .PHONY: test-wcc
-test-wcc:	test-wcc-sh $(foreach D, $(WCC_TESTS), $(addprefix test-wcc-,$(D)))
+test-wcc:	test-wcc-sh $(foreach D, $(WCC_TESTS), $(addprefix test-wcc-,$(D))) test-wcc-examples
 	@echo 'All tests PASS!'
 
 .PHONY: test-wcc-sh
@@ -170,6 +170,14 @@ test-wcc-sh:
 	@XCC="$(WCC)" RE_SKIP='\/\/-WCC' \
 		AOUT="$(AWASM)" RUN_AOUT="../tool/runwasi $(AWASM)" \
 		./test.sh
+
+.PHONY: test-wcc-examples
+test-wcc-examples:
+	@echo '## example_test.sh'
+	@$(eval AWASM := $(shell basename `mktemp -u`).wasm)
+	@XCC="$(WCC)" RE_SKIP='\/\/-WCC' \
+		AOUT="$(AWASM)" RUN_AOUT="../tool/runwasi --dir=. $(AWASM)" \
+		./example_test.sh
 
 valtest_WCCSRCS:=$(VAL_SRCS)
 dvaltest_WCCSRCS:=$(FVAL_SRCS)
