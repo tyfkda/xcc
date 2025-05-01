@@ -400,20 +400,22 @@ static Token *read_flonum(const char **pp, int base) {
 #else
   Flonum val = strtold(start, &next);
 #endif
-  enum TokenKind tk = TK_DOUBLELIT;
+  enum { FLOAT, DOUBLE, LDOUBLE };
+  int kind = DOUBLE;
   switch (tolower(*next)) {
   case 'f':
-    tk = TK_FLOATLIT;
+    kind = FLOAT;
     ++next;
     break;
   case 'l':
-    tk = TK_LDOUBLELIT;
+    kind = LDOUBLE;
     ++next;
     break;
   default: break;
   }
-  Token *tok = alloc_token(tk, lexer.line, start, next);
-  tok->flonum = val;
+  Token *tok = alloc_token(TK_FLOATLIT, lexer.line, start, next);
+  tok->flonum.value = val;
+  tok->flonum.kind = kind;
   *pp = next;
 
   if (base == 16) {

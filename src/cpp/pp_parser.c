@@ -300,8 +300,8 @@ static PpResult literal(Token *tok) {
     return tok->fixnum.value;
   // case TK_STR:     return string_expr(tok, tok->str.buf, tok->str.len, tok->str.kind);
 #ifndef __NO_FLONUM
-  case TK_FLOATLIT: case TK_DOUBLELIT: case TK_LDOUBLELIT:
-    return tok->flonum;
+  case TK_FLOATLIT:
+    return tok->flonum.value;
 #endif
   default: assert(false); return 0;  // Unreachable.
   }
@@ -426,8 +426,6 @@ static const ParseRule *get_rule(enum TokenKind kind) {
     [TK_INTLIT]        = {literal},
     [TK_STR]           = {literal},
     [TK_FLOATLIT]      = {literal},
-    [TK_DOUBLELIT]     = {literal},
-    [TK_LDOUBLELIT]    = {literal},
 
     [TK_IDENT]         = {variable},
 

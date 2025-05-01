@@ -306,10 +306,11 @@ static Expr *literal(Token *tok) {
       return new_expr_fixlit(type, tok, tok->fixnum.value);
     }
 #ifndef __NO_FLONUM
-  case TK_FLOATLIT: case TK_DOUBLELIT: case TK_LDOUBLELIT:
+  case TK_FLOATLIT:
     {
       static Type *kTypes[] = {&tyFloat, &tyDouble, &tyLDouble};
-      return new_expr_flolit(kTypes[tok->kind - TK_FLOATLIT], tok, tok->flonum);
+      assert((size_t)tok->flonum.kind < ARRAY_SIZE(kTypes));
+      return new_expr_flolit(kTypes[tok->flonum.kind], tok, tok->flonum.value);
     }
 #endif
   case TK_STR:  return string_expr(tok, tok->str.buf, tok->str.len, tok->str.kind);
@@ -796,8 +797,6 @@ static const ParseRule *get_rule(enum TokenKind kind) {
     [TK_INTLIT]        = {literal},
     [TK_STR]           = {literal},
     [TK_FLOATLIT]      = {literal},
-    [TK_DOUBLELIT]     = {literal},
-    [TK_LDOUBLELIT]    = {literal},
 
     [TK_IDENT]         = {variable},
 

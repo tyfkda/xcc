@@ -71,9 +71,7 @@ enum TokenKind {
   TK_INTLIT,         // int literal (ULL, or 'c', L'W')
   TK_FLOAT,
   TK_DOUBLE,
-  TK_FLOATLIT,       // float literal
-  TK_DOUBLELIT,      // double literal
-  TK_LDOUBLELIT,     // long double literal
+  TK_FLOATLIT,       // float literal (float/double/long double)
   TK_STR,            // String literal
   TK_IDENT,          // Identifier
   TK_LSHIFT,         // <<
@@ -177,7 +175,10 @@ typedef struct Token {
       int flag;
     } fixnum;
 #ifndef __NO_FLONUM
-    Flonum flonum;
+    struct {
+      Flonum value;
+      int kind;  // 0=float, 1=double, 2=long double
+    } flonum;
 #endif
   };
 } Token;
