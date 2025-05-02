@@ -5,12 +5,13 @@
 int _detect_open_flag(const char *mode) {
   enum Chr {
     RWMASK = 3,
-    R = 1 | (1 << 5),
-    W = 2 | (1 << 5),
+    R = 1 | (1 << 7),  // R and W are exclusive.
+    W = 2 | (1 << 7),
     P = 1 << 2,
     MASK = 7,
     A = 1 << 3,
     B = 1 << 4,
+    X = 1 << 5,
   };
   enum Err {
     OK,
@@ -27,6 +28,7 @@ int _detect_open_flag(const char *mode) {
     case 'a':  c = W | A; break;
     case '+':  c = P; break;
     case 'b':  c = B; break;
+    case 'x':  c = X; break;
     default:  err = ILLEGAL_CHR; break;
     }
     if (err != OK || ((chr & c) != 0 && (err = CONFLICT, 1)))
@@ -57,5 +59,7 @@ int _detect_open_flag(const char *mode) {
   int flag = kTable[chr & MASK];
   if ((chr & RWMASK) == (W & RWMASK))
     flag |= (chr & A) ? O_APPEND : O_TRUNC;
+  if (chr & X)
+    flag |= O_EXCL;
   return flag;
 }

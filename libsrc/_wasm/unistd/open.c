@@ -32,6 +32,8 @@ int open(const char *fn, int flag, ...) {
       oflags |= OFLAGS_CREAT;
     if (flag & O_TRUNC)
       oflags |= OFLAGS_TRUNC;
+    if (flag & O_EXCL)
+      oflags |= OFLAGS_EXCL;
   }
 
   // Search from preopens
