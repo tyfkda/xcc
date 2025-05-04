@@ -629,10 +629,14 @@ static void append_predefined_macros(Vector *cpp_cmd) {
   vec_push(cpp_cmd, "-D__APPLE__");
 #elif XCC_TARGET_PLATFORM == XCC_PLATFORM_POSIX
   vec_push(cpp_cmd, "-D__linux__");
+  vec_push(cpp_cmd, "-D__unix__");
+#endif
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE && defined(__MACH__)
+  vec_push(cpp_cmd, "-D__MACH__");
 #endif
 
   vec_push(cpp_cmd, "-D__STDC__");
-  vec_push(cpp_cmd, "-D__STDC_VERSION__=201112L");
+  vec_push(cpp_cmd, "-D__STDC_VERSION__=199901L");
 
   vec_push(cpp_cmd, "-D__SIZEOF_POINTER__=" STR(TARGET_POINTER_SIZE));
 #if XCC_TARGET_PROGRAMMING_MODEL == XCC_PROGRAMMING_MODEL_ILP32

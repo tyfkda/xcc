@@ -157,7 +157,7 @@ int compile_csource(const char *src, const char *ofn, Vector *obj_files, Options
   define_macro("__ILP32__");
   define_macro("__WASM");
   define_macro("__STDC__");
-  define_macro("__STDC_VERSION__=201112L");
+  define_macro("__STDC_VERSION__=199901L");
   define_macro("__SIZEOF_POINTER__=4");
   define_macro("__SIZEOF_INT__=4");
   define_macro("__SIZEOF_LONG__=4");
