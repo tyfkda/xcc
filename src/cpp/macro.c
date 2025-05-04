@@ -378,6 +378,9 @@ void macro_expand(Vector *tokens) {
       Vector *args = pp_funargs(tokens, &next,
                                 macro->vaargs_ident != NULL ? macro->params_len : INT_MAX);
       if (args != NULL) {
+        // Accept no argument for single parameter macro.
+        if (args->len == 0 && macro->vaargs_ident == NULL && macro->params_len == 1)
+          vec_push(args, new_vector());
         int count = macro->params_len +
                     (macro->vaargs_ident != NULL);  // variadic argument is concatenated.
         if (count != args->len) {

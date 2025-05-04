@@ -101,6 +101,7 @@ function test_macro() {
   try_pp 'Nested' 'H(987)' "#define F(x) C(G(x))\n#define G(x) C(H(x))\n#define C(x) x\nF(987)"
   try_pp 'recursive in arg' 'SELF' "#define I(v)  v\n#define SELF  I(SELF)\nSELF"
   try_pp 'Empty arg' '"" ""' "#define F(x, y) #x #y\nF(  ,  )"
+  try_pp 'Empty for single param' '""' "#define F(x) #x\nF()"
   try_pp 'vaarg' '1 2 (3, 4, 5)' "#define VAARG(x, y, ...)  x y (__VA_ARGS__)\nVAARG(1, 2, 3, 4, 5)"
   try_pp 'no vaarg' '1 2 ()' "#define VAARG(x, y, ...)  x y (__VA_ARGS__)\nVAARG(1, 2)"
   try_pp 'all vaarg' '{x, y, z};' "#define ALL(...)  {__VA_ARGS__};\nALL(x, y, z)"
