@@ -43,7 +43,7 @@ char *change_ext(const char *path, const char *ext);
 void put_padding(FILE *fp, long start);
 bool is_file(const char *path);
 
-void show_version(const char *exe);
+void show_version(const char *exe, int arch);
 
 _Noreturn void error(const char *fmt, ...);
 

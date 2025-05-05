@@ -122,19 +122,38 @@ static Vector *sort_sections(Table *section_infos) {
   return sections;
 }
 
+static void usage(FILE *fp) {
+  fprintf(
+      fp,
+      "Usage: as [options] file...\n"
+      "Options:\n"
+      "  -o <filename>       Set output filename (Default: Standard output)\n"
+  );
+}
+
 int main(int argc, char *argv[]) {
-  const char *ofn = NULL;
+  enum {
+    OPT_HELP = 128,
+    OPT_VERSION,
+  };
   static const struct option options[] = {
     {"o", required_argument},  // Specify output filename
-    {"-version", no_argument, 'V'},
+    {"-help", no_argument, OPT_HELP},
+    {"v", no_argument, OPT_VERSION},
+    {"-version", no_argument, OPT_VERSION},
     {NULL},
   };
+
+  const char *ofn = NULL;
   int opt;
   while ((opt = optparse(argc, argv, options)) != -1) {
     switch (opt) {
     default: assert(false); break;
-    case 'V':
-      show_version("as");
+    case OPT_HELP:
+      usage(stdout);
+      exit(0);
+    case OPT_VERSION:
+      show_version("as", XCC_TARGET_ARCH);
       return 0;
     case 'o':
       ofn = optarg;

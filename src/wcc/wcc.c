@@ -277,6 +277,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"-entry-point", required_argument, OPT_ENTRY_POINT},
     {"-stack-size", required_argument, OPT_STACK_SIZE},
     {"-help", no_argument, OPT_HELP},
+    {"v", no_argument, OPT_VERSION},
     {"-version", no_argument, OPT_VERSION},
     {"dumpversion", no_argument, OPT_DUMP_VERSION},
 
@@ -312,10 +313,10 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       usage(stdout);
       exit(0);
     case OPT_VERSION:
-      show_version("wcc");
+      show_version("wcc", XCC_ARCH_WASM);
       exit(0);
     case OPT_DUMP_VERSION:
-      show_version(NULL);
+      show_version(NULL, -1);
       exit(0);
     case 'o':
       opts->ofn = optarg;

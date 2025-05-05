@@ -147,12 +147,14 @@ static void usage(FILE *fp) {
       fp,
       "Usage: xcc [options] file...\n"
       "Options:\n"
-      "  -I <path>           Add include path\n"
       "  -D <label[=value]>  Define label\n"
+      "  -I <path>           Add include path\n"
       "  -o <filename>       Set output filename (Default: a.out)\n"
       "  -c                  Output object file\n"
       "  -S                  Output assembly code\n"
       "  -E                  Output preprocess result\n"
+      "  -l <name>           Add library\n"
+      "  -L <path>           Add library path\n"
   );
 }
 
@@ -328,6 +330,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"Xlinker", required_argument, OPT_LINKOPTION},
     {"shared", no_argument, OPT_SHARED},
     {"-help", no_argument, OPT_HELP},
+    {"v", no_argument, OPT_VERSION},
     {"-version", no_argument, OPT_VERSION},
     {"dumpversion", no_argument, OPT_DUMP_VERSION},
 
@@ -365,10 +368,10 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       usage(stdout);
       exit(0);
     case OPT_VERSION:
-      show_version("xcc");
+      show_version("xcc", XCC_TARGET_ARCH);
       exit(0);
     case OPT_DUMP_VERSION:
-      show_version(NULL);
+      show_version(NULL, -1);
       exit(0);
     case 'I':
       vec_push(opts->cpp_cmd, "-I");

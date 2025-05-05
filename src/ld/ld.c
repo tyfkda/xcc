@@ -873,6 +873,18 @@ static const char *search_library(Vector *lib_paths, const char *libname) {
   return NULL;
 }
 
+static void usage(FILE *fp) {
+  fprintf(
+      fp,
+      "Usage: ld [options] file...\n"
+      "Options:\n"
+      "  -o <filename>       Set output filename (Default: Standard output)\n"
+      "  -l <name>           Add library\n"
+      "  -L <path>           Add library path\n"
+      "  -e <funcname>       Set entry function (Default: _start)\n"
+  );
+}
+
 typedef struct {
   const char *ofn;
   const char *entry;
@@ -894,7 +906,9 @@ static Vector *parse_options(int argc, char *argv[], Options *opts) {
     {"l", required_argument},  // Library
     {"L", required_argument},  // Add library path
     {"Map", required_argument, OPT_OUTMAP},  // Output map file
-    {"-version", no_argument, 'V'},
+    {"-help", no_argument, OPT_HELP},
+    {"v", no_argument, OPT_VERSION},
+    {"-version", no_argument, OPT_VERSION},
 
     {"no-pie", no_argument, OPT_NO_PIE},
     {NULL},
@@ -915,8 +929,11 @@ static Vector *parse_options(int argc, char *argv[], Options *opts) {
 
     switch (opt) {
     default: assert(false); break;
-    case 'V':
-      show_version("ld");
+    case OPT_HELP:
+      usage(stdout);
+      exit(0);
+    case OPT_VERSION:
+      show_version("ld", XCC_TARGET_ARCH);
       break;
     case 'o':
       opts->ofn = optarg;

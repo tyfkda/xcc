@@ -269,11 +269,21 @@ bool is_file(const char *path) {
   return stat(path, &st) == 0 && S_ISREG(st.st_mode);  // Include symbolic link, too.
 }
 
-void show_version(const char *exe) {
-  if (exe != NULL)
-    printf("%s %s\n", exe, VERSION);
-  else
+void show_version(const char *exe, int arch) {
+  if (exe == NULL) {
     printf("%s\n", VERSION);
+  } else if (arch <= 0) {
+    printf("%s version %s\n", exe, VERSION);
+  } else {
+    static const char *kArchs[] = {
+      // Order must be same as XCC_ARCH_*
+      NULL, "x86_64", "arm64", "riscv64", "wasm",
+    };
+    printf(
+        "%s version %s\n"
+        "Target: %s\n"
+        , exe, VERSION, kArchs[arch]);
+  }
 }
 
 void error(const char *fmt, ...) {

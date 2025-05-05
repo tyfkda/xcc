@@ -45,15 +45,28 @@ static void compile1(FILE *ifp, const char *filename, Vector *decls) {
   parse(decls);
 }
 
+static void usage(FILE *fp) {
+  fprintf(
+      fp,
+      "Usage: cc1 [options] file...\n"
+      "Options:\n"
+      "  -O<level>           (ignored)\n"
+  );
+}
+
 int main(int argc, char *argv[]) {
   enum {
-    OPT_FNO = 128,
+    OPT_HELP = 128,
+    OPT_VERSION,
+    OPT_FNO,
     OPT_WNO,
     OPT_SSA,
   };
 
   static const struct option options[] = {
-    {"-version", no_argument, 'V'},
+    {"-help", no_argument, OPT_HELP},
+    {"v", no_argument, OPT_VERSION},
+    {"-version", no_argument, OPT_VERSION},
 
     {"O", optional_argument},  // Optimization level
 
@@ -72,8 +85,11 @@ int main(int argc, char *argv[]) {
   while ((opt = optparse(argc, argv, options)) != -1) {
     switch (opt) {
     default: assert(false); break;
-    case 'V':
-      show_version("cc1");
+    case OPT_HELP:
+      usage(stdout);
+      exit(0);
+    case OPT_VERSION:
+      show_version("cc1", XCC_TARGET_ARCH);
       return 0;
 
     case 'O':

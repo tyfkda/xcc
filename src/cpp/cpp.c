@@ -6,12 +6,27 @@
 #include "preprocessor.h"
 #include "util.h"
 
+static void usage(FILE *fp) {
+  fprintf(
+      fp,
+      "Usage: cpp [options] file...\n"
+      "Options:\n"
+      "  -D <label[=value]>  Define label\n"
+      "  -I <path>           Add include path\n"
+      "  -isystem <path>     Add system include path\n"
+      "  -idirafter <path>   Add include path (lower priority)\n"
+      "  -C                  Preserve comments\n"
+  );
+}
+
 int main(int argc, char *argv[]) {
   FILE *ofp = stdout;
   init_preprocessor(ofp);
 
   enum {
-    OPT_ISYSTEM = 128,
+    OPT_HELP = 128,
+    OPT_VERSION,
+    OPT_ISYSTEM,
     OPT_IDIRAFTER,
   };
 
@@ -22,15 +37,20 @@ int main(int argc, char *argv[]) {
     {"D", required_argument},  // Define macro
     {"U", required_argument},  // Undefine macro
     {"C", no_argument},  // Do not discard comments
-    {"-version", no_argument, 'V'},
+    {"-help", no_argument, OPT_HELP},
+    {"v", no_argument, OPT_VERSION},
+    {"-version", no_argument, OPT_VERSION},
     {0},
   };
   int opt;
   while ((opt = optparse(argc, argv, options)) != -1) {
     switch (opt) {
     default: assert(false); break;
-    case 'V':
-      show_version("cpp");
+    case OPT_HELP:
+      usage(stdout);
+      return 0;
+    case OPT_VERSION:
+      show_version("cpp", -1);
       return 0;
     case 'I':
       add_inc_path(INC_NORMAL, optarg);
