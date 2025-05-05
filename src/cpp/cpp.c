@@ -20,6 +20,7 @@ int main(int argc, char *argv[]) {
     {"isystem", required_argument, OPT_ISYSTEM},  // Add system include path
     {"idirafter", required_argument, OPT_IDIRAFTER},  // Add include path (after)
     {"D", required_argument},  // Define macro
+    {"U", required_argument},  // Undefine macro
     {"C", no_argument},  // Do not discard comments
     {"-version", no_argument, 'V'},
     {0},
@@ -42,6 +43,9 @@ int main(int argc, char *argv[]) {
       break;
     case 'D':
       define_macro(optarg);
+      break;
+    case 'U':
+      undef_macro(optarg, NULL);
       break;
     case 'C':
       set_preserve_comment(true);

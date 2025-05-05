@@ -176,6 +176,16 @@ function test_error() {
   end_test_suite
 }
 
+function test_option() {
+  begin_test_suite "Option"
+
+  try_pp 'Define' '1' "Foobar" "-DFoobar"
+  try_pp 'Define value' '42' "Value" "-DValue=42"
+  try_pp 'Undef' 'Foobar' "Foobar" "-DFoobar -UFoobar"
+
+  end_test_suite
+}
+
 function test_run() {
   begin_test_suite "Run"
 
@@ -202,6 +212,7 @@ test_macro
 test_cat
 test_stringify
 test_error
+test_option
 test_run
 
 if [[ $FAILED_SUITE_COUNT -ne 0 ]]; then

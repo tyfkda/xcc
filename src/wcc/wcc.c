@@ -152,29 +152,6 @@ int compile_csource(const char *src, const char *ofn, Vector *obj_files, Options
     error("cannot open temporary file");
 
   init_preprocessor(ppout);
-  define_macro("__XCC");
-  define_macro("__ILP32__");
-  define_macro("__WASM");
-  define_macro("__STDC__");
-  define_macro("__STDC_VERSION__=199901L");
-  define_macro("__SIZEOF_POINTER__=4");
-  define_macro("__SIZEOF_INT__=4");
-  define_macro("__SIZEOF_LONG__=4");
-  define_macro("__SIZEOF_LONG_LONG__=8");
-  define_macro("__SIZEOF_SIZE_T__=4");
-#if defined(__NO_FLONUM)
-  define_macro("__NO_FLONUM");
-#endif
-#if defined(__NO_BITFIELD)
-  define_macro("__NO_BITFIELD");
-#endif
-#if defined(__NO_VLA)
-  define_macro("__NO_VLA");
-  define_macro("__STDC_NO_VLA__");
-#endif
-#if defined(__NO_WCHAR)
-  define_macro("__NO_WCHAR");
-#endif
 
   for (int i = 0; i < opts->defines->len; ++i) {
     const char *def = opts->defines->data[i];
@@ -287,6 +264,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"l", required_argument},  // Library
     {"L", required_argument},  // Add library path
     {"D", required_argument},  // Define macro
+    {"U", required_argument},  // Undefine macro
     {"C", no_argument},  // Do not discard comments
     {"o", required_argument},  // Specify output filename
     {"x", required_argument},  // Specify code type
@@ -374,6 +352,20 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       break;
     case 'D':
       vec_push(opts->defines, optarg);
+      break;
+    case 'U':
+      {
+        Vector *defines = opts->defines;
+        for (int i = 0; i < defines->len; ++i) {
+          const char *str = defines->data[i];
+          char *end = strchr(str, '=');
+          size_t len = end != NULL ? (size_t)(end - str) : strlen(str);
+          if (strncmp(str, optarg, len) == 0 && optarg[len] == '\0') {
+            vec_remove_at(defines, i);
+            break;
+          }
+        }
+      }
       break;
     case 'C':
       set_preserve_comment(true);
@@ -643,10 +635,39 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
+  Vector *defines = new_vector();
+  static const char *kPredefinedMacros[] = {
+    "__XCC",
+    "__ILP32__",
+    "__WASM",
+    "__STDC__",
+    "__STDC_VERSION__=199901L",
+    "__SIZEOF_POINTER__=4",
+    "__SIZEOF_INT__=4",
+    "__SIZEOF_LONG__=4",
+    "__SIZEOF_LONG_LONG__=8",
+    "__SIZEOF_SIZE_T__=4",
+#if defined(__NO_FLONUM)
+    "__NO_FLONUM",
+#endif
+#if defined(__NO_BITFIELD)
+    "__NO_BITFIELD",
+#endif
+#if defined(__NO_VLA)
+    "__NO_VLA",
+    "__STDC_NO_VLA__",
+#endif
+#if defined(__NO_WCHAR)
+    "__NO_WCHAR",
+#endif
+  };
+  for (size_t i = 0; i < ARRAY_SIZE(kPredefinedMacros); ++i)
+    vec_push(defines, kPredefinedMacros[i]);
+
   Options opts = {
     .exports = new_vector(),
     .lib_paths = new_vector(),
-    .defines = new_vector(),
+    .defines = defines,
     .sources = new_vector(),
     .root = root,
     .ofn = NULL,

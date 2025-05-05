@@ -538,9 +538,7 @@ static void handle_undef(const char **pp) {
   const char *end = read_ident(p);
   if (end == NULL)
     error("ident expected");
-  const Name *name = alloc_name(begin, end, false);
-
-  macro_delete(name);
+  undef_macro(begin, end);
 
   *pp = end;
 }
@@ -862,6 +860,11 @@ void define_macro(const char *arg) {
   char *p = strchr(arg, '=');
   Macro *macro = new_macro(NULL, NULL, parse_macro_body(p != NULL ? p + 1 : "1", NULL));
   macro_add(alloc_name(arg, p, true), macro);
+}
+
+void undef_macro(const char *begin, const char *end) {
+  const Name *name = alloc_name(begin, end, false);
+  macro_delete(name);
 }
 
 void add_inc_path(enum IncludeOrder order, const char *path) {

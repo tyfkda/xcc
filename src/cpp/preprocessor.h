@@ -14,6 +14,7 @@ void set_preserve_comment(bool enable);
 void preprocess(FILE *fp, const char *filename);
 
 void define_macro(const char *arg);  // "FOO" or "BAR=QUX"
+void undef_macro(const char *begin, const char *end);
 void add_inc_path(enum IncludeOrder order, const char *path);
 
 // Handle preprocessor directives and

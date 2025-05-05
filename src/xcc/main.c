@@ -315,6 +315,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"isystem", required_argument, OPT_ISYSTEM},  // Add system include path
     {"idirafter", required_argument, OPT_IDIRAFTER},  // Add include path (after)
     {"D", required_argument},  // Define macro
+    {"U", required_argument},  // Undefine macro
     {"C", no_argument},  // Do not discard comments
     {"o", required_argument},  // Specify output filename
     {"x", required_argument},  // Specify code type
@@ -383,6 +384,10 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       break;
     case 'D':
       vec_push(opts->cpp_cmd, "-D");
+      vec_push(opts->cpp_cmd, optarg);
+      break;
+    case 'U':
+      vec_push(opts->cpp_cmd, "-U");
       vec_push(opts->cpp_cmd, optarg);
       break;
     case 'C':
