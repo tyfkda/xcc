@@ -82,7 +82,7 @@ typedef struct {
   int flag;
 } ExprWithFlag;
 
-typedef struct {
+typedef struct Operand {
   enum OperandType type;
   union {
     Reg reg;

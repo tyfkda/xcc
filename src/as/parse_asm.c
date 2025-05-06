@@ -12,6 +12,7 @@
 #include <alloca.h>
 #endif
 
+#include "inst.h"  // Inst, depends on target architecture.
 #include "ir_asm.h"
 #include "table.h"
 #include "util.h"
@@ -600,10 +601,10 @@ static /*enum RawOpcode*/int find_raw_opcode(ParseInfo *info) {
 }
 
 void parse_inst(ParseInfo *info, Line *line) {
-  Inst *inst = &line->inst;
-  Operand *opr_table = inst->opr;
-  for (int i = 0; i < (int)ARRAY_SIZE(inst->opr); ++i)
-    opr_table[i].type = NOOPERAND;
+  Inst inst;
+  inst.op = NOOP;
+  for (int i = 0; i < (int)ARRAY_SIZE(inst.opr); ++i)
+    inst.opr[i].type = NOOPERAND;
 
   /*enum RawOpcode*/int op = find_raw_opcode(info);
   if (op != R_NOOP) {
@@ -616,7 +617,7 @@ void parse_inst(ParseInfo *info, Line *line) {
     const ParseOpArray *candidates[n];
 #endif
     memcpy(candidates, pt->array, n * sizeof(*candidates));
-    for (int i = 0; i < (int)ARRAY_SIZE(inst->opr); ++i) {
+    for (int i = 0; i < (int)ARRAY_SIZE(inst.opr); ++i) {
       unsigned int opr_flags = 0;
       for (int j = 0; j < n; ++j)
         opr_flags |= candidates[j]->opr_flags[i];
@@ -632,7 +633,7 @@ void parse_inst(ParseInfo *info, Line *line) {
         info->p = skip_whitespaces(info->p + 1);
       }
 
-      Operand *opr = &opr_table[i];
+      Operand *opr = &inst.opr[i];
       const char *before = info->p;
       unsigned int result = parse_operand(info, opr_flags, opr);
       if (result == 0) {
@@ -652,15 +653,21 @@ void parse_inst(ParseInfo *info, Line *line) {
     }
 
     if (n > 0) {
-      inst->op = candidates[0]->op;
+      inst.op = candidates[0]->op;
     }
+  }
+
+  if (inst.op != NOOP) {
+    Inst *cloned = calloc_or_die(sizeof(inst));
+    *cloned = inst;
+    line->inst = cloned;
   }
 }
 
-Line *parse_line(ParseInfo *info) {
-  Line *line = calloc_or_die(sizeof(*line));
+bool parse_line(Line *line, ParseInfo *info) {
+  memset(line, 0, sizeof(*line));
   line->label = NULL;
-  line->inst.op = NOOP;
+  line->inst = NULL;
   line->dir = NODIRECTIVE;
 
   const char *p = skip_whitespaces(info->rawline);
@@ -681,7 +688,7 @@ Line *parse_line(ParseInfo *info) {
       enum DirectiveType dir = find_directive(p + 1, q - p - 1);
       if (dir == NODIRECTIVE) {
         parse_error(info, "Unknown directive");
-        return NULL;
+        return false;
       }
       line->dir = dir;
       info->p = r;
@@ -691,7 +698,7 @@ Line *parse_line(ParseInfo *info) {
       check_line_end(info);
     }
   }
-  return line;
+  return true;
 }
 
 void parse_set_p(ParseInfo *info, const char *p) {

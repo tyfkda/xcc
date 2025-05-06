@@ -32,24 +32,25 @@ static void parse_file(FILE *fp, ParseInfo *info) {
 
     SectionInfo *section = info->current_section;
     Vector *irs = section->irs;
-    Line *line = parse_line(info);
-    if (line == NULL)
+    Line line;
+    if (!parse_line(&line, info))
       continue;
 
-    if (line->label != NULL) {
-      vec_push(irs, new_ir_label(line->label));
+    if (line.label != NULL) {
+      vec_push(irs, new_ir_label(line.label));
 
-      if (!add_label_table(info->label_table, line->label, section, true, false))
+      if (!add_label_table(info->label_table, line.label, section, true, false))
         ++info->error_count;
     }
 
-    if (line->dir == NODIRECTIVE) {
+    if (line.dir != NODIRECTIVE)
+      handle_directive(info, line.dir);
+
+    if (line.inst != NULL) {
       Code code;
-      assemble_inst(&line->inst, info, &code);
+      assemble_inst(line.inst, info, &code);
       if (code.len > 0)
         vec_push(irs, new_ir_code(&code));
-    } else {
-      handle_directive(info, line->dir);
     }
   }
 }

@@ -6,10 +6,10 @@
 #include <stddef.h>  // size_t
 #include <stdint.h>  // int64_t
 
-#include "inst.h"  // Inst
-
 typedef struct DataStorage DataStorage;
+typedef struct Inst Inst;
 typedef struct Name Name;
+typedef struct Operand Operand;
 typedef struct Table Table;
 typedef struct Token Token;
 typedef struct Vector Vector;
@@ -101,7 +101,7 @@ extern const char kSegBss[];
 
 typedef struct Line {
   const Name *label;
-  Inst inst;
+  Inst *inst;
   enum DirectiveType dir;
 } Line;
 
@@ -141,13 +141,13 @@ typedef struct Expr {
   };
 } Expr;
 
-Line *parse_line(ParseInfo *info);
+bool parse_line(Line *line, ParseInfo *info);
 void parse_set_p(ParseInfo *info, const char *p);
 void handle_directive(ParseInfo *info, enum DirectiveType dir);
 void parse_error(ParseInfo *info, const char *message);
 
 typedef struct {
-  enum Opcode op;
+  /*enum Opcode*/ int op;
   int opr_flags[4 + 1];
 } ParseOpArray;
 

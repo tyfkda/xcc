@@ -3,6 +3,7 @@
 
 #include <assert.h>
 
+#include "inst.h"
 #include "parse_asm.h"
 #include "table.h"
 #include "util.h"

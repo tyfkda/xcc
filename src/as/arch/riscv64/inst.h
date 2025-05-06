@@ -83,7 +83,7 @@ enum OperandType {
   ROUNDMODE,  // rm
 };
 
-typedef struct {
+typedef struct Operand {
   enum OperandType type;
   union {
     Reg reg;

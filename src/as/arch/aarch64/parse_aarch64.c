@@ -6,6 +6,7 @@
 #include <string.h>
 #include <strings.h>
 
+#include "inst.h"
 #include "util.h"
 
 enum RawOpcode {
