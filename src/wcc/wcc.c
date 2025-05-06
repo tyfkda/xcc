@@ -18,7 +18,6 @@
 #include "table.h"
 #include "util.h"
 #include "var.h"
-#include "wasm.h"
 #include "wasm_linker.h"
 
 // #define USE_EMCC_AS_LINKER  1

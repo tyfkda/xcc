@@ -7,7 +7,6 @@
 #include "parser.h"
 #include "table.h"
 #include "type.h"
-#include "util.h"
 #include "var.h"
 
 int main(int argc, char *argv[]) {

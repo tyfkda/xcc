@@ -3,7 +3,6 @@
 
 #include <assert.h>
 
-#include "aarch64_code.h"
 #include "parse_asm.h"
 #include "table.h"
 #include "util.h"

@@ -10,7 +10,6 @@
 #include "emit_code.h"
 #include "fe_misc.h"
 #include "lexer.h"
-#include "optimize.h"  // opt_flags
 #include "parser.h"
 #include "type.h"
 #include "util.h"

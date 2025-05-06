@@ -36,7 +36,7 @@ static bool is_asm(Stmt *stmt) {
 static int put_vaarg_params(Function *func) {
   assert(func->type->func.vaargs);
 #if VAARG_ON_STACK
-  return;
+  return 0;
 #else
   RegParamInfo iparams[MAX_REG_ARGS];
   RegParamInfo fparams[MAX_FREG_ARGS];

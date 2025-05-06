@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>  // strtoul
 
-#include "../wcc/wasm.h"
 #include "../wcc/wasm_linker.h"
 #include "../wcc/wcc.h"
 #include "table.h"
