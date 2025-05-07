@@ -1,4 +1,5 @@
 #include "alloca.h"
+#include "limits.h"
 #include "stdarg.h"
 #include "stddef.h"  // offsetof
 #include "stdint.h"
@@ -1610,6 +1611,18 @@ TEST(bitfield) {
     s.z = -(1 << 4);
     EXPECT("post-underflow", -(1 << 4), s.z--);
     EXPECT("post-underflow'", (1 << 4) - 1, s.z);
+  }
+
+  {
+    struct {  // |....xx|x___..|
+      int _ : __SIZEOF_INT__ * CHAR_BIT - 1;
+      int x : 3;
+    } s;
+    s.x = 0;
+    EXPECT("extend bits pre-dec", -1, --s.x);
+    EXPECT("extend bits +=", 3, s.x += 4);
+    EXPECT("extend bits post-inc", 3, s.x++);
+    EXPECT("extend bits post-inc after", -4, s.x);
   }
 
   {

@@ -1099,7 +1099,6 @@ Expr *assign_bitfield_member(const Token *tok, Expr *dst, Expr *src, Expr *val,
   if (minfo->bitfield.position > 0)
     val_masked = new_expr_bop(EX_LSHIFT, type, tok, val_masked,
                               new_expr_fixlit(vtype, tok, minfo->bitfield.position));
-  val_masked = make_cast(type, tok, val_masked, false);
   Expr *src_masked = new_expr_bop(EX_BITAND, type, tok, src,
                                   new_expr_fixlit(type, tok, ~(mask << minfo->bitfield.position)));
   return new_expr_bop(EX_ASSIGN, type, tok, dst,
@@ -1156,14 +1155,14 @@ static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, cons
   Expr *val_assign, *after;
   if (post) {
     Expr *before = extract_bitfield_value(src, minfo);
-    val_assign = new_expr_bop(EX_ASSIGN, type, tok, val, before);
-    after = new_expr_bop(!dec ? EX_ADD : EX_SUB, type, tok, before, new_expr_fixlit(type, NULL, 1));
+    val_assign = new_expr_bop(EX_ASSIGN, vtype, tok, val, make_cast(vtype, tok, before, false));
+    after = new_expr_bop(!dec ? EX_ADD : EX_SUB, vtype, tok, before, new_expr_fixlit(vtype, NULL, 1));
   } else {
     Expr *tmp = extract_bitfield_value(
         new_expr_bop(!dec ? EX_ADD : EX_SUB, type, tok, src,
-                     new_expr_fixlit(type, NULL, 1 << minfo->bitfield.position)),
+                     new_expr_fixlit(type, NULL, 1LL << minfo->bitfield.position)),
         minfo);
-    val_assign = new_expr_bop(EX_ASSIGN, type, tok, val, tmp);
+    val_assign = new_expr_bop(EX_ASSIGN, vtype, tok, val, make_cast(vtype, tok, tmp, false));
     after = val;
   }
   Expr *store = assign_bitfield_member(tok, dst, src, after, minfo);
@@ -1171,7 +1170,7 @@ static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, cons
   return new_expr_bop(
       EX_COMMA, vtype, tok,
       new_expr_bop(EX_COMMA, vtype, tok, ptr_assign,
-                    new_expr_bop(EX_COMMA, vtype, tok, src_assign,
+                   new_expr_bop(EX_COMMA, vtype, tok, src_assign,
                                 new_expr_bop(EX_COMMA, vtype, tok, val_assign, store))),
       val);
 }
