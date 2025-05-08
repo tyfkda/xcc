@@ -176,6 +176,7 @@ function test_error() {
   compile_error 'after noreturn function' '#include <stdlib.h>\nint main(){ exit(0); return 1; }'
   compile_error 'noreturn should not return' 'void sub(void) __attribute__((noreturn));\nvoid sub(void){}\nint main(){ sub(); }'
   compile_error 'noreturn should be void' '#include <stdlib.h>\nint sub(void) __attribute__((noreturn));\nint sub(void){exit(0);}\nint main(){ sub(); }'
+  try 'NOTREACHED comment allows unreachable statement' 1 'int x = 0; switch (x) { case 0: return 111; /*NOTREACHED*/ x = -x; default: return x; }'
 
   # Unused check.
   compile_error 'unused local variable' 'int main(){ int x = 0; x = 1; return 0; }'
