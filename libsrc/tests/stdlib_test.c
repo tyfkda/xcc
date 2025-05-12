@@ -1,6 +1,7 @@
 #include <stdlib.h>
 
 #include <limits.h>
+#include <float.h>
 
 #include "../../tests/xtest.h"
 
@@ -113,6 +114,13 @@ TEST(strtod) {
   union u { double d; uint64_t x; } u;
   u.d = strtod("-0.0", NULL);
   EXPECT_EQ(0x8000000000000000LL, u.x);
+
+  double dbl_max_in_hex = strtod("0x1.fffffffffffffp+1023", NULL);
+  EXPECT_TRUE(dbl_max_in_hex < INFINITY);
+  EXPECT_DEQ(DBL_MAX, dbl_max_in_hex);
+
+  float flt_max_in_hex = strtod("0x1.fffffep+127", NULL);
+  EXPECT_DEQ(FLT_MAX, flt_max_in_hex);
 #endif
 }
 

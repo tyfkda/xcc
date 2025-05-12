@@ -6,6 +6,8 @@ int main() {
 }
 #else
 
+#include "float.h"
+
 #ifdef USE_SINGLE
 typedef float Number;
 #define NUMBER_TYPE_SIZE  (4)
@@ -44,6 +46,18 @@ TEST(mix) {
     snprintf(buf, sizeof(buf), "%" PRIx64, x);
     EXPECT_STREQ("ulltof", "f123456789012000", buf);
   }
+#endif
+
+#ifndef USE_SINGLE
+  EXPECT_TRUE(DBL_MAX != INFINITY);
+  EXPECT_TRUE(DBL_MAX < INFINITY);
+  EXPECT_TRUE(DBL_MIN != 0.0);
+  EXPECT_TRUE(DBL_MIN > 0.0);
+#else
+  EXPECT_TRUE(FLT_MAX != (float)INFINITY);
+  EXPECT_TRUE(FLT_MAX < (float)INFINITY);
+  EXPECT_TRUE(FLT_MIN != 0.0f);
+  EXPECT_TRUE(FLT_MIN > 0.0f);
 #endif
 }
 

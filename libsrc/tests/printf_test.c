@@ -9,6 +9,7 @@
 
 #ifndef __NO_FLONUM
 #include <math.h>
+#include <float.h>
 #endif
 
 #include "../../tests/xtest.h"
@@ -151,6 +152,11 @@ TEST(vsnprintf) {
   EXPECT("Scientific:1.234e-05", "Scientific:%g", 1.234e-5);
   EXPECT("Scientific:-inf", "Scientific:%g", -HUGE_VAL);
   EXPECT("Scientific:nan", "Scientific:%g", NAN);
+
+  EXPECT("DBL_MIN:2.225074e-308", "DBL_MIN:%g", DBL_MIN);
+  EXPECT("DBL_MAX:1.797693e+308", "DBL_MAX:%g", DBL_MAX);
+  EXPECT("FLT_MIN:1.175494e-38", "FLT_MIN:%g", FLT_MIN);
+  EXPECT("FLT_MAX:3.402823e+38", "FLT_MAX:%g", FLT_MAX);  // 3.402824e+38 ?
 #endif
 #undef EXPECT
 }

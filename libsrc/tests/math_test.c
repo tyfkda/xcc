@@ -1,6 +1,7 @@
 #include <math.h>
 
 #ifndef __NO_FLONUM
+#include <float.h>
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -136,6 +137,17 @@ TEST(frexp) {
   e = 5678;
   EXPECT_NAN(frexp(NAN, &e));
   EXPECT_EQ(0, e);
+
+  EXPECT((uint64_t)0x1fffffffffffff / (double)(1ULL << 53), frexp(DBL_MAX, &e));
+  EXPECT_EQ(1024, e);
+}
+
+TEST(isfinite) {
+  EXPECT_TRUE(isfinite(1.23));
+  EXPECT_TRUE(isfinite(0.0));
+  EXPECT_FALSE(isfinite(HUGE_VAL));
+  EXPECT_FALSE(isfinite(NAN));
+  EXPECT_TRUE(isfinite(DBL_MAX));
 }
 
 TEST(isinf) {
@@ -143,6 +155,7 @@ TEST(isinf) {
   EXPECT_FALSE(isinf(1.23));
   EXPECT_FALSE(isinf(0.0));
   EXPECT_FALSE(isinf(NAN));
+  EXPECT_FALSE(isinf(DBL_MAX));
 }
 
 TEST(isnan) {
@@ -151,6 +164,7 @@ TEST(isnan) {
   EXPECT_FALSE(isnan(1.23));
   EXPECT_FALSE(isnan(0.0));
   EXPECT_FALSE(isnan(HUGE_VAL));
+  EXPECT_FALSE(isnan(DBL_MAX));
 }
 
 TEST(copysign_signbit) {
