@@ -325,7 +325,7 @@ static void gen_funcall(Expr *expr) {
     gen_lval(e);
   }
 
-  size_t offset = 0;
+  size_t offset = 0, vaarg_offset = 0;
   for (int i = 0; i < arg_count; ++i) {
     Expr *arg = args->data[i];
     if (is_stack_param(arg->type)) {
@@ -367,11 +367,19 @@ static void gen_funcall(Expr *expr) {
       gen_expr(arg, true);
       gen_store(t);
     }
+
+    if (functype->func.vaargs && i == param_count - 1)
+      vaarg_offset = offset;
   }
   if (functype->func.vaargs) {
     // Top of vaargs.
     if (arg_count > param_count) {
       gen_expr(lspvar, true);
+      if (vaarg_offset != 0) {
+        ADD_CODE(OP_I32_CONST);
+        ADD_LEB128(vaarg_offset);
+        ADD_CODE(OP_I32_ADD);
+      }
     } else {
       ADD_CODE(OP_I32_CONST, 0);  // NULL
     }
@@ -1647,8 +1655,16 @@ static void gen_defun(Function *func) {
     assert(varinfo != NULL);
     VReg *vreg = varinfo->local.vreg;
     assert(vreg != NULL);
+
+    int vaarg_param_index = 0;
+    for (int i = 0; i < func->params->len; ++i) {
+      const VarInfo *varinfo = func->params->data[i];
+      if (!is_stack_param(varinfo->type))
+        ++vaarg_param_index;
+    }
+
     ADD_CODE(OP_LOCAL_GET);
-    ADD_ULEB128(functype->func.params->len);
+    ADD_ULEB128(vaarg_param_index);
     ADD_CODE(OP_LOCAL_SET);
     ADD_ULEB128(vreg->prim.local_index);
   }

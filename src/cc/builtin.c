@@ -227,10 +227,13 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   }
 
   int gn = 0, fn = 0;
+  size_t mem_offset = 0;
   for (int i = 0; i < params->len; ++i) {
     VarInfo *info = params->data[i];
     const Type *t = info->type;
-    if (t->kind != TY_STRUCT) {
+    if (is_stack_param(t)) {
+      mem_offset += ALIGN(type_size(t), 8);
+    } else {
       if (is_flonum(t))
         ++fn;
       else
@@ -262,9 +265,10 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     FrameInfo *fi = &fnbe->vaarg_frame_info;
     VReg *p = new_ir_bofs(fi)->dst;
     int gs = MAX(gn - MAX_REG_ARGS, 0), fs = MAX(fn - MAX_FREG_ARGS, 0);
-    if (gs > 0 || fs > 0) {
-      p = new_ir_bop(IR_ADD, p, new_const_vreg((gs + fs) * TARGET_POINTER_SIZE, vsize), vsize,
-                     IRF_UNSIGNED);
+    size_t offset = (gs + fs) * TARGET_POINTER_SIZE + mem_offset;
+    if (offset > 0) {
+      VReg *addend = new_const_vreg(offset, vsize);
+      p = new_ir_bop(IR_ADD, p, addend, vsize, IRF_UNSIGNED);
     }
     new_ir_store(overflow_arg_area, p, 0);
   }
