@@ -15,7 +15,12 @@
 #include "var.h"
 
 bool is_stack_param(const Type *type) {
+#if STRUCT_ARG_AS_POINTER
+  UNUSED(type);
+  return false;
+#else
   return type->kind == TY_STRUCT;
+#endif
 }
 
 enum VRegSize to_vsize(const Type *type) {
@@ -232,8 +237,16 @@ static VReg *gen_ref_sub(Expr *expr) {
       if (is_global_scope(scope)) {
         global = (varinfo->storage & VS_STATIC) == 0;
       } else {
-        if (is_local_storage(varinfo))
+        if (is_local_storage(varinfo)) {
+#if STRUCT_ARG_AS_POINTER
+          if (varinfo->storage & VS_PARAM && expr->type->kind == TY_STRUCT) {
+            assert(varinfo->type->kind == TY_PTR);  // Already transformed from struct to pointer.
+            assert(varinfo->local.vreg != NULL);
+            return varinfo->local.vreg;
+          }
+#endif
           return new_ir_bofs(varinfo->local.frameinfo)->dst;
+        }
         if (varinfo->storage & VS_STATIC)
           name = varinfo->static_.svar->ident->ident;
         else
@@ -357,7 +370,7 @@ static VReg *gen_funcall(Expr *expr) {
   assert(functype != NULL);
 
   VarInfo *ret_varinfo = NULL;  // Return value is on the stack.
-  if (is_stack_param(expr->type)) {
+  if (expr->type->kind == TY_STRUCT) {
     const Token *token = alloc_dummy_ident();
     Type *type = expr->type;
     ret_varinfo = scope_add(curscope, token, type, 0);

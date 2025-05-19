@@ -62,6 +62,11 @@
 #define VAARG_FP_AS_GP  1
 #endif
 
+#if !defined(STRUCT_ARG_AS_POINTER) && XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+// Put struct pointer instead of instance
+#define STRUCT_ARG_AS_POINTER  1
+#endif
+
 #if !defined(VAARG_STRUCT_AS_POINTER) && \
     ((XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE && XCC_TARGET_ARCH == XCC_ARCH_AARCH64) || \
      (XCC_TARGET_ARCH == XCC_ARCH_RISCV64))

@@ -93,17 +93,23 @@ static void alloc_variable_registers(Function *func) {
 
       varinfo->local.vreg = NULL;
       varinfo->local.frameinfo = NULL;
-      if (!is_prim_type(varinfo->type)) {
+      Type *type = varinfo->type;
+#if STRUCT_ARG_AS_POINTER
+      if (varinfo->storage & VS_PARAM && type->kind == TY_STRUCT) {
+        varinfo->type = type = ptrof(type);  // Caution! Overwrite type as its pointer.
+      }
+#endif
+      if (!is_prim_type(type)) {
         FrameInfo *fi = malloc_or_die(sizeof(*fi));
         fi->offset = 0;
         varinfo->local.frameinfo = fi;
         continue;
       }
 
-      VReg *vreg = add_new_vreg(varinfo->type);
+      VReg *vreg = add_new_vreg(type);
       if (varinfo->storage & VS_REF_TAKEN)
         vreg->flag |= VRF_REF;
-      if (varinfo->type->qualifier & TQ_VOLATILE)
+      if (type->qualifier & TQ_VOLATILE)
         vreg->flag |= VRF_VOLATILE;
       varinfo->local.vreg = vreg;
       varinfo->local.frameinfo = &vreg->frame;
@@ -120,7 +126,7 @@ static void alloc_variable_registers(Function *func) {
   enum RegKind { IREG = 0, FREG = 1 };
 
   // Handle if return value is on the stack.
-  if (is_stack_param(func->type->func.ret)) {
+  if (func->type->func.ret->kind == TY_STRUCT) {
     prepare_retvar(func);
     ++regparams[IREG].index;
   }

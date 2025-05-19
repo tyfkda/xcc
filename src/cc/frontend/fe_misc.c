@@ -666,12 +666,25 @@ Expr *reduce_refer(Expr *expr) {
 
       // Transform member access to pointer dereference, only if target is referenceable.
       // target->field => *(target + offset(field))
+      Type *type = target->type;
       switch (target->kind) {
       case EX_VAR:
+#if STRUCT_ARG_AS_POINTER
+        if (type->kind == TY_STRUCT) {
+          VarInfo *varinfo = scope_find(target->var.scope, target->var.name, NULL);
+          assert(varinfo != NULL);
+          if (varinfo->storage & VS_PARAM) {
+            // The parameter is passed by reference.
+            assert(varinfo->type->kind == TY_PTR && varinfo->type->pa.ptrof == type);
+            target->type = type = varinfo->type;
+          }
+        }
+#endif
+        // Fallthrough
       case EX_DEREF:
-        if (target->type->kind == TY_STRUCT) {
+        if (type->kind == TY_STRUCT) {
           // target.field => (&target)->field
-          target = new_expr_unary(EX_REF, ptrof(target->type), target->token, target);
+          target = new_expr_unary(EX_REF, ptrof(type), target->token, target);
         }
         return new_expr_unary(EX_DEREF, minfo->type, expr->token,
                               new_expr_bop(EX_ADD, ptrof(minfo->type), expr->token, target,
@@ -1459,6 +1472,21 @@ Expr *make_not_expr(const Token *tok, Expr *expr) {
   return new_expr_cmp(EX_EQ, tok, expr, zero);
 }
 
+#if STRUCT_ARG_AS_POINTER || VAARG_STRUCT_AS_POINTER
+// Convert to struct pointer using compound literal: &(type){arg}
+static Expr *struct_arg_as_pointer(Expr *arg, Type *type) {
+  const Token *tok = arg->token;
+  if (arg->kind != EX_COMPLIT) {
+    Expr *var = alloc_tmp_var(curscope, type);
+    Initializer *init = new_initializer(IK_SINGLE, tok);
+    init->single = arg;
+    Vector *inits = assign_initial_value(var, init, NULL);
+    arg = new_expr_complit(type, tok, var, inits, init);
+  }
+  return make_refer(tok, arg);
+}
+#endif
+
 void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
   Type *functype = get_callee_type(func->type);
   if (functype == NULL)
@@ -1494,6 +1522,9 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
         assert(type->struct_.info != NULL);
         if (type->struct_.info->is_flexible)
           parse_error(PE_NOFATAL, arg->token, "flexible array as an argument not allowed");
+#if STRUCT_ARG_AS_POINTER
+        arg = struct_arg_as_pointer(arg, type);
+#endif
       }
     } else if (vaargs && i >= paramc) {
       Type *type = arg->type;
@@ -1505,19 +1536,9 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
         if (type->flonum.kind < FL_DOUBLE)  // Promote variadic argument.
           arg = make_cast(&tyDouble, arg->token, arg, false);
         break;
-#if VAARG_STRUCT_AS_POINTER
+#if STRUCT_ARG_AS_POINTER || VAARG_STRUCT_AS_POINTER
       case TY_STRUCT:
-        {  // Convert to struct pointer using compound literal: &(type){arg}
-          const Token *tok = arg->token;
-          if (arg->kind != EX_COMPLIT) {
-            Expr *var = alloc_tmp_var(curscope, type);
-            Initializer *init = new_initializer(IK_SINGLE, tok);
-            init->single = arg;
-            Vector *inits = assign_initial_value(var, init, NULL);
-            arg = new_expr_complit(type, tok, var, inits, init);
-          }
-          arg = make_refer(tok, arg);
-        }
+        arg = struct_arg_as_pointer(arg, type);
         break;
 #endif
       default: break;
