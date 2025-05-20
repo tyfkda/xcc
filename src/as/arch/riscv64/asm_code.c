@@ -490,7 +490,7 @@ static unsigned char *asm_fcmp(Inst *inst, Code *code) {
   assert(inst->opr[0].type == REG);
   assert(inst->opr[1].type == FREG);
   assert(inst->opr[2].type == FREG);
-  int rd = inst->opr[0].freg;
+  int rd = inst->opr[0].reg.no;
   int rs1 = inst->opr[1].freg;
   int rs2 = inst->opr[2].freg;
   switch (inst->op) {
