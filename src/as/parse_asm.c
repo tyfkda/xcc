@@ -578,6 +578,17 @@ static void check_line_end(ParseInfo *info) {
 
 #define R_NOOP  0
 
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+static const Name *alloc_dummy_label(void) {
+  // TODO: Ensure label is unique.
+  static int label_no;
+  ++label_no;
+  char buf[2 + sizeof(int) * 3 + 1];
+  snprintf(buf, sizeof(buf), "._%d", label_no);
+  return alloc_name(buf, NULL, true);
+}
+#endif
+
 static /*enum RawOpcode*/int find_raw_opcode(ParseInfo *info) {
   const char *p = info->p;
   const char *start = p;
@@ -654,6 +665,29 @@ void parse_inst(ParseInfo *info, Line *line) {
 
     if (n > 0) {
       inst.op = candidates[0]->op;
+
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+      // Tweak for instruction.
+      switch (inst.op) {
+      case LA:
+        // Store corresponding label to opr3.
+        if (line->label == NULL) {
+          // Generate unique label.
+          const Name *label = alloc_dummy_label();
+          line->label = label;
+        }
+        if (inst.opr[2].type == NOOPERAND) {
+          Expr *expr = new_expr(EX_LABEL);
+          expr->label.name = line->label;
+
+          Operand *opr = &inst.opr[2];
+          opr->type = DIRECT;
+          opr->direct.expr = expr;
+        }
+        break;
+      default: break;
+      }
+#endif
     }
   }
 

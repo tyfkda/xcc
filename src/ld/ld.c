@@ -331,16 +331,17 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
           // Assume [..., [j-2]=PCREL_HI20, [j-1]=RELAX, [j]=PCREL_LO12_I, ...]
           assert(j >= 2);
           const Elf64_Rela *hirela = &relas[j - 2];
-          assert((ELF64_R_TYPE(rela->r_info) == R_RISCV_PCREL_LO12_I &&
-                  ELF64_R_TYPE(hirela->r_info) == R_RISCV_PCREL_HI20) ||
-                 (ELF64_R_TYPE(rela->r_info) == R_RISCV_LO12_I &&
-                  ELF64_R_TYPE(hirela->r_info) == R_RISCV_HI20));
+          Elf64_Word type = ELF64_R_TYPE(rela->r_info);
+          Elf64_Word hitype = ELF64_R_TYPE(hirela->r_info);
+          assert((type == R_RISCV_PCREL_LO12_I &&
+                  hitype == R_RISCV_PCREL_HI20) ||
+                 (type == R_RISCV_LO12_I &&
+                  hitype == R_RISCV_HI20));
           const Elf64_Sym *hisym = &symhdrinfo->symtab.syms[ELF64_R_SYM(hirela->r_info)];
           uint64_t hiaddress = calc_rela_sym_address(ld, elfobj, hirela, hisym, strinfo);
           uint64_t hipc = elfobj->section_infos[shdr->sh_info].progbits.address + hirela->r_offset;
 
-          int64_t offset =
-              hiaddress - (ELF64_R_TYPE(rela->r_info) == R_RISCV_PCREL_LO12_I ? hipc : 0);
+          int64_t offset = hiaddress - (type == R_RISCV_PCREL_LO12_I ? hipc : 0);
           assert(offset < (1L << 31) && offset >= -(1L << 31));
           const uint32_t MASK20 = (1U << 20) - 1;
           const uint32_t MASK12 = (1U << 12) - 1;
