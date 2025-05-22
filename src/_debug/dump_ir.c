@@ -49,7 +49,6 @@ static void dump_vvreg(FILE *fp, VReg *vreg, RegAlloc *ra) {
 
 static void dump_vreg(FILE *fp, VReg *vreg, RegAlloc *ra) {
   assert(vreg != NULL);
-  assert(!(vreg->flag & VRF_SPILLED));
   if (vreg->flag & VRF_CONST) {
 #ifndef __NO_FLONUM
     if (vreg->flag & VRF_FLONUM) {
@@ -59,6 +58,7 @@ static void dump_vreg(FILE *fp, VReg *vreg, RegAlloc *ra) {
 #endif
     fprintf(fp, "(%" PRId64 ")", vreg->fixnum);
   } else if (vreg->phys >= 0) {
+    assert(!(vreg->flag & VRF_SPILLED));
     char regtype = 'R';
     if (vreg->flag & VRF_FLONUM)
       regtype = 'F';
@@ -320,8 +320,9 @@ void do_dump_ir(Vector *decls) {
     if (!gen_defun(func))
       continue;
 
-    curfunc = func;
     FuncBackend *fnbe = func->extra;
+    curfunc = func;
+    curra = fnbe->ra;
 
     optimize(fnbe->ra, fnbe->bbcon);
 
@@ -339,6 +340,7 @@ void do_dump_ir(Vector *decls) {
     }
 
     curfunc = NULL;
+    curra = NULL;
 
     dump_func_ir(func);
   }

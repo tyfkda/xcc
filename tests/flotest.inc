@@ -1,7 +1,4 @@
 #include "stdbool.h"
-#include "stdint.h"
-#include "stdio.h"
-#include "stdlib.h"  // exit
 #include "math.h"  // HUGE_VAL, NAN
 
 #include "./xtest.h"
