@@ -191,6 +191,10 @@ static Expr *parse_generic(void) {
   Type *type = target->type;
   if (type->kind == TY_ARRAY)
     type = array_to_ptr(type);
+  if (type->qualifier != 0) {
+    type = clone_type(type);
+    type->qualifier = 0;
+  }
   for (int i = 0; i < types->len; ++i) {
     Type *t = types->data[i];
     if (same_type(t, type))

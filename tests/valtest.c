@@ -2130,11 +2130,13 @@ TEST(extension) {
   {
 #define GENERIC_FUNC(x) _Generic((x), int: 1, long: 2, uint64_t: 3, char*: 10, const char*: 11, void*: 12, default: 99)
     EXPECT("generic int",         1, GENERIC_FUNC(123));
+    EXPECT("generic const ignored", 1, _Generic((const int)123, const int: 2, int: 1, default: 3));
     EXPECT("generic long",        2, GENERIC_FUNC(456L));
     EXPECT("generic uint64_t",    3, GENERIC_FUNC((uint64_t)789));
     EXPECT("generic str literal", 10, GENERIC_FUNC("str"));
     const char str[] = "str";
     EXPECT("generic char array",  11, GENERIC_FUNC(str));
+    EXPECT("generic char array2", 10, _Generic((char*)str, const char*: 11, char*: 10));
     int a[] = {1, 2, 3};
     EXPECT("generic pointer",     99, GENERIC_FUNC(a));
     EXPECT("generic pointer",     99, GENERIC_FUNC((char)'x'));
