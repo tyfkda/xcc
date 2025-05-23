@@ -581,6 +581,18 @@ static void peephole(RegAlloc *ra, BB *bb) {
     case IR_DIV:
       i = muldiv_to_shift(ra, bb, i);
       break;
+    case IR_MOV:
+      if (!(ir->opr1->flag & VRF_CONST) && i > 0) {
+        // t = a @@ b, c = t  =>  c = a + b, t = c
+        IR *prev = bb->irs->data[i - 1];
+        if (prev->dst == ir->opr1) {
+          VReg *vt = prev->dst, *vc = ir->dst;
+          prev->dst = vc;
+          ir->dst = vt;
+          ir->opr1 = vc;
+        }
+      }
+      break;
     default:
       break;
     }
