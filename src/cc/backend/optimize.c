@@ -491,49 +491,94 @@ static bool constant_folding(RegAlloc *ra, IR *ir) {
 
 //
 
+static inline void fold_biofs_addition(BB *bb, int i) {
+  IR *ir = bb->irs->data[i];
+  if (i < bb->irs->len - 1) {
+    IR *next = bb->irs->data[i + 1];
+    if ((next->kind == IR_ADD || next->kind == IR_SUB) &&
+        next->opr1 == ir->dst && next->opr2->flag & VRF_CONST) {
+      assert(!(next->opr2->flag & VRF_FLONUM));
+      // Overwrite next IR. Current IR should be eliminated because of dst is unused.
+      VReg *dst = next->dst;
+      int64_t offset = next->opr2->fixnum;
+      if (next->kind == IR_SUB)
+        offset = -offset;
+      *next = *ir;
+      next->dst = dst;
+      if (ir->kind == IR_BOFS)
+        next->bofs.offset += offset;
+      else
+        next->iofs.offset += offset;
+    }
+  }
+}
+
+static inline void fold_addition(RegAlloc *ra, BB *bb, int i) {
+  IR *ir = bb->irs->data[i];
+  if ((ir->opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_CONST && i < bb->irs->len - 1) {
+    IR *next = bb->irs->data[i + 1];
+    if ((next->kind == IR_ADD || next->kind == IR_SUB) &&
+        next->opr1 == ir->dst && next->opr2->flag & VRF_CONST) {
+      assert(!(next->opr2->flag & VRF_FLONUM));
+      // Overwrite next IR. Current IR should be eliminated because of dst is unused.
+      VReg *dst = next->dst;
+      VReg *opr2 = ir->opr2;
+      int64_t value1 = opr2->fixnum;
+      if (ir->kind == IR_SUB)
+        value1 = -value1;
+      int64_t value2 = next->opr2->fixnum;
+      if (next->kind == IR_SUB)
+        value2 = -value2;
+      *next = *ir;
+      next->kind = IR_ADD;
+      next->dst = dst;
+      next->opr2 = reg_alloc_spawn_const(ra, value1 + value2, opr2->vsize);
+    }
+  }
+}
+
+static inline void muldiv_to_shift(RegAlloc *ra, BB *bb, int i) {
+  IR *ir = bb->irs->data[i];
+  if ((ir->opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_CONST &&
+      IS_POWER_OF_2(ir->opr2->fixnum)) {
+    int shift = most_significant_bit(ir->opr2->fixnum);
+    if (ir->kind == IR_DIV && !(ir->flag & IRF_UNSIGNED)) {
+      // Patch for signed right shift:
+      enum VRegSize vsize = ir->opr1->vsize;
+      int bits = TARGET_CHAR_BIT << vsize;
+      VReg *tmp = reg_alloc_spawn(ra, vsize, ir->opr1->flag & VRF_MASK);
+      IR *mov = new_ir_mov(tmp, ir->opr1, ir->flag);
+      IR *sign_bit = new_ir_bop_raw(IR_RSHIFT, tmp, tmp,
+                                    reg_alloc_spawn_const(ra, bits - 1, vsize), ir->flag);
+      IR *addend = new_ir_bop_raw(IR_RSHIFT, tmp, tmp,
+                                  reg_alloc_spawn_const(ra, bits - shift, vsize), IRF_UNSIGNED);
+      IR *add = new_ir_bop_raw(IR_ADD, tmp, tmp, ir->opr1, 0);
+      vec_insert(bb->irs, i++, mov);
+      vec_insert(bb->irs, i++, sign_bit);
+      vec_insert(bb->irs, i++, addend);
+      vec_insert(bb->irs, i++, add);
+      ir->opr1 = tmp;
+    }
+    ir->kind = ir->kind + (IR_LSHIFT - IR_MUL);
+    ir->opr2 = reg_alloc_spawn_const(ra, shift, ir->opr2->vsize);
+  }
+}
+
 static void peephole(RegAlloc *ra, BB *bb) {
   for (int i = 0; i < bb->irs->len; ++i) {
     IR *ir = bb->irs->data[i];
     switch (ir->kind) {
     case IR_BOFS:
     case IR_IOFS:
-      if (i < bb->irs->len - 1) {
-        IR *next = bb->irs->data[i + 1];
-        if ((next->kind == IR_ADD || next->kind == IR_SUB) &&
-            next->opr1 == ir->dst && next->opr2->flag & VRF_CONST) {
-          assert(!(next->opr2->flag & VRF_FLONUM));
-          // Overwrite next IR. Current IR should be eliminated because of dst is unused.
-          VReg *dst = next->dst;
-          int64_t offset = next->opr2->fixnum;
-          if (next->kind == IR_SUB)
-            offset = -offset;
-          *next = *ir;
-          next->dst = dst;
-          if (ir->kind == IR_BOFS)
-            next->bofs.offset += offset;
-          else
-            next->iofs.offset += offset;
-        }
-      }
+      fold_biofs_addition(bb, i);
       break;
     case IR_ADD:
-      if ((ir->opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_CONST && i < bb->irs->len - 1) {
-        IR *next = bb->irs->data[i + 1];
-        if ((next->kind == IR_ADD || next->kind == IR_SUB) &&
-            next->opr1 == ir->dst && next->opr2->flag & VRF_CONST) {
-          assert(!(next->opr2->flag & VRF_FLONUM));
-          // Overwrite next IR. Current IR should be eliminated because of dst is unused.
-          VReg *dst = next->dst;
-          VReg *opr2 = ir->opr2;
-          int64_t value = next->opr2->fixnum;
-          if (next->kind == IR_SUB)
-            value = -value;
-          value += opr2->fixnum;
-          *next = *ir;
-          next->dst = dst;
-          next->opr2 = reg_alloc_spawn_const(ra, value, opr2->vsize);
-        }
-      }
+    case IR_SUB:
+      fold_addition(ra, bb, i);
+      break;
+    case IR_MUL:
+    case IR_DIV:
+      muldiv_to_shift(ra, bb, i);
       break;
     default:
       break;
