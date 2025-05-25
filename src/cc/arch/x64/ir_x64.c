@@ -1100,7 +1100,7 @@ static void convert_3to2(FuncBackend *fnbe) {
       case IR_LSHIFT:
       case IR_RSHIFT:
       case IR_BITNOT:
-        {
+        if (ir->dst != ir->opr1) {
           assert(!(ir->dst->flag & VRF_CONST));
           IR *mov = new_ir_mov(ir->dst, ir->opr1, ir->flag);
           vec_insert(irs, j++, mov);
