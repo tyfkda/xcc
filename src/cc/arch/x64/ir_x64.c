@@ -1081,7 +1081,6 @@ static void convert_3to2(FuncBackend *fnbe) {
       case IR_NEG:  // unary ops
         if (ir->dst->flag & VRF_FLONUM) {
           // To use two xmm registers, keep opr1 and assign dst and opr1 in different register.
-          assert(ir->dst->virt != ir->opr1->virt);
           insert_tmp_mov(&ir->opr1, irs, j++);
 
           IR *keep = new_ir_keep(NULL, ir->opr1, NULL);
@@ -1090,21 +1089,41 @@ static void convert_3to2(FuncBackend *fnbe) {
         }
         // Fallthrough
       case IR_ADD:  // binops
-      case IR_SUB:
       case IR_MUL:
-      case IR_DIV:
-      case IR_MOD:
       case IR_BITAND:
       case IR_BITOR:
       case IR_BITXOR:
+        if (ir->dst == ir->opr2) {  // Commutative ops
+          // to avoid introducing tmp register, swap operands.
+          VReg *tmp = ir->opr1;
+          ir->opr1 = ir->opr2;
+          ir->opr2 = tmp;
+        }
+        // Fallthrough
+      case IR_SUB:
+      case IR_DIV:
+      case IR_MOD:
       case IR_LSHIFT:
       case IR_RSHIFT:
       case IR_BITNOT:
-        if (ir->dst != ir->opr1) {
-          assert(!(ir->dst->flag & VRF_CONST));
-          IR *mov = new_ir_mov(ir->dst, ir->opr1, ir->flag);
-          vec_insert(irs, j++, mov);
-          ir->opr1 = ir->dst;
+        {
+          int skip = 0;
+          if (ir->dst == ir->opr2) {
+            // Rewrite `A = B op A` to `tmp = B op A; A = tmp`.
+            assert(!(ir->dst->flag & VRF_CONST));
+            VReg *tmp = reg_alloc_spawn(fnbe->ra, ir->dst->vsize, ir->dst->flag & VRF_MASK);
+            IR *mov = new_ir_mov(ir->dst, tmp, ir->flag);
+            vec_insert(irs, j + 1, mov);
+            ir->dst = tmp;
+            skip = 1;
+          }
+          if (ir->dst != ir->opr1) {
+            assert(!(ir->dst->flag & VRF_CONST));
+            IR *mov = new_ir_mov(ir->dst, ir->opr1, ir->flag);
+            vec_insert(irs, j++, mov);
+            ir->opr1 = ir->dst;
+          }
+          j += skip;
         }
         break;
 
