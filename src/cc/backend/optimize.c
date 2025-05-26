@@ -537,7 +537,7 @@ static inline void fold_addition(RegAlloc *ra, BB *bb, int i) {
   }
 }
 
-static inline void muldiv_to_shift(RegAlloc *ra, BB *bb, int i) {
+static inline int muldiv_to_shift(RegAlloc *ra, BB *bb, int i) {
   IR *ir = bb->irs->data[i];
   if ((ir->opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_CONST &&
       IS_POWER_OF_2(ir->opr2->fixnum)) {
@@ -562,6 +562,7 @@ static inline void muldiv_to_shift(RegAlloc *ra, BB *bb, int i) {
     ir->kind = ir->kind + (IR_LSHIFT - IR_MUL);
     ir->opr2 = reg_alloc_spawn_const(ra, shift, ir->opr2->vsize);
   }
+  return i;
 }
 
 static void peephole(RegAlloc *ra, BB *bb) {
@@ -578,7 +579,7 @@ static void peephole(RegAlloc *ra, BB *bb) {
       break;
     case IR_MUL:
     case IR_DIV:
-      muldiv_to_shift(ra, bb, i);
+      i = muldiv_to_shift(ra, bb, i);
       break;
     default:
       break;
