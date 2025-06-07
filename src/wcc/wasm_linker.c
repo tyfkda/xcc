@@ -510,7 +510,7 @@ static void renumber_indirect_functions(WasmLinker *linker) {
 static void put_varint32(unsigned char *p, int32_t x, RelocInfo *reloc) {
   for (uint32_t count = 0; ; ++count) {
     if (!(*p & 0x80)) {
-      if (x > 0x7f)
+      if (x > 0x3f || x < -0x40)
         error("Cannot fit reloc varint32: at 0x%x", reloc->offset);
       *p = x & 0x7f;
       break;

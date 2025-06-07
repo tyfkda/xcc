@@ -15,12 +15,12 @@ int64_t read_leb128(unsigned char *p, unsigned char **next) {
   for (;;) {
     unsigned char byte = *p++;
     result |= (byte & 0x7f) << shift;
+    shift += 7;
     if ((byte & 0x80) == 0) {
       if ((byte & 0x40) != 0)
         result -= (int64_t)1 << shift;
       break;
     }
-    shift += 7;
   }
   *next = p;
   return result;
@@ -32,9 +32,9 @@ uint64_t read_uleb128(unsigned char *p, unsigned char **next) {
   for (;;) {
     unsigned char byte = *p++;
     result |= (byte & 0x7f) << shift;
+    shift += 7;
     if ((byte & 0x80) == 0)
       break;
-    shift += 7;
   }
   *next = p;
   return result;

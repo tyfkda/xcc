@@ -1342,7 +1342,7 @@ export class DisWasm {
           case RelocType.R_WASM_MEMORY_ADDR_I64:
           case RelocType.R_WASM_FUNCTION_OFFSET_I32:
           case RelocType.R_WASM_SECTION_OFFSET_I32:
-            addend = this.bufferReader.readUleb128()
+            addend = this.bufferReader.readLeb128()
             break
           default: break
           }
