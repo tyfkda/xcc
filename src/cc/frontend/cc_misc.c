@@ -71,11 +71,13 @@ static void eval_initial_value(Expr *expr, Expr **pvar, int64_t *poffset) {
 #ifndef __NO_BITFIELD
 static Fixnum calc_bitfield_initial_value(const StructInfo *sinfo, const Initializer *init,
                                           int *pi) {
-  assert(!sinfo->is_union);  // TODO
   assert(init == NULL || (init->kind == IK_MULTI && init->multi->len == sinfo->member_count));
   Fixnum x = 0;
   int i = *pi, n = sinfo->member_count;
   for (bool top = true; i < n; ++i, top = false) {
+    if (sinfo->is_union && !top)
+      break;
+
     const MemberInfo *member = &sinfo->members[i];
     if (member->bitfield.width <= 0 || (!top && member->bitfield.position == 0))
       break;
@@ -83,8 +85,14 @@ static Fixnum calc_bitfield_initial_value(const StructInfo *sinfo, const Initial
     if (init == NULL)
       continue;
     const Initializer *mem_init = init->multi->data[i];
-    if (mem_init == NULL)
+    if (mem_init == NULL) {
+      if (sinfo->is_union) {
+        // No initializer for bitfield member.
+        *pi = -1;
+        return 0;
+      }
       continue;  // 0
+    }
     assert(mem_init->kind == IK_SINGLE && mem_init->single->kind == EX_FIXNUM);
 
     Fixnum mask = (1LL << member->bitfield.width) - 1;
@@ -101,6 +109,13 @@ static int construct_initial_value_bitfield(
   if (member->bitfield.width == 0)
     return start;
 
+  int i = start;
+  Fixnum x = calc_bitfield_initial_value(sinfo, init, &i);
+  if (i < 0) {
+    assert(sinfo->is_union);
+    return start;
+  }
+
   const Type *et = get_fixnum_type(member->bitfield.base_kind, false, 0);
   int offset = *poffset;
   int align = align_size(et);
@@ -108,9 +123,6 @@ static int construct_initial_value_bitfield(
     (*vtable->emit_align)(ud, align);
     offset = ALIGN(offset, align);
   }
-
-  int i = start;
-  Fixnum x = calc_bitfield_initial_value(sinfo, init, &i);
 
   (*vtable->emit_number)(ud, et, NULL, x);
   *poffset = offset += type_size(et);

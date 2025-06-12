@@ -1571,6 +1571,15 @@ TEST(bitfield) {
     EXPECT("total2", (61 << 10) | (30 << 5) | 31, u._);
   }
 
+  {
+    union BitFieldInUnion {
+      int x;
+      unsigned int b: 1;
+    };
+    static union BitFieldInUnion bfu = {123};
+    EXPECT("bitfield in union", 1, bfu.b);
+  }
+
   // {
   //   typedef struct {
   //     char a;
