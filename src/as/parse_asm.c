@@ -12,10 +12,20 @@
 #include <alloca.h>
 #endif
 
-#include "inst.h"  // Inst, depends on target architecture.
 #include "ir_asm.h"
 #include "table.h"
 #include "util.h"
+
+// #include "inst.h"  // To enable code interpolation on a text editor.
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+#include "./arch/x64/inst.h"
+#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+#include "./arch/aarch64/inst.h"
+#elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+#include "./arch/riscv64/inst.h"
+#else
+#error "Unsupported architecture"
+#endif
 
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
 const char kSegText[] = "__TEXT";
