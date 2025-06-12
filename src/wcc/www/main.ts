@@ -418,12 +418,16 @@ function start() {
       if (!this.showRunModeDropdown)
         editor.focus()
     },
+    closeRunModeDropdown() {
+      this.showRunModeDropdown = false
+        editor.focus()
+    },
     toggleTerminal() {
       toggleTerminal()
     },
     setRunMode(mode: RunMode) {
       this.runMode = mode
-      editor.focus()
+      this.closeRunModeDropdown()
     },
   }
 

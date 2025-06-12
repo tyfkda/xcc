@@ -24,7 +24,7 @@
             <span class="run-btn" :class="{busy:busy, loading:!loaded}" @click="runCode()" x-text="`${runMode} (⌘+⏎)`"></span
             ><span class="run-dropdown-btn" :disabled="!loaded" @click="toggleRunModeDropdown()" x-text="showRunModeDropdown?'▲':'▼'"></span>
 
-            <div class="run-dropdown" x-show="showRunModeDropdown" @click="showRunModeDropdown=false" style="z-index:1000; display:none">
+            <div class="run-dropdown" x-show="showRunModeDropdown" style="z-index:1000; display:none">
               <div @click="setRunMode('Run')">Run</div>
               <div @click="setRunMode('Compile')">Compile</div>
             </div>
@@ -38,6 +38,8 @@
             <div id="terminal" class="full-size"></div>
           </div>
         </div>
+      </div>
+      <div x-show="showRunModeDropdown" @click="closeRunModeDropdown()" class="dropdown-curtain full-size" style="display:none; z-index:999;">
       </div>
       <div x-show="showSysmenu" @click="closeSysmenu()" class="sysmenu-container full-size" style="display:none; z-index:1000;">
         <div class="sysmenu-body" onclick="event.stopPropagation()">
