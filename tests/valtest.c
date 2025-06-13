@@ -1319,6 +1319,13 @@ SVec3 refvadd(SVec3 va, SVec3 vb) {
   return (SVec3){pa->x + pb->x, pa->y + pb->y, pa->z + pb->z};
 }
 
+SVec3 modify_struct_param(SVec3 v) {
+  v.x += 1;
+  v.y += 2;
+  v.z += 3;
+  return v;
+}
+
 TEST(struct) {
   FooStruct foo;
   foo.x = 123;
@@ -1469,6 +1476,10 @@ TEST(struct) {
     EXPECT_TRUE(v.x == 110 && v.y == 110 && v.z == 110);
     SVec3 pv = refvadd(v1, v2);
     EXPECT_TRUE(pv.x == 110 && pv.y == 110 && pv.z == 110);
+
+    SVec3 mod = modify_struct_param(v1);
+    EXPECT_TRUE(mod.x == 12 && mod.y == 24 && mod.z == 36);
+    EXPECT_TRUE(v1.x == 11 && v1.y == 22 && v1.z == 33);  // Argument entity is not modified.
   }
 
   {

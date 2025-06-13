@@ -673,10 +673,16 @@ Expr *reduce_refer(Expr *expr) {
         if (type->kind == TY_STRUCT) {
           VarInfo *varinfo = scope_find(target->var.scope, target->var.name, NULL);
           assert(varinfo != NULL);
-          if (varinfo->storage & VS_PARAM) {
-            // The parameter is passed by reference.
-            assert(varinfo->type->kind == TY_PTR && varinfo->type->pa.ptrof == type);
-            target->type = type = varinfo->type;
+          if (varinfo->storage & VS_PARAM) {  // The parameter is passed by reference.
+            if (varinfo->type->kind == TY_PTR) {
+              assert(varinfo->type->pa.ptrof == type);
+              target->type = type = varinfo->type;
+            } else {
+              // The type in scope is modified in `gen` phase,
+              // so it might be remained as `struct`.
+              assert(same_type(type, varinfo->type));
+              target->type = type = ptrof(type);
+            }
           }
         }
 #endif
