@@ -58,7 +58,7 @@ static void usage(FILE *fp) {
       "  -D <label[=value]>    Define label\n"
       "  -o <filename>         Set output filename (Default: a.wasm)\n"
       "  -c                    Output object file\n"
-      "  --entry-point=<name>  Specify entry point (Defulat: _start)\n"
+      "  --entry-point=<name>  Specify entry point (Default: _start)\n"
       "  --stack-size=<size>   Output object file (Default: 8192)\n"
   );
 }
