@@ -337,9 +337,10 @@ void new_ir_subsp(VReg *value, VReg *dst) {
   ir->dst = dst;
 }
 
-IR *new_ir_cast(VReg *vreg, enum VRegSize dstsize, int vflag) {
+IR *new_ir_cast(VReg *vreg, bool src_unsigned, enum VRegSize dstsize, int vflag) {
   IR *ir = new_ir(IR_CAST);
   ir->opr1 = vreg;
+  ir->cast.src_unsigned = src_unsigned;
   ir->dst = reg_alloc_spawn(curra, dstsize, vflag);
   return ir;
 }

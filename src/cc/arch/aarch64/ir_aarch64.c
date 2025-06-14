@@ -681,8 +681,8 @@ static void ei_cast(IR *ir) {
       default: assert(false); break;
       }
       const char *src = kRegSizeTable[pows][ir->opr1->phys];
-      if (ir->flag & IRF_UNSIGNED)  UCVTF(dst, src);
-      else                          SCVTF(dst, src);
+      if (ir->cast.src_unsigned)  UCVTF(dst, src);
+      else                        SCVTF(dst, src);
     }
   } else if (ir->opr1->flag & VRF_FLONUM) {
     assert(!(ir->opr1->flag & VRF_CONST));
@@ -715,7 +715,7 @@ static void ei_cast(IR *ir) {
       int powd = ir->dst->vsize;
       assert(0 <= pows && pows < 4);
       assert(0 <= powd && powd < 4);
-      if (ir->flag & IRF_UNSIGNED) {
+      if (ir->cast.src_unsigned) {
         switch (pows) {
         case 0:  UXTB(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
         case 1:  UXTH(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;

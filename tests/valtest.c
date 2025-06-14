@@ -326,6 +326,16 @@ TEST(all) {
   }
 
   {
+    int32_t a = -1;
+    EXPECT("cast from small signed to large unsigned", 0xffffffffffffffffULL, (uint64_t)a);
+  }
+  {
+    int32_t a = 0xF3E141B6L;
+    int32_t b = 0x3DE467B4L;
+    EXPECT("cast and assign-op", 0, (a ^= 0x2D3D478254981C58LL) > b);
+  }
+
+  {
     uint8_t b = 0xff;
     EXPECT("uint8_t pre-inc overlapping", 0, ++b);
     uint16_t s = 0x0;

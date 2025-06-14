@@ -667,7 +667,7 @@ static void ei_cast(IR *ir) {
       // fix->flonum
       int pows = ir->opr1->vsize;
       if (pows < 2) {
-        if (ir->flag & IRF_UNSIGNED)
+        if (ir->cast.src_unsigned)
           MOVZX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
         else
           MOVSX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
@@ -675,7 +675,7 @@ static void ei_cast(IR *ir) {
       }
       const char *s = kRegSizeTable[pows][ir->opr1->phys];
       const char *d = kFReg64s[ir->dst->phys];
-      if (!(ir->flag & IRF_UNSIGNED)) {
+      if (!(ir->cast.src_unsigned)) {
         switch (ir->dst->vsize) {
         case SZ_FLOAT:   CVTSI2SS(s, d); break;
         case SZ_DOUBLE:  CVTSI2SD(s, d); break;
@@ -739,7 +739,7 @@ static void ei_cast(IR *ir) {
       int powd = ir->dst->vsize;
       assert(0 <= pows && pows < 4);
       assert(0 <= powd && powd < 4);
-      if (ir->flag & IRF_UNSIGNED) {
+      if (ir->cast.src_unsigned) {
         if (pows == 2) {
           // MOVZX %32bit, %64bit doesn't exist!
           MOV(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[pows][ir->dst->phys]);

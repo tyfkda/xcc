@@ -163,6 +163,10 @@ typedef struct IR {
       enum ConditionKind kind;
     } cond;
     struct {
+      // (ir->flag & IRF_UNSIGNED) indicates whether the destination value is unsigned.
+      bool src_unsigned;
+    } cast;
+    struct {
       BB *bb;
       enum ConditionKind cond;
     } jmp;
@@ -211,7 +215,7 @@ IR *new_ir_pusharg(VReg *vreg, int index);
 IR *new_ir_call(IrCallInfo *info, VReg *dst, VReg *freg);
 void new_ir_result(VReg *vreg, int flag);
 void new_ir_subsp(VReg *value, VReg *dst);
-IR *new_ir_cast(VReg *vreg, enum VRegSize dstsize, int vflag);
+IR *new_ir_cast(VReg *vreg, bool src_unsigned, enum VRegSize dstsize, int vflag);
 IR *new_ir_keep(VReg *dst, VReg *opr1, VReg *opr2);
 void new_ir_asm(const char *asm_, VReg *dst);
 

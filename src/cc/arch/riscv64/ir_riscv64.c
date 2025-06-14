@@ -563,24 +563,24 @@ static void ei_cast(IR *ir) {
       if (ir->opr1->vsize < VRegSize8) {
         switch (ir->dst->vsize) {
         case SZ_FLOAT:
-          if (ir->flag & IRF_UNSIGNED)  FCVT_S_WU(kFReg32s[ir->dst->phys], src);
-          else                          FCVT_S_W(kFReg32s[ir->dst->phys], src);
+          if (ir->cast.src_unsigned)  FCVT_S_WU(kFReg32s[ir->dst->phys], src);
+          else                        FCVT_S_W(kFReg32s[ir->dst->phys], src);
           break;
         case SZ_DOUBLE:
-          if (ir->flag & IRF_UNSIGNED)  FCVT_D_WU(kFReg32s[ir->dst->phys], src);
-          else                          FCVT_D_W(kFReg32s[ir->dst->phys], src);
+          if (ir->cast.src_unsigned)  FCVT_D_WU(kFReg32s[ir->dst->phys], src);
+          else                        FCVT_D_W(kFReg32s[ir->dst->phys], src);
           break;
         default: assert(false); break;
         }
       } else {
         switch (ir->dst->vsize) {
         case SZ_FLOAT:
-          if (ir->flag & IRF_UNSIGNED)  FCVT_S_LU(kFReg32s[ir->dst->phys], src);
-          else                          FCVT_S_L(kFReg32s[ir->dst->phys], src);
+          if (ir->cast.src_unsigned)  FCVT_S_LU(kFReg32s[ir->dst->phys], src);
+          else                        FCVT_S_L(kFReg32s[ir->dst->phys], src);
           break;
         case SZ_DOUBLE:
-          if (ir->flag & IRF_UNSIGNED)  FCVT_D_LU(kFReg32s[ir->dst->phys], src);
-          else                          FCVT_D_L(kFReg32s[ir->dst->phys], src);
+          if (ir->cast.src_unsigned)  FCVT_D_LU(kFReg32s[ir->dst->phys], src);
+          else                        FCVT_D_L(kFReg32s[ir->dst->phys], src);
           break;
         default: assert(false); break;
         }
@@ -627,7 +627,7 @@ static void ei_cast(IR *ir) {
     int pow = MIN(powd, pows);
     const char *dst = kReg64s[ir->dst->phys], *src = kReg64s[ir->opr1->phys];
     if (pow < 3) {
-      if (((ir->flag & IRF_UNSIGNED) != 0) == (powd > pows)) {
+      if ((powd <= pows && (ir->flag & IRF_UNSIGNED)) || (powd > pows && ir->cast.src_unsigned)) {
         switch (pow) {
         case 0:  ZEXT_B(dst, src); break;
         case 1:  ZEXT_H(dst, src); break;
