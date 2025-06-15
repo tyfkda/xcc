@@ -751,15 +751,13 @@ static void emit_reloc_section(EmitWasm *ew, int section_index, Vector *relocs, 
       data_uleb128(&ds, -1, reloc->index);
       switch (reloc->type) {
       case R_WASM_MEMORY_ADDR_LEB:
+      case R_WASM_MEMORY_ADDR_SLEB:
       case R_WASM_MEMORY_ADDR_I32:
       case R_WASM_MEMORY_ADDR_LEB64:
+      case R_WASM_MEMORY_ADDR_SLEB64:
       case R_WASM_MEMORY_ADDR_I64:
       case R_WASM_FUNCTION_OFFSET_I32:
       case R_WASM_SECTION_OFFSET_I32:
-        data_uleb128(&ds, -1, reloc->addend);
-        break;
-      case R_WASM_MEMORY_ADDR_SLEB:
-      case R_WASM_MEMORY_ADDR_SLEB64:
         data_leb128(&ds, -1, reloc->addend);
         break;
       default: break;

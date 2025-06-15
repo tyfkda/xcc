@@ -484,17 +484,15 @@ static void read_reloc(WasmObj *wasmobj, unsigned char *p, int is_data) {
 
       int32_t addend = 0;
       switch (type) {
+      case R_WASM_MEMORY_ADDR_LEB:
       case R_WASM_MEMORY_ADDR_SLEB:
       case R_WASM_MEMORY_ADDR_I32:
+      case R_WASM_MEMORY_ADDR_LEB64:
       case R_WASM_MEMORY_ADDR_SLEB64:
       case R_WASM_MEMORY_ADDR_I64:
       case R_WASM_FUNCTION_OFFSET_I32:
       case R_WASM_SECTION_OFFSET_I32:
         addend = read_leb128(p, &p);
-        break;
-      case R_WASM_MEMORY_ADDR_LEB:
-      case R_WASM_MEMORY_ADDR_LEB64:
-        addend = read_uleb128(p, &p);
         break;
       default: break;
       }
