@@ -1443,6 +1443,7 @@ Expr *make_cond(Expr *expr) {
     break;
   case EX_COMMA:
     expr->bop.rhs = make_cond(expr->bop.rhs);
+    expr->type = expr->bop.rhs->type;
     break;
   default:
     switch (expr->type->kind) {
