@@ -755,6 +755,7 @@ static bool resolve_symbols(WasmLinker *linker) {
 
   // Enumerate unresolved: import
   const Name *wasi_module_name = alloc_name(WASI_MODULE_NAME, NULL, false);
+  const Name *wasm_module_name = alloc_name("env", NULL, false);
   uint32_t unresolved_func_count = 0;
   const Name *name;
   SymbolInfo *sym;
@@ -767,7 +768,8 @@ static bool resolve_symbols(WasmLinker *linker) {
     switch (sym->kind) {
     default: assert(false); // Fallthrough to suppress warning.
     case SIK_SYMTAB_FUNCTION:
-      if (sym->module_name != NULL && equal_name(sym->module_name, wasi_module_name)) {
+      if (sym->module_name != NULL && (equal_name(sym->module_name, wasi_module_name) ||
+                                       equal_name(sym->module_name, wasm_module_name))) {
         sym->combined_index = unresolved_func_count++;
         break;
       }
