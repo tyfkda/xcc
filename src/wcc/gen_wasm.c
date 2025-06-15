@@ -1714,15 +1714,20 @@ static void gen_defun(Function *func) {
   // Store ref-taken parameters to stack frame.
   if (func->params != NULL) {
     const Vector *params = func->params;
+    const Type *rettype = functype->func.ret;
+    int param_index = rettype->kind != TY_VOID && !is_prim_type(rettype) ? 1 : 0;
     for (int i = 0, param_count = params->len; i < param_count; ++i) {
       VarInfo *varinfo = params->data[i];
-      if (!(varinfo->storage & VS_REF_TAKEN) || is_stack_param(varinfo->type))
+      if (is_stack_param(varinfo->type))
         continue;
-      VReg *vreg = varinfo->local.vreg;
-      gen_bpofs(vreg->non_prim.offset);
-      ADD_CODE(OP_LOCAL_GET);
-      ADD_ULEB128(vreg->param_index);
-      gen_store(varinfo->type);
+      if (varinfo->storage & VS_REF_TAKEN) {
+        VReg *vreg = varinfo->local.vreg;
+        gen_bpofs(vreg->non_prim.offset);
+        ADD_CODE(OP_LOCAL_GET);
+        ADD_ULEB128(param_index);
+        gen_store(varinfo->type);
+      }
+      ++param_index;
     }
   }
 
