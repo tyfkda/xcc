@@ -826,11 +826,31 @@ static bool detect_compile_unit_sp(Function *func) {
   return pparam_count != param_count;
 }
 
+static bool detect_func_use_memory(Function *func) {
+  Vector *scopes = func->scopes;
+  if (scopes != NULL) {
+    for (int i = 0; i < scopes->len; ++i) {
+      Scope *scope = scopes->data[i];
+      for (int j = 0; j < scope->vars->len; ++j) {
+        VarInfo *varinfo = scope->vars->data[j];
+        if ((varinfo->storage & (VS_STATIC | VS_USED)) == (VS_STATIC | VS_USED))
+          return true;
+      }
+    }
+  }
+  return false;
+}
+
 static int detect_compile_unit_memory(void) {
   for (int i = 0, len = global_scope->vars->len; i < len; ++i) {
     VarInfo *varinfo = global_scope->vars->data[i];
-    if (varinfo->type->kind == TY_FUNC ||
-        (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
+    if (varinfo->type->kind == TY_FUNC) {
+      Function *func = varinfo->global.func;
+      if (func != NULL && detect_func_use_memory(func))
+        return CUF_LINEAR_MEMORY;
+      continue;
+    }
+    if ((varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
         (varinfo->storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
       continue;
     if (is_global_datsec_var(varinfo, global_scope))

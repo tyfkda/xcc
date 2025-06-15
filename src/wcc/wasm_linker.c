@@ -1408,7 +1408,7 @@ static void out_export_section(WasmLinker *linker, Vector *exports) {
     }
     ++num_exports;
   }
-  /*if (memory_section.len > 0)*/ {  // TODO: Export only if memory exists
+  {  // WASI requires `memory` export.
     static const char name[] = "memory";
     data_string(&exports_section, name, sizeof(name) - 1);  // export name
     data_uleb128(&exports_section, -1, IMPORT_MEMORY);  // export kind
