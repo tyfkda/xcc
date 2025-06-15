@@ -18,7 +18,7 @@
 #define INFINITY    (1.0 / 0.0)
 #define HUGE_VAL    INFINITY
 
-#if defined(__riscv) || defined(__WASM)  // newlib environments.
+#if defined(__riscv) || defined(__wasm)  // newlib environments.
 #define FP_NAN        0
 #define FP_INFINITE   1
 #define FP_ZERO       2
@@ -103,7 +103,7 @@ inline int isnan(double x) {
 #if defined(__APPLE__)
   extern int __isnand(double);
   return __isnand(x);
-#elif defined(__riscv) || defined(__WASM)
+#elif defined(__riscv) || defined(__wasm)
   return fpclassify(x) == FP_NAN;
 #else
   extern int __isnan(double);
@@ -115,7 +115,7 @@ inline int isinf(double x) {
 #if defined(__APPLE__)
   extern int __isinfd(double);
   return __isinfd(x);
-#elif defined(__riscv) || defined(__WASM)
+#elif defined(__riscv) || defined(__wasm)
   return fpclassify(x) == FP_INFINITE;
 #else
   extern int __isinf(double);

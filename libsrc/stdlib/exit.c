@@ -3,10 +3,10 @@
 
 OnExitChain *__on_exit_chain;
 
-#if defined(__linux__) || defined(__WASM)
+#if defined(__linux__) || defined(__wasm)
 #include "stdbool.h"
 
-#if defined(__WASM)
+#if defined(__wasm)
 #include "../_wasm/wasi.h"
 #else
 #include "../unistd/_syscall.h"

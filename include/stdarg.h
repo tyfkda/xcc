@@ -4,7 +4,7 @@
 
 #include_next <stdarg.h>
 
-#elif defined(__WASM)
+#elif defined(__wasm)
 
 typedef __builtin_va_list __gnuc_va_list;
 typedef __gnuc_va_list va_list;

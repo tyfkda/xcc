@@ -628,7 +628,7 @@ static int do_compile(Options *opts) {
 }
 
 int main(int argc, char *argv[]) {
-#if defined(__WASM)
+#if defined(__wasm)
   const char *root = "/usr";
 #else
   const char *root = dirname(strdup(argv[0]));
@@ -642,7 +642,8 @@ int main(int argc, char *argv[]) {
   static const char *kPredefinedMacros[] = {
     "__XCC",
     "__ILP32__",
-    "__WASM",
+    "__wasm",
+    "__wasm32",
     "__STDC__",
     "__STDC_VERSION__=199901L",
     "__SIZEOF_POINTER__=4",

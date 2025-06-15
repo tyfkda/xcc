@@ -1,7 +1,7 @@
 #if !defined(__GNUC__)
 #include "setjmp.h"
 
-#if defined(__WASM)
+#if defined(__wasm)
 // handled by builtin
 
 #elif defined(__x86_64__)

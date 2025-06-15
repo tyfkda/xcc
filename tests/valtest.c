@@ -122,7 +122,7 @@ int static_local(void) {
   return ++x;
 }
 
-#if !defined(__WASM)
+#if !defined(__wasm)
 int oldfuncptr(int (*f)(), int x) {
   return f(f(x));
 }
@@ -1073,7 +1073,7 @@ TEST(basic) {
     EXPECT("typedef[]", 5, sizeof(t2));
   }
 
-#if !defined(__WASM)
+#if !defined(__wasm)
   {
     int oldstylefunc();
     EXPECT("old-style func", 93, oldstylefunc(31));
@@ -1135,7 +1135,7 @@ TEST(basic) {
     EXPECT("nulchr contained string", 0, memcmp(expected, nulchr_contained, sizeof(nulchr_contained)));
   }
 
-#if !defined(__WASM)
+#if !defined(__wasm)
   {
 #define SUPPRESS_LABEL(label)  do { if (false) goto label; } while (0)
     int x = 1;
@@ -1178,7 +1178,7 @@ TTT:;
     }
     EXPECT("switch w/o case & default", 0, x);
 
-#if !defined(__WASM)
+#if !defined(__wasm)
     x = 94;
     switch (z) {
       if (0) {

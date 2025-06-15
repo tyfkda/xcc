@@ -2,7 +2,7 @@
 
 #include <stdint.h>  // uintptr_t
 
-#if defined(__WASM)
+#if defined(__wasm)
 typedef uintptr_t jmp_buf[2];  // 0=Stack pointer, 1=longjmp-result.
 
 #elif defined(__aarch64__)
@@ -21,7 +21,7 @@ _Noreturn void longjmp(jmp_buf env, int result);
 #define _setjmp   setjmp
 #define _longjmp  longjmp
 
-#ifdef __WASM
+#ifdef __wasm
 #define setjmp(env)           __builtin_setjmp(env)
 #define longjmp(env, result)  __builtin_longjmp(env, result)
 #endif

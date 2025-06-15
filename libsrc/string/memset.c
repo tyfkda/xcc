@@ -1,7 +1,7 @@
 #include "string.h"
 
 void *memset(void *buf, int val, size_t size) {
-#if defined(__WASM)
+#if defined(__wasm)
 #define S(x)   S_(x)
 #define S_(x)  #x
 #define OP_LOCAL_GET      32   // 0x20

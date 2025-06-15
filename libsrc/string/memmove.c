@@ -1,7 +1,7 @@
 #include "string.h"
 
 void *memmove(void *dst, const void *src, size_t n) {
-#if defined(__WASM)
+#if defined(__wasm)
 #define S(x)   S_(x)
 #define S_(x)  #x
 #define OP_LOCAL_GET      32   // 0x20

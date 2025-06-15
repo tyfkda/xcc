@@ -7,7 +7,7 @@
 #define XCC_ARCH_WASM     4
 
 #if !defined(XCC_TARGET_ARCH)
-# if defined(__WASM)
+# if defined(__wasm)
 #  define XCC_TARGET_ARCH  XCC_ARCH_WASM
 # elif defined(__x86_64__)
 #  define XCC_TARGET_ARCH  XCC_ARCH_X64
@@ -26,7 +26,7 @@
 #define XCC_PLATFORM_WASI   3
 
 #if !XCC_TARGET_PLATFORM
-# if defined(__WASM) || XCC_TARGET_ARCH == XCC_ARCH_WASM
+# if defined(__wasm) || XCC_TARGET_ARCH == XCC_ARCH_WASM
 #  define XCC_TARGET_PLATFORM  XCC_PLATFORM_WASI
 # elif defined(__APPLE__)
 #  define XCC_TARGET_PLATFORM  XCC_PLATFORM_APPLE

@@ -40,7 +40,7 @@ char *getcwd(char *buffer, size_t size);
 int brk(void *addr);
 void *sbrk(intptr_t increment);
 
-#if !defined(__WASM)
+#if !defined(__wasm)
 int unlinkat(int dirfd, const char *pathname, int flags);
 int dup(int);
 int pipe(int *);
