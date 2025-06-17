@@ -28,15 +28,21 @@ int main(int argc, char *argv[]) {
     OPT_VERBOSE = 256,
     OPT_ENTRY_POINT,
     OPT_STACK_SIZE,
+    OPT_ALLOW_UNDEFINED,
   };
   static const struct option kOptions[] = {
     {"o", required_argument},  // Specify output filename
     {"-verbose", no_argument, OPT_VERBOSE},
     {"-entry-point", required_argument, OPT_ENTRY_POINT},
     {"-stack-size", required_argument, OPT_STACK_SIZE},
+    {"-allow-undefined", no_argument, OPT_ALLOW_UNDEFINED},
 
     {NULL},
   };
+
+  WasmLinker linker_body;
+  WasmLinker *linker = &linker_body;
+  linker_init(linker);
 
   int opt;
   while ((opt = optparse(argc, argv, kOptions)) != -1) {
@@ -69,16 +75,15 @@ int main(int argc, char *argv[]) {
         stack_size = size;
       }
       break;
+    case OPT_ALLOW_UNDEFINED:
+      linker->options.allow_undefined = true;
+      break;
     case '?':
       fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
       break;
     }
   }
   int iarg = optind;
-
-  WasmLinker linker_body;
-  WasmLinker *linker = &linker_body;
-  linker_init(linker);
 
   bool result = true;
   for (int i = iarg; i < argc; ++i) {

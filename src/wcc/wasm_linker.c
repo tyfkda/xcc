@@ -767,7 +767,8 @@ static bool resolve_symbols(WasmLinker *linker) {
     switch (sym->kind) {
     default: assert(false); // Fallthrough to suppress warning.
     case SIK_SYMTAB_FUNCTION:
-      if (sym->module_name != NULL && equal_name(sym->module_name, wasi_module_name)) {
+      if ((sym->module_name != NULL && equal_name(sym->module_name, wasi_module_name)) ||
+          linker->options.allow_undefined) {
         sym->combined_index = unresolved_func_count++;
         break;
       }
@@ -1218,6 +1219,7 @@ static void out_import_section(WasmLinker *linker) {
   const Name *name;
   SymbolInfo *sym;
   for (int it = 0; (it = table_iterate(&linker->unresolved, it, &name, (void**)&sym)) != -1; ) {
+    assert(sym != NULL);
     if (sym->kind != SIK_SYMTAB_FUNCTION)
       continue;
     const Name *modname = sym->module_name;

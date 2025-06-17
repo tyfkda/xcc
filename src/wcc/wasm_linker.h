@@ -12,11 +12,17 @@ typedef struct Vector Vector;
 #define WASI_MODULE_NAME  "wasi_snapshot_preview1"
 
 typedef struct {
+  bool allow_undefined;
+} WasmLinkerOptions;
+
+typedef struct {
   Vector *files;  // <File*>
   Table defined, unresolved;  // <SymbolInfo*>
   Vector *indirect_functions;  // public/static indirect functions, <SymbolInfo*>
   uint32_t unresolved_func_count;
   uint32_t address_bottom;
+
+  WasmLinkerOptions options;
 
   const Name *sp_name;
   const Name *curbrk_name;

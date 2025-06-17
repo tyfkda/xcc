@@ -45,6 +45,8 @@ typedef struct {
   enum SourceType src_type;
   uint32_t stack_size;
   bool nodefaultlibs, nostdlib, nostdinc;
+
+  WasmLinkerOptions linker_opts;
 } Options;
 
 static Vector remove_on_exit;
@@ -231,6 +233,38 @@ int compile_csource(const char *src, const char *ofn, Vector *obj_files, Options
   vec_push(obj_files, outfn);
   return 0;
 }
+
+static void parse_linker_options(const char *arg, WasmLinkerOptions *lopts) {
+  const char *arg_bak = arg;
+  if (*arg != '-')
+    return;
+  ++arg;
+
+  enum {
+    OPT_ALLOW_UNDEFINED,
+  };
+  static const struct option kOptions[] = {
+    {"-allow-undefined", no_argument, OPT_ALLOW_UNDEFINED},
+
+    {NULL},
+  };
+
+  for (int i = 0; ; ++i) {
+    if (kOptions[i].name == NULL)
+      break;
+    if (strcmp(arg, kOptions[i].name) == 0) {
+      switch (kOptions[i].val) {
+      default: assert(false); break;
+      case OPT_ALLOW_UNDEFINED:
+        lopts->allow_undefined = true;
+        break;
+      }
+      return;
+    }
+  }
+  fprintf(stderr, "Warning: unknown option: %s\n", arg_bak);
+}
+
 
 static void parse_options(int argc, char *argv[], Options *opts) {
   enum {
@@ -470,6 +504,11 @@ static void parse_options(int argc, char *argv[], Options *opts) {
             *p = true;
           break;
         }
+
+        const char *arg = argv[optind - 1];
+        if (strncmp(arg, "-Wl,", 4) == 0) {
+          parse_linker_options(arg + 4, &opts->linker_opts);
+        }
       }
       // Fallthrough
     case OPT_WNO:
@@ -534,6 +573,7 @@ static int do_link(Vector *obj_files, Options *opts) {
   WasmLinker linker_body;
   WasmLinker *linker = &linker_body;
   linker_init(linker);
+  linker->options = opts->linker_opts;
 
   for (int i = 0; i < obj_files->len; ++i) {
     const char *objfn = obj_files->data[i];

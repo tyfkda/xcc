@@ -114,6 +114,8 @@ Command line options:
   * `-nodefaultlibs`:  Ignore libc
   * `-nostdlib`:  Ignore libc and crt0
   * `--verbose`:  Output debug information
+  * `-Wl,...`:       Linker option
+    * `--allow-undefined`:  Handles unresolved function symbols as imported on runtime
 
 #### Run
 
