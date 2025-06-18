@@ -13,6 +13,7 @@ typedef struct Vector Vector;
 
 typedef struct {
   bool allow_undefined;
+  bool export_all;
 } WasmLinkerOptions;
 
 typedef struct {
@@ -33,5 +34,5 @@ typedef struct {
 
 void linker_init(WasmLinker *linker);
 bool read_wasm_obj(WasmLinker *linker, const char *filename);
-bool link_wasm_objs(WasmLinker *linker, Vector *exports, uint32_t stack_size);
-bool linker_emit_wasm(WasmLinker *linker, const char *ofn, Vector *exports);
+bool link_wasm_objs(WasmLinker *linker, Table *exports, uint32_t stack_size);
+bool linker_emit_wasm(WasmLinker *linker, const char *ofn, Table *exports);

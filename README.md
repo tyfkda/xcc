@@ -116,6 +116,7 @@ Command line options:
   * `--verbose`:  Output debug information
   * `-Wl,...`:       Linker option
     * `--allow-undefined`:  Handles unresolved function symbols as imported on runtime
+    * `--export-all`:  Export all non-static functions
 
 #### Run
 

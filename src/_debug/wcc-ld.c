@@ -29,6 +29,7 @@ int main(int argc, char *argv[]) {
     OPT_ENTRY_POINT,
     OPT_STACK_SIZE,
     OPT_ALLOW_UNDEFINED,
+    OPT_EXPORT_ALL,
   };
   static const struct option kOptions[] = {
     {"o", required_argument},  // Specify output filename
@@ -36,6 +37,7 @@ int main(int argc, char *argv[]) {
     {"-entry-point", required_argument, OPT_ENTRY_POINT},
     {"-stack-size", required_argument, OPT_STACK_SIZE},
     {"-allow-undefined", no_argument, OPT_ALLOW_UNDEFINED},
+    {"-export-all", no_argument, OPT_EXPORT_ALL},
 
     {NULL},
   };
@@ -78,6 +80,9 @@ int main(int argc, char *argv[]) {
     case OPT_ALLOW_UNDEFINED:
       linker->options.allow_undefined = true;
       break;
+    case OPT_EXPORT_ALL:
+      linker->options.export_all = true;
+      break;
     case '?':
       fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
       break;
@@ -97,9 +102,11 @@ int main(int argc, char *argv[]) {
   if (!result)
     return 1;
 
-  Vector *exports = new_vector();
-  if (*entry_point != '\0')
-    vec_push(exports, alloc_name(entry_point, NULL, false));
+  Table *exports = alloc_table();
+  if (*entry_point != '\0') {
+    const Name *entry = alloc_name(entry_point, NULL, false);
+    table_put(exports, entry, (void*)entry);
+  }
 
   if (!link_wasm_objs(linker, exports, stack_size) ||
       !linker_emit_wasm(linker, ofn, exports))

@@ -33,7 +33,7 @@ enum SourceType {
 };
 
 typedef struct {
-  Vector *exports;
+  Table* exports;
   Vector *lib_paths;
   Vector *defines;
   Vector *sources;
@@ -189,11 +189,12 @@ int compile_csource(const char *src, const char *ofn, Vector *obj_files, Options
   if (cc_flags.warn_as_error && compile_warning_count != 0)
     return 2;
 
-  Vector *exports = opts->out_type < OutExecutable ? opts->exports : NULL;
-  if (exports != NULL) {
+  Table *exports = NULL;
+  if (opts->out_type < OutExecutable) {
+    exports = opts->exports;
     int undef = 0;
-    for (int i = 0; i < exports->len; ++i) {
-      const Name *name = exports->data[i];
+    const Name *name;
+    for (int it = 0; (it = table_iterate(exports, it, &name, NULL)) != -1; ) {
       if (!table_try_get(&func_info_table, name, NULL)) {
         fprintf(stderr, "Export: `%.*s' not defined\n", NAMES(name));
         ++undef;
@@ -242,9 +243,11 @@ static void parse_linker_options(const char *arg, WasmLinkerOptions *lopts) {
 
   enum {
     OPT_ALLOW_UNDEFINED,
+    OPT_EXPORT_ALL,
   };
   static const struct option kOptions[] = {
     {"-allow-undefined", no_argument, OPT_ALLOW_UNDEFINED},
+    {"-export-all", no_argument, OPT_EXPORT_ALL},
 
     {NULL},
   };
@@ -257,6 +260,9 @@ static void parse_linker_options(const char *arg, WasmLinkerOptions *lopts) {
       default: assert(false); break;
       case OPT_ALLOW_UNDEFINED:
         lopts->allow_undefined = true;
+        break;
+      case OPT_EXPORT_ALL:
+        lopts->export_all = true;
         break;
       }
       return;
@@ -370,7 +376,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
         for (;;) {
           const char *p = strchr(s, ',');
           const Name *name = alloc_name(s, p, false);
-          vec_push(opts->exports, name);
+          table_put(opts->exports, name, (void*)name);
           if (p == NULL)
             break;
           s = p + 1;
@@ -659,8 +665,9 @@ static int do_compile(Options *opts) {
     opts->entry_point = "_start";
   }
   if (opts->entry_point != NULL && *opts->entry_point != '\0') {
-    vec_push(opts->exports, alloc_name(opts->entry_point, NULL, false));
-  } else if (opts->exports->len == 0) {
+    const Name *entry = alloc_name(opts->entry_point, NULL, false);
+    table_put(opts->exports, entry, (void*)entry);
+  } else if (opts->exports->count == 0) {
     error("no exports (require -e<xxx>)\n");
   }
 
@@ -709,7 +716,7 @@ int main(int argc, char *argv[]) {
     vec_push(defines, kPredefinedMacros[i]);
 
   Options opts = {
-    .exports = new_vector(),
+    .exports = alloc_table(),
     .lib_paths = new_vector(),
     .defines = defines,
     .sources = new_vector(),
@@ -737,8 +744,8 @@ int main(int argc, char *argv[]) {
   }
 
   VERBOSES("### Exports\n");
-  for (int i = 0; i < opts.exports->len; ++i) {
-    const Name *name = opts.exports->data[i];
+  const Name *name;
+  for (int it = 0; (it = table_iterate(opts.exports, it, &name, NULL)) != -1; ) {
     VERBOSE("%.*s\n", NAMES(name));
   }
   VERBOSES("\n");

@@ -1383,14 +1383,15 @@ static void out_global_section(WasmLinker *linker) {
   }
 }
 
-static void out_export_section(WasmLinker *linker, Vector *exports) {
+static void out_export_section(WasmLinker *linker, Table *exports) {
   DataStorage exports_section;
   data_init(&exports_section);
   data_open_chunk(&exports_section);
   data_open_chunk(&exports_section);
   int num_exports = 0;
-  for (int i = 0; i < exports->len; ++i) {
-    const Name *name = exports->data[i];
+  const Name *name;
+  Table *table = linker->options.export_all ? &linker->defined : exports;
+  for (int it = 0; (it = table_iterate(table, it, &name, NULL)) != -1; ) {
     SymbolInfo *sym = table_get(&linker->defined, name);
     if (sym == NULL) {
       error("Export: `%.*s' not found", NAMES(name));
@@ -1404,7 +1405,10 @@ static void out_export_section(WasmLinker *linker, Vector *exports) {
                    sym->kind == SIK_SYMTAB_FUNCTION ? IMPORT_FUNC : IMPORT_GLOBAL);  // export kind
       data_uleb128(&exports_section, -1, sym->combined_index);  // export func index
       break;
-    default: assert(false); break;
+    default:
+      if (!linker->options.export_all)
+        error("Cannot export symbol: `%.*s' is not function nor global", NAMES(name));
+      continue;
     }
     ++num_exports;
   }
@@ -1415,7 +1419,7 @@ static void out_export_section(WasmLinker *linker, Vector *exports) {
     data_uleb128(&exports_section, -1, 0);  // export global index
     ++num_exports;
   }
-  data_close_chunk(&exports_section, num_exports);  // num exports
+  data_close_chunk(&exports_section, num_exports);
   data_close_chunk(&exports_section, -1);
 
   fputc(SEC_EXPORT, linker->ofp);
@@ -1607,9 +1611,9 @@ static void verbose_symbols(WasmObj *wasmobj, enum SymInfoKind kind) {
   }
 }
 
-bool link_wasm_objs(WasmLinker *linker, Vector *exports, uint32_t stack_size) {
-  for (int i = 0; i < exports->len; ++i) {
-    const Name *name = exports->data[i];
+bool link_wasm_objs(WasmLinker *linker, Table *exports, uint32_t stack_size) {
+  const Name *name;
+  for (int it = 0; (it = table_iterate(exports, it, &name, NULL)) != -1; ) {
     table_put(&linker->unresolved, name, NULL);
   }
 
@@ -1699,7 +1703,7 @@ bool link_wasm_objs(WasmLinker *linker, Vector *exports, uint32_t stack_size) {
   return true;
 }
 
-bool linker_emit_wasm(WasmLinker *linker, const char *ofn, Vector *exports) {
+bool linker_emit_wasm(WasmLinker *linker, const char *ofn, Table *exports) {
   FILE *ofp = fopen(ofn, "wb");
   if (ofp == NULL) {
     fprintf(stderr, "cannot open: %s\n", ofn);
