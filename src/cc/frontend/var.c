@@ -69,7 +69,7 @@ static VarInfo *define_global(const Token *token, Type *type, int storage) {
 Scope *new_scope(Scope *parent) {
   Scope *scope = calloc_or_die(sizeof(*scope));
   scope->parent = parent;
-  scope->vars = NULL;
+  scope->vars = new_vector();
   return scope;
 }
 
@@ -86,12 +86,10 @@ VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope) {
       break;
     }
 
-    if (scope->vars != NULL) {
-      int idx = var_find(scope->vars, name);
-      if (idx >= 0) {
-        varinfo = scope->vars->data[idx];
-        break;
-      }
+    int idx = var_find(scope->vars, name);
+    if (idx >= 0) {
+      varinfo = scope->vars->data[idx];
+      break;
     }
   }
   if (pscope != NULL)
@@ -103,9 +101,6 @@ VarInfo *scope_add(Scope *scope, const Token *name, Type *type, int storage) {
   assert(name != NULL);
   if (is_global_scope(scope))
     return define_global(name, type, storage);
-
-  if (scope->vars == NULL)
-    scope->vars = new_vector();
 
   VarInfo *varinfo = var_add(scope->vars, name, type, storage);
   if (storage & VS_STATIC) {
@@ -146,7 +141,7 @@ Type *find_typedef(Scope *scope, const Name *name, Scope **pscope) {
     }
 
     // Shadowed by variable?
-    if (scope->vars != NULL && var_find(scope->vars, name) >= 0)
+    if (var_find(scope->vars, name) >= 0)
       break;
   }
   return NULL;

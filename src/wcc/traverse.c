@@ -575,8 +575,6 @@ static void traverse_varinfo(VarInfo *varinfo) {
 
 static void traverse_scope(Scope *scope) {
   Vector *vars = scope->vars;
-  if (vars == NULL)
-    return;
   for (int i = 0, len = vars->len; i < len; ++i) {
     VarInfo *varinfo = vars->data[i];
     traverse_varinfo(varinfo);
@@ -802,8 +800,6 @@ static bool detect_compile_unit_sp(Function *func) {
 
   for (int i = 0; i < scopes->len; ++i) {
     Scope *scope = scopes->data[i];
-    if (scope->vars == NULL)
-      continue;
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
       if (!is_local_storage(varinfo)) {

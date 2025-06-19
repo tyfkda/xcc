@@ -1512,9 +1512,6 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
 
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
-    if (scope->vars == NULL)
-      continue;
-
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
       if (!is_local_storage(varinfo)) {
@@ -1588,9 +1585,6 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
   uint32_t sparam_offset = 0;
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
-    if (scope->vars == NULL)
-      continue;
-
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
       if (!is_local_storage(varinfo))

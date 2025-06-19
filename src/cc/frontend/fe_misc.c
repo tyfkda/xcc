@@ -136,25 +136,23 @@ bool no_type_combination(const TypeCombination *tc, int storage_mask, int qualif
 }
 
 VarInfo *find_var_from_scope(Scope *scope, const Token *ident, Type *type, int storage) {
-  if (scope->vars != NULL) {
-    assert(ident != NULL);
-    const Name *name = ident->ident;
-    assert(name != NULL);
-    int idx = var_find(scope->vars, name);
-    if (idx >= 0) {
-      VarInfo *varinfo = scope->vars->data[idx];
-      if (!same_type(type, varinfo->type)) {
-        parse_error(PE_NOFATAL, ident, "`%.*s' type conflict", NAMES(name));
-      } else if (!(storage & VS_EXTERN)) {
-        if (varinfo->storage & VS_EXTERN)
-          varinfo->storage &= ~VS_EXTERN;
-        else if (is_global_scope(scope) && varinfo->global.init == NULL)
-          ;  // Ignore variable duplication if predecessor doesn't have initializer.
-        else
-          parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(name));
-      }
-      return varinfo;
+  assert(ident != NULL);
+  const Name *name = ident->ident;
+  assert(name != NULL);
+  int idx = var_find(scope->vars, name);
+  if (idx >= 0) {
+    VarInfo *varinfo = scope->vars->data[idx];
+    if (!same_type(type, varinfo->type)) {
+      parse_error(PE_NOFATAL, ident, "`%.*s' type conflict", NAMES(name));
+    } else if (!(storage & VS_EXTERN)) {
+      if (varinfo->storage & VS_EXTERN)
+        varinfo->storage &= ~VS_EXTERN;
+      else if (is_global_scope(scope) && varinfo->global.init == NULL)
+        ;  // Ignore variable duplication if predecessor doesn't have initializer.
+      else
+        parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(name));
     }
+    return varinfo;
   }
   return NULL;
 }
@@ -1920,8 +1918,6 @@ void check_unused_variables(Function *func) {
 
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
-    if (scope->vars == NULL)
-      continue;
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
       if (!(varinfo->storage & (VS_USED | VS_ENUM_MEMBER | VS_EXTERN)) && varinfo->ident != NULL) {
