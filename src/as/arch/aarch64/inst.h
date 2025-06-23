@@ -27,6 +27,7 @@ enum Opcode {
   B, BR,
   BEQ, BNE, BHS, BLO, BMI, BPL, BVS, BVC,
   BHI, BLS, BGE, BLT, BGT, BLE, BAL, BNV,
+  CBZ, CBNZ,
   BL, BLR,
   RET,
   SVC,

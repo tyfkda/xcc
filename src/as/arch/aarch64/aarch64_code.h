@@ -51,6 +51,8 @@
 #define W_B()                                      MAKE_CODE32(inst, code, 0x14000000U)
 #define W_BR(rn)                                   MAKE_CODE32(inst, code, 0xd61f0000U | ((rn) << 5))
 #define W_BCC(cond)                                MAKE_CODE32(inst, code, 0x54000000U | (cond))
+#define W_CBZ(sz, rt)                              MAKE_CODE32(inst, code, 0x34000000U | ((sz) << 31) | (rt))
+#define W_CBNZ(sz, rt)                             MAKE_CODE32(inst, code, 0x35000000U | ((sz) << 31) | (rt))
 
 #define W_BL(offset)                               MAKE_CODE32(inst, code, 0x94000000U | ((offset) & ((1U << 26) - 1)))
 #define W_BLR(rn)                                  MAKE_CODE32(inst, code, 0xd63f0000U | ((rn) << 5))

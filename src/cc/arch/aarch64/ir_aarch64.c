@@ -813,6 +813,18 @@ static void ei_jmp(IR *ir) {
     return;
   }
 
+  if ((ir->opr2->flag & (VRF_CONST | VRF_FLONUM)) == VRF_CONST && ir->opr2->fixnum == 0) {
+    int pow = ir->opr1->vsize;
+    assert(0 <= pow && pow < 4);
+    const char **regs = kRegSizeTable[pow];
+    const char *opr1 = regs[ir->opr1->phys];
+    switch (cond & COND_MASK) {
+    case COND_EQ:  CBZ(opr1, label); return;
+    case COND_NE:  CBNZ(opr1, label); return;
+    default: break;
+    }
+  }
+
   cmp_vregs(ir->opr1, ir->opr2);
 
   if (cond & COND_FLONUM) {

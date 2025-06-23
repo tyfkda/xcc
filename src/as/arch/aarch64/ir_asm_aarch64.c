@@ -227,6 +227,38 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
             }
             break;
 
+          case CBZ: case CBNZ:
+            if (inst->opr[1].type == DIRECT) {
+              Value value = calc_expr(label_table, inst->opr[1].direct.expr.expr);
+              if (value.label != NULL) {
+                LabelInfo *label_info = table_get(label_table, value.label);
+                if (label_info == NULL) {
+                  /*UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                  info->kind = UNRES_EXTERN;
+                  info->label = value.label;
+                  info->src_section = section;
+                  info->offset = address - start_address;
+                  info->add = value.offset - 4;
+                  vec_push(unresolved, info);
+                  break;*/
+                  assert(false);
+                } else {
+                  value.offset += label_info->address;
+                }
+              }
+
+              int64_t offset = value.offset - address;
+              {
+                if (offset >= (1L << 20) || offset < -(1L << 20) || (offset & 3) != 0)
+                  error("Jump offset too far (over 32bit)");
+
+                Code *code = &ir->code;
+                uint32_t *buf = (uint32_t*)code->buf;
+                *buf = (*buf & 0xff00001f) | ((offset & ((1U << 21) - 1)) << (5 - 2));
+              }
+            }
+            break;
+
           case BL:
             if (inst->opr[0].type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr[0].direct.expr.expr);

@@ -409,6 +409,17 @@ static unsigned char *asm_bcc(Inst *inst, Code *code) {
   return code->buf;
 }
 
+static unsigned char *asm_cbxx(Inst *inst, Code *code) {
+  Operand *opr1 = &inst->opr[0];
+  uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
+  switch (inst->op) {
+  case CBZ:   W_CBZ(sz, opr1->reg.no); break;
+  case CBNZ:  W_CBNZ(sz, opr1->reg.no); break;
+  default: return NULL;
+  }
+  return code->buf;
+}
+
 static unsigned char *asm_bl(Inst *inst, Code *code) {
   W_BL(0);
   return code->buf;
@@ -581,6 +592,7 @@ static const AsmInstFunc table[] = {
   [BMI] = asm_bcc,  [BPL] = asm_bcc,  [BVS] = asm_bcc,  [BVC] = asm_bcc,
   [BHI] = asm_bcc,  [BLS] = asm_bcc,  [BGE] = asm_bcc,  [BLT] = asm_bcc,
   [BGT] = asm_bcc,  [BLE] = asm_bcc,  [BAL] = asm_bcc,  [BNV] = asm_bcc,
+  [CBZ] = asm_cbxx, [CBNZ] = asm_cbxx,
   [BL] = asm_bl,
   [BLR] = asm_blr,
   [RET] = asm_ret,
