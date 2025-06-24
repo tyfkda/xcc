@@ -266,9 +266,9 @@ function test_link() {
   link_error 'Duplicate comm symbol'              tmp_link_dupcomm1.c tmp_link_dupcomm2.c
   link_success "allowed with '-fcommon'" -fcommon tmp_link_dupcomm1.c tmp_link_dupcomm2.c
 
-  echo 'static int foo() {return 7;} int (*f)(void) = foo; extern int (*g)(void); int main(){return !(f() * 10 + g() == 73);}' > tmp_link_dupsym1.c
-  echo 'static int foo() {return 3;} int (*g)(void) = foo;' > tmp_link_dupsym2.c
-  link_success 'Duplicate function symbol' tmp_link_dupsym1.c tmp_link_dupsym2.c
+  echo 'static int foo() {return 7;} int (*f)(void) = foo; extern int (*g)(void); int main(){return !(f() * 10 + g() == 73);}' > tmp_link_dupsymind1.c
+  echo 'static int foo() {return 3;} int (*g)(void) = foo;' > tmp_link_dupsymind2.c
+  link_success 'Duplicate indirect function symbol' tmp_link_dupsymind1.c tmp_link_dupsymind2.c
 
   # extern inline function can be called.
   echo -e 'inline int sq(int x){return x * x;} \n#ifdef EXTERN\n extern inline int sq(int x);\n#endif' > tmp_link_inline1.c
