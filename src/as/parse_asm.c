@@ -63,6 +63,9 @@ static const char *kDirectiveTable[] = {
   "float",
   "double",
 #endif
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+  "subsections_via_symbols",
+#endif
 };
 
 SectionInfo *get_section_info(ParseInfo *info, const char *name, const char *segname, int flag) {
@@ -1113,6 +1116,12 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
 
   case DT_EXTERN:
     break;
+
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+  case DT_SUBSECTIONS_VIA_SYMBOLS:
+    // TODO: Handle this flag.
+    break;
+#endif
   }
 }
 

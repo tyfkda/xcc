@@ -72,6 +72,7 @@ bool function_not_returned(FuncBackend *fnbe);
 #define _CSTRING()     _SECTION("__TEXT,__cstring,cstring_literals")
 #define _LOCAL(x)      emit_comment(".local %s", x)
 #define _WEAK(x)       EMIT_ASM(".weak_definition", x)
+#define _SUBSECTIONS_VIA_SYMBOLS()     EMIT_ASM(".subsections_via_symbols")
 #else
 #define _RODATA()      _SECTION(".rodata")
 #define _CSTRING()     _SECTION(".rodata")

@@ -550,4 +550,8 @@ void emit_code(Vector *decls) {
       continue;
     emit_varinfo(varinfo, varinfo->global.init);
   }
+
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+  _SUBSECTIONS_VIA_SYMBOLS();
+#endif
 }

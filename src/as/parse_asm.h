@@ -39,6 +39,9 @@ enum DirectiveType {
   DT_FLOAT,
   DT_DOUBLE,
 #endif
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+  DT_SUBSECTIONS_VIA_SYMBOLS,
+#endif
 };
 
 #define SF_EXECUTABLE    (1 << 0)

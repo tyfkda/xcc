@@ -98,7 +98,7 @@ const Name *alloc_label(void) {
   static int label_no;
   ++label_no;
   char buf[2 + sizeof(int) * 3 + 1];
-  snprintf(buf, sizeof(buf), ".L%04d", label_no);
+  snprintf(buf, sizeof(buf), "L.%04d", label_no);
   return alloc_name(buf, NULL, true);
 }
 

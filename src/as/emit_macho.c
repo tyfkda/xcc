@@ -325,7 +325,7 @@ int emit_macho_obj(const char *ofn, Vector *sections, Table *label_table, Vector
     .filetype = MH_OBJECT,
     .ncmds = 3,
     .sizeofcmds = size_of_cmds,
-    .flags = MH_SUBSECTIONS_VIA_SYMBOLS,
+    .flags = MH_SUBSECTIONS_VIA_SYMBOLS,  // TODO: Handle this flag.
   };
   uint64_t vmsize = 0, filesize = 0;
   for (int sec = 0; sec < sections->len; ++sec) {

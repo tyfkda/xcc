@@ -31,9 +31,9 @@ void longjmp(jmp_buf env, int result) {
         "mov %rax, (%rsp)\n"  // Store return address onto top of the stack.
         "mov %esi, %eax\n"  // Result value.
         "test %eax, %eax\n"
-        "jne .longjmp_0\n"
+        "jne L.longjmp_0\n"
         "mov $1, %eax\n"
-        ".longjmp_0:");
+        "L.longjmp_0:");
 }
 #elif defined(__aarch64__)
 void longjmp(jmp_buf env, int result) {
@@ -57,9 +57,9 @@ void longjmp(jmp_buf env, int result) {
         "mov sp, x9\n"
         "mov w0, w1\n"  // Result value.
         "cmp w0, wzr\n"
-        "bne .longjmp_0\n"
+        "bne L.longjmp_0\n"
         "mov w0, #1\n"
-        ".longjmp_0:");
+        "L.longjmp_0:");
 }
 #elif defined(__riscv)
 void longjmp(jmp_buf env, int result) {
@@ -96,9 +96,9 @@ void longjmp(jmp_buf env, int result) {
         "ld s11, 104(a0)\n"
         RESTORE_FREGS
         "mv a0, a1\n"
-        "bne a0, zero, .longjmp_0\n"
+        "bne a0, zero, L.longjmp_0\n"
         "li a0, 1\n"
-        ".longjmp_0:");
+        "L.longjmp_0:");
 }
 #endif
 #endif
