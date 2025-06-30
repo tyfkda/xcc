@@ -5,6 +5,17 @@
 
 #include "emit_code.h"
 
+// Configuration for aarch64
+
+#define PHYSICAL_REG_TEMPORARY   (11)
+#define PHYSICAL_REG_MAX         (PHYSICAL_REG_TEMPORARY + 17)
+#define PHYSICAL_FREG_TEMPORARY  (8)
+#define PHYSICAL_FREG_MAX        (PHYSICAL_FREG_TEMPORARY + 24)
+
+#define GET_FPREG_INDEX()  21
+
+//
+
 #ifndef IM
 #define IM(x)  im(x)
 #endif
@@ -263,3 +274,6 @@ char *reg_offset(const char *base, const char *reg, const char *shift);
 char *label_at_page(char *label, int flag, int64_t offset);  // bit0=pageoff, bit1=got
 
 void mov_immediate(const char *dst, int64_t value, bool b64, bool is_unsigned);
+
+int push_callee_save_regs(unsigned long used, unsigned long fused);
+void pop_callee_save_regs(unsigned long used, unsigned long fused);

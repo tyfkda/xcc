@@ -8,6 +8,7 @@
 #include <stdlib.h>  // realloc
 
 #include "ast.h"
+#include "be_aux.h"
 #include "cc_misc.h"
 #include "fe_misc.h"
 #include "ir.h"

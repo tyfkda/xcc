@@ -8,8 +8,8 @@
 #include <stdlib.h>  // qsort
 #include <string.h>
 
-#include "arch_config.h"
 #include "ast.h"
+#include "be_aux.h"
 #include "cc_misc.h"  // is_function_omitted
 #include "fe_misc.h"  // curfunc, curscope
 #include "ir.h"
@@ -117,8 +117,8 @@ static void alloc_variable_registers(Function *func) {
     int index;
     int max;
   } regparams[2] = {
-    {.index = 0, .max = MAX_REG_ARGS},
-    {.index = 0, .max = MAX_FREG_ARGS},
+    {.index = 0, .max = kArchSetting.max_reg_args},
+    {.index = 0, .max = kArchSetting.max_freg_args},
   };
   enum RegKind { IREG = 0, FREG = 1 };
 
@@ -784,7 +784,7 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
 #if VAARG_FP_AS_GP
     // Register parameters are put below stack frame, so not added to frame_size.
 #else
-    frame_size = (MAX_REG_ARGS + MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
+    frame_size = (kArchSetting.max_reg_args + kArchSetting.max_freg_args) * TARGET_POINTER_SIZE;
 #endif
   }
 

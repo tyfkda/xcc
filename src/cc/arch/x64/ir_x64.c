@@ -1,12 +1,12 @@
 #include "../../../config.h"
-#include "./arch_config.h"
 #include "ir.h"
 
 #include <assert.h>
-#include <stdlib.h>  // malloc
+#include <stdlib.h>
 #include <string.h>
 
 #include "ast.h"
+#include "be_aux.h"
 #include "regalloc.h"
 #include "table.h"
 #include "util.h"
@@ -979,7 +979,7 @@ static void ei_call(IR *ir) {
     for (int i = 0; i < total_arg_count; ++i) {
       if (ir->call->args[i]->flag & VRF_FLONUM) {
         ++freg;
-        if (freg >= MAX_FREG_ARGS)
+        if (freg >= kArchSetting.max_freg_args)
           break;
       }
     }

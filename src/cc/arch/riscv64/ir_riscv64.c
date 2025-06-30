@@ -1,13 +1,13 @@
 #include "../../../config.h"
-#include "./arch_config.h"
 #include "ir.h"
 
 #include <assert.h>
 #include <inttypes.h>
-#include <stdlib.h>  // malloc
+#include <stdlib.h>
 #include <string.h>
 
 #include "ast.h"
+#include "be_aux.h"
 #include "regalloc.h"
 #include "riscv64.h"
 #include "table.h"

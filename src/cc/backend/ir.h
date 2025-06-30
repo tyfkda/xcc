@@ -9,7 +9,6 @@
 typedef struct BB BB;
 typedef struct Name Name;
 typedef struct RegAlloc RegAlloc;
-typedef struct RegAllocSettings RegAllocSettings;
 typedef struct Vector Vector;
 
 typedef struct FrameInfo {
@@ -251,8 +250,6 @@ typedef struct Vector BBContainer;  // <BB*>
 BBContainer *new_func_blocks(void);
 void detect_from_bbs(BBContainer *bbcon);
 void analyze_reg_flow(BBContainer *bbcon);
-int push_callee_save_regs(unsigned long used, unsigned long fused);
-void pop_callee_save_regs(unsigned long used, unsigned long fused);
 
 void emit_bb_irs(BBContainer *bbcon);
 
@@ -276,9 +273,3 @@ typedef struct FuncBackend {
   size_t stack_work_size;
   VReg *stack_work_size_vreg;
 } FuncBackend;
-
-//
-
-extern const RegAllocSettings kArchRegAllocSettings;
-
-void tweak_irs(FuncBackend *fnbe);

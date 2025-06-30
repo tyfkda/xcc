@@ -4,6 +4,15 @@
 
 #include "emit_code.h"
 
+// Configuration for x64
+
+#define PHYSICAL_REG_TEMPORARY   (7)
+#define PHYSICAL_REG_MAX         (PHYSICAL_REG_TEMPORARY + 8)
+#define PHYSICAL_FREG_TEMPORARY  (8)
+#define PHYSICAL_FREG_MAX        (PHYSICAL_FREG_TEMPORARY + 8)
+
+//
+
 #ifndef IM
 #define IM(x)  im(x)
 #endif
@@ -214,3 +223,6 @@ char *indirect(const char *base, const char *index, int scale);
 char *offset_indirect(int offset, const char *base, const char *index, int scale);
 char *label_indirect(const char *label, int64_t offset, const char *reg);
 char *gotpcrel(char *label);
+
+int push_callee_save_regs(unsigned long used, unsigned long fused);
+void pop_callee_save_regs(unsigned long used, unsigned long fused);

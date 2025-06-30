@@ -7,8 +7,8 @@
 #include <math.h>
 #endif
 
-#include "arch_config.h"
 #include "ast.h"
+#include "be_aux.h"
 #include "codegen.h"
 #include "fe_misc.h"
 #include "ir.h"
@@ -109,11 +109,11 @@ static VReg *gen_builtin_va_start(Expr *expr) {
       align = align_size(t);
     } else {
       if (is_flonum(t)) {
-        if (fn >= MAX_FREG_ARGS)
+        if (fn >= kArchSetting.max_freg_args)
           size = align = TARGET_POINTER_SIZE;
         ++fn;
       } else {
-        if (gn >= MAX_REG_ARGS)
+        if (gn >= kArchSetting.max_reg_args)
           size = align = TARGET_POINTER_SIZE;
         ++gn;
       }
@@ -168,13 +168,17 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     }
   }
 
+  const int MAX_REG_ARGS = kArchSetting.max_reg_args;
+  const int MAX_FREG_ARGS = kArchSetting.max_freg_args;
   int offset = 0;
   if (gn >= MAX_REG_ARGS) {
     offset = (gn - MAX_REG_ARGS) * TARGET_POINTER_SIZE;
   } else {
     // Check whether register arguments saved on stack has padding.
-    RegParamInfo iparams[MAX_REG_ARGS];
-    RegParamInfo fparams[MAX_FREG_ARGS];
+    RegParamInfo iparams[8];
+    RegParamInfo fparams[8];
+    assert(MAX_REG_ARGS <= (int)ARRAY_SIZE(iparams));
+    assert(MAX_FREG_ARGS <= (int)ARRAY_SIZE(fparams));
     int iparam_count = 0;
     int fparam_count = 0;
     enumerate_register_params(curfunc, iparams, MAX_REG_ARGS, fparams, MAX_FREG_ARGS,
@@ -242,6 +246,8 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   }
 
   // ap->gp_offset = gn * TARGET_POINTER_SIZE
+  const int MAX_REG_ARGS = kArchSetting.max_reg_args;
+  const int MAX_FREG_ARGS = kArchSetting.max_freg_args;
   VReg *ap = gen_expr(args->data[0]);
   VReg *gp_offset = ap;
   new_ir_store(gp_offset,

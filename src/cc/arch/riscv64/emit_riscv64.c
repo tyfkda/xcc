@@ -1,5 +1,4 @@
 #include "../../../config.h"
-#include "./arch_config.h"
 
 #include <assert.h>
 #include <inttypes.h>  // PRId64
@@ -7,6 +6,7 @@
 #include <string.h>
 
 #include "ast.h"
+#include "be_aux.h"
 #include "cc_misc.h"
 #include "codegen.h"
 #include "ir.h"
@@ -16,6 +16,14 @@
 #include "type.h"
 #include "util.h"
 #include "var.h"
+
+#define MAX_REG_ARGS   (8)
+#define MAX_FREG_ARGS  (8)
+
+const ArchSetting kArchSetting = {
+  .max_reg_args = MAX_REG_ARGS,
+  .max_freg_args = MAX_FREG_ARGS,
+};
 
 char *im(int64_t x) {
   return fmt("%" PRId64, x);

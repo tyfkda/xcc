@@ -93,9 +93,9 @@ ld_SRCS:=$(wildcard $(LD_DIR)/*.c) $(UTIL_DIR)/archive.c \
 
 src_as_CFLAGS:=-I$(AS_DIR) -I$(AS_ARCH_DIR)
 src_as_arch_$(ARCHTYPE)_CFLAGS:=-I$(AS_DIR) -I$(AS_ARCH_DIR)
-src_cc_CFLAGS:=-I$(CC1_FE_DIR) -I$(CC1_BE_DIR) -I$(CC1_ARCH_DIR)  # arch required for builtin.c
+src_cc_CFLAGS:=-I$(CC1_FE_DIR) -I$(CC1_BE_DIR)  # arch required for builtin.c
 src_cc_frontend_CFLAGS:=-I$(CC1_FE_DIR)
-src_cc_backend_CFLAGS:=-I$(CC1_FE_DIR) -I$(CC1_BE_DIR) -I$(CC1_ARCH_DIR)
+src_cc_backend_CFLAGS:=-I$(CC1_FE_DIR) -I$(CC1_BE_DIR)
 src_cc_arch_$(ARCHTYPE)_CFLAGS:=-I$(CC1_FE_DIR) -I$(CC1_BE_DIR)
 src_cpp_CFLAGS:=-I$(CC1_FE_DIR)
 src__debug_CFLAGS:=-I$(CC1_FE_DIR) -I$(CC1_BE_DIR)

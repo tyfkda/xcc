@@ -4,8 +4,8 @@
 #include <assert.h>
 #include <stdlib.h>  // malloc
 
-#include "arch_config.h"
 #include "ast.h"
+#include "be_aux.h"
 #include "fe_misc.h"  // curscope, extract_bitfield_vale
 #include "ir.h"
 #include "regalloc.h"
@@ -418,7 +418,8 @@ static VReg *gen_funcall(Expr *expr) {
       }
 #endif
       bool stack_arg = is_stack_param(arg->type) ||
-                       (p->is_flo ? freg_index >= MAX_FREG_ARGS : ireg_index >= MAX_REG_ARGS);
+                       (p->is_flo ? freg_index >= kArchSetting.max_freg_args
+                                  : ireg_index >= kArchSetting.max_reg_args);
 #if VAARG_ON_STACK
       if (is_vaarg)
         stack_arg = true;
@@ -456,12 +457,12 @@ static VReg *gen_funcall(Expr *expr) {
         if (p->is_flo) {
           ++fregarg;
           int index = freg_arg_count - fregarg;
-          assert(index < MAX_FREG_ARGS);
+          assert(index < kArchSetting.max_freg_args);
           new_ir_pusharg(vreg, index);
         } else {
           ++iregarg;
           int index = reg_arg_count - iregarg + arg_start;
-          assert(index < MAX_REG_ARGS);
+          assert(index < kArchSetting.max_reg_args);
           IR *ir = new_ir_pusharg(vreg, index);
 #if !VAARG_FP_AS_GP
           UNUSED(ir);

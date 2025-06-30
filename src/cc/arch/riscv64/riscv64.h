@@ -5,6 +5,17 @@
 
 #include "emit_code.h"
 
+// Configuration for riscv64
+
+#define PHYSICAL_REG_TEMPORARY   (8)
+#define PHYSICAL_REG_MAX         (PHYSICAL_REG_TEMPORARY + 18)
+#define PHYSICAL_FREG_TEMPORARY  (8)
+#define PHYSICAL_FREG_MAX        (PHYSICAL_FREG_TEMPORARY + 24)
+
+#define GET_FPREG_INDEX()  18
+
+//
+
 #ifndef IM
 #define IM(x)  im(x)
 #endif
@@ -211,3 +222,6 @@
 
 char *im(int64_t x);
 char *immediate_offset(int offset, const char *reg);
+
+int push_callee_save_regs(unsigned long used, unsigned long fused);
+void pop_callee_save_regs(unsigned long used, unsigned long fused);

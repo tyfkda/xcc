@@ -7,14 +7,10 @@
 #include <stdio.h>
 
 typedef struct Vector BBContainer;
-typedef struct Function Function;
 typedef struct FuncBackend FuncBackend;
-typedef struct Initializer Initializer;
 typedef struct IR IR;
 typedef struct Name Name;
-typedef struct RegAlloc RegAlloc;
 typedef struct Table Table;
-typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 typedef struct VReg VReg;
 
@@ -96,9 +92,4 @@ void insert_tmp_mov(VReg **pvreg, Vector *irs, int i);
 int insert_const_fload(VReg **pvreg, Vector *irs, int i);
 #endif
 
-typedef void (*EmitIrFunc)(IR *);
-extern const EmitIrFunc kEmitIrFuncTable[];
-
 void emit_code(Vector *decls);
-extern void emit_bb_irs(BBContainer *bbcon);
-extern void emit_defun_body(Function *func);
