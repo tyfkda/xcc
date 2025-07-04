@@ -916,6 +916,7 @@ static void ei_jmp(IR *ir) {
 }
 
 static void ei_tjmp(IR *ir) {
+  assert(!(ir->opr1->flag & VRF_CONST));
   int phys = ir->opr1->phys;
   const int powd = 3;
   int pows = ir->opr1->vsize;
@@ -1155,6 +1156,7 @@ void tweak_irs(FuncBackend *fnbe) {
 
       case IR_TJMP:
         {
+          assert(!(ir->opr1->flag & VRF_CONST));
           // Allocate temporary register to use calculation.
           VReg *tmp = reg_alloc_spawn(ra, VRegSize8, 0);
           IR *keep = new_ir_keep(tmp, NULL, NULL);  // Notify the register begins to be used.

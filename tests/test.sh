@@ -295,6 +295,17 @@ test_ssa() {
   echo 'int main(void) {int x = 1, y = 0; return x / y;}' > tmp_zerodiv.c
   link_success 'zero division (NOEXEC)' tmp_zerodiv.c
 
+  try 'switch constant' 22 "
+    int x = 2;
+    switch (x) {
+    case 0: x = 0; break;
+    case 1: x = 11; break;
+    case 2: x = 22; break;
+    case 3: x = 33; break;
+    }
+    return x;
+  "
+
   end_test_suite
 }
 
