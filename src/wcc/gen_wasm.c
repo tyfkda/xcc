@@ -66,6 +66,58 @@ static int cur_depth;
 static int break_depth;
 static int continue_depth;
 
+// Goto support for WebAssembly
+
+// Maps label names to indices
+// <const Name*, int*>
+static Table *goto_label_indices;
+
+// Depth of the goto dispatcher loop
+static uint32_t goto_dispatcher_depth;
+
+// Whether the current function uses goto
+static bool goto_used_in_function;
+
+static void init_goto_support(Function *func) {
+  goto_used_in_function = false;
+  goto_label_indices = NULL;
+  goto_dispatcher_depth = 0;
+  if (func->label_table != NULL) {
+    goto_used_in_function = true;
+    goto_label_indices = alloc_table();
+    // Assign indices to labels
+    const Name *name;
+    Stmt *label;
+    int index = 0;
+    for (int it = 0; (it = table_iterate(func->label_table, it, &name, (void**)&label)) != -1; ) {
+      int *label_index = malloc_or_die(sizeof(int));
+      *label_index = index++;
+      table_put(goto_label_indices, name, label_index);
+    }
+  }
+}
+
+static void cleanup_goto_support(void) {
+  if (goto_label_indices != NULL) {
+    // Free allocated indices
+    const Name *name;
+    int *index;
+    for (int it = 0; (it = table_iterate(goto_label_indices, it, &name, (void**)&index)) != -1; ) {
+      free(index);
+    }
+    goto_label_indices = NULL;
+  }
+  goto_used_in_function = false;
+}
+
+static int get_label_index(const Token *label_token) {
+  if (goto_label_indices == NULL) {
+    return -1;
+  }
+  int *index = table_get(goto_label_indices, label_token->ident);
+  return index ? *index : -1;
+}
+
 static unsigned char get_func_ret_wtype(const Type *rettype) {
   return rettype->kind == TY_VOID ? WT_VOID
          : is_prim_type(rettype)  ? to_wtype(rettype)
@@ -1358,6 +1410,29 @@ static void gen_continue(void) {
   ADD_ULEB128(cur_depth - continue_depth - 1);
 }
 
+static void gen_goto(Stmt *stmt) {
+  assert(goto_used_in_function);
+  int label_index = get_label_index(stmt->goto_.label);
+  assert(label_index >= 0);
+  // Calculate branch depth to the label's block
+  // (each label has its own block,
+  // and we need to branch to the right one)
+  int label_count = 0;
+  if (goto_label_indices != NULL) {
+    const Name *name;
+    int *index;
+    for (int it = 0; (it = table_iterate(goto_label_indices, it, &name, (void**)&index)) != -1; ) {
+      label_count++;
+    }
+  }
+  // Branch to the label's block
+  // (the blocks are created in reverse order,
+  // so label_index 0 is the outermost block)
+  int branch_depth = cur_depth - goto_dispatcher_depth - (label_count - 1 - label_index);
+  ADD_CODE(OP_BR);
+  ADD_ULEB128(branch_depth);
+}
+
 static void gen_block(Stmt *stmt, bool is_last) {
   assert(stmt->kind == ST_BLOCK);
   // AST may moved, so code generation traversal may differ from lexical scope chain.
@@ -1485,7 +1560,7 @@ static void gen_stmt(Stmt *stmt, bool is_last) {
   case ST_LABEL: gen_stmt(stmt->label.stmt, is_last); break;
   case ST_VARDECL:  gen_vardecl(stmt->vardecl); break;
   case ST_ASM:  gen_asm(stmt); break;
-  case ST_GOTO: assert(false); break;
+  case ST_GOTO: gen_goto(stmt); break;
   }
 }
 
@@ -1638,6 +1713,8 @@ static void gen_defun(Function *func) {
   if (is_function_omitted(funcvi))
     return;
 
+  init_goto_support(func);
+
   DataStorage *code = malloc_or_die(sizeof(*code));
   data_init(code);
   data_open_chunk(code);
@@ -1731,7 +1808,43 @@ static void gen_defun(Function *func) {
     ADD_CODE(OP_BLOCK, wt);
     cur_depth += 1;
   }
+
+  if (goto_used_in_function) {
+    // Create nested blocks for each label in reverse order
+    int label_count = 0;
+    if (goto_label_indices != NULL) {
+      const Name *name;
+      int *index;
+      for (int it = 0; (it = table_iterate(goto_label_indices, it, &name, (void**)&index)) != -1; ) {
+        label_count++;
+      }
+    }
+    // Create outer blocks for each label
+    // (in reverse order for proper depth calculation)
+    for (int i = label_count - 1; i >= 0; i--) {
+      ADD_CODE(OP_BLOCK, WT_VOID);
+      cur_depth++;
+    }
+    goto_dispatcher_depth = cur_depth - label_count;
+  }
+
   gen_stmt(func->body_block, true);
+
+  if (goto_used_in_function) {
+    // Close all the label blocks
+    int label_count = 0;
+    if (goto_label_indices != NULL) {
+      const Name *name;
+      int *index;
+      for (int it = 0; (it = table_iterate(goto_label_indices, it, &name, (void**)&index)) != -1; ) {
+        label_count++;
+      }
+    }
+    for (int i = 0; i < label_count; i++) {
+      ADD_CODE(OP_END);
+      cur_depth--;
+    }
+  }
 
   {
     Vector *stmts = func->body_block->block.stmts;
@@ -1773,6 +1886,8 @@ static void gen_defun(Function *func) {
   curfunc = NULL;
   curcodeds = NULL;
   assert(cur_depth == 0);
+
+  cleanup_goto_support();
 }
 
 static void gen_decl(Declaration *decl) {
