@@ -66,15 +66,15 @@ static int cur_depth;
 static int break_depth;
 static int continue_depth;
 
-// Track if the previous statement was an if block to validate label placement
-static bool just_finished_if_block = false;
+// Forward-only goto:
+// Each label must be placed just after a block
 
-// New goto system: Forward-only goto to labels after if blocks
-// Each label must be placed just after an if(...){...} block closes
-// The goto jumps to the end of the containing if block
+// Track if the previous statement was a block,
+// to validate label placement
+static bool just_finished_block = false;
 
 typedef struct GotoPatch {
-  const Name *label_name;    // Label this goto targets
+  const Name *label_name;   // The target label
   int goto_depth;           // Depth where the goto was encountered
   size_t patch_offset;      // Offset in code where branch depth needs to be patched
 } GotoPatch;
@@ -82,34 +82,21 @@ typedef struct GotoPatch {
 // Forward declarations for goto system
 static const Name *find_label_name_for_stmt(Stmt *stmt);
 
-static Table *goto_targets = NULL;  // Maps label names to GotoTarget* (unused now, but kept for compatibility)
-static Vector *goto_patches = NULL; // List of GotoPatch structures that need patching
+// List of GotoPatch structures that need patching
+static Vector *goto_patches = NULL;
 
 // Initialize goto tracking system
 static void init_goto_system(void) {
-  goto_targets = alloc_table();
   goto_patches = new_vector();
 }
 
-// Clean up goto tracking system  
 static void cleanup_goto_system(void) {
-  if (goto_targets != NULL) {
-    table_init(goto_targets);  // Reset table for reuse
-  }
   if (goto_patches != NULL) {
-    // Free all GotoPatch structures
     for (int i = 0; i < goto_patches->len; i++) {
       free(goto_patches->data[i]);
     }
     vec_clear(goto_patches);
   }
-}
-
-// Analyze labels in the function and prepare goto targets
-// This initializes goto targets but doesn't set depths - depths are set during code generation
-static void analyze_function_labels(Function *func) {
-  // No longer need to pre-analyze labels since we patch during code generation
-  UNUSED(func);
 }
 
 static unsigned char get_func_ret_wtype(const Type *rettype) {
@@ -1405,26 +1392,21 @@ static void gen_continue(void) {
 }
 
 static void gen_goto(Stmt *stmt) {
-  // Record goto for later patching when we encounter the target label
-  
   const Name *label_name = stmt->goto_.label->ident;
-  
+
   // Create a patch record
   GotoPatch *patch = malloc_or_die(sizeof(GotoPatch));
   patch->label_name = label_name;
   patch->goto_depth = cur_depth;
-  patch->patch_offset = CODE->len;  // Current position where we'll emit the branch depth
-  
+   // Current position where we'll emit the branch depth
+  patch->patch_offset = CODE->len;
   vec_push(goto_patches, patch);
-  
+
   // Generate the branch instruction with placeholder depth (will be patched later)
   ADD_CODE(OP_BR);
-  ADD_ULEB128(0);  // Placeholder depth - will be patched when we encounter the label
-  
+  ADD_ULEB128(0);
+
   // Generate unreachable to handle WebAssembly stack polymorphism
-  // Note: This unreachable should never be executed if the branch works correctly.
-  // If this unreachable is being executed, it indicates a problem with the branch
-  // target calculation or WebAssembly block structure.
   ADD_CODE(OP_UNREACHABLE);
 }
 
@@ -1437,6 +1419,7 @@ static void gen_block(Stmt *stmt, bool is_last) {
   gen_stmts(stmt->block.stmts, is_last);
   if (stmt->block.scope != NULL)
     curscope = bak_curscope;
+  just_finished_block = true;
 }
 
 static void gen_return(Stmt *stmt, bool is_last) {
@@ -1486,7 +1469,7 @@ static void gen_if(Stmt *stmt, bool is_last) {
     } else if (stmt->if_.fblock != NULL) {
       gen_stmt(stmt->if_.fblock, is_last);
     }
-    just_finished_if_block = true;  // Mark that we just finished an if block
+    just_finished_block = true;
     return;
   }
 
@@ -1497,16 +1480,14 @@ static void gen_if(Stmt *stmt, bool is_last) {
   gen_cond(stmt->if_.cond, true, true);
   ADD_CODE(OP_IF, wt);
   ++cur_depth;
-  
   gen_stmt(stmt->if_.tblock, is_last);
   if (stmt->if_.fblock != NULL) {
     ADD_CODE(OP_ELSE);
     gen_stmt(stmt->if_.fblock, is_last);
   }
-  
   ADD_CODE(OP_END);
   --cur_depth;
-  just_finished_if_block = true;  // Mark that we just finished an if block
+  just_finished_block = true;
 }
 
 static void gen_vardecl(VarDecl *decl) {
@@ -1542,88 +1523,38 @@ static void gen_asm(Stmt *stmt) {
 static void gen_stmt(Stmt *stmt, bool is_last) {
   if (stmt == NULL)
     return;
-
+  if (stmt->kind != ST_LABEL)
+    just_finished_block = false;
   switch (stmt->kind) {
-  case ST_EMPTY: 
-    just_finished_if_block = false;
-    // Fix for WebAssembly unreachable instruction issue:
-    // When an empty statement follows a label (which happens with explicit semicolons),
-    // we need to ensure this doesn't lead to spurious unreachable instructions.
-    // The empty statement itself doesn't generate any WebAssembly code, which is correct.
-    break;
-  case ST_EXPR:  
-    just_finished_if_block = false;
-    gen_expr_stmt(stmt->expr); 
-    break;
-  case ST_RETURN:  
-    just_finished_if_block = false;
-    gen_return(stmt, is_last); 
-    break;
-  case ST_BLOCK:  
-    just_finished_if_block = false;
-    gen_block(stmt, is_last); 
-    break;
-  case ST_IF:  
-    gen_if(stmt, is_last); 
-    break;  // Don't reset flag here - gen_if sets it to true
-  case ST_SWITCH:  
-    just_finished_if_block = false;
-    gen_switch(stmt); 
-    break;
-  case ST_CASE:  
-    just_finished_if_block = false;
-    gen_case(stmt, is_last); 
-    break;
-  case ST_WHILE:  
-    just_finished_if_block = false;
-    gen_while(stmt); 
-    break;
-  case ST_DO_WHILE:  
-    just_finished_if_block = false;
-    gen_do_while(stmt); 
-    break;
-  case ST_FOR:  
-    just_finished_if_block = false;
-    gen_for(stmt); 
-    break;
-  case ST_BREAK:  
-    just_finished_if_block = false;
-    gen_break(); 
-    break;
-  case ST_CONTINUE:  
-    just_finished_if_block = false;
-    gen_continue(); 
-    break;
-  case ST_LABEL: 
-    // Validate that labels appear immediately after if blocks (WebAssembly requirement)
-    if (!just_finished_if_block) {
-      const Name *label_name = find_label_name_for_stmt(stmt);
-      if (label_name != NULL) {
-        parse_error(PE_FATAL, NULL, 
-                   "Label '%.*s' must appear immediately after an if(...){...} block for WebAssembly goto support", 
-                   NAMES(label_name));
-      } else {
-        parse_error(PE_FATAL, NULL, "Label must appear immediately after an if(...){...} block for WebAssembly goto support");
-      }
+  case ST_EMPTY: break;
+  case ST_EXPR:  gen_expr_stmt(stmt->expr); break;
+  case ST_RETURN:  gen_return(stmt, is_last); break;
+  case ST_BLOCK:  gen_block(stmt, is_last); break;
+  case ST_IF:  gen_if(stmt, is_last); break;
+  case ST_SWITCH:  gen_switch(stmt); break;
+  case ST_CASE:  gen_case(stmt, is_last); break;
+  case ST_WHILE:  gen_while(stmt); break;
+  case ST_DO_WHILE:  gen_do_while(stmt); break;
+  case ST_FOR:  gen_for(stmt); break;
+  case ST_BREAK:  gen_break(); break;
+  case ST_CONTINUE:  gen_continue(); break;
+  case ST_LABEL:
+    if (!just_finished_block) {
+      parse_error(PE_FATAL, NULL, "Label must appear immediately after a block, for WebAssembly goto support");
       return;
     }
-    just_finished_if_block = false;
-    
-    // Patch all goto instructions that target this label
+    // Patch goto instructions that target this label
     {
       const Name *label_name = find_label_name_for_stmt(stmt);
       if (label_name != NULL) {
-        // Find and patch all goto instructions targeting this label
         for (int i = 0; i < goto_patches->len; i++) {
           GotoPatch *patch = goto_patches->data[i];
           if (equal_name(patch->label_name, label_name)) {
-            // Calculate the branch depth: where goto was - where label is - 1
             int branch_depth = patch->goto_depth - cur_depth - 1;
             if (branch_depth < 0) {
-              parse_error(PE_NOFATAL, NULL, "Invalid goto: cannot branch to label '%.*s'", NAMES(label_name));
+              parse_error(PE_NOFATAL, NULL, "Unsupported goto: cannot branch to deeper label '%.*s'", NAMES(label_name));
               continue;
             }
-            
             // Patch the branch depth in the code
             // Note: This assumes depth fits in 1 byte (ULEB128 with value < 128)
             // The OP_BR was emitted, then ADD_ULEB128(0) added 1 byte
@@ -1631,27 +1562,18 @@ static void gen_stmt(Stmt *stmt, bool is_last) {
             if (branch_depth < 128) {
               CODE->buf[patch->patch_offset + 1] = (unsigned char)branch_depth;
             } else {
-              parse_error(PE_NOFATAL, NULL, "Branch depth %d too large for simple patching", branch_depth);
+              parse_error(PE_NOFATAL, NULL, "Unsupported goto: branch depth %d too large for simple patching", branch_depth);
             }
           }
         }
       }
     }
     // Generate the statement that follows the label
-    gen_stmt(stmt->label.stmt, is_last); 
+    gen_stmt(stmt->label.stmt, is_last);
     break;
-  case ST_VARDECL:  
-    just_finished_if_block = false;
-    gen_vardecl(stmt->vardecl); 
-    break;
-  case ST_ASM:  
-    just_finished_if_block = false;
-    gen_asm(stmt); 
-    break;
-  case ST_GOTO: 
-    just_finished_if_block = false;
-    gen_goto(stmt); 
-    break;
+  case ST_VARDECL:  gen_vardecl(stmt->vardecl); break;
+  case ST_ASM:  gen_asm(stmt); break;
+  case ST_GOTO: gen_goto(stmt); break;
   }
 }
 
@@ -1897,19 +1819,13 @@ static void gen_defun(Function *func) {
     ADD_CODE(OP_BLOCK, wt);
     cur_depth += 1;
   }
-  
+
   // Initialize goto tracking system for this function
   init_goto_system();
-  
-  // Analyze labels and prepare goto targets  
-  analyze_function_labels(func);
-  
-  // Reset if-block tracking for this function
-  just_finished_if_block = false;
-  
+  just_finished_block = false;
+
   gen_stmt(func->body_block, true);
-  
-  // Clean up goto tracking system
+
   cleanup_goto_system();
 
   {
@@ -1919,9 +1835,8 @@ static void gen_defun(Function *func) {
       if (last->kind != ST_ASM && functype->func.ret->kind != TY_VOID &&
           !check_funcend_return(func->body_block)) {
         assert(func->body_block->reach & REACH_STOP);
-        // Fix for unreachable instruction issue: 
         // Don't generate unreachable if the last statement is a label,
-        // as this can cause issues with goto targets
+        // as this would cause a runtime error
         if (last->kind != ST_LABEL) {
           ADD_CODE(OP_UNREACHABLE);
         }
@@ -2432,7 +2347,6 @@ static const Name *find_label_name_for_stmt(Stmt *stmt) {
   if (curfunc == NULL || curfunc->label_table == NULL) {
     return NULL;
   }
-  
   const Name *name;
   Stmt *label_stmt;
   for (int it = 0; (it = table_iterate(curfunc->label_table, it, &name, (void**)&label_stmt)) != -1; ) {

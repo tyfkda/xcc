@@ -616,9 +616,7 @@ static void traverse_stmt(Stmt *stmt) {
   case ST_FOR:  traverse_for(stmt); break;
   case ST_BREAK:  break;
   case ST_CONTINUE:  break;
-  case ST_GOTO:
-    // Allow goto statements in the new implementation
-    break;
+  case ST_GOTO:  break;
   case ST_LABEL:  traverse_stmt(stmt->label.stmt); break;
   case ST_VARDECL:  traverse_vardecl(stmt->vardecl); break;
   case ST_ASM:  break;
