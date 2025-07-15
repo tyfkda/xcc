@@ -537,6 +537,24 @@ static Stmt *parse_label(const Token *tok) {
     parse_error(PE_NOFATAL, NULL, "statement expected");
     next = new_stmt(ST_EMPTY, tok);  // Dummy
   }
+  
+  // Fix for WebAssembly unreachable instruction issue:
+  // When a label is not followed by an explicit empty statement (semicolon),
+  // but the next statement is effectively at the same logical level,
+  // we need to ensure proper WebAssembly code generation.
+  // The semicolon fix works because it creates an explicit ST_EMPTY statement.
+  // We replicate this by ensuring labels are followed by proper statement structures.
+  if (next != NULL && next->kind != ST_EMPTY && next->kind == ST_RETURN) {
+    // Create an explicit empty statement before the return to match the semicolon fix
+    Stmt *empty_stmt = new_stmt(ST_EMPTY, tok);
+    Stmt *block_stmt = new_stmt_block(tok, NULL, NULL, NULL);
+    Vector *stmts = new_vector();
+    vec_push(stmts, empty_stmt);
+    vec_push(stmts, next);
+    block_stmt->block.stmts = stmts;
+    next = block_stmt;
+  }
+  
   Stmt *stmt = new_stmt_label(tok, next);
   add_func_label(tok, stmt);
   return stmt;

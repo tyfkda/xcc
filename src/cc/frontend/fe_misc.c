@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>  // exit
 #include <string.h>
 
@@ -1991,8 +1992,11 @@ static void check_reachability_stmt(Stmt *stmt) {
     stmt->reach = stmt->case_.stmt->reach;
     break;
   case ST_GOTO:
-    // TODO:
-    stmt->reach |= REACH_STOP;
+    // For WebAssembly goto implementation, don't mark goto as stopping execution
+    // since the goto correctly transfers control to its target label.
+    // Setting REACH_STOP here causes spurious unreachable instructions to be
+    // generated in the WebAssembly output.
+    // stmt->reach |= REACH_STOP;
     break;
   case ST_CONTINUE:
     stmt->reach |= REACH_STOP;
@@ -2090,6 +2094,9 @@ bool check_funcend_return(Stmt *stmt) {
         return check_funcend_return(stmts->data[stmts->len - 1]);
     }
     break;
+  case ST_LABEL:
+    // A label followed by a return statement should be considered as ending with return
+    return check_funcend_return(stmt->label.stmt);
   default:
     break;
   }
