@@ -133,3 +133,4 @@ You can also use WASM/WASI runtime (Wasmtime, Wasmer, etc.), too.
     they jump forward to a label right after a block,
     such as after a loop or `if` statement.
     Breaking from nested loops or blocks is allowed.
+    
