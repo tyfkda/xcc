@@ -79,9 +79,6 @@ typedef struct GotoPatch {
   size_t patch_offset;      // Offset in code where branch depth needs to be patched
 } GotoPatch;
 
-// Forward declarations for goto system
-static const Name *find_label_name_for_stmt(Stmt *stmt);
-
 // List of GotoPatch structures that need patching
 static Vector *goto_patches = NULL;
 
@@ -95,7 +92,8 @@ static void cleanup_goto_system(void) {
     for (int i = 0; i < goto_patches->len; i++) {
       free(goto_patches->data[i]);
     }
-    vec_clear(goto_patches);
+    free_vector(goto_patches);
+    goto_patches = NULL;
   }
 }
 
@@ -1304,6 +1302,7 @@ static void gen_while(Stmt *stmt) {
   cur_depth -= 2;
   break_depth = save_break;
   continue_depth = save_continue;
+  just_finished_block = true;
 }
 
 static void gen_do_while(Stmt *stmt) {
@@ -1339,6 +1338,7 @@ static void gen_do_while(Stmt *stmt) {
   cur_depth -= 2;
   break_depth = save_break;
   continue_depth = save_continue;
+  just_finished_block = true;
 }
 
 static void gen_for(Stmt *stmt) {
@@ -1377,6 +1377,7 @@ static void gen_for(Stmt *stmt) {
   cur_depth -= 2;
   break_depth = save_break;
   continue_depth = save_continue;
+  just_finished_block = true;
 }
 
 static void gen_break(void) {
@@ -1545,10 +1546,12 @@ static void gen_stmt(Stmt *stmt, bool is_last) {
     }
     // Patch goto instructions that target this label
     {
-      const Name *label_name = find_label_name_for_stmt(stmt);
+      const Name *label_name = stmt->token->ident;
       if (label_name != NULL) {
         for (int i = 0; i < goto_patches->len; i++) {
           GotoPatch *patch = goto_patches->data[i];
+          if (patch == NULL)
+            continue;
           if (equal_name(patch->label_name, label_name)) {
             int branch_depth = patch->goto_depth - cur_depth - 1;
             if (branch_depth < 0) {
@@ -1564,6 +1567,7 @@ static void gen_stmt(Stmt *stmt, bool is_last) {
             } else {
               parse_error(PE_NOFATAL, NULL, "Unsupported goto: branch depth %d too large for simple patching", branch_depth);
             }
+            goto_patches->data[i] = NULL;
           }
         }
       }
@@ -2340,19 +2344,4 @@ void install_builtins(void) {
 
     add_builtin_function("__builtin_try_catch_longjmp", type, &p_try_catch_longjmp, true);
   }
-}
-
-// Find label name for a given statement by reverse lookup
-static const Name *find_label_name_for_stmt(Stmt *stmt) {
-  if (curfunc == NULL || curfunc->label_table == NULL) {
-    return NULL;
-  }
-  const Name *name;
-  Stmt *label_stmt;
-  for (int it = 0; (it = table_iterate(curfunc->label_table, it, &name, (void**)&label_stmt)) != -1; ) {
-    if (label_stmt == stmt) {
-      return name;
-    }
-  }
-  return NULL;
 }
