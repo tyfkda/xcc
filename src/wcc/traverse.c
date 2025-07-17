@@ -19,6 +19,35 @@ Table builtin_function_table;
 
 static Stmt *branching_stmt;
 
+// GOTO label validation for WebAssembly
+// Track if the previous statement was a block to validate label placement
+static bool just_finished_block = false;
+
+// Validate that labels appear immediately after blocks for WebAssembly goto support
+static void validate_label_placement(Stmt *stmt) {
+  if (!just_finished_block) {
+    parse_error(PE_FATAL, stmt->token,
+                "Label '%.*s' must appear immediately after a block, for WebAssembly goto support",
+                NAMES(stmt->token->ident));
+  }
+}
+
+// Check if a statement type creates a block that can be followed by a goto label
+static bool is_block_creating_stmt(Stmt *stmt) {
+  if (stmt == NULL) return false;
+  switch (stmt->kind) {
+    case ST_BLOCK:
+    case ST_IF:
+    case ST_SWITCH:
+    case ST_WHILE:
+    case ST_DO_WHILE:
+    case ST_FOR:
+      return true;
+    default:
+      return false;
+  }
+}
+
 bool is_stack_param(const Type *type) {
   return !is_prim_type(type);
 }
@@ -589,6 +618,13 @@ static void traverse_vardecl(VarDecl *decl) {
 static void traverse_stmt(Stmt *stmt) {
   if (stmt == NULL)
     return;
+
+  // For WebAssembly goto support: track if previous statement was a block
+  // Labels must appear immediately after blocks
+  if (stmt->kind != ST_LABEL) {
+    just_finished_block = false;
+  }
+
   switch (stmt->kind) {
   case ST_EMPTY: break;
   case ST_EXPR:  traverse_expr(&stmt->expr, false); break;
@@ -606,18 +642,37 @@ static void traverse_stmt(Stmt *stmt) {
       traverse_stmts(stmt->block.stmts);
       if (bak != NULL)
         curscope = bak;
+      just_finished_block = true;
     }
     break;
-  case ST_IF:  traverse_if(stmt); break;
-  case ST_SWITCH:  traverse_switch(stmt); break;
+  case ST_IF:
+    traverse_if(stmt);
+    just_finished_block = true;
+    break;
+  case ST_SWITCH:
+    traverse_switch(stmt);
+    just_finished_block = true;
+    break;
   case ST_CASE: traverse_case(stmt); break;
-  case ST_WHILE:  traverse_while(stmt); break;
-  case ST_DO_WHILE:  traverse_do_while(stmt); break;
-  case ST_FOR:  traverse_for(stmt); break;
+  case ST_WHILE:
+    traverse_while(stmt);
+    just_finished_block = true;
+    break;
+  case ST_DO_WHILE:
+    traverse_do_while(stmt);
+    just_finished_block = true;
+    break;
+  case ST_FOR:
+    traverse_for(stmt);
+    just_finished_block = true;
+    break;
   case ST_BREAK:  break;
   case ST_CONTINUE:  break;
   case ST_GOTO:  break;
-  case ST_LABEL:  traverse_stmt(stmt->label.stmt); break;
+  case ST_LABEL:
+    validate_label_placement(stmt);
+    traverse_stmt(stmt->label.stmt);
+    break;
   case ST_VARDECL:  traverse_vardecl(stmt->vardecl); break;
   case ST_ASM:  break;
   }

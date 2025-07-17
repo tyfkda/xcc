@@ -68,10 +68,7 @@ static int continue_depth;
 
 // Forward-only goto:
 // Each label must be placed just after a block
-
-// Track if the previous statement was a block,
-// to validate label placement
-static bool just_finished_block = false;
+// (Label placement validation is in the traverse phase)
 
 typedef struct GotoPatch {
   const Name *label_name;   // The target label
@@ -1302,7 +1299,6 @@ static void gen_while(Stmt *stmt) {
   cur_depth -= 2;
   break_depth = save_break;
   continue_depth = save_continue;
-  just_finished_block = true;
 }
 
 static void gen_do_while(Stmt *stmt) {
@@ -1338,7 +1334,6 @@ static void gen_do_while(Stmt *stmt) {
   cur_depth -= 2;
   break_depth = save_break;
   continue_depth = save_continue;
-  just_finished_block = true;
 }
 
 static void gen_for(Stmt *stmt) {
@@ -1377,7 +1372,6 @@ static void gen_for(Stmt *stmt) {
   cur_depth -= 2;
   break_depth = save_break;
   continue_depth = save_continue;
-  just_finished_block = true;
 }
 
 static void gen_break(void) {
@@ -1420,7 +1414,6 @@ static void gen_block(Stmt *stmt, bool is_last) {
   gen_stmts(stmt->block.stmts, is_last);
   if (stmt->block.scope != NULL)
     curscope = bak_curscope;
-  just_finished_block = true;
 }
 
 static void gen_return(Stmt *stmt, bool is_last) {
@@ -1470,7 +1463,6 @@ static void gen_if(Stmt *stmt, bool is_last) {
     } else if (stmt->if_.fblock != NULL) {
       gen_stmt(stmt->if_.fblock, is_last);
     }
-    just_finished_block = true;
     return;
   }
 
@@ -1488,7 +1480,6 @@ static void gen_if(Stmt *stmt, bool is_last) {
   }
   ADD_CODE(OP_END);
   --cur_depth;
-  just_finished_block = true;
 }
 
 static void gen_vardecl(VarDecl *decl) {
@@ -1524,8 +1515,6 @@ static void gen_asm(Stmt *stmt) {
 static void gen_stmt(Stmt *stmt, bool is_last) {
   if (stmt == NULL)
     return;
-  if (stmt->kind != ST_LABEL)
-    just_finished_block = false;
   switch (stmt->kind) {
   case ST_EMPTY: break;
   case ST_EXPR:  gen_expr_stmt(stmt->expr); break;
@@ -1540,10 +1529,6 @@ static void gen_stmt(Stmt *stmt, bool is_last) {
   case ST_BREAK:  gen_break(); break;
   case ST_CONTINUE:  gen_continue(); break;
   case ST_LABEL:
-    if (!just_finished_block) {
-      parse_error(PE_FATAL, NULL, "Label must appear immediately after a block, for WebAssembly goto support");
-      return;
-    }
     // Patch goto instructions that target this label
     {
       const Name *label_name = stmt->token->ident;
@@ -1826,7 +1811,6 @@ static void gen_defun(Function *func) {
 
   // Initialize goto tracking system for this function
   init_goto_system();
-  just_finished_block = false;
 
   gen_stmt(func->body_block, true);
 
