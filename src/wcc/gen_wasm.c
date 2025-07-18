@@ -1400,9 +1400,6 @@ static void gen_goto(Stmt *stmt) {
   // Generate the branch instruction with placeholder depth (will be patched later)
   ADD_CODE(OP_BR);
   ADD_ULEB128(0);
-
-  // Generate unreachable to handle WebAssembly stack polymorphism
-  ADD_CODE(OP_UNREACHABLE);
 }
 
 static void gen_block(Stmt *stmt, bool is_last) {

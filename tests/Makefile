@@ -40,7 +40,7 @@ misc-tests:	test-link test-examples
 clean:
 	rm -rf table_test util_test parser_test initializer_test print_type_test \
 		valtest dvaltest fvaltest link_test \
-		goto_backward_test goto_branch_test goto_edge_cases_test goto_wcc_test \
+		goto_wcc_test \
 		a.out tmp* *.o mandelbrot.ppm \
 		*.wasm
 
@@ -197,26 +197,8 @@ $(foreach D, $(WCC_TESTS), $(eval $(call DEFINE_WCCTEST_TARGET,$(D))))
 
 .PHONY: test-wcc-goto-invalid
 test-wcc-goto-invalid:
-	@echo "## Testing invalid goto patterns should fail WASM compilation"
-	@if $(WCC) -o goto_backward_test.wasm goto_backward_test.c 2>/dev/null; then \
-		echo "FAIL: Backward goto should have failed compilation"; \
-		exit 1; \
-	else \
-		echo "PASS: Backward goto correctly rejected"; \
-	fi
-	@echo "## Testing cross-branch goto should fail WASM compilation"
-	@if $(WCC) -o goto_branch_test.wasm goto_branch_test.c 2>/dev/null; then \
-		echo "FAIL: Cross-branch goto should have failed compilation"; \
-		exit 1; \
-	else \
-		echo "PASS: Cross-branch goto correctly rejected"; \
-	fi
-	@echo "## Testing invalid label placement should fail WASM compilation"
-	@if $(WCC) -o goto_edge_cases_test.wasm goto_edge_cases_test.c 2>/dev/null; then \
-		echo "WARNING: Some edge cases compiled (this may be expected)"; \
-	else \
-		echo "PASS: Some edge cases correctly rejected"; \
-	fi
+	@echo "## Goto invalid patterns test"
+	@XCC="$(WCC)" ./goto_wcc_invalid_test.sh
 
 .PHONY: test-wcc-goto
 test-wcc-goto:	goto_wcc_test
