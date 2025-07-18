@@ -66,6 +66,34 @@ static int cur_depth;
 static int break_depth;
 static int continue_depth;
 
+// Forward-only goto:
+// Each label must be placed just after a block
+// (Label placement validation is in the traverse phase)
+
+typedef struct GotoPatch {
+  const Name *label_name;   // The target label
+  int goto_depth;           // Depth where the goto was encountered
+  size_t patch_offset;      // Offset in code where branch depth needs to be patched
+} GotoPatch;
+
+// List of GotoPatch structures that need patching
+static Vector *goto_patches = NULL;
+
+// Initialize goto tracking system
+static void init_goto_system(void) {
+  goto_patches = new_vector();
+}
+
+static void cleanup_goto_system(void) {
+  if (goto_patches != NULL) {
+    for (int i = 0; i < goto_patches->len; i++) {
+      free(goto_patches->data[i]);
+    }
+    free_vector(goto_patches);
+    goto_patches = NULL;
+  }
+}
+
 static unsigned char get_func_ret_wtype(const Type *rettype) {
   return rettype->kind == TY_VOID ? WT_VOID
          : is_prim_type(rettype)  ? to_wtype(rettype)
@@ -1358,6 +1386,22 @@ static void gen_continue(void) {
   ADD_ULEB128(cur_depth - continue_depth - 1);
 }
 
+static void gen_goto(Stmt *stmt) {
+  const Name *label_name = stmt->goto_.label->ident;
+
+  // Create a patch record
+  GotoPatch *patch = malloc_or_die(sizeof(GotoPatch));
+  patch->label_name = label_name;
+  patch->goto_depth = cur_depth;
+   // Current position where we'll emit the branch depth
+  patch->patch_offset = CODE->len;
+  vec_push(goto_patches, patch);
+
+  // Generate the branch instruction with placeholder depth (will be patched later)
+  ADD_CODE(OP_BR);
+  ADD_ULEB128(0);
+}
+
 static void gen_block(Stmt *stmt, bool is_last) {
   assert(stmt->kind == ST_BLOCK);
   // AST may moved, so code generation traversal may differ from lexical scope chain.
@@ -1468,7 +1512,6 @@ static void gen_asm(Stmt *stmt) {
 static void gen_stmt(Stmt *stmt, bool is_last) {
   if (stmt == NULL)
     return;
-
   switch (stmt->kind) {
   case ST_EMPTY: break;
   case ST_EXPR:  gen_expr_stmt(stmt->expr); break;
@@ -1482,10 +1525,41 @@ static void gen_stmt(Stmt *stmt, bool is_last) {
   case ST_FOR:  gen_for(stmt); break;
   case ST_BREAK:  gen_break(); break;
   case ST_CONTINUE:  gen_continue(); break;
-  case ST_LABEL: gen_stmt(stmt->label.stmt, is_last); break;
+  case ST_LABEL:
+    // Patch goto instructions that target this label
+    {
+      const Name *label_name = stmt->token->ident;
+      if (label_name != NULL) {
+        for (int i = 0; i < goto_patches->len; i++) {
+          GotoPatch *patch = goto_patches->data[i];
+          if (patch == NULL)
+            continue;
+          if (equal_name(patch->label_name, label_name)) {
+            int branch_depth = patch->goto_depth - cur_depth - 1;
+            if (branch_depth < 0) {
+              parse_error(PE_NOFATAL, NULL, "Unsupported goto: cannot branch to deeper label '%.*s'", NAMES(label_name));
+              continue;
+            }
+            // Patch the branch depth in the code
+            // Note: This assumes depth fits in 1 byte (ULEB128 with value < 128)
+            // The OP_BR was emitted, then ADD_ULEB128(0) added 1 byte
+            // So we patch at patch_offset + 1
+            if (branch_depth < 128) {
+              CODE->buf[patch->patch_offset + 1] = (unsigned char)branch_depth;
+            } else {
+              parse_error(PE_NOFATAL, NULL, "Unsupported goto: branch depth %d too large for simple patching", branch_depth);
+            }
+            goto_patches->data[i] = NULL;
+          }
+        }
+      }
+    }
+    // Generate the statement that follows the label
+    gen_stmt(stmt->label.stmt, is_last);
+    break;
   case ST_VARDECL:  gen_vardecl(stmt->vardecl); break;
   case ST_ASM:  gen_asm(stmt); break;
-  case ST_GOTO: assert(false); break;
+  case ST_GOTO: gen_goto(stmt); break;
   }
 }
 
@@ -1731,7 +1805,13 @@ static void gen_defun(Function *func) {
     ADD_CODE(OP_BLOCK, wt);
     cur_depth += 1;
   }
+
+  // Initialize goto tracking system for this function
+  init_goto_system();
+
   gen_stmt(func->body_block, true);
+
+  cleanup_goto_system();
 
   {
     Vector *stmts = func->body_block->block.stmts;
@@ -1740,7 +1820,11 @@ static void gen_defun(Function *func) {
       if (last->kind != ST_ASM && functype->func.ret->kind != TY_VOID &&
           !check_funcend_return(func->body_block)) {
         assert(func->body_block->reach & REACH_STOP);
-        ADD_CODE(OP_UNREACHABLE);
+        // Don't generate unreachable if the last statement is a label,
+        // as this would cause a runtime error
+        if (last->kind != ST_LABEL) {
+          ADD_CODE(OP_UNREACHABLE);
+        }
       }
     }
   }

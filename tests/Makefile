@@ -40,6 +40,7 @@ misc-tests:	test-link test-examples
 clean:
 	rm -rf table_test util_test parser_test initializer_test print_type_test \
 		valtest dvaltest fvaltest link_test \
+		goto_wcc_test \
 		a.out tmp* *.o mandelbrot.ppm \
 		*.wasm
 
@@ -157,7 +158,7 @@ test-std-valtest:
 ### Wasm version
 
 WCC:=../wcc
-WCC_TESTS:=valtest dvaltest fvaltest
+WCC_TESTS:=valtest dvaltest fvaltest goto_wcc_test
 
 .PHONY: test-wcc
 test-wcc:	test-wcc-sh $(foreach D, $(WCC_TESTS), $(addprefix test-wcc-,$(D))) test-wcc-examples
@@ -193,3 +194,13 @@ $(1).wasm:	$$($(1)_WCCSRCS) # $(WCC)
 	$(WCC) -o $$@ -Wall -Werror $$^
 endef
 $(foreach D, $(WCC_TESTS), $(eval $(call DEFINE_WCCTEST_TARGET,$(D))))
+
+.PHONY: test-wcc-goto-invalid
+test-wcc-goto-invalid:
+	@echo "## Goto invalid patterns test"
+	@XCC="$(WCC)" ./goto_wcc_invalid_test.sh
+
+.PHONY: test-wcc-goto
+test-wcc-goto:	goto_wcc_test
+	@echo '## goto_wcc_test'
+	@$(RUN_EXE) ./goto_wcc_test
