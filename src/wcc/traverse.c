@@ -19,7 +19,7 @@ Table builtin_function_table;
 
 static Stmt *branching_stmt;
 
-// GOTO label validation for WebAssembly
+// GOTO label validation:
 // Track if the previous statement was a block to validate label placement
 static bool just_finished_block = false;
 
@@ -47,7 +47,7 @@ typedef struct PendingGoto {
 static Vector *pending_gotos = NULL;  // Vector of PendingGoto
 
 
-// Validate that labels appear immediately after blocks for WebAssembly goto support
+// Validate that labels appear immediately after blocks for goto support
 static void validate_label_placement(Stmt *stmt) {
   if (!just_finished_block) {
     parse_error(PE_NOFATAL, stmt->token,
@@ -182,7 +182,6 @@ static void validate_pending_gotos_for_label(Stmt *label_stmt) {
   
   free_control_context(label_context);
 }
-
 
 bool is_stack_param(const Type *type) {
   return !is_prim_type(type);
@@ -755,7 +754,7 @@ static void traverse_stmt(Stmt *stmt) {
   if (stmt == NULL)
     return;
 
-  // For WebAssembly goto support: track if previous statement was a block
+  // goto support: track if previous statement was a block
   // Labels must appear immediately after blocks
   if (stmt->kind != ST_LABEL) {
     just_finished_block = false;
@@ -769,6 +768,7 @@ static void traverse_stmt(Stmt *stmt) {
     break;
   case ST_BLOCK:
     {
+      push_control_frame(ST_BLOCK, stmt);
       Scope *bak = NULL;
       if (stmt->block.scope != NULL) {
         bak = curscope;
@@ -778,6 +778,8 @@ static void traverse_stmt(Stmt *stmt) {
       traverse_stmts(stmt->block.stmts);
       if (bak != NULL)
         curscope = bak;
+      pop_control_frame();
+      just_finished_block = true;
     }
     break;
   case ST_IF:
@@ -961,9 +963,7 @@ static void traverse_defun(Function *func) {
     free(pending_gotos);
     pending_gotos = NULL;
   }
-  
 
-  
   // Cleanup visited labels table
   if (visited_labels->entries != NULL) {
     free(visited_labels->entries);

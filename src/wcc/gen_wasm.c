@@ -1512,6 +1512,7 @@ static void gen_asm(Stmt *stmt) {
 static void gen_stmt(Stmt *stmt, bool is_last) {
   if (stmt == NULL)
     return;
+
   switch (stmt->kind) {
   case ST_EMPTY: break;
   case ST_EXPR:  gen_expr_stmt(stmt->expr); break;

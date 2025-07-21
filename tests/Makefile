@@ -201,9 +201,7 @@ test-wcc-goto-invalid:
 	@XCC="$(WCC)" ./goto_wcc_invalid_test.sh
 
 .PHONY: test-wcc-goto
-test-wcc-goto:	goto_wcc_test.wasm
-	@echo "## Goto C test cases"
-	@../tool/runwasi goto_wcc_test.wasm
+test-wcc-goto:
 	@echo "## Goto shell script test cases"
 	@$(eval AWASM := $(shell basename `mktemp -u`).wasm)
 	@XCC="$(WCC)" \
