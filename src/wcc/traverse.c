@@ -45,15 +45,7 @@ typedef struct PendingGoto {
 } PendingGoto;
 
 static Vector *pending_gotos = NULL;  // Vector of PendingGoto
-static int sequence_counter = 0;       // Track order of control structures and gotos
-static Vector *all_control_events = NULL;  // Global record of all control enter/exit events
 
-// Record of control flow events for cross-branch detection
-typedef struct ControlEvent {
-  enum { EVENT_ENTER, EVENT_EXIT } type;
-  Stmt *stmt;              // The control statement
-  int sequence;            // When this event occurred
-} ControlEvent;
 
 // Validate that labels appear immediately after blocks for WebAssembly goto support
 static void validate_label_placement(Stmt *stmt) {
@@ -69,38 +61,19 @@ static void push_control_frame(enum StmtKind kind, Stmt *stmt) {
   if (control_stack == NULL) {
     control_stack = new_vector();
   }
-  if (all_control_events == NULL) {
-    all_control_events = new_vector();
-  }
-  
-  // Record enter event
-  ControlEvent *event = malloc_or_die(sizeof(ControlEvent));
-  event->type = EVENT_ENTER;
-  event->stmt = stmt;
-  event->sequence = sequence_counter++;
-  vec_push(all_control_events, event);
   
   ControlFrame *frame = malloc_or_die(sizeof(ControlFrame));
   frame->kind = kind;
   frame->stmt = stmt;
   frame->depth = control_stack->len;
-  frame->enter_sequence = event->sequence;
-  frame->exit_sequence = -1;  // Not yet exited
+  frame->enter_sequence = -1;  // No longer used
+  frame->exit_sequence = -1;   // No longer used
   vec_push(control_stack, frame);
 }
 
 static void pop_control_frame(void) {
   if (control_stack != NULL && control_stack->len > 0) {
     ControlFrame *frame = vec_pop(control_stack);
-    
-    // Record exit event
-    ControlEvent *event = malloc_or_die(sizeof(ControlEvent));
-    event->type = EVENT_EXIT;
-    event->stmt = frame->stmt;
-    event->sequence = sequence_counter++;
-    vec_push(all_control_events, event);
-    
-    frame->exit_sequence = event->sequence;
     free(frame);
   }
 }
@@ -130,55 +103,25 @@ static void free_control_context(Vector *context) {
 }
 
 // Check if label_context is reachable from goto_context via valid WebAssembly control flow
-static bool is_control_flow_valid(Vector *goto_context, Vector *label_context, int goto_sequence, int label_sequence) {
+static bool is_control_flow_valid(Vector *goto_context, Vector *label_context) {
   // Label context must be a prefix of goto context (you can only break outward)
   if (label_context->len > goto_context->len) {
     return false;  // Cannot jump inward to deeper nesting
   }
   
-  // Check if label_context is a prefix of goto_context
+  // Check if label_context is a prefix of goto_context (label is parent of goto)
   for (int i = 0; i < label_context->len; ++i) {
     ControlFrame *goto_frame = goto_context->data[i];
     ControlFrame *label_frame = label_context->data[i];
     
     if (goto_frame->stmt != label_frame->stmt) {
-      return false;  // Different control flow path
+      return false;  // Label is not a parent of goto - invalid cross-branch jump
     }
   }
   
-  // Critical check: detect cross-branch jumps by looking for intervening control structures
-  // A cross-branch jump occurs when a control structure is entered and exited between
-  // the goto and its target label, and that structure was not part of the goto's context
+
   
-  if (all_control_events != NULL) {
-    for (int i = 0; i < all_control_events->len; ++i) {
-      ControlEvent *event = all_control_events->data[i];
-      
-      // Look for ENTER events that occurred after the goto but before the label
-      if (event->type == EVENT_ENTER && 
-          event->sequence > goto_sequence && 
-          event->sequence < label_sequence) {
-        
-        // Check if this control structure is NOT part of the goto's context
-        bool is_part_of_goto_context = false;
-        for (int j = 0; j < goto_context->len; ++j) {
-          ControlFrame *frame = goto_context->data[j];
-          if (frame->stmt == event->stmt) {
-            is_part_of_goto_context = true;
-            break;
-          }
-        }
-        
-        if (!is_part_of_goto_context) {
-          // Found an intervening control structure that's not part of goto context
-          // This is a cross-branch jump!
-          return false;
-        }
-      }
-    }
-  }
-  
-  return true;  // Valid: can reach label by breaking out of nested structures
+  return true;  // Valid: label is a parent of goto (outward break)
 }
 
 // Check for backward goto - labels must appear before goto statements
@@ -203,7 +146,7 @@ static void validate_goto_direction(Stmt *stmt) {
   PendingGoto *pending = malloc_or_die(sizeof(PendingGoto));
   pending->goto_stmt = stmt;
   pending->control_context = copy_control_stack();
-  pending->sequence_number = sequence_counter++;
+  pending->sequence_number = -1;  // No longer used
   vec_push(pending_gotos, pending);
 }
 
@@ -222,9 +165,8 @@ static void validate_pending_gotos_for_label(Stmt *label_stmt) {
     const Name *goto_target = pending->goto_stmt->goto_.label->ident;
     
     if (equal_name(goto_target, label_name)) {
-      // This goto targets this label - validate control flow
-      int label_sequence = sequence_counter++;  // Current sequence for label
-      if (!is_control_flow_valid(pending->control_context, label_context, pending->sequence_number, label_sequence)) {
+              // This goto targets this label - validate control flow
+        if (!is_control_flow_valid(pending->control_context, label_context)) {
         parse_error(PE_NOFATAL, pending->goto_stmt->token,
                     "Cross-branch goto not allowed: cannot jump between different control structures to label '%.*s'",
                     NAMES(label_name));
@@ -994,8 +936,6 @@ static void traverse_defun(Function *func) {
   // Initialize control flow tracking
   control_stack = new_vector();
   pending_gotos = new_vector();
-  all_control_events = new_vector();
-  sequence_counter = 0;
   
   traverse_stmt(func->body_block);
   
@@ -1025,13 +965,7 @@ static void traverse_defun(Function *func) {
     pending_gotos = NULL;
   }
   
-  if (all_control_events != NULL) {
-    for (int i = 0; i < all_control_events->len; ++i) {
-      free(all_control_events->data[i]);
-    }
-    free(all_control_events);
-    all_control_events = NULL;
-  }
+
   
   // Cleanup visited labels table
   if (visited_labels->entries != NULL) {
@@ -1361,3 +1295,4 @@ void traverse_ast(Vector *decls) {
     }
   }
 }
+

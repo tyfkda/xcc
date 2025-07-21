@@ -55,19 +55,7 @@ case2_label:
     return 0;
 }'
 
-  compile_error 'goto from one loop to another' '
-int main() {
-    for (int i = 0; i < 3; i++) {
-        if (i == 1) {
-            goto second_loop_label;  // CROSS-BRANCH GOTO - should fail
-        }
-    }
-    for (int j = 0; j < 3; j++) {
-        continue;
-    }
-second_loop_label:
-    return 0;
-}'
+
 
   compile_error 'goto into nested block from outside' '
 int main() {

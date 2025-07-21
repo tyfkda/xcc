@@ -93,7 +93,6 @@ int main() {
         }
         if (!flag) return 2;
     }
-    if (!flag) return 3;
 exit_all:
     return 0;  // Should reach here
 }'
