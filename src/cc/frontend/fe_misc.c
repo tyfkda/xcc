@@ -2090,6 +2090,8 @@ bool check_funcend_return(Stmt *stmt) {
         return check_funcend_return(stmts->data[stmts->len - 1]);
     }
     break;
+  case ST_LABEL:
+    return check_funcend_return(stmt->label.stmt);
   default:
     break;
   }

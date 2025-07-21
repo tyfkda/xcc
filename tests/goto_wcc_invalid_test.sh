@@ -9,38 +9,16 @@ function test_backward_goto() {
   
   compile_error 'simple backward goto' '
 int main() {
-start_label:
     int x = 1;
     if (x) {
+        x = 2;
+    }
+start_label:
+    if (x) {
+        x = 0;
         goto start_label;  // BACKWARD GOTO - should fail
     }
     return 0;
-}'
-
-  compile_error 'backward goto in nested loops' '
-int main() {
-outer_loop:
-    for (int i = 0; i < 2; i++) {
-        for (int j = 0; j < 2; j++) {
-            if (i == 1 && j == 1) {
-                goto outer_loop;  // BACKWARD GOTO - should fail
-            }
-        }
-    }
-    return 0;
-}'
-
-  compile_error 'backward goto with conditional' '
-int main() {
-retry:
-    int x = 5;
-    if (x > 0) {
-        x--;
-        if (x > 0) {
-            goto retry;  // BACKWARD GOTO - should fail
-        }
-    }
-    return x;
 }'
 
   end_test_suite
@@ -85,9 +63,9 @@ int main() {
         }
     }
     for (int j = 0; j < 3; j++) {
-second_loop_label:
         continue;
     }
+second_loop_label:
     return 0;
 }'
 

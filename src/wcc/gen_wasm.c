@@ -1820,11 +1820,7 @@ static void gen_defun(Function *func) {
       if (last->kind != ST_ASM && functype->func.ret->kind != TY_VOID &&
           !check_funcend_return(func->body_block)) {
         assert(func->body_block->reach & REACH_STOP);
-        // Don't generate unreachable if the last statement is a label,
-        // as this would cause a runtime error
-        if (last->kind != ST_LABEL) {
-          ADD_CODE(OP_UNREACHABLE);
-        }
+        ADD_CODE(OP_UNREACHABLE);
       }
     }
   }
