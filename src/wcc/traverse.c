@@ -769,7 +769,6 @@ static void traverse_stmt(Stmt *stmt) {
     break;
   case ST_BLOCK:
     {
-      push_control_frame(ST_BLOCK, stmt);
       Scope *bak = NULL;
       if (stmt->block.scope != NULL) {
         bak = curscope;
@@ -779,8 +778,6 @@ static void traverse_stmt(Stmt *stmt) {
       traverse_stmts(stmt->block.stmts);
       if (bak != NULL)
         curscope = bak;
-      pop_control_frame();
-      just_finished_block = true;
     }
     break;
   case ST_IF:
