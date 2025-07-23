@@ -1,6 +1,7 @@
 import {WaProc} from './wa_proc'
 import {WasmFs} from '@wasmer/wasmfs'
 import {WASIExitError} from '@wasmer/wasi'
+import path from 'path-browserify'
 
 export class WasiWorker {
   private wasmFs = new WasmFs()
@@ -102,7 +103,7 @@ export class WasiWorker {
     const waProc = new WaProc(this.wasmFs, args, this.env)
     let exitCode = 0
     try {
-      await waProc.runWasiEntry(filePath)
+      await waProc.runWasiEntry(this.getAbsPath(filePath))
     } catch (e) {
       if (!(e instanceof WASIExitError))
         throw e
@@ -110,6 +111,10 @@ export class WasiWorker {
       exitCode = err.code!
     }
     return exitCode
+  }
+
+  private getAbsPath(fileName: string): string {
+    return path.resolve(this.env.PWD || '.', fileName)
   }
 }
 
