@@ -83,7 +83,7 @@ after_block:
   try_direct 'goto to exit from nested blocks' 0 '
 int main() {
     int flag = 1;
-    {
+    do {
         {
             {
                 if (flag)
@@ -92,7 +92,7 @@ int main() {
             if (!flag) return 1;
         }
         if (!flag) return 2;
-    }
+    } while(0);
 exit_all:
     return 0;  // Should reach here
 }'

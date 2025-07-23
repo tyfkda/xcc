@@ -55,8 +55,6 @@ case2_label:
     return 0;
 }'
 
-
-
   compile_error 'goto into nested block from outside' '
 int main() {
     int x = 1;
@@ -115,10 +113,31 @@ problematic_label:    // Invalid - not immediately after block
   end_test_suite
 }
 
+function test_goto_different_block() {
+  begin_test_suite "Goto Different Block"
+  
+  compile_error 'goto from one loop to another' '
+int main() {
+    for (int i = 0; i < 3; i++) {
+        if (i == 1) {
+            goto second_loop_label;  // CROSS-BRANCH GOTO - should fail
+        }
+    }
+    for (int j = 0; j < 3; j++) {
+    		if (j > 0)
+            continue;
+    }
+second_loop_label:
+    return 0;
+}'
+  end_test_suite
+}
+
 function test_all() {
   test_backward_goto
   test_cross_branch_goto
   test_invalid_label_placement
+  test_goto_different_block
 }
 
 test_all

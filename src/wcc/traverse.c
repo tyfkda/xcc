@@ -26,13 +26,12 @@ static bool just_finished_block = false;
 // Track labels visited during traversal to detect backward goto
 static Table *visited_labels = NULL;
 
+// The id of the current block, to verify gotos only jump to a parent block
+static int current_block_id = 0;
+
 // Control flow stack for cross-branch goto detection
 typedef struct ControlFrame {
-  enum StmtKind kind;    // ST_FOR, ST_WHILE, ST_IF, ST_BLOCK, etc.
-  Stmt *stmt;           // The control statement
-  int depth;            // Nesting depth
-  int enter_sequence;   // When this control structure was entered
-  int exit_sequence;    // When this control structure was exited (-1 if not yet exited)
+  int block_id;         // The block id
 } ControlFrame;
 
 static Vector *control_stack = NULL;  // Stack of ControlFrame
@@ -46,7 +45,6 @@ typedef struct PendingGoto {
 
 static Vector *pending_gotos = NULL;  // Vector of PendingGoto
 
-
 // Validate that labels appear immediately after blocks for goto support
 static void validate_label_placement(Stmt *stmt) {
   if (!just_finished_block) {
@@ -57,23 +55,19 @@ static void validate_label_placement(Stmt *stmt) {
 }
 
 // Helper functions for control flow stack
-static void push_control_frame(enum StmtKind kind, Stmt *stmt) {
+static void push_control_frame(int block_id) {
   if (control_stack == NULL) {
     control_stack = new_vector();
   }
-  
   ControlFrame *frame = malloc_or_die(sizeof(ControlFrame));
-  frame->kind = kind;
-  frame->stmt = stmt;
-  frame->depth = control_stack->len;
-  frame->enter_sequence = -1;  // No longer used
-  frame->exit_sequence = -1;   // No longer used
+  frame->block_id = block_id;
   vec_push(control_stack, frame);
 }
 
 static void pop_control_frame(void) {
   if (control_stack != NULL && control_stack->len > 0) {
     ControlFrame *frame = vec_pop(control_stack);
+    current_block_id = frame->block_id;
     free(frame);
   }
 }
@@ -113,14 +107,10 @@ static bool is_control_flow_valid(Vector *goto_context, Vector *label_context) {
   for (int i = 0; i < label_context->len; ++i) {
     ControlFrame *goto_frame = goto_context->data[i];
     ControlFrame *label_frame = label_context->data[i];
-    
-    if (goto_frame->stmt != label_frame->stmt) {
+    if (goto_frame->block_id != label_frame->block_id) {
       return false;  // Label is not a parent of goto - invalid cross-branch jump
     }
   }
-  
-
-  
   return true;  // Valid: label is a parent of goto (outward break)
 }
 
@@ -165,8 +155,8 @@ static void validate_pending_gotos_for_label(Stmt *label_stmt) {
     const Name *goto_target = pending->goto_stmt->goto_.label->ident;
     
     if (equal_name(goto_target, label_name)) {
-              // This goto targets this label - validate control flow
-        if (!is_control_flow_valid(pending->control_context, label_context)) {
+      // This goto targets this label - validate control flow
+      if (!is_control_flow_valid(pending->control_context, label_context)) {
         parse_error(PE_NOFATAL, pending->goto_stmt->token,
                     "Cross-branch goto not allowed: cannot jump between different control structures to label '%.*s'",
                     NAMES(label_name));
@@ -768,7 +758,6 @@ static void traverse_stmt(Stmt *stmt) {
     break;
   case ST_BLOCK:
     {
-      push_control_frame(ST_BLOCK, stmt);
       Scope *bak = NULL;
       if (stmt->block.scope != NULL) {
         bak = curscope;
@@ -778,37 +767,35 @@ static void traverse_stmt(Stmt *stmt) {
       traverse_stmts(stmt->block.stmts);
       if (bak != NULL)
         curscope = bak;
-      pop_control_frame();
-      just_finished_block = true;
     }
     break;
   case ST_IF:
-    push_control_frame(ST_IF, stmt);
+    push_control_frame(++current_block_id);
     traverse_if(stmt);
     pop_control_frame();
     just_finished_block = true;
     break;
   case ST_SWITCH:
-    push_control_frame(ST_SWITCH, stmt);
+    push_control_frame(++current_block_id);
     traverse_switch(stmt);
     pop_control_frame();
     just_finished_block = true;
     break;
   case ST_CASE: traverse_case(stmt); break;
   case ST_WHILE:
-    push_control_frame(ST_WHILE, stmt);
+    push_control_frame(++current_block_id);
     traverse_while(stmt);
     pop_control_frame();
     just_finished_block = true;
     break;
   case ST_DO_WHILE:
-    push_control_frame(ST_DO_WHILE, stmt);
+    push_control_frame(++current_block_id);
     traverse_do_while(stmt);
     pop_control_frame();
     just_finished_block = true;
     break;
   case ST_FOR:
-    push_control_frame(ST_FOR, stmt);
+    push_control_frame(++current_block_id);
     traverse_for(stmt);
     pop_control_frame();
     just_finished_block = true;
@@ -825,7 +812,10 @@ static void traverse_stmt(Stmt *stmt) {
       table_put(visited_labels, stmt->token->ident, stmt);
     }
     // Validate pending gotos that target this label
+    // using the last block id
+    push_control_frame(current_block_id);
     validate_pending_gotos_for_label(stmt);
+    pop_control_frame();
     traverse_stmt(stmt->label.stmt);
     break;
   case ST_VARDECL:  traverse_vardecl(stmt->vardecl); break;
