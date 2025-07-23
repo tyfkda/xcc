@@ -19,6 +19,160 @@ Table builtin_function_table;
 
 static Stmt *branching_stmt;
 
+// GOTO label validation:
+// Track if the previous statement was a block to validate label placement
+static bool just_finished_block = false;
+
+// Track labels visited during traversal to detect backward goto
+static Table *visited_labels = NULL;
+
+// The id of the current block, to verify gotos only jump to a parent block
+static int current_block_id = 0;
+
+// Control flow stack for cross-branch goto detection
+typedef struct ControlFrame {
+  int block_id;         // The block id
+} ControlFrame;
+
+static Vector *control_stack = NULL;  // Stack of ControlFrame
+
+// Pending gotos with their control flow context
+typedef struct PendingGoto {
+  Stmt *goto_stmt;                    // The goto statement
+  Vector *control_context;            // Copy of control_stack at goto time
+  int sequence_number;                // Order in which this goto was encountered
+} PendingGoto;
+
+static Vector *pending_gotos = NULL;  // Vector of PendingGoto
+
+// Validate that labels appear immediately after blocks for goto support
+static void validate_label_placement(Stmt *stmt) {
+  if (!just_finished_block) {
+    parse_error(PE_NOFATAL, stmt->token,
+                "Label '%.*s' must appear immediately after a block, for WebAssembly goto support",
+                NAMES(stmt->token->ident));
+  }
+}
+
+// Helper functions for control flow stack
+static void push_control_frame(int block_id) {
+  if (control_stack == NULL) {
+    control_stack = new_vector();
+  }
+  ControlFrame *frame = malloc_or_die(sizeof(ControlFrame));
+  frame->block_id = block_id;
+  vec_push(control_stack, frame);
+}
+
+static void pop_control_frame(void) {
+  if (control_stack != NULL && control_stack->len > 0) {
+    ControlFrame *frame = vec_pop(control_stack);
+    current_block_id = frame->block_id;
+    free(frame);
+  }
+}
+
+static Vector *copy_control_stack(void) {
+  if (control_stack == NULL) {
+    return new_vector();
+  }
+  
+  Vector *copy = new_vector();
+  for (int i = 0; i < control_stack->len; ++i) {
+    ControlFrame *orig = control_stack->data[i];
+    ControlFrame *frame_copy = malloc_or_die(sizeof(ControlFrame));
+    *frame_copy = *orig;
+    vec_push(copy, frame_copy);
+  }
+  return copy;
+}
+
+static void free_control_context(Vector *context) {
+  if (context != NULL) {
+    for (int i = 0; i < context->len; ++i) {
+      free(context->data[i]);
+    }
+    free(context);
+  }
+}
+
+// Check if label_context is reachable from goto_context via valid WebAssembly control flow
+static bool is_control_flow_valid(Vector *goto_context, Vector *label_context) {
+  // Label context must be a prefix of goto context (you can only break outward)
+  if (label_context->len > goto_context->len) {
+    return false;  // Cannot jump inward to deeper nesting
+  }
+  
+  // Check if label_context is a prefix of goto_context (label is parent of goto)
+  for (int i = 0; i < label_context->len; ++i) {
+    ControlFrame *goto_frame = goto_context->data[i];
+    ControlFrame *label_frame = label_context->data[i];
+    if (goto_frame->block_id != label_frame->block_id) {
+      return false;  // Label is not a parent of goto - invalid cross-branch jump
+    }
+  }
+  return true;  // Valid: label is a parent of goto (outward break)
+}
+
+// Check for backward goto - labels must appear before goto statements
+static void validate_goto_direction(Stmt *stmt) {
+  const Token *label_token = stmt->goto_.label;
+  const Name *label_name = label_token->ident;
+  
+  // If the label has already been visited during traversal,
+  // then this is a backward goto
+  if (visited_labels != NULL && table_try_get(visited_labels, label_name, NULL)) {
+    parse_error(PE_NOFATAL, stmt->token,
+                "Backward goto not allowed: label '%.*s' appears before goto statement",
+                NAMES(label_name));
+    return;
+  }
+  
+  // Record this goto with current control flow context for later validation
+  if (pending_gotos == NULL) {
+    pending_gotos = new_vector();
+  }
+  
+  PendingGoto *pending = malloc_or_die(sizeof(PendingGoto));
+  pending->goto_stmt = stmt;
+  pending->control_context = copy_control_stack();
+  pending->sequence_number = -1;  // No longer used
+  vec_push(pending_gotos, pending);
+}
+
+// Validate pending gotos when a label is encountered
+static void validate_pending_gotos_for_label(Stmt *label_stmt) {
+  if (pending_gotos == NULL) {
+    return;
+  }
+  
+  const Name *label_name = label_stmt->token->ident;
+  Vector *label_context = copy_control_stack();
+  
+  // Check all pending gotos that target this label
+  for (int i = 0; i < pending_gotos->len; ++i) {
+    PendingGoto *pending = pending_gotos->data[i];
+    const Name *goto_target = pending->goto_stmt->goto_.label->ident;
+    
+    if (equal_name(goto_target, label_name)) {
+      // This goto targets this label - validate control flow
+      if (!is_control_flow_valid(pending->control_context, label_context)) {
+        parse_error(PE_NOFATAL, pending->goto_stmt->token,
+                    "Cross-branch goto not allowed: cannot jump between different control structures to label '%.*s'",
+                    NAMES(label_name));
+      }
+      
+      // Remove this pending goto (it's now resolved)
+      free_control_context(pending->control_context);
+      free(pending);
+      vec_remove_at(pending_gotos, i);
+      --i;  // Adjust index after removal
+    }
+  }
+  
+  free_control_context(label_context);
+}
+
 bool is_stack_param(const Type *type) {
   return !is_prim_type(type);
 }
@@ -589,6 +743,13 @@ static void traverse_vardecl(VarDecl *decl) {
 static void traverse_stmt(Stmt *stmt) {
   if (stmt == NULL)
     return;
+
+  // goto support: track if previous statement was a block
+  // Labels must appear immediately after blocks
+  if (stmt->kind != ST_LABEL) {
+    just_finished_block = false;
+  }
+
   switch (stmt->kind) {
   case ST_EMPTY: break;
   case ST_EXPR:  traverse_expr(&stmt->expr, false); break;
@@ -608,18 +769,55 @@ static void traverse_stmt(Stmt *stmt) {
         curscope = bak;
     }
     break;
-  case ST_IF:  traverse_if(stmt); break;
-  case ST_SWITCH:  traverse_switch(stmt); break;
+  case ST_IF:
+    push_control_frame(++current_block_id);
+    traverse_if(stmt);
+    pop_control_frame();
+    just_finished_block = true;
+    break;
+  case ST_SWITCH:
+    push_control_frame(++current_block_id);
+    traverse_switch(stmt);
+    pop_control_frame();
+    just_finished_block = true;
+    break;
   case ST_CASE: traverse_case(stmt); break;
-  case ST_WHILE:  traverse_while(stmt); break;
-  case ST_DO_WHILE:  traverse_do_while(stmt); break;
-  case ST_FOR:  traverse_for(stmt); break;
+  case ST_WHILE:
+    push_control_frame(++current_block_id);
+    traverse_while(stmt);
+    pop_control_frame();
+    just_finished_block = true;
+    break;
+  case ST_DO_WHILE:
+    push_control_frame(++current_block_id);
+    traverse_do_while(stmt);
+    pop_control_frame();
+    just_finished_block = true;
+    break;
+  case ST_FOR:
+    push_control_frame(++current_block_id);
+    traverse_for(stmt);
+    pop_control_frame();
+    just_finished_block = true;
+    break;
   case ST_BREAK:  break;
   case ST_CONTINUE:  break;
   case ST_GOTO:
-    parse_error(PE_FATAL, stmt->token, "cannot use goto");
+    validate_goto_direction(stmt);
     break;
-  case ST_LABEL:  traverse_stmt(stmt->label.stmt); break;
+  case ST_LABEL:
+    validate_label_placement(stmt);
+    // Mark this label as visited for backward goto detection
+    if (visited_labels != NULL) {
+      table_put(visited_labels, stmt->token->ident, stmt);
+    }
+    // Validate pending gotos that target this label
+    // using the last block id
+    push_control_frame(current_block_id);
+    validate_pending_gotos_for_label(stmt);
+    pop_control_frame();
+    traverse_stmt(stmt->label.stmt);
+    break;
   case ST_VARDECL:  traverse_vardecl(stmt->vardecl); break;
   case ST_ASM:  break;
   }
@@ -719,7 +917,50 @@ static void traverse_defun(Function *func) {
 
   register_func_info(func->ident->ident, func, NULL, 0);
   curfunc = func;
+  
+  // Initialize visited labels table for backward goto detection
+  visited_labels = malloc_or_die(sizeof(Table));
+  table_init(visited_labels);
+  
+  // Initialize control flow tracking
+  control_stack = new_vector();
+  pending_gotos = new_vector();
+  
   traverse_stmt(func->body_block);
+  
+  // Check for any unresolved gotos
+  if (pending_gotos->len > 0) {
+    for (int i = 0; i < pending_gotos->len; ++i) {
+      PendingGoto *pending = pending_gotos->data[i];
+      const Name *target_name = pending->goto_stmt->goto_.label->ident;
+      parse_error(PE_NOFATAL, pending->goto_stmt->token,
+                  "Label '%.*s' not found", NAMES(target_name));
+      free_control_context(pending->control_context);
+      free(pending);
+    }
+  }
+  
+  // Cleanup control flow tracking
+  if (control_stack != NULL) {
+    for (int i = 0; i < control_stack->len; ++i) {
+      free(control_stack->data[i]);
+    }
+    free(control_stack);
+    control_stack = NULL;
+  }
+  
+  if (pending_gotos != NULL) {
+    free(pending_gotos);
+    pending_gotos = NULL;
+  }
+
+  // Cleanup visited labels table
+  if (visited_labels->entries != NULL) {
+    free(visited_labels->entries);
+  }
+  free(visited_labels);
+  visited_labels = NULL;
+  
   curfunc = NULL;
 
   // Static variables are traversed through global variables.
@@ -1041,3 +1282,4 @@ void traverse_ast(Vector *decls) {
     }
   }
 }
+
