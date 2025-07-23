@@ -39,7 +39,6 @@ typedef struct {
   Vector *sources;
   const char *root;
   const char *ofn;
-  const char *import_module_name;
   const char *entry_point;
   enum OutType out_type;
   enum SourceType src_type;
@@ -226,7 +225,7 @@ int compile_csource(const char *src, const char *ofn, Vector *obj_files, Options
   if (ofp == NULL) {
     error("Cannot open output file");
   } else {
-    emit_wasm(ofp, opts->import_module_name, exports);
+    emit_wasm(ofp, opts->linker_opts.import_module_name, exports);
     assert(compile_error_count == 0);
     fclose(ofp);
   }
@@ -467,7 +466,7 @@ static void parse_options(int argc, char *argv[], Options *opts) {
       }
       break;
     case OPT_IMPORT_MODULE_NAME:
-      opts->import_module_name = optarg;
+      opts->linker_opts.import_module_name = optarg;
       break;
     case OPT_VERBOSE:
       verbose = true;
@@ -722,7 +721,6 @@ int main(int argc, char *argv[]) {
     .sources = new_vector(),
     .root = root,
     .ofn = NULL,
-    .import_module_name = DEFAULT_IMPORT_MODULE_NAME,
     .entry_point = NULL,
     .out_type = OutExecutable,
     .src_type = UnknownSource,
@@ -730,6 +728,9 @@ int main(int argc, char *argv[]) {
     .nodefaultlibs = false,
     .nostdlib = false,
     .nostdinc = false,
+    .linker_opts = {
+      .import_module_name = DEFAULT_IMPORT_MODULE_NAME,
+    },
   };
   parse_options(argc, argv, &opts);
 

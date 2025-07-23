@@ -331,13 +331,13 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
 
               uint32_t index = read_uleb128(p, &p);
               Vector *import = import_symbols[kind];
-              if (import != NULL && index < (uint32_t)import->len && !(flags & WASM_SYM_EXPLICIT_NAME)) {
-                sym = import->data[index];
-              } else {
+              bool imported_symbol = import != NULL && index < (uint32_t)import->len;
+              bool explicit_name = flags & WASM_SYM_EXPLICIT_NAME;
+              sym = imported_symbol ? import->data[index] : calloc_or_die(sizeof(*sym));
+              if (!imported_symbol || explicit_name) {
                 const Name *name = read_wasm_string(p, &p);
-                sym = calloc_or_die(sizeof(*sym));
-                sym->module_name = NULL;
-                sym->name = name;
+                if (!imported_symbol)
+                  sym->name = name;
               }
               sym->kind = kind;
               sym->flags = flags;
@@ -768,7 +768,7 @@ static bool resolve_symbols(WasmLinker *linker) {
     default: assert(false); // Fallthrough to suppress warning.
     case SIK_SYMTAB_FUNCTION:
       if ((sym->module_name != NULL && equal_name(sym->module_name, wasi_module_name)) ||
-          linker->options.allow_undefined) {
+          linker->options.allow_undefined || sym->flags & WASM_SYM_EXPLICIT_NAME) {
         sym->combined_index = unresolved_func_count++;
         break;
       }
@@ -1223,7 +1223,8 @@ static void out_import_section(WasmLinker *linker) {
     if (sym->kind != SIK_SYMTAB_FUNCTION)
       continue;
     const Name *modname = sym->module_name;
-    assert(modname != NULL);
+    if (modname == NULL)
+      modname = alloc_name(linker->options.import_module_name, NULL, false);
     const Name *name = sym->name;
 
     data_string(&imports_section, modname->chars, modname->bytes);  // import module name

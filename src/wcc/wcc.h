@@ -34,6 +34,7 @@ extern Vector *functypes;  // <DataStorage*>
 #define FF_INLINING  (1 << 2)
 #define FF_WEAK      (1 << 3)
 #define FF_STACK_MODIFIED  (1 << 4)
+#define FF_IMPORT_NAME     (1 << 5)
 
 typedef struct {
   Function *func;

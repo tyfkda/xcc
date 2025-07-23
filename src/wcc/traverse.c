@@ -110,10 +110,12 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, VarInf
     }
     if (table_try_get(attributes, alloc_name("import_name", NULL, false), (void**)&params)) {
       const Token *token = params->len > 0 ? params->data[0] : NULL;
-      if (params->len != 1 && token->kind != TK_STR)
+      if (params->len != 1 && token->kind != TK_STR) {
         parse_error(PE_NOFATAL, token, "import_name: string expected");
-      else
+      } else {
         info->func_name = alloc_name(token->str.buf, token->str.buf + token->str.len - 1, false);
+        info->flag |= FF_IMPORT_NAME;
+      }
     }
     if (table_try_get(attributes, alloc_name("weak", NULL, false), (void**)&params))
       info->flag |= FF_WEAK;

@@ -12,6 +12,7 @@ typedef struct Vector Vector;
 #define WASI_MODULE_NAME  "wasi_snapshot_preview1"
 
 typedef struct {
+  const char *import_module_name;
   bool allow_undefined;
   bool export_all;
 } WasmLinkerOptions;
