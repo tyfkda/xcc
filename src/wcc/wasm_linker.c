@@ -1420,6 +1420,16 @@ static void out_export_section(WasmLinker *linker, Table *exports) {
     data_uleb128(&exports_section, -1, 0);  // export global index
     ++num_exports;
   }
+  if (linker->options.export_table) {
+    Vector *indirect_functions = linker->indirect_functions;
+    if (indirect_functions->len > 0 || funcref_table_exist(linker)) {
+      const Name *name = linker->indirect_function_table_name;
+      data_string(&exports_section, name->chars, name->bytes);  // export name
+      data_uleb128(&exports_section, -1, IMPORT_TABLE);  // export kind
+      data_uleb128(&exports_section, -1, 0);  // export global index
+      ++num_exports;
+    }
+  }
   data_close_chunk(&exports_section, num_exports);
   data_close_chunk(&exports_section, -1);
 

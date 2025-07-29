@@ -15,6 +15,7 @@ typedef struct {
   const char *import_module_name;
   bool allow_undefined;
   bool export_all;
+  bool export_table;
 } WasmLinkerOptions;
 
 typedef struct {

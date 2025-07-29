@@ -243,10 +243,12 @@ static void parse_linker_options(const char *arg, WasmLinkerOptions *lopts) {
   enum {
     OPT_ALLOW_UNDEFINED,
     OPT_EXPORT_ALL,
+    OPT_EXPORT_TABLE,
   };
   static const struct option kOptions[] = {
     {"-allow-undefined", no_argument, OPT_ALLOW_UNDEFINED},
     {"-export-all", no_argument, OPT_EXPORT_ALL},
+    {"-export-table", no_argument, OPT_EXPORT_TABLE},
 
     {NULL},
   };
@@ -262,6 +264,9 @@ static void parse_linker_options(const char *arg, WasmLinkerOptions *lopts) {
         break;
       case OPT_EXPORT_ALL:
         lopts->export_all = true;
+        break;
+      case OPT_EXPORT_TABLE:
+        lopts->export_table = true;
         break;
       }
       return;
