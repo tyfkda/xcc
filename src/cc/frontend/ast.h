@@ -219,6 +219,7 @@ enum ExprKind {
   EX_LOGIOR,  // ||
   EX_ASSIGN,  // =
   EX_COMMA,   // head, tail
+  EX_EXPECT,  // expect `lhs == rhs` in most cases.
 
   // Unary operators
   EX_POS,     // +
@@ -262,6 +263,7 @@ typedef struct Expr {
     struct {
       struct Expr *lhs;
       struct Expr *rhs;
+      struct Expr *expect;
     } bop;
     struct {
       struct Expr *sub;

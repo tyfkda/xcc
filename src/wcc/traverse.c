@@ -344,6 +344,12 @@ static void te_comma(Expr **pexpr, bool needval) {
   traverse_expr(&expr->bop.rhs, needval);
 }
 
+static void te_expect(Expr **pexpr, bool needval) {
+  Expr *expr = *pexpr;
+  traverse_expr(&expr->bop.lhs, needval);
+  traverse_expr(&expr->bop.rhs, false);
+}
+
 static void te_assign(Expr **pexpr, bool needval) {
   Expr *expr = *pexpr;
   traverse_expr(&expr->bop.lhs, true);
@@ -463,12 +469,13 @@ static void traverse_expr(Expr **pexpr, bool needval) {
     [EX_FIXNUM] = te_noop, [EX_FLONUM] = te_noop, [EX_STR] = te_noop, [EX_VAR] = te_var,
     [EX_ADD] = te_bop, [EX_SUB] = te_bop, [EX_MUL] = te_bop, [EX_DIV] = te_bop, [EX_MOD] = te_bop,
     [EX_BITAND] = te_bop, [EX_BITOR] = te_bop, [EX_BITXOR] = te_bop,
+    [EX_LSHIFT] = te_shift, [EX_RSHIFT] = te_shift,
     [EX_EQ] = te_bop, [EX_NE] = te_bop, [EX_LT] = te_bop,
     [EX_LE] = te_bop, [EX_GE] = te_bop, [EX_GT] = te_bop,
-    [EX_LOGAND] = te_logical, [EX_LOGIOR] = te_logical, [EX_LSHIFT] = te_shift, [EX_RSHIFT] = te_shift,
+    [EX_LOGAND] = te_logical, [EX_LOGIOR] = te_logical,
+    [EX_ASSIGN] = te_assign, [EX_COMMA] = te_comma, [EX_EXPECT] = te_expect,
     [EX_POS] = te_unary, [EX_NEG] = te_unary, [EX_BITNOT] = te_unary,
     [EX_REF] = te_unary, [EX_DEREF] = te_unary,
-    [EX_ASSIGN] = te_assign, [EX_COMMA] = te_comma,
     [EX_PREINC] = te_incdec, [EX_PREDEC] = te_incdec, [EX_POSTINC] = te_incdec, [EX_POSTDEC] = te_incdec,
     [EX_CAST] = te_cast, [EX_TERNARY] = te_ternary, [EX_MEMBER] = te_member,
     [EX_FUNCALL] = te_funcall, [EX_INLINED] = te_inlined, [EX_COMPLIT] = te_complit,

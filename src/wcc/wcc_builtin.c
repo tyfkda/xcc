@@ -172,6 +172,26 @@ static void gen_builtin_try_catch_longjmp(Expr *expr, enum BuiltinFunctionPhase 
   } ADD_CODE(OP_END);
 }
 
+static Expr *proc_builtin_expect(const Token *ident) {
+  if (consume(TK_LPAR, "`(' expected") == NULL)
+    return new_expr_fixlit(&tyInt, ident, 0);
+  Token *token;
+  Vector *args = parse_args(&token);
+
+  if (args->len != 2) {
+    parse_error(PE_NOFATAL, token, "two arguments required");
+    return args->len >= 1 ? args->data[0] : new_expr_fixlit(&tyInt, ident, 0);
+  }
+
+  Expr *value = args->data[0];
+  Expr *expect = args->data[1];
+  while (value->kind == EX_EXPECT)
+    value = value->bop.lhs;
+  used_as_value(value);
+
+  return new_expr_bop(EX_EXPECT, value->type, ident, value, expect);
+}
+
 #ifndef __NO_FLONUM
 static Expr *proc_builtin_nan(const Token *ident) {
   consume(TK_LPAR, "`(' expected");
@@ -483,6 +503,9 @@ void install_builtins(void) {
     const Name *name = alloc_cname("__builtin_va_list");
     add_typedef(global_scope, name, type);
   }
+
+  static BuiltinExprProc p_buildin_expect = &proc_builtin_expect;
+  add_builtin_expr_ident("__builtin_expect", &p_buildin_expect);
 
 #ifndef __NO_FLONUM
   static BuiltinExprProc p_nan = &proc_builtin_nan;

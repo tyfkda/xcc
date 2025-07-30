@@ -318,9 +318,23 @@ static VReg *gen_variable(Expr *expr) {
 }
 
 static VReg *gen_ternary(Expr *expr) {
-  BB *tbb = new_bb();
-  BB *fbb = new_bb();
-  BB *nbb = new_bb();
+  Expr *cond = expr->ternary.cond;
+  Expr *texpr = expr->ternary.tval;
+  Expr *fexpr = expr->ternary.fval;
+  bool flip_order = false;
+  if (cond->kind == EX_EXPECT) {
+    Expr *value = cond->bop.lhs;
+    Expr *expect = cond->bop.rhs;
+    assert(expect->kind == EX_FIXNUM);
+    if (expect->fixnum == 0) {
+      flip_order = true;
+      Expr *tmp = texpr;
+      texpr = fexpr;
+      fexpr = tmp;
+    }
+    cond = value;
+  }
+
   VReg *result = NULL;
   if (expr->type->kind != TY_VOID) {
     Type *type = expr->type;
@@ -329,16 +343,22 @@ static VReg *gen_ternary(Expr *expr) {
     result = add_new_vreg(type);
   }
 
-  gen_cond_jmp(expr->ternary.cond, tbb, fbb);
+  BB *tbb = new_bb();
+  BB *fbb = new_bb();
+  BB *nbb = new_bb();
+  if (flip_order)
+    gen_cond_jmp(cond, fbb, tbb);  // Swap jump target to flip the condition.
+  else
+    gen_cond_jmp(cond, tbb, fbb);
 
   set_curbb(tbb);
-  VReg *tval = gen_expr(expr->ternary.tval);
+  VReg *tval = gen_expr(texpr);
   if (result != NULL)
     new_ir_mov(result, tval);
   new_ir_jmp(nbb);
 
   set_curbb(fbb);
-  VReg *fval = gen_expr(expr->ternary.fval);
+  VReg *fval = gen_expr(fexpr);
   if (result != NULL)
     new_ir_mov(result, fval);
 
@@ -798,6 +818,10 @@ static VReg *gen_comma(Expr *expr) {
   return gen_expr(expr->bop.rhs);
 }
 
+static VReg *gen_expect(Expr *expr) {
+  return gen_expr(expr->bop.lhs);
+}
+
 static VReg *gen_assign_sub(Expr *lhs, Expr *rhs) {
   VReg *src = gen_expr(rhs);
   if (lhs->kind == EX_VAR) {
@@ -1008,7 +1032,7 @@ VReg *gen_expr(Expr *expr) {
     [EX_EQ] = gen_relation, [EX_NE] = gen_relation, [EX_LT] = gen_relation,
     [EX_LE] = gen_relation, [EX_GE] = gen_relation, [EX_GT] = gen_relation,
     [EX_LOGAND] = gen_expr_logandor, [EX_LOGIOR] = gen_expr_logandor,
-    [EX_ASSIGN] = gen_assign, [EX_COMMA] = gen_comma,
+    [EX_ASSIGN] = gen_assign, [EX_COMMA] = gen_comma, [EX_EXPECT] = gen_expect,
     [EX_POS] = gen_pos, [EX_NEG] = gen_neg, [EX_BITNOT] = gen_bitnot,
     [EX_PREINC] = gen_expr_incdec, [EX_PREDEC] = gen_expr_incdec,
     [EX_POSTINC] = gen_expr_incdec, [EX_POSTDEC] = gen_expr_incdec,

@@ -213,7 +213,24 @@ static void gen_cast_to(const Type *dst, Type *src) {
 }
 
 static void gen_ternary(Expr *expr, bool needval) {
-  gen_cond(expr->ternary.cond, true, true);
+  Expr *cond = expr->ternary.cond;
+  Expr *tval = expr->ternary.tval;
+  Expr *fval = expr->ternary.fval;
+  bool flip_order = false;
+  if (cond->kind == EX_EXPECT) {
+    Expr *value = cond->bop.lhs;
+    Expr *expect = cond->bop.rhs;
+    assert(expect->kind == EX_FIXNUM);
+    if (expect->fixnum != 1) {
+      flip_order = true;
+      Expr *tmp = tval;
+      tval = fval;
+      fval = tmp;
+    }
+    cond = value;
+  }
+
+  gen_cond(cond, !flip_order, true);
   unsigned char wt = WT_VOID;
   if (needval && expr->type->kind != TY_VOID) {
     Type *type = expr->type;
@@ -221,9 +238,9 @@ static void gen_ternary(Expr *expr, bool needval) {
   }
   ADD_CODE(OP_IF, wt);
   ++cur_depth;
-  gen_expr(expr->ternary.tval, wt != WT_VOID);
+  gen_expr(tval, wt != WT_VOID);
   ADD_CODE(OP_ELSE);
-  gen_expr(expr->ternary.fval, wt != WT_VOID);
+  gen_expr(fval, wt != WT_VOID);
   ADD_CODE(OP_END);
   --cur_depth;
 }
@@ -920,6 +937,10 @@ static void gen_comma(Expr *expr, bool needval) {
   gen_expr(expr->bop.rhs, needval);
 }
 
+static void gen_expect(Expr *expr, bool needval) {
+  gen_expr(expr->bop.lhs, needval);
+}
+
 static void gen_cast(Expr *expr, bool needval) {
   Expr *src = expr->unary.sub;
   Type *dst_type = expr->type;
@@ -1043,7 +1064,7 @@ void gen_expr(Expr *expr, bool needval) {
     [EX_EQ] = gen_relation, [EX_NE] = gen_relation, [EX_LT] = gen_relation,
     [EX_LE] = gen_relation, [EX_GE] = gen_relation, [EX_GT] = gen_relation,
     [EX_LOGAND] = gen_relation, [EX_LOGIOR] = gen_relation,
-    [EX_ASSIGN] = gen_assign, [EX_COMMA] = gen_comma,
+    [EX_ASSIGN] = gen_assign, [EX_COMMA] = gen_comma, [EX_EXPECT] = gen_expect,
     [EX_POS] = gen_pos, [EX_NEG] = gen_neg, [EX_BITNOT] = gen_bitnot,
     [EX_PREINC] = gen_incdec, [EX_PREDEC] = gen_incdec,
     [EX_POSTINC] = gen_incdec, [EX_POSTDEC] = gen_incdec,

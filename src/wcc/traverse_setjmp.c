@@ -50,10 +50,9 @@ static bool traverse_ast_expr(Expr **pexpr, LexicalStack *parent, TraverseAstPar
 
   // Bop
   case EX_ADD: case EX_SUB: case EX_MUL: case EX_DIV: case EX_MOD:
-  case EX_BITAND: case EX_BITOR: case EX_BITXOR:
+  case EX_BITAND: case EX_BITOR: case EX_BITXOR: case EX_LSHIFT: case EX_RSHIFT:
   case EX_EQ: case EX_NE: case EX_LT: case EX_LE: case EX_GE: case EX_GT:
-  case EX_LOGAND: case EX_LOGIOR: case EX_LSHIFT: case EX_RSHIFT:
-  case EX_COMMA: case EX_ASSIGN:
+  case EX_LOGAND: case EX_LOGIOR: case EX_ASSIGN: case EX_COMMA: case EX_EXPECT:
     return traverse_ast_expr(&expr->bop.lhs, &lstack, param) ||
            traverse_ast_expr(&expr->bop.rhs, &lstack, param);
 

@@ -101,6 +101,10 @@ void gen_cond(Expr *cond, bool tf, bool needval) {
 }
 
 static void gen_cond_jmp(Expr *cond, bool tf, uint32_t depth) {
+  // Ignore expect hint.
+  while (cond->kind == EX_EXPECT)
+    cond = cond->bop.lhs;
+
   gen_cond(cond, tf, true);
   ADD_CODE(OP_BR_IF);
   ADD_ULEB128(depth);
@@ -441,13 +445,30 @@ static void gen_if(Stmt *stmt, bool is_last) {
     }
   }
 
-  gen_cond(stmt->if_.cond, true, true);
+  Expr *cond = stmt->if_.cond;
+  Stmt *tblock = stmt->if_.tblock;
+  Stmt *fblock = stmt->if_.fblock;
+  bool flip_order = false;
+  if (cond->kind == EX_EXPECT) {
+    Expr *value = cond->bop.lhs;
+    Expr *expect = cond->bop.rhs;
+    assert(expect->kind == EX_FIXNUM);
+    if (fblock != NULL && expect->fixnum != 1) {
+      flip_order = true;
+      Stmt *tmp = tblock;
+      tblock = fblock;
+      fblock = tmp;
+    }
+    cond = value;
+  }
+
+  gen_cond(cond, !flip_order, true);
   ADD_CODE(OP_IF, wt); {
     ++cur_depth;
-    gen_stmt(stmt->if_.tblock, is_last);
-    if (stmt->if_.fblock != NULL) {
+    gen_stmt(tblock, is_last);
+    if (fblock != NULL) {
       ADD_CODE(OP_ELSE);
-      gen_stmt(stmt->if_.fblock, is_last);
+      gen_stmt(fblock, is_last);
     }
   } ADD_CODE(OP_END);
   --cur_depth;

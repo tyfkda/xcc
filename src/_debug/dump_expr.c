@@ -36,6 +36,7 @@ static const char *table[] = {
   [EX_LOGIOR] = "||",
   [EX_ASSIGN] = "=",
   [EX_COMMA] = ",",
+  [EX_EXPECT] = "`expect`",
 
   [EX_POS] = "+",
   [EX_NEG] = "-",
@@ -161,6 +162,7 @@ void dump_expr(FILE *fp, Expr *expr) {
   case EX_LOGAND:
   case EX_LOGIOR:
   case EX_ASSIGN:
+  case EX_EXPECT:
     {
       fprintf(fp, "(");
       dump_expr(fp, expr->bop.lhs);

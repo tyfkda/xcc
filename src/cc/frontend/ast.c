@@ -116,6 +116,7 @@ Expr *new_expr_bop(enum ExprKind kind, Type *type, const Token *token, Expr *lhs
   Expr *expr = new_expr(kind, type, token);
   expr->bop.lhs = lhs;
   expr->bop.rhs = rhs;
+  expr->bop.expect = NULL;
   return expr;
 }
 

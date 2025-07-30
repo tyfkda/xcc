@@ -1291,6 +1291,14 @@ Expr *make_cond(Expr *expr) {
     expr->bop.rhs = make_cond(expr->bop.rhs);
     expr->type = expr->bop.rhs->type;
     break;
+  case EX_EXPECT:
+    {
+      expr->bop.lhs = make_cond(expr->bop.lhs);
+      Type *type = expr->bop.lhs->type;  // Must be bool.
+      expr->bop.rhs = make_cast(type, expr->bop.rhs->token, expr->bop.rhs, false);
+      expr->type = type;
+    }
+    break;
   default:
     switch (expr->type->kind) {
     case TY_ARRAY:
@@ -1449,7 +1457,7 @@ static Expr *simplify_funarg_recur(Expr *arg, Vector *unnested) {
     // Fallthrough
 #endif
   case EX_ADD: case EX_SUB: case EX_BITAND: case EX_BITOR: case EX_BITXOR:
-  case EX_EQ: case EX_NE: case EX_LT: case EX_LE: case EX_GE: case EX_GT:
+  case EX_EQ: case EX_NE: case EX_LT: case EX_LE: case EX_GE: case EX_GT: case EX_EXPECT:
     arg->bop.lhs = simplify_funarg_recur(arg->bop.lhs, unnested);
     arg->bop.rhs = simplify_funarg_recur(arg->bop.rhs, unnested);
     break;

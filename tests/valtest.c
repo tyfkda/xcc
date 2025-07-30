@@ -2529,6 +2529,62 @@ TEST(builtin) {
 #endif
 }
 
+TEST(builtin_expect) {
+  {
+    int x = 987, y = 11;
+    if (__builtin_expect(x < 0, false)) y = 22; else y = 33;
+    EXPECT("if expect, hit", 33, y);
+    if (__builtin_expect(x < 100, true)) y = 44; else y = 55;
+    EXPECT("if expect, fail", 55, y);
+  }
+  {
+    int x = -654, y = 11;
+    y = __builtin_expect(x < 0, false) ? 22 : 33;
+    EXPECT("ternary expect, fail", 22, y);
+    y = __builtin_expect(x < 100, true) ? 44 : 55;
+    EXPECT("ternary expect, hit", 44, y);
+  }
+  {
+    int acc, i;
+    for (acc = 0, i = 1; __builtin_expect(i <= 10, true); ++i)
+      acc += i;
+    EXPECT("for expect, hit", 55, acc);
+    for (acc = 0, i = 11; __builtin_expect(i <= 20, false); ++i)
+      acc += i;
+    EXPECT("for expect, fail", 155, acc);
+  }
+  {
+    int acc, i;
+    acc = 0, i = 1;
+    while (__builtin_expect(i <= 10, true))
+      acc += i++;
+    EXPECT("while expect, hit", 55, acc);
+    acc = 0, i = 11;
+    while (__builtin_expect(i <= 20, false))
+      acc += i++;
+    EXPECT("while expect, fail", 155, acc);
+  }
+  {
+    int acc, i;
+    acc = 0, i = 1;
+    do acc += i++; while (__builtin_expect(i <= 10, true));
+    EXPECT("do-while expect, hit", 55, acc);
+    acc = 0, i = 11;
+    do acc += i++; while (__builtin_expect(i <= 20, false));
+    EXPECT("do-while expect, fail", 155, acc);
+  }
+  { int x = 123; EXPECT("expect w/o conditional", true, __builtin_expect(x > 0, false)); }
+  {
+    int x = 1, y = -1;
+    switch (__builtin_expect(x, 0)) {
+    case 0:  y = 99; break;
+    case 1:  y = 88; break;
+    default: y = 77; break;
+    }
+    EXPECT("expect in switch", 88, y);
+  }
+}
+
 //
 
 XTEST_MAIN();

@@ -1027,7 +1027,7 @@ static Expr *duplicate_inline_function_expr(Function *targetfunc, Scope *targets
     [EX_EQ] = dup_expr_bop, [EX_NE] = dup_expr_bop,
     [EX_LT] = dup_expr_bop, [EX_LE] = dup_expr_bop, [EX_GE] = dup_expr_bop, [EX_GT] = dup_expr_bop,
     [EX_LOGAND] = dup_expr_bop, [EX_LOGIOR] = dup_expr_bop,
-    [EX_ASSIGN] = dup_expr_bop, [EX_COMMA] = dup_expr_bop,
+    [EX_ASSIGN] = dup_expr_bop, [EX_COMMA] = dup_expr_bop, [EX_EXPECT] = dup_expr_bop,
 
     [EX_POS] = dup_expr_unary, [EX_NEG] = dup_expr_unary, [EX_BITNOT] = dup_expr_unary,
     [EX_PREINC] = dup_expr_unary, [EX_PREDEC] = dup_expr_unary,

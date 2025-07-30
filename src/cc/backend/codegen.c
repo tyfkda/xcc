@@ -436,18 +436,38 @@ static inline void gen_return(Stmt *stmt) {
 }
 
 static inline void gen_if(Stmt *stmt) {
+  Expr *cond = stmt->if_.cond;
+  Stmt *tblock = stmt->if_.tblock;
+  Stmt *fblock = stmt->if_.fblock;
+  bool flip_order = false;
+  if (cond->kind == EX_EXPECT) {
+    Expr *value = cond->bop.lhs;
+    Expr *expect = cond->bop.rhs;
+    assert(expect->kind == EX_FIXNUM);
+    if (fblock != NULL && expect->fixnum == 0) {
+      flip_order = true;
+      Stmt *tmp = tblock;
+      tblock = fblock;
+      fblock = tmp;
+    }
+    cond = value;
+  }
+
   BB *tbb = new_bb();
   BB *fbb = new_bb();
-  gen_cond_jmp(stmt->if_.cond, tbb, fbb);
+  if (flip_order)
+    gen_cond_jmp(cond, fbb, tbb);  // Swap jump target to flip the condition.
+  else
+    gen_cond_jmp(cond, tbb, fbb);
   set_curbb(tbb);
-  gen_stmt(stmt->if_.tblock);
-  if (stmt->if_.fblock == NULL) {
+  gen_stmt(tblock);
+  if (fblock == NULL) {
     set_curbb(fbb);
   } else {
     BB *nbb = new_bb();
     new_ir_jmp(nbb);
     set_curbb(fbb);
-    gen_stmt(stmt->if_.fblock);
+    gen_stmt(fblock);
     set_curbb(nbb);
   }
 }
@@ -591,18 +611,56 @@ static inline void gen_case(Stmt *stmt) {
 }
 
 static void gen_while(Stmt *stmt) {
+  // cond_at_top (default, or builtin-expect=true)
+  // cond:
+  //   if (!<cond>) goto next
+  // loop:
+  //   <body>
+  //   goto cond
+  // next:
+
+  // !cond_at_top (builtin-expect=false)
+  //   goto cond
+  // loop:
+  //   <body>
+  // cond:
+  //   if (<cond>) goto loop
+  // next:
+
   BB *save_break, *save_cont;
-  BB *loop_bb = new_bb();
   BB *cond_bb = push_continue_bb(&save_cont);
   BB *next_bb = push_break_bb(&save_break);
+  BB *loop_bb = new_bb();
 
-  new_ir_jmp(cond_bb);
+  Expr *cond = stmt->while_.cond;
+  bool cond_at_top = true;
+  if (cond->kind == EX_EXPECT) {
+    Expr *value = cond->bop.lhs;
+    Expr *expect = cond->bop.rhs;
+    assert(expect->kind == EX_FIXNUM);
+    if (expect->fixnum == 0) {
+      cond_at_top = false;
+    }
+    cond = value;
+  }
 
-  set_curbb(loop_bb);
+  if (cond_at_top) {
+    set_curbb(cond_bb);
+    gen_cond_jmp(cond, loop_bb, next_bb);
+    set_curbb(loop_bb);
+  } else {
+    new_ir_jmp(cond_bb);
+    set_curbb(loop_bb);
+  }
+
   gen_stmt(stmt->while_.body);
 
-  set_curbb(cond_bb);
-  gen_cond_jmp(stmt->while_.cond, loop_bb, next_bb);
+  if (cond_at_top) {
+    new_ir_jmp(cond_bb);
+  } else {
+    set_curbb(cond_bb);
+    gen_cond_jmp(cond, loop_bb, next_bb);
+  }
 
   set_curbb(next_bb);
   pop_continue_bb(save_cont);
@@ -610,16 +668,54 @@ static void gen_while(Stmt *stmt) {
 }
 
 static void gen_do_while(Stmt *stmt) {
+  // cond_at_top (default, or builtin-expect=true)
+  //   goto loop
+  // cond:
+  //   if (!<cond>) goto next
+  // loop:
+  //   <body>
+  //   goto cond
+  // next:
+
+  // !cond_at_top (builtin-expect=false)
+  // loop:
+  //   <body>
+  // cond:
+  //   if (<cond>) goto loop
+  // next:
+
   BB *save_break, *save_cont;
-  BB *loop_bb = new_bb();
   BB *cond_bb = push_continue_bb(&save_cont);
   BB *next_bb = push_break_bb(&save_break);
+  BB *loop_bb = new_bb();
+
+  Expr *cond = stmt->while_.cond;
+  bool cond_at_top = !is_const_falsy(cond);
+  if (cond_at_top && cond->kind == EX_EXPECT) {
+    Expr *value = cond->bop.lhs;
+    Expr *expect = cond->bop.rhs;
+    assert(expect->kind == EX_FIXNUM);
+    if (expect->fixnum == 0) {
+      cond_at_top = false;
+    }
+    cond = value;
+  }
+
+  if (cond_at_top) {
+    new_ir_jmp(loop_bb);
+    set_curbb(cond_bb);
+    gen_cond_jmp(cond, loop_bb, next_bb);
+  }
 
   set_curbb(loop_bb);
   gen_stmt(stmt->while_.body);
 
-  set_curbb(cond_bb);
-  gen_cond_jmp(stmt->while_.cond, loop_bb, next_bb);
+  if (cond_at_top) {
+    new_ir_jmp(cond_bb);
+  } else {
+    set_curbb(cond_bb);
+    gen_cond_jmp(cond, loop_bb, next_bb);
+  }
 
   set_curbb(next_bb);
   pop_continue_bb(save_cont);
@@ -627,29 +723,75 @@ static void gen_do_while(Stmt *stmt) {
 }
 
 static void gen_for(Stmt *stmt) {
+  // cond_at_top (default, or builtin-expect=true)
+  //    <pre>
+  //  cond:
+  //    if (!<cond>) goto next
+  //  loop:
+  //    <body>
+  //  continu:
+  //    <post>
+  //    jmp cond
+  //  next:
+
+  // !cond_at_top (builtin-expect=false)
+  //    <pre>
+  //    goto cond
+  //  loop:
+  //    <body>
+  //  continu:
+  //    <post>
+  //  cond:
+  //    if (<cond>) goto loop
+  //  next:
+
   BB *save_break, *save_cont;
-  BB *loop_bb = new_bb();
   BB *continue_bb = push_continue_bb(&save_cont);
-  BB *cond_bb = new_bb();
   BB *next_bb = push_break_bb(&save_break);
+
+  BB *loop_bb = new_bb();
+  BB *cond_bb = new_bb();
 
   if (stmt->for_.pre != NULL)
     gen_expr_stmt(stmt->for_.pre);
 
-  new_ir_jmp(cond_bb);
+  Expr *cond = stmt->for_.cond;
+  bool cond_at_top = true;
+  if (cond != NULL && cond->kind == EX_EXPECT) {
+    Expr *value = cond->bop.lhs;
+    Expr *expect = cond->bop.rhs;
+    assert(expect->kind == EX_FIXNUM);
+    if (expect->fixnum == 0) {
+      cond_at_top = false;
+    }
+    cond = value;
+  }
 
-  set_curbb(loop_bb);
+  if (cond_at_top) {
+    set_curbb(cond_bb);
+    if (cond != NULL)
+      gen_cond_jmp(cond, loop_bb, next_bb);
+    set_curbb(loop_bb);
+  } else {
+    new_ir_jmp(cond_bb);
+    set_curbb(loop_bb);
+  }
+
   gen_stmt(stmt->for_.body);
 
   set_curbb(continue_bb);
   if (stmt->for_.post != NULL)
     gen_expr_stmt(stmt->for_.post);
 
-  set_curbb(cond_bb);
-  if (stmt->for_.cond != NULL)
-    gen_cond_jmp(stmt->for_.cond, loop_bb, next_bb);
-  else
-    new_ir_jmp(loop_bb);
+  if (cond_at_top) {
+    new_ir_jmp(cond_bb);
+  } else {
+    set_curbb(cond_bb);
+    if (cond != NULL)
+      gen_cond_jmp(cond, loop_bb, next_bb);
+    else
+      new_ir_jmp(loop_bb);
+  }
 
   set_curbb(next_bb);
   pop_continue_bb(save_cont);
