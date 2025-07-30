@@ -1,6 +1,7 @@
 #include "alloca.h"
 #include "limits.h"
 #include "stdarg.h"
+#include "stdbool.h"
 #include "stddef.h"  // offsetof
 #include "stdint.h"
 #include "stdio.h"
@@ -1776,6 +1777,17 @@ TEST(bitfield) {
       unsigned int x : 8;
     } s = {5};
     EXPECT_FALSE(-1 > s.x);
+  }
+
+  {
+    struct {
+      _Bool f : 1;
+      _Bool t : 1;
+    } s = {
+      false, true,
+    };
+    EXPECT("bool bitfield: false", false, s.f);
+    EXPECT("bool bitfield: true", true, s.t);
   }
 }
 #endif
