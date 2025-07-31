@@ -454,25 +454,7 @@ static Expr *binary(Expr *lhs, Token *tok) {
       parse_error(PE_NOFATAL, tok, "Cannot use `%.*s' except numbers.", (int)(tok->end - tok->begin), tok->begin);
 
     lhs = promote_to_int(lhs);
-    if (is_const(lhs) && is_const(rhs)) {
-      Type *type = lhs->type;
-      if (type->fixnum.kind < FX_INT)
-        type = get_fixnum_type(FX_INT, type->fixnum.is_unsigned, type->qualifier);
-      Fixnum value;
-      if (type->fixnum.is_unsigned) {
-        UFixnum lval = lhs->fixnum;
-        UFixnum rval = rhs->fixnum;
-        value = kind == TK_LSHIFT ? lval << rval : lval >> rval;
-      } else {
-        Fixnum lval = lhs->fixnum;
-        Fixnum rval = rhs->fixnum;
-        value = kind == TK_LSHIFT ? lval << rval : lval >> rval;
-      }
-      value = wrap_value(value, type_size(type), type->fixnum.is_unsigned);
-      return new_expr_fixlit(type, tok, value);
-    } else {
-      return new_expr_bop(kind + (EX_LSHIFT - TK_LSHIFT), lhs->type, tok, lhs, rhs);
-    }
+    return new_expr_num_bop(kind + (EX_LSHIFT - TK_LSHIFT), tok, lhs, rhs);
   case TK_AND: case TK_OR: case TK_HAT:
     return new_expr_int_bop(kind + (EX_BITAND - TK_AND), tok, lhs, rhs);
   case TK_EQ: case TK_NE: case TK_LT: case TK_LE: case TK_GE: case TK_GT:

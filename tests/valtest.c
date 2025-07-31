@@ -1781,13 +1781,23 @@ TEST(bitfield) {
 
   {
     struct {
+      signed int x : 2;
+    } s;
+    EXPECT("signed bitfield assigned overflow", -2, s.x = 2);
+  }
+
+  {
+    struct {
       _Bool f : 1;
       _Bool t : 1;
+      _Bool t2 : 1;
     } s = {
-      false, true,
+      false, true, true,
     };
     EXPECT("bool bitfield: false", false, s.f);
     EXPECT("bool bitfield: true", true, s.t);
+    s.t2 = true;
+    EXPECT("bool bitfield 2: true", true, s.t2);
   }
 }
 #endif
