@@ -143,8 +143,8 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
     Expr *offsetted = new_expr_addsub(
         EX_SUB, token, sub,
         new_expr_flolit(sub->type, sub->token, (uint64_t)INT64_MAX + 1UL));
-    Expr *xorred = new_expr_bop(EX_BITXOR, i64t, token, make_cast(i64t, token, offsetted, false),
-                                new_expr_fixlit(i64t, token, (uint64_t)1 << 63));
+    Expr *xorred = new_expr_num_bop(EX_BITXOR, token, make_cast(i64t, token, offsetted, false),
+                                    new_expr_fixlit(i64t, token, (uint64_t)1 << 63));
     sub = new_expr_ternary(token, cond, make_cast(i64t, token, sub, false), xorred, i64t);
   }
 #endif
@@ -634,8 +634,8 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         return new_expr_fixlit(&tySize, tok,
                                (lhs->fixnum - rhs->fixnum) / type_size(ltype->pa.ptrof));
       }
-      return new_expr_bop(
-          EX_DIV, &tySSize, tok,
+      return new_expr_num_bop(
+          EX_DIV, tok,
           make_cast(&tySSize, tok, new_expr_bop(EX_SUB, &tySize, tok, lhs, rhs), false),
           new_expr_fixlit(&tySSize, tok, type_size(ltype->pa.ptrof)));
     }
@@ -686,21 +686,21 @@ Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo) {
   if (type->fixnum.is_unsigned) {
     tmp = src;
     if (minfo->bitfield.position > 0)
-      tmp = new_expr_bop(EX_RSHIFT, tmp->type, tmp->token, tmp,
-                         new_expr_fixlit(tmp->type, tmp->token, minfo->bitfield.position));
+      tmp = new_expr_num_bop(EX_RSHIFT, tmp->token, tmp,
+                             new_expr_fixlit(tmp->type, tmp->token, minfo->bitfield.position));
     UFixnum mask = ((UFixnum)1 << minfo->bitfield.width) - 1;
-    tmp = new_expr_bop(EX_BITAND, tmp->type, tmp->token, tmp,
-                       new_expr_fixlit(tmp->type, tmp->token, mask));
+    tmp = new_expr_num_bop(EX_BITAND, tmp->token, tmp,
+                           new_expr_fixlit(tmp->type, tmp->token, mask));
   } else {
     int w = MAX(type_size(type), MINREGSIZE) * TARGET_CHAR_BIT;
     int l = w - (minfo->bitfield.position + minfo->bitfield.width);
     tmp = src;
     if (l > 0)
-      tmp = new_expr_bop(EX_LSHIFT, tmp->type, tmp->token, tmp,
-                         new_expr_fixlit(tmp->type, tmp->token, l));
+      tmp = new_expr_num_bop(EX_LSHIFT, tmp->token, tmp,
+                             new_expr_fixlit(tmp->type, tmp->token, l));
     if (minfo->bitfield.width < w)
-      tmp = new_expr_bop(EX_RSHIFT, tmp->type, tmp->token, tmp,
-                         new_expr_fixlit(tmp->type, tmp->token, w - minfo->bitfield.width));
+      tmp = new_expr_num_bop(EX_RSHIFT, tmp->token, tmp,
+                             new_expr_fixlit(tmp->type, tmp->token, w - minfo->bitfield.width));
   }
   return make_cast(minfo->type, src->token, tmp, false);
 }
@@ -719,7 +719,7 @@ Expr *assign_bitfield_member(const Token *tok, Expr *dst, Expr *src, Expr *val,
   Expr *src_mask = new_expr_fixlit(type, tok, ~(mask << minfo->bitfield.position));
   Expr *src_masked = new_expr_num_bop(EX_BITAND, tok, src, src_mask);
   return new_expr_bop(EX_ASSIGN, type, tok, dst,
-                      new_expr_bop(EX_BITOR, type, tok, val_masked, src_masked));
+                      new_expr_num_bop(EX_BITOR, tok, val_masked, src_masked));
 }
 
 Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInfo *minfo) {
@@ -781,11 +781,11 @@ static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, cons
   if (post) {
     Expr *before = extract_bitfield_value(src, minfo);
     val_assign = new_expr_bop(EX_ASSIGN, vtype, tok, val, make_cast(vtype, tok, before, false));
-    after = new_expr_bop(!dec ? EX_ADD : EX_SUB, vtype, tok, before, new_expr_fixlit(vtype, NULL, 1));
+    after = new_expr_num_bop(!dec ? EX_ADD : EX_SUB, tok, before, new_expr_fixlit(vtype, NULL, 1));
   } else {
     Expr *tmp = extract_bitfield_value(
-        new_expr_bop(!dec ? EX_ADD : EX_SUB, type, tok, src,
-                     new_expr_fixlit(type, NULL, 1LL << minfo->bitfield.position)),
+        new_expr_num_bop(!dec ? EX_ADD : EX_SUB, tok, src,
+                         new_expr_fixlit(type, NULL, 1LL << minfo->bitfield.position)),
         minfo);
     val_assign = new_expr_bop(EX_ASSIGN, vtype, tok, val, make_cast(vtype, tok, tmp, false));
     after = val;
