@@ -2215,6 +2215,12 @@ TEST(extension) {
     EXPECT("generic long double", 4, GENERIC_FLONUM(4.5L));
 #endif
 
+    {
+      typedef int (*fptr)(int);
+      extern int dummy_func_for_generic(int i);
+      EXPECT("generic function", 3, _Generic(dummy_func_for_generic, fptr: 3, int: 4));
+    }
+
 #undef GENERIC_FUNC
 #undef GENERIC_FLONUM
   }

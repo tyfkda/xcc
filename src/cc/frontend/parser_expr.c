@@ -194,8 +194,11 @@ static Expr *parse_generic(void) {
   consume(TK_RPAR, "`)' expected");
 
   Type *type = target->type;
-  if (type->kind == TY_ARRAY)
-    type = array_to_ptr(type);
+  switch (type->kind) {
+  case TY_ARRAY:  type = array_to_ptr(type); break;
+  case TY_FUNC:   type = ptrof(type); break;
+  default: break;
+  }
   if (type->qualifier != 0) {
     type = clone_type(type);
     type->qualifier = 0;
