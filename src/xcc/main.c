@@ -514,12 +514,21 @@ static void parse_options(int argc, char *argv[], Options *opts) {
           fprintf(stderr, "Warning: missing argument for -f\n");
           break;
         }
-        const char *opt = argv[optind - 1];
+        char *opt = argv[optind - 1];
         if (strncmp(opt, "-Wl,", 4) == 0) {
-          if (opts->use_ld)
+          if (opts->use_ld) {
             vec_push(opts->linker_options, opt);
-          else
-            vec_push(opts->ld_cmd, opt + 4);
+          } else {
+            char *p = opt + 4;
+            for (;;) {
+              vec_push(opts->ld_cmd, p);
+              char *q = strchr(p, ',');
+              if (q == NULL)
+                break;
+              *q = '\0';
+              p = q + 1;
+            }
+          }
         } else {
           vec_push(opts->cc1_cmd, opt);
         }
