@@ -2138,23 +2138,41 @@ static void gen_alloca(Expr *expr, enum BuiltinFunctionPhase phase) {
   gen_expr(result, true);
 }
 
-static void gen_builtin_memory_size(Expr *expr, enum BuiltinFunctionPhase phase) {
-  if (phase != BFP_GEN)
-    return;
-
-  assert(expr->kind == EX_FUNCALL);
-  ADD_CODE(OP_MEMORY_SIZE, 0x00);
-}
-
-static void gen_builtin_memory_grow(Expr *expr, enum BuiltinFunctionPhase phase) {
-  if (phase != BFP_GEN)
-    return;
-
+static void gen_builtin_wasm_memory_size(Expr *expr, enum BuiltinFunctionPhase phase) {
   assert(expr->kind == EX_FUNCALL);
   Vector *args = expr->funcall.args;
   assert(args->len == 1);
-  gen_expr(args->data[0], true);
-  ADD_CODE(OP_MEMORY_GROW, 0x00);
+  Expr *index = args->data[0];
+
+  switch (phase) {
+  case BFP_TRAVERSE:
+    if (index->kind != EX_FIXNUM)
+      parse_error(PE_NOFATAL, index->token, "Must be constant");
+    break;
+  case BFP_GEN:
+    ADD_CODE(OP_MEMORY_SIZE);
+    ADD_ULEB128(index->fixnum);
+    break;
+  }
+}
+
+static void gen_builtin_wasm_memory_grow(Expr *expr, enum BuiltinFunctionPhase phase) {
+  assert(expr->kind == EX_FUNCALL);
+  Vector *args = expr->funcall.args;
+  assert(args->len == 2);
+  Expr *index = args->data[0], *npages = args->data[1];
+
+  switch (phase) {
+  case BFP_TRAVERSE:
+    if (index->kind != EX_FIXNUM)
+      parse_error(PE_NOFATAL, index->token, "Must be constant");
+    break;
+  case BFP_GEN:
+    gen_expr(npages, true);
+    ADD_CODE(OP_MEMORY_GROW);
+    ADD_ULEB128(index->fixnum);
+    break;
+  }
 }
 
 void install_builtins(void) {
@@ -2194,21 +2212,23 @@ void install_builtins(void) {
     add_builtin_function("alloca", type, &p_alloca, true);
   }
   {
-    static BuiltinFunctionProc p_memory_size = &gen_builtin_memory_size;
+    static BuiltinFunctionProc p_memory_size = &gen_builtin_wasm_memory_size;
     Type *rettype = &tyInt;
     Vector *params = new_vector();
+    vec_push(params, &tyInt);
     Type *type = new_func_type(rettype, params, false);
 
-    add_builtin_function("__builtin_memory_size", type, &p_memory_size, true);
+    add_builtin_function("__builtin_wasm_memory_size", type, &p_memory_size, true);
   }
   {
-    static BuiltinFunctionProc p_memory_grow = &gen_builtin_memory_grow;
+    static BuiltinFunctionProc p_memory_grow = &gen_builtin_wasm_memory_grow;
     Type *rettype = &tyInt;
     Vector *params = new_vector();
+    vec_push(params, &tyInt);
     vec_push(params, &tySize);
     Type *type = new_func_type(rettype, params, false);
 
-    add_builtin_function("__builtin_memory_grow", type, &p_memory_grow, true);
+    add_builtin_function("__builtin_wasm_memory_grow", type, &p_memory_grow, true);
   }
 
   {
