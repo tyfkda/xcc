@@ -142,7 +142,7 @@ enum OutType {
 #define CUF_USE_SP         (1 << 1)
 
 extern const char SP_NAME[];
-extern const char BREAK_ADDRESS_NAME[];
+extern const char HEAP_BASE_NAME[];
 extern const char INDIRECT_FUNCALL_TABLE_NAME[];
 
 extern bool verbose;

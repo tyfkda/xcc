@@ -782,7 +782,7 @@ static bool resolve_symbols(WasmLinker *linker) {
 
     case SIK_SYMTAB_DATA:
     case SIK_SYMTAB_GLOBAL:
-      if (equal_name(name, linker->sp_name) || equal_name(name, linker->curbrk_name)) {
+      if (equal_name(name, linker->sp_name) || equal_name(name, linker->heapbase_name)) {
         // TODO: Check type, etc.
         table_delete(&linker->unresolved, name);
         table_put(&linker->defined, name, (void*)sym);
@@ -1569,7 +1569,7 @@ void linker_init(WasmLinker *linker) {
   linker->indirect_functions = new_vector();
 
   linker->sp_name = alloc_name(SP_NAME, NULL, false);
-  linker->curbrk_name = alloc_name(BREAK_ADDRESS_NAME, NULL, false);
+  linker->heapbase_name = alloc_name(HEAP_BASE_NAME, NULL, false);
   linker->indirect_function_table_name = alloc_name(INDIRECT_FUNCALL_TABLE_NAME, NULL, false);
 }
 
@@ -1632,15 +1632,7 @@ bool link_wasm_objs(WasmLinker *linker, Table *exports, uint32_t stack_size) {
     return false;
 
   uint32_t data_end_address = remap_data_address(linker, stack_size);
-  renumber_symbols(linker);
-  renumber_func_types(linker);
-  renumber_indirect_functions(linker);
-  apply_relocation(linker);
-
-  generate_init_funcs(linker);
-
   uint32_t address_bottom = ALIGN(data_end_address, 16);
-  linker->address_bottom = address_bottom;
   {
     SymbolInfo *spsym = table_get(&linker->defined, linker->sp_name);
     if (spsym != NULL) {
@@ -1649,13 +1641,23 @@ bool link_wasm_objs(WasmLinker *linker, Table *exports, uint32_t stack_size) {
       spsym->global.ivalue = stack_size;
     }
 
-    SymbolInfo *curbrksym = table_get(&linker->defined, linker->curbrk_name);
-    if (curbrksym != NULL) {
-      if (curbrksym->kind != SIK_SYMTAB_GLOBAL)
-        error("illegal symbol for break address: %.*s", NAMES(linker->curbrk_name));
-      curbrksym->global.ivalue = address_bottom;
+    SymbolInfo *heapbasesym = table_get(&linker->defined, linker->heapbase_name);
+    if (heapbasesym != NULL) {
+      if (heapbasesym->kind != SIK_SYMTAB_DATA)
+        error("illegal symbol for break address: %.*s", NAMES(linker->heapbase_name));
+      heapbasesym->data.address = address_bottom;
+      heapbasesym->data.offset = 0;
+      heapbasesym->data.size = 0;
     }
   }
+  renumber_symbols(linker);
+  renumber_func_types(linker);
+  renumber_indirect_functions(linker);
+  apply_relocation(linker);
+
+  generate_init_funcs(linker);
+
+  linker->address_bottom = address_bottom;
 
   if (verbose) {
     const Name *name;

@@ -1,8 +1,9 @@
 #include "unistd.h"
 #include "stdio.h"  // EOF
 
-extern void *__curbrk;
-#define CURBRK  __curbrk
+extern size_t __heap_base;
+static void *curbrk = &__heap_base;
+#define CURBRK  curbrk
 
 #define HEAP_ALIGN  (8)
 #define MEMORY_PAGE_BIT  (16)
@@ -17,10 +18,10 @@ static void _growTo(void *ptr) {
 }
 
 int brk(void *addr) {
-  if (addr <= __curbrk)
+  if (addr <= curbrk)
     return EOF;
   void *p = (void*)((((intptr_t)addr) + (HEAP_ALIGN - 1)) & -HEAP_ALIGN);
-  __curbrk = p;
+  curbrk = p;
   _growTo(p);
   return 0;
 }

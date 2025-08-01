@@ -28,7 +28,7 @@ typedef struct {
   WasmLinkerOptions options;
 
   const Name *sp_name;
-  const Name *curbrk_name;
+  const Name *heapbase_name;
   const Name *indirect_function_table_name;
 
   FILE *ofp;
