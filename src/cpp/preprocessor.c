@@ -167,15 +167,12 @@ static void process_line(const char *line, Stream *stream) {
         match(TK_IDENT);
         match(TK_RPAR);
       } else if ((macro = can_expand_ident(ident->ident)) != NULL) {
-        const char *p = begin;
-        begin = ident->end;  // Update for EOF callback.
+        if (ident->begin != begin)
+          fwrite(begin, ident->begin - begin, 1, pp_ofp);
 
         Vector *tokens = new_vector();
         vec_push(tokens, ident);
         macro_expand(tokens);
-
-        if (ident->begin != p)
-          fwrite(p, ident->begin - p, 1, pp_ofp);
 
         // Everything should have been expanded, so output
         for (int i = 0; i < tokens->len; ++i) {
