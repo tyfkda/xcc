@@ -179,10 +179,10 @@ static void process_line(const char *line, Stream *stream) {
           const Token *tok = tokens->data[i];
           fwrite(tok->begin, tok->end - tok->begin, 1, pp_ofp);
         }
-        if (macro->params_len >= 0) {
-          // Put whitespace to avoid unexpected concatenation.
-          fputc(' ', pp_ofp);
-        }
+        // if (macro->params_len >= 0) {
+        //   // Put whitespace to avoid unexpected concatenation.
+        //   fputc(' ', pp_ofp);
+        // }
         begin = get_lex_p();
       }
       continue;

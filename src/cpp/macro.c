@@ -215,6 +215,8 @@ static inline int subst_concat(Vector *body, Table *param_table, Vector *args, i
         const Vector *arg = args->data[j];
         if (arg->len > 0)
           glue(os, arg);
+        else
+          vec_push(os, alloc_token(PPTK_SPACE, NULL, " ", NULL));
         ++i;
         return i;
       }
@@ -241,6 +243,7 @@ static inline int subst_ident(Vector *body, Table *param_table, Vector *args,
           assert(k < args->len);
           const Vector *arg2 = args->data[k];
           vec_concat(os, arg2);
+          vec_push(os, alloc_token(PPTK_SPACE, NULL, " ", NULL));
         }
         i += 2;
       } else {

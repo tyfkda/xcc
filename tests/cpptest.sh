@@ -91,7 +91,7 @@ function test_if() {
 function test_macro() {
   begin_test_suite "Macro"
 
-  try_pp 'No arguments keeps as is' 'int MAX =123;' "#define MAX(a,b) ((a)>=(b)?(a):(b))\nint MAX=123;"
+  try_pp 'No arguments keeps as is' 'int MAX=123;' "#define MAX(a,b) ((a)>=(b)?(a):(b))\nint MAX=123;"
   try_pp '() macro and struct name' 'struct F f;' "#define F(a, b)  FF(a, b)\nstruct F f;"
   try_pp '()-ed macro insert space' 'void foo(){}' "#define EXTERN(x)  x\nEXTERN(void)foo(){}"
   try_pp 'Newline in macro' '1+2' "#define ADD(x,y) x+y\nADD(1,\n2)"
@@ -153,6 +153,7 @@ EOS
   try_pp 'empty l' 'R' "#define CAT(x, y) x ## y\nCAT(, R)"
   try_pp 'empty r' 'L' "#define CAT(x, y) x ## y\nCAT(L, )"
   try_pp 'empty both' '' "#define CAT(x, y) x ## y\nCAT(, )"
+  try_pp 'whitespace after empty' '-+ +3' "#define Q(A,B) A ## B+\n-Q(+,)3"
 
   end_test_suite
 }
