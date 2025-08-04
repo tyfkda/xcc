@@ -183,6 +183,25 @@ TEST(all) {
     EXPECT("unsigned + >>", 0x05a5a5a5U, (x=0x5a5a5a5a, x >> 4));
     EXPECT("unsigned - >>", 0x0a5a5a5aU, (x=0xa5a5a5a5, x >> 4));
   }
+  {
+    // Check shift types, taken from tcc test #55.
+#define PTYPE(M) ((M) < 0 || -(M) < 0 ? -1 : 1) * (ssize_t) sizeof((M)+0)
+#define U(x)  ((ssize_t)sizeof(x))
+#define S(x)  (-(ssize_t)sizeof(x))
+    short s = 1;
+    unsigned short us = 1;
+    int i = 1;
+    unsigned int ui = 1;
+    long long ll = 1;
+    EXPECT("short << unsigned int",        S(i), PTYPE( s << ui));
+    EXPECT("short << long long",           S(i), PTYPE( s << ll));
+    EXPECT("int << unsigned int",          S(i), PTYPE( i << ui));
+    EXPECT("unsigned int << long long",   U(ui), PTYPE(ui << ll));
+    EXPECT("long long << unsigned short", S(ll), PTYPE(ll << us));
+#undef PTYPE
+#undef U
+#undef S
+  }
   EXPECT("&", 0xa0, (x=0xa5, x & 0xf0));
   EXPECT("|", 0xbc, (x=0x88, x | 0x3c));
   EXPECT("^", 0x66, (x=0xc3, x ^ 0xa5));
@@ -792,8 +811,10 @@ TEST(all) {
     char buf[3] = {};
     EXPECT("char array with empty initializer", 0, buf[0]);
 
+#if !defined(__GNUC__)
     int z = {};
     EXPECT("primitive with empty initializer", 0, z);
+#endif
   }
   {
     struct {int x; int y;} s = {3};

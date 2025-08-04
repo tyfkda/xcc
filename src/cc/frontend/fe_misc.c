@@ -763,7 +763,12 @@ Expr *promote_to_int(Expr *expr) {
 }
 
 Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
-  cast_numbers(&lhs, &rhs, true);
+  if (kind == EX_LSHIFT || kind == EX_RSHIFT) {
+    lhs = promote_to_int(lhs);
+    rhs = make_cast(lhs->type, rhs->token, rhs, false);
+  } else {
+    cast_numbers(&lhs, &rhs, true);
+  }
 
   do {
     if (is_const(rhs) && is_number(rhs->type)) {
@@ -822,7 +827,7 @@ Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rh
         }
 #undef CALC
         enum FixnumKind lk = lhs->type->fixnum.kind, rk = rhs->type->fixnum.kind;
-        Type *type = lk >= rk || (kind == EX_LSHIFT || kind == EX_RSHIFT) ? lhs->type : rhs->type;
+        Type *type = lk >= rk ? lhs->type : rhs->type;
         if (type->fixnum.kind < FX_INT)
           type = &tyInt;
         value = wrap_value(value, type_size(type), type->fixnum.is_unsigned);
