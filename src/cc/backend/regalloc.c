@@ -12,7 +12,7 @@
 // Register allocator
 
 RegAlloc *new_reg_alloc(const RegAllocSettings *settings) {
-  RegAlloc *ra = malloc_or_die(sizeof(*ra));
+  RegAlloc *ra = calloc_or_die(sizeof(*ra));
   assert(settings->phys_max < (int)(sizeof(ra->used_reg_bits) * CHAR_BIT));
   ra->settings = settings;
   ra->vregs = new_vector();
@@ -28,9 +28,12 @@ RegAlloc *new_reg_alloc(const RegAllocSettings *settings) {
 }
 
 VReg *reg_alloc_spawn_raw(enum VRegSize vsize, int vflag) {
-  VReg *vreg = malloc_or_die(sizeof(*vreg));
+  VReg *vreg = calloc_or_die(sizeof(*vreg));
   vreg->vsize = vsize;
   vreg->flag = vflag;
+  vreg->virt = -1;
+  vreg->phys = -1;
+  vreg->reg_param_index = -1;
   return vreg;
 }
 
@@ -40,8 +43,6 @@ VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag) {
   if (!(vflag & VRF_CONST)) {
     vreg->original = vreg;  // I am the original.
     vreg->virt = ra->vregs->len;
-    vreg->phys = -1;
-    vreg->reg_param_index = -1;
     vreg->frame.offset = 0;
     vec_push(ra->vregs, vreg);
   } else {

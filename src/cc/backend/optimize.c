@@ -221,8 +221,6 @@ static int replace_register_in_bb(BB *bb, VReg *target, VReg *alternation, int s
   int first = INT_MAX;
   for (int iir = start; iir < bb->irs->len; ++iir, ++ip) {
     IR *ir = bb->irs->data[iir];
-    if (ir->dst == target && ir->opr1 != alternation)
-      break;
 
     if (ir->opr1 == target) {
       ir->opr1 = alternation;
@@ -244,6 +242,9 @@ static int replace_register_in_bb(BB *bb, VReg *target, VReg *alternation, int s
         }
       }
     }
+
+    if (ir->dst == alternation || (ir->dst == target && ir->opr1 != alternation))
+      break;
   }
   return first;
 }
@@ -481,6 +482,23 @@ static bool constant_folding(RegAlloc *ra, IR *ir) {
     if (ir->jmp.cond != COND_ANY) {
       assert(ir->jmp.cond != COND_NONE);
       return replace_const_jmp(ir);
+    }
+    break;
+  case IR_TJMP:
+    if (ir->opr1->flag & VRF_CONST) {
+      assert(!(ir->opr1->flag & VRF_FLONUM));
+      size_t value = ir->opr1->fixnum;
+      if (value >= ir->tjmp.len) {
+        // Out of range, skipped by earlier check, so no need to handle here.
+        break;
+      }
+
+      // Replace to unconditional jump.
+      BB *target = ir->tjmp.bbs[value];
+      ir->kind = IR_JMP;
+      ir->jmp.bb = target;
+      ir->jmp.cond = COND_ANY;
+      ir->opr1 = ir->opr2 = NULL;
     }
     break;
 

@@ -844,6 +844,7 @@ static void ei_jmp(IR *ir) {
 }
 
 static void ei_tjmp(IR *ir) {
+  assert(!(ir->opr1->flag & VRF_CONST));
   assert(ir->opr2 != NULL);
   const char *opr2 = kReg64s[ir->opr2->phys];
   const Name *table_label = alloc_label();
@@ -1118,6 +1119,7 @@ void tweak_irs(FuncBackend *fnbe) {
         break;
       case IR_TJMP:
         {
+          assert(!(ir->opr1->flag & VRF_CONST));
           // Make sure opr1 can be broken.
           insert_tmp_mov(&ir->opr1, irs, j++);
 

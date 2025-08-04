@@ -12,8 +12,10 @@ typedef struct Vector Vector;
 #define WASI_MODULE_NAME  "wasi_snapshot_preview1"
 
 typedef struct {
+  const char *import_module_name;
   bool allow_undefined;
   bool export_all;
+  bool export_table;
 } WasmLinkerOptions;
 
 typedef struct {
@@ -26,7 +28,7 @@ typedef struct {
   WasmLinkerOptions options;
 
   const Name *sp_name;
-  const Name *curbrk_name;
+  const Name *heapbase_name;
   const Name *indirect_function_table_name;
 
   FILE *ofp;

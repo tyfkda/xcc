@@ -331,13 +331,13 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
 
               uint32_t index = read_uleb128(p, &p);
               Vector *import = import_symbols[kind];
-              if (import != NULL && index < (uint32_t)import->len && !(flags & WASM_SYM_EXPLICIT_NAME)) {
-                sym = import->data[index];
-              } else {
+              bool imported_symbol = import != NULL && index < (uint32_t)import->len;
+              bool explicit_name = flags & WASM_SYM_EXPLICIT_NAME;
+              sym = imported_symbol ? import->data[index] : calloc_or_die(sizeof(*sym));
+              if (!imported_symbol || explicit_name) {
                 const Name *name = read_wasm_string(p, &p);
-                sym = calloc_or_die(sizeof(*sym));
-                sym->module_name = NULL;
-                sym->name = name;
+                if (!imported_symbol)
+                  sym->name = name;
               }
               sym->kind = kind;
               sym->flags = flags;
@@ -754,7 +754,6 @@ static bool resolve_symbols(WasmLinker *linker) {
   resolve_symbols_auto_fill(linker);
 
   // Enumerate unresolved: import
-  const Name *wasi_module_name = alloc_name(WASI_MODULE_NAME, NULL, false);
   uint32_t unresolved_func_count = 0;
   const Name *name;
   SymbolInfo *sym;
@@ -767,8 +766,7 @@ static bool resolve_symbols(WasmLinker *linker) {
     switch (sym->kind) {
     default: assert(false); // Fallthrough to suppress warning.
     case SIK_SYMTAB_FUNCTION:
-      if ((sym->module_name != NULL && equal_name(sym->module_name, wasi_module_name)) ||
-          linker->options.allow_undefined) {
+      if (linker->options.allow_undefined || sym->flags & WASM_SYM_EXPLICIT_NAME) {
         sym->combined_index = unresolved_func_count++;
         break;
       }
@@ -782,7 +780,7 @@ static bool resolve_symbols(WasmLinker *linker) {
 
     case SIK_SYMTAB_DATA:
     case SIK_SYMTAB_GLOBAL:
-      if (equal_name(name, linker->sp_name) || equal_name(name, linker->curbrk_name)) {
+      if (equal_name(name, linker->sp_name) || equal_name(name, linker->heapbase_name)) {
         // TODO: Check type, etc.
         table_delete(&linker->unresolved, name);
         table_put(&linker->defined, name, (void*)sym);
@@ -1223,7 +1221,8 @@ static void out_import_section(WasmLinker *linker) {
     if (sym->kind != SIK_SYMTAB_FUNCTION)
       continue;
     const Name *modname = sym->module_name;
-    assert(modname != NULL);
+    if (modname == NULL)
+      modname = alloc_name(linker->options.import_module_name, NULL, false);
     const Name *name = sym->name;
 
     data_string(&imports_section, modname->chars, modname->bytes);  // import module name
@@ -1419,6 +1418,16 @@ static void out_export_section(WasmLinker *linker, Table *exports) {
     data_uleb128(&exports_section, -1, 0);  // export global index
     ++num_exports;
   }
+  if (linker->options.export_table) {
+    Vector *indirect_functions = linker->indirect_functions;
+    if (indirect_functions->len > 0 || funcref_table_exist(linker)) {
+      const Name *name = linker->indirect_function_table_name;
+      data_string(&exports_section, name->chars, name->bytes);  // export name
+      data_uleb128(&exports_section, -1, IMPORT_TABLE);  // export kind
+      data_uleb128(&exports_section, -1, 0);  // export global index
+      ++num_exports;
+    }
+  }
   data_close_chunk(&exports_section, num_exports);
   data_close_chunk(&exports_section, -1);
 
@@ -1558,7 +1567,7 @@ void linker_init(WasmLinker *linker) {
   linker->indirect_functions = new_vector();
 
   linker->sp_name = alloc_name(SP_NAME, NULL, false);
-  linker->curbrk_name = alloc_name(BREAK_ADDRESS_NAME, NULL, false);
+  linker->heapbase_name = alloc_name(HEAP_BASE_NAME, NULL, false);
   linker->indirect_function_table_name = alloc_name(INDIRECT_FUNCALL_TABLE_NAME, NULL, false);
 }
 
@@ -1621,15 +1630,7 @@ bool link_wasm_objs(WasmLinker *linker, Table *exports, uint32_t stack_size) {
     return false;
 
   uint32_t data_end_address = remap_data_address(linker, stack_size);
-  renumber_symbols(linker);
-  renumber_func_types(linker);
-  renumber_indirect_functions(linker);
-  apply_relocation(linker);
-
-  generate_init_funcs(linker);
-
   uint32_t address_bottom = ALIGN(data_end_address, 16);
-  linker->address_bottom = address_bottom;
   {
     SymbolInfo *spsym = table_get(&linker->defined, linker->sp_name);
     if (spsym != NULL) {
@@ -1638,13 +1639,23 @@ bool link_wasm_objs(WasmLinker *linker, Table *exports, uint32_t stack_size) {
       spsym->global.ivalue = stack_size;
     }
 
-    SymbolInfo *curbrksym = table_get(&linker->defined, linker->curbrk_name);
-    if (curbrksym != NULL) {
-      if (curbrksym->kind != SIK_SYMTAB_GLOBAL)
-        error("illegal symbol for break address: %.*s", NAMES(linker->curbrk_name));
-      curbrksym->global.ivalue = address_bottom;
+    SymbolInfo *heapbasesym = table_get(&linker->defined, linker->heapbase_name);
+    if (heapbasesym != NULL) {
+      if (heapbasesym->kind != SIK_SYMTAB_DATA)
+        error("illegal symbol for break address: %.*s", NAMES(linker->heapbase_name));
+      heapbasesym->data.address = address_bottom;
+      heapbasesym->data.offset = 0;
+      heapbasesym->data.size = 0;
     }
   }
+  renumber_symbols(linker);
+  renumber_func_types(linker);
+  renumber_indirect_functions(linker);
+  apply_relocation(linker);
+
+  generate_init_funcs(linker);
+
+  linker->address_bottom = address_bottom;
 
   if (verbose) {
     const Name *name;

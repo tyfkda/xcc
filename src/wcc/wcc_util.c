@@ -12,7 +12,7 @@
 #include "wasm.h"
 
 const char SP_NAME[] = "__stack_pointer";  // Variable name for stack pointer (global).
-const char BREAK_ADDRESS_NAME[] = "__curbrk";
+const char HEAP_BASE_NAME[] = "__heap_base";
 const char INDIRECT_FUNCALL_TABLE_NAME[] = "__indirect_function_table";
 
 bool verbose;
@@ -147,8 +147,7 @@ bool is_global_datsec_var(const VarInfo *varinfo, Scope *scope) {
     return false;
 #else
   // Special: Stack pointer and break address.
-  if (equal_name(varinfo->ident->ident, alloc_name(SP_NAME, NULL, false)) ||
-      equal_name(varinfo->ident->ident, alloc_name(BREAK_ADDRESS_NAME, NULL, false)))
+  if (equal_name(varinfo->ident->ident, alloc_name(SP_NAME, NULL, false)))
     return false;
 #endif
   return true;

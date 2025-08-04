@@ -244,7 +244,7 @@ char *change_ext(const char *path, const char *ext) {
   const char *q = strrchr(p, '.');
   size_t len = q != NULL ? (size_t)(q - path) : strlen(path);
   size_t ext_len = strlen(ext);
-  char *s = malloc(len + 1 + ext_len);
+  char *s = malloc(len + 1 + ext_len + 1);
   if (s != NULL) {
     memcpy(s, path, len);
     s[len] = '.';

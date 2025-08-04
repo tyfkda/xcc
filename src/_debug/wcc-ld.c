@@ -30,6 +30,7 @@ int main(int argc, char *argv[]) {
     OPT_STACK_SIZE,
     OPT_ALLOW_UNDEFINED,
     OPT_EXPORT_ALL,
+    OPT_EXPORT_TABLE,
   };
   static const struct option kOptions[] = {
     {"o", required_argument},  // Specify output filename
@@ -38,6 +39,7 @@ int main(int argc, char *argv[]) {
     {"-stack-size", required_argument, OPT_STACK_SIZE},
     {"-allow-undefined", no_argument, OPT_ALLOW_UNDEFINED},
     {"-export-all", no_argument, OPT_EXPORT_ALL},
+    {"-export-table", no_argument, OPT_EXPORT_TABLE},
 
     {NULL},
   };
@@ -82,6 +84,9 @@ int main(int argc, char *argv[]) {
       break;
     case OPT_EXPORT_ALL:
       linker->options.export_all = true;
+      break;
+    case OPT_EXPORT_TABLE:
+      linker->options.export_table = true;
       break;
     case '?':
       fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
