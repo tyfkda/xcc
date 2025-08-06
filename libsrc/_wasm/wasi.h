@@ -126,3 +126,6 @@ WASI_MODULE(int, fd_filestat_get, (int fd, Filestat *out));
 WASI_MODULE(int, clock_time_get, (int clockid, uint64_t precision, uint64_t *out));
 
 WASI_MODULE(int, random_get, (void *buf, size_t buf_len));
+
+WASI_MODULE(int, environ_get, (char **environ, char *environ_buf));
+WASI_MODULE(int, environ_sizes_get, (size_t *environ_size, size_t *environ_buf_size));

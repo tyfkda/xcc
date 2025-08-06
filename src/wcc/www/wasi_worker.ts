@@ -4,7 +4,9 @@ import {WASIExitError} from '@wasmer/wasi'
 
 export class WasiWorker {
   private wasmFs = new WasmFs()
-  private curDir = '/'
+  private env: Record<string, string> = {
+    PWD: '/',
+  }
 
   public constructor(private self: any) {
     const originalWriteSync = this.wasmFs.fs.writeSync.bind(this.wasmFs.fs)
@@ -29,6 +31,9 @@ export class WasiWorker {
       let result: any
       try {
         switch (data.action) {
+        case 'setEnv':
+          this.env = JSON.parse(data.envJson)
+          break
         case 'writeFile':
           this.writeFile(data.filePath, data.content)
           break
@@ -81,7 +86,7 @@ export class WasiWorker {
     const stat = this.wasmFs.fs.statSync(filePath)
     if (!stat.isDirectory())
       return false
-    this.curDir = filePath
+    this.env.PWD = filePath
     return true
   }
 
@@ -94,7 +99,7 @@ export class WasiWorker {
   }
 
   private async runWasi(filePath: string, args: string[]): Promise<number> {
-    const waProc = new WaProc(this.wasmFs, args, this.curDir)
+    const waProc = new WaProc(this.wasmFs, args, this.env)
     let exitCode = 0
     try {
       await waProc.runWasiEntry(filePath)

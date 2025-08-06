@@ -8,12 +8,12 @@ export class WaProc {
   private imports: any
   private wasi: WASI
 
-  constructor(private wasmFs: WasmFs, args: string[], curDir?: string) {
-    if (curDir == null)
-      curDir = '/'
+  constructor(private wasmFs: WasmFs, args: string[], env: Record<string, string>) {
+    const curDir = env['PWD'] || '/'
 
     this.wasi = new WASI({
       args,
+      env,
       bindings: {
         ...WASI.defaultBindings,
         fs: this.wasmFs.fs,
