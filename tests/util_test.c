@@ -72,7 +72,9 @@ TEST(is_fullpath) {
 
 TEST(join_paths) {
   EXPECT_STREQ("Relative", "/usr/foo/inc/stdio.h", JOIN_PATHS("/usr/foo", "inc/stdio.h"));
+  EXPECT_STREQ("Relative end /", "/usr/foo/inc/sys/", JOIN_PATHS("/usr/foo", "inc/sys/"));
   EXPECT_STREQ("Absolute", "/inc/stdio.h", JOIN_PATHS("/usr/foo", "/inc/stdio.h"));
+  EXPECT_STREQ("Absolute end /", "/inc/sys/", JOIN_PATHS("/usr/foo", "/inc/sys/"));
   EXPECT_STREQ("Current", "/usr/foo/inc/stdio.h", JOIN_PATHS("/usr/foo", "./inc/stdio.h"));
   EXPECT_STREQ("Parent", "/usr/inc/stdio.h", JOIN_PATHS("/usr/foo", "../inc/stdio.h"));
   EXPECT_STREQ("Path is root w/ ..", "/baz", JOIN_PATHS("/usr/foo", "/bar/../baz"));
@@ -87,14 +89,17 @@ TEST(join_paths) {
                JOIN_PATHS("/usr/foo/", "inc/stdio.h"));
   EXPECT_STREQ("Not root", "usr/foo/inc/stdio.h", JOIN_PATHS("usr/foo", "inc/stdio.h"));
   EXPECT_STREQ("Non root ancestor", "usr/inc/stdio.h", JOIN_PATHS("usr/foo", "../inc/stdio.h"));
-  EXPECT_STREQ("Non root ancestor", "../inc/stdio.h",
+  EXPECT_STREQ("Non root ancestor2", "../inc/stdio.h",
                JOIN_PATHS("usr/foo", "../../../inc/stdio.h"));
-  EXPECT_STREQ("Cwd", "./foo.txt", JOIN_PATHS(".", "foo.txt"));
+  EXPECT_STREQ("Cwd", "foo.txt", JOIN_PATHS(".", "foo.txt"));
   EXPECT_STREQ("Cwd with abs", "/bar.txt", JOIN_PATHS(".", "/bar.txt"));
-  EXPECT_STREQ("Cwd with abs", "../../baz.txt", JOIN_PATHS(".", "../../baz.txt"));
+  EXPECT_STREQ("Cwd with abs2", "../../baz.txt", JOIN_PATHS(".", "../../baz.txt"));
   EXPECT_STREQ("Parent", "../foo.txt", JOIN_PATHS("..", "foo.txt"));
   EXPECT_STREQ("Parent with abs", "/bar.txt", JOIN_PATHS("..", "/bar.txt"));
-  EXPECT_STREQ("Parent with abs", "../../../baz.txt", JOIN_PATHS("..", "../../baz.txt"));
+  EXPECT_STREQ("Parent with abs2", "../../../baz.txt", JOIN_PATHS("..", "../../baz.txt"));
+  EXPECT_STREQ("Relative top", ".", JOIN_PATHS("usr/foo", "../.."));
+  EXPECT_STREQ("Relative top with /", "./", JOIN_PATHS("usr/foo", "../../"));
+  EXPECT_STREQ("Relative top 3", "bar", JOIN_PATHS("usr/foo", "../../bar"));
 }
 
 TEST(change_ext) {
