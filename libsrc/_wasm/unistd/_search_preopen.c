@@ -1,7 +1,11 @@
 #include "_search_preopen.h"
 
+#include "limits.h"
 #include "string.h"
+#include "sys/types.h"  // ssize_t
 #include "../wasi.h"
+
+extern ssize_t _canonicalize_path_cwd(char *buf, ssize_t size, const char *path);
 
 int __max_preopen_fd = 3;
 
@@ -22,7 +26,10 @@ static void find_preopens(void) {
   }
 }
 
-bool _search_preopen(const char *fn, void *data, SearchFileCallback callback) {
+bool _search_preopen(const char *fn_org, void *data, SearchFileCallback callback) {
+  char fn[PATH_MAX];
+  _canonicalize_path_cwd(fn, sizeof(fn), fn_org);
+
   size_t fnlen = strlen(fn);
   for (int base_fd = 3; base_fd < __max_preopen_fd; ++base_fd) {
     Prestat prestat;

@@ -1,5 +1,6 @@
 #include "unistd.h"
 #include "errno.h"
+#include "limits.h"
 #include "stdlib.h"  // malloc
 
 #if defined(__APPLE__)
@@ -19,10 +20,9 @@ static int _getcwd(char *buffer, size_t size) {
 char *getcwd(char *buffer, size_t size) {
   void *allocated = NULL;
   if (buffer == NULL) {
-    if (size == 0) {
-      size = 512;  // PATH_MAX
-    }
-    buffer = allocated = malloc(size + 1);
+    if (size == 0)
+      size = PATH_MAX;
+    buffer = allocated = malloc(size);
     if (buffer == NULL)
       return NULL;
   }

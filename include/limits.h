@@ -35,3 +35,5 @@
 #define ULLONG_MAX (18446744073709551615ULL)  // (2^64)-1
 
 #endif
+
+#define PATH_MAX  (512)

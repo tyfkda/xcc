@@ -41,17 +41,28 @@ TEST(basic_access) {
     EXPECT_EQ(0, fclose(fp));
   }
 
-  // remove
-  EXPECT_EQ(0, remove(fn));
-
   // mkdir
   {
     const char dn[] = "tmp_ddd";
     if (EXPECT_EQ(0, mkdir(dn, 0755))) {
+      // chdir
+      if (EXPECT_EQ(0, chdir(dn))) {
+        const char parent_fn[] = "../tmp_file_test.txt";
+        FILE *fp2 = fopen(parent_fn, "r");
+        if (EXPECT_NOT_NULL(fp2)) {
+          fclose(fp2);
+        }
+
+        EXPECT_EQ(0, chdir(".."));
+      }
+
       // rmdir
       EXPECT_EQ(0, rmdir(dn));
     }
   }
+
+  // remove
+  EXPECT_EQ(0, remove(fn));
 }
 
 TEST(stat) {
