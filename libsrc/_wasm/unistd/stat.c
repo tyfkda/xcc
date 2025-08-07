@@ -8,7 +8,7 @@ extern int __max_preopen_fd;
 extern void _set_stat(Filestat *fs, struct stat *st);
 
 int stat(const char *fn, struct stat *st) {
-  memset(st, 0, sizeof(st));
+  memset(st, 0, sizeof(*st));
   size_t fnlen = strlen(fn);
   for (int base_fd = 3; base_fd < __max_preopen_fd; ++base_fd) {
     Prestat prestat;
