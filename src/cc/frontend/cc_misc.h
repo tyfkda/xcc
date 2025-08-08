@@ -5,9 +5,11 @@
 #include <stdint.h>
 
 typedef struct Expr Expr;
+typedef struct Function Function;
 typedef struct Initializer Initializer;
 typedef struct Type Type;
 typedef struct VarInfo VarInfo;
+typedef struct Vector Vector;
 
 bool is_function_omitted(const VarInfo *funcvi);
 
@@ -18,3 +20,16 @@ typedef struct {
 } ConstructInitialValueVTable;
 void construct_initial_value(const Type *type, const Initializer *init,
                              const ConstructInitialValueVTable *vtable, void *ud);
+
+typedef struct {
+  Function *func;
+  int priority;
+} FuncAndPriority;
+
+typedef struct {
+  FuncAndPriority *data;
+  int len;
+} AttrFuncContainer;
+
+void sort_attr_func_container(AttrFuncContainer *container, bool ascending);
+void enumerate_ctor_dtors(Vector *decls, AttrFuncContainer *ctors, AttrFuncContainer *dtors);

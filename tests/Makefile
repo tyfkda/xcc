@@ -112,7 +112,7 @@ endif
 INITIALIZER_SRCS:=initializer_test.c $(CC1_FE_DIR)/parser.c $(CC1_FE_DIR)/parser_expr.c \
 	$(CC1_FE_DIR)/parser_type.c $(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/var.c $(CC1_FE_DIR)/expr.c \
 	$(CC1_FE_DIR)/initializer.c $(CC1_FE_DIR)/fe_misc.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c \
+	$(CC1_FE_DIR)/cc_misc.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c \
 	$(DEBUG_DIR)/dump_expr.c
 initializer_test:	$(INITIALIZER_SRCS)
 	$(CC) -o$@ -DNO_MAIN_DUMP_EXPR $(CFLAGS) $^
@@ -128,7 +128,7 @@ util_test:	$(UTIL_SRCS)
 PARSER_SRCS:=parser_test.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \
 	$(CC1_FE_DIR)/parser_type.c $(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/var.c $(CC1_FE_DIR)/expr.c \
 	$(CC1_FE_DIR)/initializer.c $(CC1_FE_DIR)/fe_misc.c $(CC1_FE_DIR)/type.c $(CC1_FE_DIR)/ast.c \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+	$(CC1_FE_DIR)/cc_misc.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 parser_test:	$(PARSER_SRCS)
 	$(CC) -o$@ $(CFLAGS) $^
 
