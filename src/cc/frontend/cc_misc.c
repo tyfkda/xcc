@@ -3,10 +3,14 @@
 
 #include <assert.h>
 #include <inttypes.h>  // PRId64
+#include <limits.h>  // INT_MAX
+#include <stdlib.h>  // realloc
+#include <string.h>  // memcpy
 
 #include "ast.h"
 #include "fe_misc.h"
 #include "initializer.h"
+#include "table.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
@@ -278,4 +282,138 @@ void construct_initial_value(const Type *type, const Initializer *init,
     break;
   case TY_FUNC: case TY_VOID: case TY_AUTO: assert(false); break;
   }
+}
+
+// Standard library doesn't have stable sort.
+
+static void merge(char *base, size_t left, size_t mid, size_t right, size_t size,
+                  int (*compare)(const void *, const void *), char *work) {
+  size_t offset = left * size;
+  char *dst = base + offset;
+  char *lp = work + offset;
+  char *lend = work + (mid + 1) * size;
+  char *rp = lend;
+  char *rend = work + (right + 1) * size;
+
+  memcpy(lp, dst, rend - lp);
+
+  for (;;) {
+    if (compare(lp, rp) <= 0) {
+      memcpy(dst, lp, size);
+      dst += size;
+      lp += size;
+      if (lp >= lend)
+        break;
+    } else {
+      memcpy(dst, rp, size);
+      dst += size;
+      rp += size;
+      if (rp >= rend)
+        break;
+    }
+  }
+
+  if (lp < lend)
+    memcpy(dst, lp, lend - lp);
+  else if (rp < rend)
+    memcpy(dst, rp, rend - rp);
+}
+
+static void merge_recur(char *base, size_t left, size_t right, size_t size,
+                  int (*compare)(const void *, const void *), char *work) {
+  if (left >= right)
+    return;
+
+  size_t mid = left + (right - left) / 2;
+  merge_recur(base, left, mid, size, compare, work);
+  merge_recur(base, mid + 1, right, size, compare, work);
+
+  merge(base, left, mid, right, size, compare, work);
+}
+
+static int mymergesort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *)) {
+  // char *work = malloc(size * nmemb);
+  // if (work == NULL)
+  //   return -ENOMEM;
+  char *work = malloc_or_die(size * nmemb);
+  merge_recur(base, 0, nmemb - 1, size, compare, work);
+  free(work);
+  return 0;
+}
+
+static void append_attr_func(AttrFuncContainer *container, Function *func, Vector *params,
+                             bool for_dtor) {
+  // Accept: `constructor`, `constructor(priority)`
+  // Low value means high priority, negative value ignored.
+  int priority = INT_MAX;
+  if (params != NULL) {
+    const Token *token;
+    if (params->len != 1 || (token = params->data[0])->kind != TK_INTLIT ||
+        token->fixnum.value < 0 || token->fixnum.value > 65535) {
+      const char *cdtor = for_dtor ? "destructor" : "constructor";
+      parse_error(PE_WARNING, func->ident, "Invalid priority for %s", cdtor);
+    } else {
+      priority = token->fixnum.value;
+    }
+  }
+
+  int len = container->len;
+  FuncAndPriority *data = realloc(container->data, (len + 1) * sizeof(*container->data));
+  data[len].func = func;
+  data[len].priority = priority;
+  container->len = len + 1;
+  container->data = data;
+}
+
+static int cmp_func_priority_ascending(const void *a, const void *b) {
+  const FuncAndPriority *fpa = a, *fpb = b;
+  return fpa->priority > fpb->priority;
+}
+
+static int cmp_func_priority_descending(const void *a, const void *b) {
+  const FuncAndPriority *fpa = a, *fpb = b;
+  return fpa->priority <= fpb->priority;
+}
+
+void sort_attr_func_container(AttrFuncContainer *container, bool ascending) {
+  if (container == NULL || container->len <= 0)
+    return;
+
+  int (*cmp)(const void *, const void *) =
+      ascending ? cmp_func_priority_ascending : cmp_func_priority_descending;
+
+  // Use stable sort.
+  mymergesort(&container->data[0], container->len, sizeof(FuncAndPriority), cmp);
+}
+
+void enumerate_ctor_dtors(Vector *decls, AttrFuncContainer *ctors, AttrFuncContainer *dtors) {
+  const Name *constructor_name;
+  const Name *destructor_name;
+
+  if (ctors != NULL) {
+    ctors->data = NULL;
+    ctors->len = 0;
+    constructor_name = alloc_name("constructor", NULL, false);
+  }
+  if (dtors != NULL) {
+    dtors->data = NULL;
+    dtors->len = 0;
+    destructor_name = alloc_name("destructor", NULL, false);
+  }
+  for (int i = 0, len = decls->len; i < len; ++i) {
+    Declaration *decl = decls->data[i];
+    if (decl == NULL || decl->kind != DCL_DEFUN)
+      continue;
+    Function *func = decl->defun.func;
+    if (func->attributes != NULL) {
+      Vector *params;
+      if (ctors != NULL && table_try_get(func->attributes, constructor_name, (void*)&params))
+        append_attr_func(ctors, func, params, false);
+      if (dtors != NULL && table_try_get(func->attributes, destructor_name, (void*)&params))
+        append_attr_func(dtors, func, params, true);
+    }
+  }
+
+  sort_attr_func_container(ctors, true);
+  sort_attr_func_container(dtors, false);
 }

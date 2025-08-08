@@ -732,23 +732,26 @@ static inline void emit_linking_segment_info(EmitWasm *ew, DataStorage *linking_
   }
 }
 
-static inline void emit_linking_init_funcs(DataStorage *linking_section) {
-  if (init_funcs != NULL) {
+static inline void emit_linking_init_funcs(DataStorage *linking_section, Vector *decls) {
+  AttrFuncContainer ctors;
+  enumerate_ctor_dtors(decls, &ctors, NULL);
+  if (ctors.len > 0) {
     data_push(linking_section, LT_WASM_INIT_FUNCS);  // subsec type
     data_open_chunk(linking_section);  // Payload start.
-    data_uleb128(linking_section, -1, init_funcs->len);  // Count
-    for (int i = 0; i < init_funcs->len; ++i) {
-      Function *func = init_funcs->data[i];
-      FuncInfo *finfo = table_get(&func_info_table, func->ident->ident);
-      assert(finfo != NULL);
+    data_uleb128(linking_section, -1, ctors.len);  // Count
+    for (int i = 0; i < ctors.len; ++i) {
+      Function *func = ctors.data[i].func;
+      FuncInfo *info;
+      info = table_get(&func_info_table, func->ident->ident);
+      assert(info != NULL);
       data_uleb128(linking_section, -1, 65535);  // Priority
-      data_uleb128(linking_section, -1, finfo->index);  // Symbol index
+      data_uleb128(linking_section, -1, info->index);  // Symbol index
     }
     data_close_chunk(linking_section, -1);
   }
 }
 
-static void emit_linking_section(EmitWasm *ew) {
+static void emit_linking_section(EmitWasm *ew, Vector *decls) {
   DataStorage linking_section;
   static const char kLinkingName[] = "linking";
   const int LINK_VERSION = 2;
@@ -759,7 +762,7 @@ static void emit_linking_section(EmitWasm *ew) {
 
   emit_linking_symbol_table(ew, &linking_section);
   emit_linking_segment_info(ew, &linking_section);
-  emit_linking_init_funcs(&linking_section);
+  emit_linking_init_funcs(&linking_section, decls);
 
   if (linking_section.len > 0) {
     data_close_chunk(&linking_section, -1);
@@ -858,7 +861,7 @@ static void emit_reloc_data_section(EmitWasm *ew, Vector *reloc_data) {
   emit_reloc_section(ew, ew->data_section_index, reloc_data, kRelocData);
 }
 
-void emit_wasm(FILE *ofp, const char *import_module_name, Table *exports) {
+void emit_wasm(FILE *ofp, const char *import_module_name, Table *exports, Vector *decls) {
   write_wasm_header(ofp);
 
   EmitWasm ew_body = {
@@ -898,7 +901,7 @@ void emit_wasm(FILE *ofp, const char *import_module_name, Table *exports) {
   Vector *reloc_data = emit_data_section(ew);
 
   // Linking.
-  emit_linking_section(ew);
+  emit_linking_section(ew, decls);
   emit_reloc_code_section(ew);
   emit_reloc_data_section(ew, reloc_data);
 }

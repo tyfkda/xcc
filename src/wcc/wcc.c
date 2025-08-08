@@ -226,7 +226,7 @@ int compile_csource(const char *src, const char *ofn, Vector *obj_files, Options
   if (ofp == NULL) {
     error("Cannot open output file");
   } else {
-    emit_wasm(ofp, opts->linker_opts.import_module_name, exports);
+    emit_wasm(ofp, opts->linker_opts.import_module_name, exports, toplevel);
     assert(compile_error_count == 0);
     fclose(ofp);
   }

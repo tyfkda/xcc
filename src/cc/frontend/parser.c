@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "ast.h"
+#include "cc_misc.h"
 #include "expr.h"
 #include "fe_misc.h"
 #include "initializer.h"
@@ -774,6 +775,23 @@ static Table *parse_attribute(Table *attributes) {  // <Token*>
             parse_error(PE_NOFATAL, token, "`)' expected");
             break;
           }
+          if (token->kind == TK_SUB || token->kind == TK_ADD) {
+            Token *num = match(TK_INTLIT);
+            if (num == NULL) {
+              parse_error(PE_NOFATAL, num, "integer literal expected after `%c'", token->kind == TK_SUB ? '-' : '+');
+              token->kind = TK_INTLIT;
+              token->fixnum.value = 0;
+              token->fixnum.flag = 0;
+            } else {
+              if (token->kind == TK_ADD) {
+                token = num;
+              } else {
+                token = alloc_token(TK_INTLIT, num->line, num->begin, num->end);
+                token->fixnum.value = -num->fixnum.value;
+                token->fixnum.flag = num->fixnum.flag;
+              }
+            }
+          }
           vec_push(params, token);
           if (!match(TK_COMMA)) {
             if (!match(TK_RPAR))
@@ -1094,7 +1112,7 @@ static Declaration *parse_declaration(Vector *decls) {
 }
 
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE || XCC_TARGET_PLATFORM == XCC_PLATFORM_WASI
-static Function *generate_dtor_caller_func(Vector *dtors) {
+static Function *generate_dtor_caller_func(AttrFuncContainer *dtors) {
   // Generate function:
   //  void dtor_caller(void*) {
   //    dtor1();
@@ -1124,7 +1142,7 @@ static Function *generate_dtor_caller_func(Vector *dtors) {
   Stmt *block = func->body_block = new_stmt_block(NULL, scope);
   Vector *stmts = block->block.stmts;
   for (int i = 0; i < dtors->len; ++i) {
-    Function *dtor = dtors->data[i];
+    Function *dtor = dtors->data[i].func;
     const Token *token = NULL;
     Vector *args = new_vector();
     Expr *func = new_expr_variable(dtor->ident->ident, dtor->type, token, global_scope);
@@ -1214,32 +1232,22 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
 }
 
 static void modify_dtor_func(Vector *decls) {
-  const Name *destructor_name = alloc_name("destructor", NULL, false);
-  Vector *dtors = NULL;
-  for (int i = 0, len = decls->len; i < len; ++i) {
-    Declaration *decl = decls->data[i];
-    if (decl == NULL || decl->kind != DCL_DEFUN)
-      continue;
-    Function *func = decl->defun.func;
-    if (func->attributes != NULL) {
-      if (table_try_get(func->attributes, destructor_name, NULL)) {
-        const Type *type = func->type;
-        if (type->func.params == NULL || type->func.params->len > 0 ||
-            type->func.ret->kind != TY_VOID) {
-          parse_error(PE_NOFATAL, func->ident,
-                      "destructor must have no parameters and return void");
-        } else {
-          if (dtors == NULL)
-            dtors = new_vector();
-          vec_push(dtors, func);
-        }
-      }
-    }
-  }
-  if (dtors == NULL)
+  AttrFuncContainer dtors;
+  enumerate_ctor_dtors(decls, NULL, &dtors);
+  if (dtors.len == 0)
     return;
 
-  Function *caller_func = generate_dtor_caller_func(dtors);
+  for (int i = 0; i < dtors.len; ++i) {
+    Function *func = dtors.data[i].func;
+    const Type *type = func->type;
+    if (type->func.params == NULL || type->func.params->len > 0 ||
+        type->func.ret->kind != TY_VOID) {
+      parse_error(PE_NOFATAL, func->ident,
+                  "destructor must have no parameters and return void");
+    }
+  }
+
+  Function *caller_func = generate_dtor_caller_func(&dtors);
   vec_push(decls, new_decl_defun(caller_func));
 
   Function *register_func = generate_dtor_register_func(caller_func);

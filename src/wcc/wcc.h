@@ -169,7 +169,7 @@ typedef struct {
   uint32_t import_global_count;
 } EmitWasm;
 
-void emit_wasm(FILE *ofp, const char *import_module_name, Table *exports);
+void emit_wasm(FILE *ofp, const char *import_module_name, Table *exports, Vector *decls);
 
 void emit_type_section(EmitWasm *ew);
 void emit_tag_section(EmitWasm *ew);
@@ -194,7 +194,6 @@ extern Table gvar_info_table;
 extern Table indirect_function_table;  // <FuncInfo*>
 extern Vector *tags;  // <TagInfo*>
 extern Vector *tables;  // <TableInfo*>
-extern Vector *init_funcs;  // <Function*>
 extern int compile_unit_flag;
 
 #define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)

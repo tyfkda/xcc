@@ -834,10 +834,6 @@ static void traverse_defun(Function *func) {
           type->func.ret->kind != TY_VOID) {
         const Token *token = func->body_block != NULL ? func->body_block->token : NULL;
         parse_error(PE_NOFATAL, token, "constructor must have no parameters and return void");
-      } else {
-        if (init_funcs == NULL)
-          init_funcs = new_vector();
-        vec_push(init_funcs, func);
       }
     }
   }
