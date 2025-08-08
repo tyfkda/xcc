@@ -57,6 +57,8 @@ const char *block_comment_start(const char *p);
 const char *block_comment_end(const char *p);
 int64_t wrap_value(int64_t value, int size, bool is_unsigned);
 
+int mymergesort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *));
+
 // Container
 
 typedef struct Vector {

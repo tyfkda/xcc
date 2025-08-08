@@ -1325,7 +1325,42 @@ Function *define_func(Type *functype, const Token *ident, const Vector *param_va
   return func;
 }
 
-static void enumerate_ctor_dtors(Vector *decls, Vector *container, const Name *attr_name) {
+static int get_func_priority(Function *func, const Name *attr_name) {
+  // Accept: `constructor`, `constructor(priority)`
+  // Low value means high priority, negative value ignored.
+  const int MAX = 65535;
+  Vector *params;
+  if (func->attributes != NULL && (params = table_get(func->attributes, attr_name)) != NULL) {
+    const Expr *expr;
+    Fixnum priority;
+    if (params->len == 1 && (expr = params->data[0])->kind == EX_FIXNUM &&
+        (priority = expr->fixnum) >= 0 && priority <= MAX) {
+      return priority;
+    }
+    if (params->len != 0)
+      parse_error(PE_WARNING, func->ident, "Invalid priority for %.*s", NAMES(attr_name));
+  }
+  return MAX + 1;
+}
+
+static int cmp_ctor_priority_ascending(const void *a, const void *b) {
+  Function *fa = *(Function**)a, *fb = *(Function**)b;
+  const Name *attr_name = alloc_cname("contructor");
+  int pa = get_func_priority(fa, attr_name);
+  int pb = get_func_priority(fb, attr_name);
+  return pb - pa;
+}
+
+static int cmp_dtor_priority_descending(const void *a, const void *b) {
+  Function *fa = *(Function**)a, *fb = *(Function**)b;
+  const Name *attr_name = alloc_cname("destructor");
+  int pa = get_func_priority(fa, attr_name);
+  int pb = get_func_priority(fb, attr_name);
+  return pa - pb;
+}
+
+static void enumerate_ctor_dtors(Vector *decls, Vector *container, const Name *attr_name,
+                                 int (*cmp)(const void *, const void *)) {
   vec_init(container);
   for (int i = 0, len = decls->len; i < len; ++i) {
     Declaration *decl = decls->data[i];
@@ -1334,18 +1369,19 @@ static void enumerate_ctor_dtors(Vector *decls, Vector *container, const Name *a
     Function *func = decl->defun.func;
     if (func->attributes != NULL) {
       Vector *params;
-      if (container != NULL && table_try_get(func->attributes, attr_name, (void*)&params))
+      if (table_try_get(func->attributes, attr_name, (void*)&params))
         vec_push(container, func);
     }
   }
+  mymergesort(&container->data[0], container->len, sizeof(Function*), cmp);
 }
 
 void enumerate_ctors(Vector *decls, Vector *ctors) {
-  enumerate_ctor_dtors(decls, ctors, alloc_cname("constructor"));
+  enumerate_ctor_dtors(decls, ctors, alloc_cname("constructor"), cmp_ctor_priority_ascending);
 }
 
 void enumerate_dtors(Vector *decls, Vector *dtors) {
-  enumerate_ctor_dtors(decls, dtors, alloc_cname("destructor"));
+  enumerate_ctor_dtors(decls, dtors, alloc_cname("destructor"), cmp_dtor_priority_descending);
 }
 
 #ifdef NO_DESTRUCTOR
