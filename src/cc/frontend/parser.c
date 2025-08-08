@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "ast.h"
+#include "cc_misc.h"
 #include "expr.h"
 #include "fe_misc.h"
 #include "initializer.h"
@@ -821,6 +822,23 @@ static Table *parse_attribute(Table *attributes) {  // <Token*>
           if (token->kind == TK_EOF) {
             parse_error(PE_NOFATAL, token, "`)' expected");
             break;
+          }
+          if (token->kind == TK_SUB || token->kind == TK_ADD) {
+            Token *num = match(TK_INTLIT);
+            if (num == NULL) {
+              parse_error(PE_NOFATAL, num, "integer literal expected after `%c'", token->kind == TK_SUB ? '-' : '+');
+              token->kind = TK_INTLIT;
+              token->fixnum.value = 0;
+              token->fixnum.flag = 0;
+            } else {
+              if (token->kind == TK_ADD) {
+                token = num;
+              } else {
+                token = alloc_token(TK_INTLIT, num->line, num->begin, num->end);
+                token->fixnum.value = -num->fixnum.value;
+                token->fixnum.flag = num->fixnum.flag;
+              }
+            }
           }
           vec_push(params, token);
           if (!match(TK_COMMA)) {

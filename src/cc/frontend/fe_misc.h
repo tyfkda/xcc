@@ -110,6 +110,18 @@ Stmt *embed_inline_funcall(VarInfo *varinfo);
 Function *define_func(Type *functype, const Token *ident, const Vector *param_vars,
                       int storage, Table *attributes);
 
+typedef struct {
+  Function *func;
+  int priority;
+} FuncAndPriority;
+
+typedef struct {
+  FuncAndPriority *data;
+  int len;
+} AttrFuncContainer;
+
+void enumerate_ctor_dtors(Vector *decls, AttrFuncContainer *ctors, AttrFuncContainer *dtors);
+
 #ifdef NO_DESTRUCTOR
 void modify_dtor_func(Vector *decls);
 #endif

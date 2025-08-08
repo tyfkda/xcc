@@ -427,15 +427,15 @@ void emit_bb_irs(BBContainer *bbcon) {
 }
 
 #ifndef NO_DESTRUCTOR
-static void emit_decls_ctor_dtor_priority(Vector *container, const char *section_prefix) {
+static void emit_decls_ctor_dtor_priority(AttrFuncContainer *container, const char *section_prefix) {
   if (container->len > 0) {
     emit_comment(NULL);
     char section_name[20];
     snprintf(section_name, sizeof(section_name), ".%s_array", section_prefix);
     _SECTION(section_name);
-    EMIT_ALIGN(8);
+    EMIT_ALIGN(TARGET_POINTER_SIZE);
     for (int i = 0; i < container->len; ++i) {
-      Function *func = container->data[i];
+      Function *func = container->data[i].func;
       bool global = true;
       const Name *name = func->ident->ident;
       const VarInfo *varinfo = scope_find(global_scope, name, NULL);
@@ -448,33 +448,18 @@ static void emit_decls_ctor_dtor_priority(Vector *container, const char *section
 #endif
 
 static void emit_decls_ctor_dtor(Vector *decls) {
-  const Name *constructor_name = alloc_name("constructor", NULL, false);
-  const Name *destructor_name = alloc_name("destructor", NULL, false);
+  AttrFuncContainer ctors, dtors;
+  enumerate_ctor_dtors(decls, &ctors, &dtors);
 
-  Vector *ctors = new_vector();
-  Vector *dtors = new_vector();
-  for (int i = 0, len = decls->len; i < len; ++i) {
-    Declaration *decl = decls->data[i];
-    if (decl == NULL || decl->kind != DCL_DEFUN)
-      continue;
-    Function *func = decl->defun.func;
-    if (func->attributes != NULL) {
-      if (table_try_get(func->attributes, constructor_name, NULL))
-        vec_push(ctors, func);
-      if (table_try_get(func->attributes, destructor_name, NULL))
-        vec_push(dtors, func);
-    }
-  }
-
-  if (ctors->len <= 0 && dtors->len <= 0)
+  if (ctors.len <= 0 && dtors.len <= 0)
     return;
 
 #ifdef NO_DESTRUCTOR
   emit_comment(NULL);
   _SECTION("__DATA,__mod_init_func,mod_init_funcs");
-  EMIT_ALIGN(8);
-  for (int i = 0; i < ctors->len; ++i) {
-    Function *func = ctors->data[i];
+  EMIT_ALIGN(TARGET_POINTER_SIZE);
+  for (int i = 0; i < ctors.len; ++i) {
+    Function *func = ctors.data[i].func;
     bool global = true;
     const VarInfo *varinfo = scope_find(global_scope, func->ident->ident, NULL);
     if (varinfo != NULL)
@@ -484,8 +469,8 @@ static void emit_decls_ctor_dtor(Vector *decls) {
   // For Apple platforms, the constructor function that registers the destructor function is
   // generated, so no need to handle the destructor functions.
 #else
-  emit_decls_ctor_dtor_priority(ctors, "init");
-  emit_decls_ctor_dtor_priority(dtors, "fini");
+  emit_decls_ctor_dtor_priority(&ctors, "init");
+  emit_decls_ctor_dtor_priority(&dtors, "fini");
 #endif
 }
 
