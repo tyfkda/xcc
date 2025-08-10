@@ -2256,6 +2256,18 @@ TEST(extension) {
   }
 }
 
+TEST(builtin) {
+#if defined(__wasm)
+  {
+    EXPECT("builtin clz", 12, __builtin_clz(0x000f0f00));
+
+    EXPECT("builtin ctz", 8, __builtin_ctz(0x000f0f00));
+
+    EXPECT("builtin popcount", 8, __builtin_popcount(0x000f0f00));
+  }
+#endif
+}
+
 //
 
 XTEST_MAIN();
