@@ -10,22 +10,7 @@ export class WasiWorker {
   }
 
   public constructor(private self: any) {
-    const originalWriteSync = this.wasmFs.fs.writeSync.bind(this.wasmFs.fs)
-    this.wasmFs.fs.writeSync = (fd: number, buffer: Uint8Array|string|any, offset?: number, length?: any, position?: any) => {
-      switch (fd) {
-      case 1: case 2:
-        {
-          const text = typeof buffer === 'string' ? buffer : new TextDecoder('utf-8').decode(buffer)
-          this.self.postMessage({
-            action: 'consoleOut',
-            text,
-            isError: fd === 2,
-          })
-        }
-        break
-      }
-      return originalWriteSync(fd, buffer, offset, length, position)
-    }
+    this.setupFsHooks()
 
     this.self.onmessage = async (ev: MessageEvent<any>) => {
       const data = ev.data
@@ -64,6 +49,54 @@ export class WasiWorker {
         this.self.postMessage({messageId: data.messageId, error: e.toString()})
       }
     }
+  }
+
+  private setupFsHooks(): void {
+    function getMethods(obj: object): string[] {
+      const getOwnMethods = (obj: object) =>
+        Object.entries(Object.getOwnPropertyDescriptors(obj))
+          .filter(([name, {value}]) => typeof value === 'function' && name !== 'constructor')
+          .map(([name]) => name)
+      const _getMethods = (o: object, methods: string[]): string[] =>
+        o === Object.prototype ? methods : _getMethods(Object.getPrototypeOf(o), methods.concat(getOwnMethods(o)))
+      return _getMethods(obj, [])
+    }
+
+    function hookMethod(target: any, method: string, newFunc: (original: Function) => Function): void {
+      const original = (target as any)[method]?.bind(target) as any
+      ;(target as any)[method] = newFunc.bind(target)(original)
+    }
+
+    const methods = getMethods(this.wasmFs.fs).filter((v) => /^[a-z]/g.test(v))
+console.log(methods)
+
+    for (const method of methods) {
+      hookMethod(this.wasmFs.fs, method, (original) => {
+        return (...args: any) => {
+          const result = original(...args)
+console.log(method, args, 'result=', result)
+          return result
+        }
+      })
+    }
+
+    hookMethod(this.wasmFs.fs, 'writeSync', (original) => {
+      return (fd: number, buffer: Uint8Array|string|any, offset?: number, length?: any, position?: any) => {
+        switch (fd) {
+        case 1: case 2:
+          {
+            const text = typeof buffer === 'string' ? buffer : new TextDecoder('utf-8').decode(buffer)
+            this.self.postMessage({
+              action: 'consoleOut',
+              text,
+              isError: fd === 2,
+            })
+          }
+          break
+        }
+        return original(fd, buffer, offset, length, position)
+      }
+    })
   }
 
   private writeFile(filePath: string, content: string): void {

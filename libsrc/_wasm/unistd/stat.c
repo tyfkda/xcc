@@ -5,11 +5,14 @@
 
 #include "_search_preopen.h"
 
+#include "stdio.h"
+
 extern void _set_stat(Filestat *fs, struct stat *st);
 
 static bool search_stat(int base_fd, const char *fn, size_t fnlen, void *data) {
   struct stat *st = data;
   Filestat fs;
+fprintf(stderr, "search_stat: base_fd=%d, fn=%s\n", base_fd, fn);
   uint32_t result = path_filestat_get(base_fd, 0, fn, fnlen, &fs);
   if (result != 0)
     return false;
