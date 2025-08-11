@@ -761,6 +761,13 @@ TEST(all) {
     a[1] = 55;
     EXPECT("ptr <- array", 55, ptr_from_array(a));
   }
+  {
+    int a[2] = {1, 2};
+    int p = 1;
+    a[p = 0] = 3;
+    EXPECT("array index w/ side effect 1", 3, a[0]);
+    EXPECT("array index w/ side effect 2", 0, p);
+  }
 
   EXPECT("sizeof(int)", __SIZEOF_INT__, sizeof(int));
   EXPECT("sizeof(long)", __SIZEOF_LONG__, sizeof(long));
