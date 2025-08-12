@@ -1957,7 +1957,7 @@ static void gen_builtin_try_catch_longjmp(Expr *expr, enum BuiltinFunctionPhase 
 #ifndef __NO_FLONUM
 static Expr *proc_builtin_nan(const Token *ident) {
   consume(TK_LPAR, "`(' expected");
-  Expr *fmt = parse_expr();
+  Expr *fmt = parse_assign();
   consume(TK_RPAR, "`)' expected");
 
   uint64_t significand = 0;
@@ -2256,7 +2256,6 @@ void install_builtins(void) {
     Vector *params = new_vector();
     vec_push(params, &tySize);
     Type *type = new_func_type(rettype, params, false);
-
     add_builtin_function("alloca", type, &p_alloca, true);
   }
 
@@ -2266,7 +2265,6 @@ void install_builtins(void) {
     Vector *params = new_vector();
     vec_push(params, &tyInt);
     Type *type = new_func_type(rettype, params, false);
-
     add_builtin_function("__builtin_clz", type, &p_clz, true);
   }
   {
@@ -2275,7 +2273,6 @@ void install_builtins(void) {
     Vector *params = new_vector();
     vec_push(params, &tyInt);
     Type *type = new_func_type(rettype, params, false);
-
     add_builtin_function("__builtin_ctz", type, &p_ctz, true);
   }
   {
@@ -2284,7 +2281,6 @@ void install_builtins(void) {
     Vector *params = new_vector();
     vec_push(params, &tyInt);
     Type *type = new_func_type(rettype, params, false);
-
     add_builtin_function("__builtin_popcount", type, &p_popcount, true);
   }
 
@@ -2294,7 +2290,6 @@ void install_builtins(void) {
     Vector *params = new_vector();
     vec_push(params, &tyInt);
     Type *type = new_func_type(rettype, params, false);
-
     add_builtin_function("__builtin_wasm_memory_size", type, &p_memory_size, true);
   }
   {
@@ -2304,7 +2299,6 @@ void install_builtins(void) {
     vec_push(params, &tyInt);
     vec_push(params, &tySize);
     Type *type = new_func_type(rettype, params, false);
-
     add_builtin_function("__builtin_wasm_memory_grow", type, &p_memory_grow, true);
   }
 
@@ -2314,7 +2308,6 @@ void install_builtins(void) {
     Vector *params = new_vector();
     vec_push(params, &tyVoidPtr);
     Type *type = new_func_type(rettype, params, false);
-
     add_builtin_function("__builtin_setjmp", type, &p_setjmp, true);
   }
   {
@@ -2324,7 +2317,6 @@ void install_builtins(void) {
     vec_push(params, &tyVoidPtr);
     vec_push(params, &tyInt);
     Type *type = new_func_type(rettype, params, false);
-
     add_builtin_function("__builtin_longjmp", type, &p_longjmp, true);
   }
   {
@@ -2335,7 +2327,6 @@ void install_builtins(void) {
     vec_push(params, &tyInt);      // r
     vec_push(params, &tyVoid);     // try_block_expr
     Type *type = new_func_type(rettype, params, false);
-
     add_builtin_function("__builtin_try_catch_longjmp", type, &p_try_catch_longjmp, true);
   }
 }

@@ -23,7 +23,7 @@ static Expr *proc_builtin_classify_type(const Token *ident) {
   consume(TK_LPAR, "`(' expected");
   const Type *type = parse_var_def(NULL, NULL, NULL);
   if (type == NULL) {
-    Expr *expr = parse_expr();
+    Expr *expr = parse_assign();
     type = expr->type;
   }
   consume(TK_RPAR, "`)' expected");
@@ -34,7 +34,7 @@ static Expr *proc_builtin_classify_type(const Token *ident) {
 #ifndef __NO_FLONUM
 static Expr *proc_builtin_nan(const Token *ident) {
   consume(TK_LPAR, "`(' expected");
-  Expr *fmt = parse_expr();
+  Expr *fmt = parse_assign();
   consume(TK_RPAR, "`)' expected");
 
   uint64_t significand = 0;
@@ -332,8 +332,8 @@ void install_builtins(void) {
   add_builtin_expr_ident("__FUNCTION__", &p_function_name);
   add_builtin_expr_ident("__func__", &p_function_name);
 
-  static BuiltinExprProc p_type_kind = &proc_builtin_classify_type;
-  add_builtin_expr_ident("__builtin_classify_type", &p_type_kind);
+  static BuiltinExprProc p_classify_type = &proc_builtin_classify_type;
+  add_builtin_expr_ident("__builtin_classify_type", &p_classify_type);
 
 #ifndef __NO_FLONUM
   static BuiltinExprProc p_nan = &proc_builtin_nan;
@@ -353,7 +353,6 @@ void install_builtins(void) {
     vec_push(params, tyVaList);
     // vec_push(params, &tyVoidPtr);
     Type *type = new_func_type(rettype, params, true);  // To accept any types, pretend the function as variadic.
-
     add_builtin_function("__builtin_va_start", type, &p_va_start, true);
   }
   {
@@ -362,7 +361,6 @@ void install_builtins(void) {
     Vector *params = new_vector();
     vec_push(params, &tySize);
     Type *type = new_func_type(rettype, params, false);
-
     add_builtin_function("alloca", type, &p_alloca, false);
   }
 }
