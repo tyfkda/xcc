@@ -6,7 +6,7 @@ export default defineConfig({
   root: 'src/wcc/www',
   publicDir: '../../../public',
   build: {
-    outDir: resolve(__dirname, 'release'),
+    outDir: resolve(import.meta.dirname, 'release'),
     rollupOptions: {
       output: {
         entryFileNames: '[name].js',
