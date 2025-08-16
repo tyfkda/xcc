@@ -2089,32 +2089,8 @@ void check_func_reachability(Function *func) {
 }
 
 bool check_funcend_return(Stmt *stmt) {
-  if (stmt == NULL)
-    return false;
-
-  switch (stmt->kind) {
-  case ST_RETURN:
-    return true;
-  case ST_IF:
-    {
-      bool t = check_funcend_return(stmt->if_.tblock);
-      bool f = stmt->if_.fblock == NULL || check_funcend_return(stmt->if_.fblock);
-      return t && f;  // Return true even if else is not exist.
-    }
-  case ST_BLOCK:
-    {
-      Vector *stmts = stmt->block.stmts;
-      assert(stmts != NULL);
-      if (stmts->len  > 0)
-        return check_funcend_return(stmts->data[stmts->len - 1]);
-    }
-    break;
-  case ST_LABEL:
-    return check_funcend_return(stmt->label.stmt);
-  default:
-    break;
-  }
-  return false;
+  assert(stmt != NULL);
+  return stmt->reach & REACH_RETURN;
 }
 
 int get_funparam_index(Function *func, const Name *name) {
