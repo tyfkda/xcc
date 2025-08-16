@@ -129,4 +129,10 @@ You can also use WASM/WASI runtime (Wasmtime, Wasmer, etc.), too.
 
 #### Missing features
 
-  * `goto` statement
+  * `goto` statements are only allowed if
+    they jump forward to a label right after a block,
+    such as after a loop or `if` statement.
+    Breaking from nested loops or blocks is allowed.
+    Usage of `goto` not covered by the Linux kernel coding style,
+    or outside the MISRA C:2023 Rule 15.3, fails to compile.
+    
