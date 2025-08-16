@@ -43,18 +43,16 @@ TEST(fmemopen) {
   char buf[32];
   FILE *fp;
   fp = fmemopen(buf, sizeof(buf), "w");
-  EXPECT_NOT_NULL(fp);
-  if (fp != NULL) {
+  if (EXPECT_NOT_NULL(fp)) {
     EXPECT_EQ(sizeof(str), fwrite(str, 1, sizeof(str), fp));
     fclose(fp);
   }
 
   fp = fmemopen((void*)str, sizeof(str), "r");
-  EXPECT_NOT_NULL(fp);
-  if (fp != NULL) {
+  if (EXPECT_NOT_NULL(fp)) {
     EXPECT_EQ(sizeof(str), fread(buf, 1, sizeof(buf), fp));
     fclose(fp);
-    memcmp(buf, str, sizeof(str));
+    EXPECT_EQ(0, memcmp(buf, str, sizeof(str)));
   }
 }
 
@@ -62,8 +60,7 @@ TEST(open_memstream) {
   char *ptr = NULL;
   size_t size = 0;
   FILE *fp = open_memstream(&ptr, &size);
-  EXPECT_NOT_NULL(fp);
-  if (fp != NULL) {
+  if (EXPECT_NOT_NULL(fp)) {
     EXPECT_EQ(12, fprintf(fp, "Hello world\n"));
     EXPECT_EQ(14, fprintf(fp, "Number: %d\n", 12345));
     fclose(fp);

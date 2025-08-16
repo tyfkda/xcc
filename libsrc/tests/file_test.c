@@ -14,16 +14,14 @@ TEST(basic_access) {
 
   // fwrite
   FILE *fp = fopen(fn, "w");
-  EXPECT_NOT_NULL(fp);
-  if (fp != NULL) {
+  if (EXPECT_NOT_NULL(fp)) {
     EXPECT_EQ(datasize, fwrite(data, 1, datasize, fp));
     EXPECT_EQ(0, fclose(fp));
   }
 
   // fread
   fp = fopen(fn, "r");
-  EXPECT_NOT_NULL(fp);
-  if (fp != NULL) {
+  if (EXPECT_NOT_NULL(fp)) {
     EXPECT_EQ(datasize, fread(buf, 1, sizeof(buf), fp));
     EXPECT_EQ(0, memcmp(buf, data, datasize));
 
@@ -43,34 +41,40 @@ TEST(basic_access) {
     EXPECT_EQ(0, fclose(fp));
   }
 
-  // remove
-  EXPECT_EQ(0, remove(fn));
-
   // mkdir
   {
     const char dn[] = "tmp_ddd";
-    int r;
-    EXPECT_EQ(0, r = mkdir(dn, 0755));
-    if (r == 0) {
+    if (EXPECT_EQ(0, mkdir(dn, 0755))) {
+      // chdir
+      if (EXPECT_EQ(0, chdir(dn))) {
+        const char parent_fn[] = "../tmp_file_test.txt";
+        FILE *fp2 = fopen(parent_fn, "r");
+        if (EXPECT_NOT_NULL(fp2)) {
+          fclose(fp2);
+        }
+
+        EXPECT_EQ(0, chdir(".."));
+      }
+
       // rmdir
       EXPECT_EQ(0, rmdir(dn));
     }
   }
+
+  // remove
+  EXPECT_EQ(0, remove(fn));
 }
 
 TEST(stat) {
   // Test regular file.
   const char fn[] = "tmp_stat.txt";
   FILE *fp = fopen(fn, "w");
-  EXPECT_NOT_NULL(fp);
-  if (fp != NULL) {
+  if (EXPECT_NOT_NULL(fp)) {
     fprintf(fp, "Dummy\n");
     fclose(fp);
 
     struct stat st;
-    int r;
-    EXPECT_EQ(0, r = stat(fn, &st));
-    if (r == 0) {
+    if (EXPECT_EQ(0, stat(fn, &st))) {
       EXPECT_TRUE(S_ISREG(st.st_mode));
       EXPECT_FALSE(S_ISDIR(st.st_mode));
     }
@@ -82,9 +86,7 @@ TEST(stat) {
   const char dn[] = "tests";
   {
     struct stat st;
-    int r;
-    EXPECT_EQ(0, r = stat(dn, &st));
-    if (r == 0) {
+    if (EXPECT_EQ(0, stat(dn, &st))) {
       EXPECT_TRUE(S_ISDIR(st.st_mode));
       EXPECT_FALSE(S_ISREG(st.st_mode));
     }
@@ -94,8 +96,7 @@ TEST(stat) {
 TEST(ungetc) {
   static char buf[] = "12345";
   FILE *fp = fmemopen(buf, sizeof(buf) - 1, "r");
-  EXPECT_NOT_NULL(fp);
-  if (fp != NULL) {
+  if (EXPECT_NOT_NULL(fp)) {
     int c;
     EXPECT_EQ('1', fgetc(fp));
     EXPECT_EQ('2', c = fgetc(fp));

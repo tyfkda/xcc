@@ -8,6 +8,7 @@ const PACKED_ZIP_PATH = 'wccfiles.zip'
 const CC_PATH = '/usr/bin/cc'
 const USER = 'wasm'
 const TMP_PATH = '/tmp'
+const HOME = `/home/${USER}`
 
 type ResolveFunc = (value?: any | PromiseLike<any>) => void
 type RejectFunc = (value?: any | PromiseLike<any>) => void
@@ -39,7 +40,6 @@ export class WccRunner {
   private messageId = 0
   private actionHandlerMap = new Map<number, ActionHandler>()
   private consoleOut: (text: string, isError: boolean) => void
-  private curDir = `/home/${USER}`
 
   public constructor() {
     this.consoleOut = (text: string, isError: boolean) => {
@@ -75,10 +75,19 @@ export class WccRunner {
   }
 
   public async setUp(): Promise<void> {
+    await this.setEnv({
+      HOME,
+      INCLUDE: '/usr/include',
+      LIB: '/usr/lib',
+      PATH: '/usr/bin',
+      PWD: HOME,
+      USER,
+    })
+
     const recursiveTrue = {recursive: true}
 
     await this.mkdir(TMP_PATH, recursiveTrue)
-    await this.mkdir(this.curDir, recursiveTrue)
+    await this.mkdir(HOME, recursiveTrue)
 
     const binary = await loadFromServer(PACKED_ZIP_PATH, {binary: true})
     const unzipped = await unzipAsync(new Uint8Array(binary as ArrayBuffer))
@@ -95,7 +104,7 @@ export class WccRunner {
     if (!ccExists)
       throw new Error('C-compiler not found in the zip file')
 
-    await this.chdir(this.curDir)
+    await this.chdir(HOME)
   }
 
   public async writeFile(filePath: string, content: string|Uint8Array): Promise<void> {
@@ -112,6 +121,10 @@ export class WccRunner {
 
   public mkdir(filePath: string, option?: any): Promise<void> {
     return this.postMessage('mkdir', {filePath: this.abspath(filePath), option})
+  }
+
+  private setEnv(env: Record<string, string>): Promise<void> {
+    return this.postMessage('setEnv', {envJson: JSON.stringify(env)})
   }
 
   public compile(sourceName: string, extraOptions?: string[]): Promise<number> {
@@ -146,6 +159,6 @@ export class WccRunner {
   private abspath(path2: string): string {
     if (path2[0] === '/')
       return path2
-    return path.join(this.curDir, path2)
+    return path.join(HOME, path2)
   }
 }

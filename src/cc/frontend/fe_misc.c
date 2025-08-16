@@ -763,7 +763,12 @@ Expr *promote_to_int(Expr *expr) {
 }
 
 Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
-  cast_numbers(&lhs, &rhs, true);
+  if (kind == EX_LSHIFT || kind == EX_RSHIFT) {
+    lhs = promote_to_int(lhs);
+    rhs = make_cast(lhs->type, rhs->token, rhs, false);
+  } else {
+    cast_numbers(&lhs, &rhs, true);
+  }
 
   do {
     if (is_const(rhs) && is_number(rhs->type)) {
@@ -822,7 +827,7 @@ Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rh
         }
 #undef CALC
         enum FixnumKind lk = lhs->type->fixnum.kind, rk = rhs->type->fixnum.kind;
-        Type *type = lk >= rk || (kind == EX_LSHIFT || kind == EX_RSHIFT) ? lhs->type : rhs->type;
+        Type *type = lk >= rk ? lhs->type : rhs->type;
         if (type->fixnum.kind < FX_INT)
           type = &tyInt;
         value = wrap_value(value, type_size(type), type->fixnum.is_unsigned);
@@ -2042,7 +2047,7 @@ static void check_reachability_stmt(Stmt *stmt) {
   }
 }
 
-static void check_func_return(Function *func) {
+static bool check_func_return(Function *func) {
   Type *type = func->type;
   Type *rettype = type->func.ret;
   const Token *rbrace = func->body_block->block.rbrace;
@@ -2057,6 +2062,7 @@ static void check_func_return(Function *func) {
     }
   }
 
+  bool result = true;
   if (func->flag & FUNCF_NORETURN) {
     if (rettype->kind != TY_VOID) {
       parse_error(PE_WARNING, rbrace, "`noreturn' function should not return value");
@@ -2070,22 +2076,43 @@ static void check_func_return(Function *func) {
     Vector *stmts = func->body_block->block.stmts;
     if (stmts->len == 0 || ((Stmt*)stmts->data[stmts->len - 1])->kind != ST_ASM) {
       if (equal_name(func->ident->ident, main_name)) {
-        // Return 0 if `return` statement is omitted in `main` function.
-        if (!is_fixnum(rettype->kind) || rettype->fixnum.kind != FX_INT) {
-          parse_error(PE_WARNING, rbrace, "`main' return type should be `int'");
-        } else {
-          vec_push(stmts, new_stmt_return(NULL, new_expr_fixlit(rettype, NULL, 0)));
-        }
+        assert(rettype->kind == TY_FIXNUM && rettype->fixnum.kind == FX_INT);
+        vec_push(stmts, new_stmt_return(NULL, new_expr_fixlit(rettype, NULL, 0)));
+        func->body_block->reach |= REACH_RETURN;
       } else {
         parse_error(PE_WARNING, rbrace, "`return' required");
+        result = false;
       }
     }
   }
+  return result;
+}
+
+static inline void insert_return_stmt(Function *func) {
+#if XCC_TARGET_ARCH == XCC_ARCH_WASM
+  // To avoid runtime validation error, put return with compound literal:
+  //   return (rettype){};
+  const Token *token = func->body_block->token;
+  Type *rettype = func->type->func.ret;
+  Expr *var = alloc_tmp_var(func->scopes->data[0], rettype);
+  Initializer *init = new_initializer(IK_MULTI, token);
+  init->multi = new_vector();
+  init = flatten_initializer(rettype, init);
+  Vector *inits = assign_initial_value(var, init, NULL);
+  Expr *value = new_expr_complit(rettype, token, var, inits, init);
+  Stmt *ret = new_stmt_return(token, value);
+  vec_push(func->body_block->block.stmts, ret);
+  ret->reach = REACH_STOP | REACH_RETURN;
+  func->body_block->reach |= REACH_RETURN;
+#else
+  UNUSED(func);
+#endif
 }
 
 void check_func_reachability(Function *func) {
   check_reachability_stmt(func->body_block);
-  check_func_return(func);
+  if (!check_func_return(func))
+    insert_return_stmt(func);
 }
 
 bool check_funcend_return(Stmt *stmt) {

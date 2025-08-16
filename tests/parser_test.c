@@ -12,7 +12,7 @@
 
 #include "./xtest.h"
 
-void expect_parse_type(const char *title, const Type *expected, const char *ident_expected,
+bool expect_parse_type(const char *title, const Type *expected, const char *ident_expected,
                        const char *source) {
   begin_test(title);
 
@@ -22,21 +22,22 @@ void expect_parse_type(const char *title, const Type *expected, const char *iden
   Token *ident;
   const Type *actual = parse_var_def(NULL, &storage, &ident);
   if (actual == NULL && expected != NULL) {
-    fail("parsing type failed");
+    return fail("parsing type failed");
   } else if (!same_type(expected, actual)) {
-    fail("type different");
+    return fail("type different");
   } else if (ident_expected == NULL && ident != NULL) {
-    fail("ident is not NULL (%.*s)", NAMES(ident->ident));
+    return fail("ident is not NULL (%.*s)", NAMES(ident->ident));
   } else if (ident_expected != NULL && ident == NULL) {
-    fail("ident(%s) expected, but NULL", ident_expected);
+    return fail("ident(%s) expected, but NULL", ident_expected);
   } else if (ident_expected != NULL && ident != NULL &&
              (ident->ident->bytes != (int)strlen(ident_expected) ||
               strncmp(ident->ident->chars, ident_expected, strlen(ident_expected)))) {
-    fail("ident(%s) expected, but (%.*s)", ident_expected, NAMES(ident->ident));
+    return fail("ident(%s) expected, but (%.*s)", ident_expected, NAMES(ident->ident));
   } else if (fetch_token()->kind != TK_EOF) {
-    fail("EOF expected");
+    return fail("EOF expected");
   }
   // OK.
+  return true;
 }
 
 TEST(parse_full_type) {

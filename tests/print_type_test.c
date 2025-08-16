@@ -8,23 +8,24 @@
 
 #include "./xtest.h"
 
-void check_print_type(const char *expected, const Type *type) {
+bool check_print_type(const char *expected, const Type *type) {
   begin_test(expected);
 
   char *buf;
   size_t size;
   FILE *fp = open_memstream(&buf, &size);
   if (fp == NULL) {
-    fail("Failed to create tmpfile");
+    return fail("Failed to create tmpfile");
   } else {
     print_type(fp, type);
     fclose(fp);
 
     if (strcmp(buf, expected) != 0) {
-      fail("`%s' expected, but `%s'", expected, buf);
+      return fail("`%s' expected, but `%s'", expected, buf);
     }
     free(buf);
   }
+  return true;
 }
 
 TEST(print_type) {

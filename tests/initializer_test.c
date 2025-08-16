@@ -69,27 +69,29 @@ static Initializer *parse_init(const char *source) {
   return parse_initializer();
 }
 
-void expect(Initializer *expected, const char *input_str, Type *type) {
+bool expect(Initializer *expected, const char *input_str, Type *type) {
   begin_test(input_str);
 
   Initializer *init = parse_init(input_str);
   Initializer *actual = flatten_initializer(type, init);
 
   // Compare initializer
-  if (!same_init(expected, actual)) {
-    fail("different");
+  if (same_init(expected, actual))
+    return true;
 
-    fprintf(stderr, "expected[");
-    dump_init(stderr, expected);
-    fprintf(stderr, "], actual[");
-    dump_init(stderr, actual);
-    fprintf(stderr, "]\n");
-  }
+  fail("different");
+
+  fprintf(stderr, "expected[");
+  dump_init(stderr, expected);
+  fprintf(stderr, "], actual[");
+  dump_init(stderr, actual);
+  fprintf(stderr, "]\n");
+  return false;
 }
 
-void expect2(const char *expected_str, const char *input_str, Type *type) {
+bool expect2(const char *expected_str, const char *input_str, Type *type) {
   Initializer *expected = parse_init(expected_str);
-  expect(expected, input_str, type);
+  return expect(expected, input_str, type);
 }
 
 Initializer *new_init_single(Expr *expr) {

@@ -2219,6 +2219,54 @@ static void gen_alloca(Expr *expr, enum BuiltinFunctionPhase phase) {
   gen_expr(result, true);
 }
 
+static void gen_builtin_clz(Expr *expr, enum BuiltinFunctionPhase phase) {
+  assert(expr->kind == EX_FUNCALL);
+  Vector *args = expr->funcall.args;
+  assert(args->len == 1);
+  Expr *value = args->data[0];
+
+  switch (phase) {
+  case BFP_TRAVERSE:
+    break;
+  case BFP_GEN:
+    gen_expr(value, true);
+    ADD_CODE(OP_I32_CLZ);
+    break;
+  }
+}
+
+static void gen_builtin_ctz(Expr *expr, enum BuiltinFunctionPhase phase) {
+  assert(expr->kind == EX_FUNCALL);
+  Vector *args = expr->funcall.args;
+  assert(args->len == 1);
+  Expr *value = args->data[0];
+
+  switch (phase) {
+  case BFP_TRAVERSE:
+    break;
+  case BFP_GEN:
+    gen_expr(value, true);
+    ADD_CODE(OP_I32_CTZ);
+    break;
+  }
+}
+
+static void gen_builtin_popcount(Expr *expr, enum BuiltinFunctionPhase phase) {
+  assert(expr->kind == EX_FUNCALL);
+  Vector *args = expr->funcall.args;
+  assert(args->len == 1);
+  Expr *value = args->data[0];
+
+  switch (phase) {
+  case BFP_TRAVERSE:
+    break;
+  case BFP_GEN:
+    gen_expr(value, true);
+    ADD_CODE(OP_I32_POPCNT);
+    break;
+  }
+}
+
 static void gen_builtin_wasm_memory_size(Expr *expr, enum BuiltinFunctionPhase phase) {
   assert(expr->kind == EX_FUNCALL);
   Vector *args = expr->funcall.args;
@@ -2292,6 +2340,35 @@ void install_builtins(void) {
 
     add_builtin_function("alloca", type, &p_alloca, true);
   }
+
+  {
+    static BuiltinFunctionProc p_clz = &gen_builtin_clz;
+    Type *rettype = &tyInt;
+    Vector *params = new_vector();
+    vec_push(params, &tyInt);
+    Type *type = new_func_type(rettype, params, false);
+
+    add_builtin_function("__builtin_clz", type, &p_clz, true);
+  }
+  {
+    static BuiltinFunctionProc p_ctz = &gen_builtin_ctz;
+    Type *rettype = &tyInt;
+    Vector *params = new_vector();
+    vec_push(params, &tyInt);
+    Type *type = new_func_type(rettype, params, false);
+
+    add_builtin_function("__builtin_ctz", type, &p_ctz, true);
+  }
+  {
+    static BuiltinFunctionProc p_popcount = &gen_builtin_popcount;
+    Type *rettype = &tyInt;
+    Vector *params = new_vector();
+    vec_push(params, &tyInt);
+    Type *type = new_func_type(rettype, params, false);
+
+    add_builtin_function("__builtin_popcount", type, &p_popcount, true);
+  }
+
   {
     static BuiltinFunctionProc p_memory_size = &gen_builtin_wasm_memory_size;
     Type *rettype = &tyInt;

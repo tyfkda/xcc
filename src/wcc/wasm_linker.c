@@ -1291,7 +1291,7 @@ static void out_function_section(WasmLinker *linker) {
   }
 }
 
-inline bool funcref_table_exist(WasmLinker *linker) {
+static inline bool funcref_table_exist(WasmLinker *linker) {
   return table_try_get(&linker->defined, linker->indirect_function_table_name, NULL);
 }
 

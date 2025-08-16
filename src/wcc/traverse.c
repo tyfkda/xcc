@@ -486,7 +486,7 @@ static void te_comma(Expr **pexpr, bool needval) {
 
 static void te_assign(Expr **pexpr, bool needval) {
   Expr *expr = *pexpr;
-  traverse_expr(&expr->bop.lhs, false);
+  traverse_expr(&expr->bop.lhs, true);
   traverse_expr(&expr->bop.rhs, true);
   if (needval) {
     Expr *rhs = expr->bop.rhs;

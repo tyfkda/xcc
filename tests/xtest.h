@@ -84,7 +84,7 @@ XTEST_WEAK void begin_test(const char *title) {
   fflush(stdout);
 }
 
-XTEST_WEAK void fail(const char *fmt, ...) {
+XTEST_WEAK bool fail(const char *fmt, ...) {
   ++error_count;
   printf("  " RED BOLD "FAILED" RESET_COLOR ": ");
   va_list ap;
@@ -92,53 +92,60 @@ XTEST_WEAK void fail(const char *fmt, ...) {
   vfprintf(stdout, fmt, ap);
   va_end(ap);
   fputc('\n', stdout);
+  return false;
 }
 
-XTEST_WEAK void expecti64(const char *title, int64_t expected, int64_t actual) {
+XTEST_WEAK bool expecti64(const char *title, int64_t expected, int64_t actual) {
   begin_test(title);
-  if (expected != actual)
-    fail("%s, %" PRId64 " expected, but got %" PRId64 "\n", title, expected, actual);
+  if (expected == actual)
+    return true;
+  return fail("%s, %" PRId64 " expected, but got %" PRId64 "\n", title, expected, actual);
 }
 
-XTEST_WEAK void expectptr(const char *title, void *expected, void *actual) {
+XTEST_WEAK bool expectptr(const char *title, void *expected, void *actual) {
   begin_test(title);
-  if (expected != actual)
-    fail("%s, %p expected, but got %p\n", title, expected, actual);
+  if (expected == actual)
+    return true;
+  return fail("%s, %p expected, but got %p\n", title, expected, actual);
 }
 
-XTEST_WEAK void expectstr(const char *title, const char *expected, const char *actual) {
+XTEST_WEAK bool expectstr(const char *title, const char *expected, const char *actual) {
   begin_test(title);
-  if (strcmp(expected, actual) != 0)
-    fail("\"%s\" expected, but got \"%s\"\n", expected, actual);
+  if (strcmp(expected, actual) == 0)
+    return true;
+  return fail("\"%s\" expected, but got \"%s\"\n", expected, actual);
 }
 
 #if !defined(__NO_FLONUM)
-XTEST_WEAK void expectf64(const char *title, double expected, double actual) {
+XTEST_WEAK bool expectf64(const char *title, double expected, double actual) {
   begin_test(title);
-  if (expected != actual)
-    fail("%s, %f expected, but got %f\n", title, expected, actual);
+  if (expected == actual)
+    return true;
+  return fail("%s, %f expected, but got %f\n", title, expected, actual);
 }
 
-XTEST_WEAK void expectf32(const char *title, float expected, float actual) {
+XTEST_WEAK bool expectf32(const char *title, float expected, float actual) {
   begin_test(title);
-  if (expected != actual)
-    fail("%s, %f expected, but got %f\n", title, expected, actual);
+  if (expected == actual)
+    return true;
+  return fail("%s, %f expected, but got %f\n", title, expected, actual);
 }
 #endif
 
 #if !defined(XTEST_NO_EXPECT_NEAR) && !defined(__NO_FLONUM)
-XTEST_WEAK void expect_near(const char *title, double expected, double actual) {
+XTEST_WEAK bool expect_near(const char *title, double expected, double actual) {
   begin_test(title);
-  int ok = 0;
   if (isfinite(actual)) {
     double d = expected - actual;
     const double eps = (double)1e-5;
-    ok = d >= -eps && d <= eps;
+    if (d >= -eps && d <= eps)
+      return true;
   } else if (!isnan(expected)) {
-    ok = expected == actual;
+    if (expected == actual)
+      return true;
   }
-  if (!ok)
-    fail("%s, %f expected, but got %f\n", title, expected, actual);
+
+  return fail("%s, %f expected, but got %f\n", title, expected, actual);
 }
 #endif
 

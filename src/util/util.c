@@ -177,7 +177,9 @@ char *join_paths(const char *paths[]) {
   enum Top top = OTHER;
 
   const char *p;
+  const char *last_path = NULL;
   for (const char **pp = paths; (p = *pp++) != NULL; ) {
+    last_path = p;
     if (*p == '/') {  // Root.
       sb_init(&sb);
       parent_count = 0;
@@ -221,9 +223,17 @@ char *join_paths(const char *paths[]) {
   for (; parent_count > 0; --parent_count)
     sb_prepend(&sb, "..", NULL);
   switch (top) {
-  case CURDIR:   sb_prepend(&sb, ".", NULL); break;
+  case OTHER:
+  case CURDIR:
+    if (sb.elems->len == 0)
+      sb_prepend(&sb, ".", NULL);
+    break;
   case ROOTDIR:  sb_prepend(&sb, sb.elems->len > 0 ? "" : "/", NULL); break;
-  case OTHER: break;
+  }
+  if (last_path != NULL) {
+    size_t len = strlen(last_path);
+    if (len > 0 && last_path[len - 1] == '/' && !(top == ROOTDIR && sb.elems->len == 1))
+      sb_append(&sb, "", NULL);
   }
   return sb_join(&sb, "/");
 }

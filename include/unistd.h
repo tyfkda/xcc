@@ -36,6 +36,7 @@ off_t lseek(int fd, off_t offset, int whence);
 int unlink(const char *pathname);
 int rmdir(const char *pathname);
 char *getcwd(char *buffer, size_t size);
+int chdir(const char *path);
 
 int brk(void *addr);
 void *sbrk(intptr_t increment);
@@ -46,7 +47,6 @@ int dup(int);
 int pipe(int *);
 int pipe2(int *pipefd, int flag);
 int isatty(int fd);
-int chdir(const char *path);
 
 pid_t fork(void);
 long clone3(struct clone_args *cl_args, size_t size);
