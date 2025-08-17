@@ -420,6 +420,22 @@ static unsigned char *asm_cbxx(Inst *inst, Code *code) {
   return code->buf;
 }
 
+static unsigned char *asm_clz(Inst *inst, Code *code) {
+  Operand *opr1 = &inst->opr[0];
+  Operand *opr2 = &inst->opr[1];
+  uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
+  W_CLZ(sz, opr1->reg.no, opr2->reg.no);
+  return code->buf;
+}
+
+static unsigned char *asm_rbit(Inst *inst, Code *code) {
+  Operand *opr1 = &inst->opr[0];
+  Operand *opr2 = &inst->opr[1];
+  uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
+  W_RBIT(sz, opr1->reg.no, opr2->reg.no);
+  return code->buf;
+}
+
 static unsigned char *asm_bl(Inst *inst, Code *code) {
   W_BL(0);
   return code->buf;
@@ -593,6 +609,7 @@ static const AsmInstFunc table[] = {
   [BHI] = asm_bcc,  [BLS] = asm_bcc,  [BGE] = asm_bcc,  [BLT] = asm_bcc,
   [BGT] = asm_bcc,  [BLE] = asm_bcc,  [BAL] = asm_bcc,  [BNV] = asm_bcc,
   [CBZ] = asm_cbxx, [CBNZ] = asm_cbxx,
+  [CLZ] = asm_clz,  [RBIT] = asm_rbit,
   [BL] = asm_bl,
   [BLR] = asm_blr,
   [RET] = asm_ret,

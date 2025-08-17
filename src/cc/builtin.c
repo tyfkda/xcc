@@ -1,4 +1,5 @@
 #include "../config.h"
+#include <stdio.h>
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,6 +13,7 @@
 #include "codegen.h"
 #include "fe_misc.h"
 #include "ir.h"
+#include "lexer.h"
 #include "parser.h"
 #include "regalloc.h"
 #include "table.h"
@@ -327,7 +329,121 @@ static VReg *gen_alloca(Expr *expr) {
   return result;
 }
 
-void install_builtins(void) {
+static void parse_builtins(Vector *decls) {
+#define S(x)   S2(x)
+#define S2(x)  #x
+
+#if defined(USE_SYS_LD)
+#define POPCOUNT_GENERIC \
+    "static inline int __builtin_popcount(unsigned int x) {\n" \
+    "  x -= (x >> 1) & 0x55555555;\n" \
+    "  x = (x & 0x33333333) + ((x >> 2) & 0x33333333);\n" \
+    "  x = (x + (x >>  4)) & 0x0f0f0f0f;\n" \
+    "  x = (x + (x >>  8));\n" \
+    "  x = (x + (x >> 16)) & 0x3f;\n" \
+    "  return x;" \
+    "}\n"
+#else
+#define POPCOUNT_GENERIC \
+    "static inline int __builtin_popcount(unsigned int x) {\n" \
+    "  extern int __popcount(unsigned int x);\n" \
+    "  return __popcount(x);\n" \
+    "}\n"
+#endif
+
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+  static const char src[] =
+    "static inline int __builtin_clz(volatile register unsigned int x) {\n"
+    "  int bsr;\n"
+    "  __asm("
+    "      \"  bsr %1, %0\\n\""
+    "      : \"=r\"(bsr)"
+    "      : \"ri\"(x));\n"
+    "  return bsr ^ (sizeof(bsr) * " S(TARGET_CHAR_BIT) " - 1);\n"
+    "}\n"
+    "static inline int __builtin_ctz(volatile register unsigned int x) {\n"
+    "  int result;\n"
+    "  __asm("
+    "      \"  tzcnt %1, %0\\n\""
+    "      : \"=r\"(result)"
+    "      : \"ri\"(x));\n"
+    "  return result;\n"
+    "}\n"
+    "static inline int __builtin_popcount(volatile register unsigned int x) {\n"
+    "  int result;\n"
+    "  __asm("
+    "      \"  popcnt %1, %0\\n\""
+    "      : \"=r\"(result)"
+    "      : \"r\"(x));\n"
+    "  return result;\n"
+    "}\n"
+  ;
+#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+  static const char src[] =
+    "static inline int __builtin_clz(volatile register unsigned int x) {\n"
+    "  int result;\n"
+    "  __asm("
+    "      \"  clz %0, %1\\n\""
+    "      : \"=r\"(result)"
+    "      : \"r\"(x));\n"
+    "  return result;\n"
+    "}\n"
+    "static inline int __builtin_ctz(volatile register unsigned int x) {\n"
+    "  int result;\n"
+    "  __asm("
+    "      \"  rbit %0, %1\\n\""
+    "      \"  clz %0, %0\\n\""
+    "      : \"=r\"(result)"
+    "      : \"r\"(x));\n"
+    "  return result;\n"
+    "}\n"
+    POPCOUNT_GENERIC
+  ;
+#elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+  static const char src[] =
+    "static inline int __builtin_clz(volatile register unsigned int x) {\n"
+    "  int result;\n"
+    "  __asm("
+    "      \"  clzw %0, %1\\n\""  // Requires ISA `zbb` extension.
+    "      : \"=r\"(result)"
+    "      : \"r\"(x));\n"
+    "  return result;\n"
+    "}\n"
+    "static inline int __builtin_ctz(volatile register unsigned int x) {\n"
+    "  int result;\n"
+    "  __asm("
+    "      \"  ctzw %0, %1\\n\""  // Requires ISA `zbb` extension.
+    "      : \"=r\"(result)"
+    "      : \"r\"(x));\n"
+    "  return result;\n"
+    "}\n"
+    "static inline int __builtin_popcount(volatile register unsigned int x) {\n"
+    "  int result;\n"
+    "  __asm("
+    "      \"  cpopw %0, %1\\n\""  // Requires ISA `zbb` extension.
+    "      : \"=r\"(result)"
+    "      : \"r\"(x));\n"
+    "  return result;\n"
+    "}\n"
+  ;
+#else
+  UNUSED(decls);
+  return;
+#endif
+
+  FILE *fp = fmemopen((void*)src, sizeof(src) - 1, "r");
+  if (fp != NULL) {
+    set_source_file(fp, "*builtins*");
+    parse(decls);
+    fclose(fp);
+  }
+#undef S
+#undef S2
+}
+
+void install_builtins(Vector *decls) {
+  parse_builtins(decls);
+
   static BuiltinExprProc p_function_name = &proc_builtin_function_name;
   add_builtin_expr_ident("__FUNCTION__", &p_function_name);
   add_builtin_expr_ident("__func__", &p_function_name);

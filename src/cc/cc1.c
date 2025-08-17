@@ -17,9 +17,9 @@
 
 ////////////////////////////////////////////////
 
-extern void install_builtins(void);
+extern void install_builtins(Vector *decls);
 
-static void init_compiler(FILE *ofp) {
+static void init_compiler(Vector *decls, FILE *ofp) {
   init_lexer();
   init_global();
   init_emit(ofp);
@@ -37,7 +37,7 @@ static void init_compiler(FILE *ofp) {
 # error "Unsupported programming model"
 #endif
 
-  install_builtins();
+  install_builtins(decls);
 }
 
 static void compile1(FILE *ifp, const char *filename, Vector *decls) {
@@ -166,9 +166,9 @@ int main(int argc, char *argv[]) {
   }
 
   // Compile.
-  init_compiler(stdout);
-
   Vector *toplevel = new_vector();
+  init_compiler(toplevel, stdout);
+
   int iarg = optind;
   if (iarg >= argc)
     error("No input files");

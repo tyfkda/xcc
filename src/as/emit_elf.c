@@ -13,6 +13,10 @@
 #include "table.h"
 #include "util.h"
 
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+bool isa_zbb = false;
+#endif
+
 typedef struct {
   Strtab strtab;
   Table indices;
@@ -362,7 +366,11 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
 
 #if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
   const char kRiscvAttributesArch[] = "riscv";
-  const char *riscv_attributes = "rv64i2p1_m2p0_a2p1_f2p2_d2p2_c2p0_zicsr2p0_zmmul1p0_zaamo1p0_zalrsc1p0";
+  static const char *kRiscvAttributes[] = {
+    "rv64i2p1_m2p0_a2p1_f2p2_d2p2_c2p0_zicsr2p0_zmmul1p0_zaamo1p0_zalrsc1p0",
+    "rv64i2p1_m2p0_a2p1_f2p2_d2p2_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zaamo1p0_zalrsc1p0_zbb1p0",
+  };
+  const char *riscv_attributes = kRiscvAttributes[isa_zbb];
   const size_t riscv_attributes_str_size = strlen(riscv_attributes) + 1;  // Include '\0'
   size_t riscv_attributes_total_size = 1 + 4 + sizeof(kRiscvAttributesArch) + 1 + 4 + 1 + riscv_attributes_str_size;
   uint64_t riscv_attributes_ofs = addr;
