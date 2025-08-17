@@ -199,8 +199,13 @@ static void check_live_interval(BBContainer *bbcon, int vreg_count, LiveInterval
     for (int j = 0; j < bb->irs->len; ++j, ++nip) {
       IR *ir = bb->irs->data[j];
       VReg *vregs[] = {ir->dst, ir->opr1, ir->opr2};
-      for (int k = 0; k < 3; ++k) {
-        VReg *vreg = vregs[k];
+      const int N = ARRAY_SIZE(vregs);
+      int n = N;
+      Vector *additional = ir->additional_operands;
+      if (additional != NULL)
+        n += additional->len;
+      for (int k = 0; k < n; ++k) {
+        VReg *vreg = k < N ? vregs[k] : additional->data[k - N];
         if (vreg == NULL || (vreg->flag & VRF_CONST))
           continue;
         LiveInterval *li = &intervals[vreg->virt];
@@ -377,12 +382,27 @@ static int insert_tmp_reg(RegAlloc *ra, Vector *irs, int j, VReg *spilled) {
   VReg *tmp = reg_alloc_spawn(ra, spilled->vsize, VRF_NO_SPILL | (spilled->flag & VRF_MASK));
   IR *ir = irs->data[j];
   VReg *opr = ir->opr1 == spilled ? ir->opr1 : ir->opr2 == spilled ? ir->opr2 : NULL;
+  Vector *additional = ir->additional_operands;
+  if (additional != NULL) {
+    for (int i = 0; i < additional->len; ++i) {
+      VReg *vreg = additional->data[i];
+      if (vreg == spilled)
+        opr = vreg;
+    }
+  }
   if (opr != NULL) {
     vec_insert(irs, j++, new_ir_load_spilled(tmp, opr, ir->flag));
     if (ir->opr1 == spilled)
       ir->opr1 = tmp;
     if (ir->opr2 == spilled)
       ir->opr2 = tmp;
+    if (additional != NULL) {
+      for (int i = 0; i < additional->len; ++i) {
+        VReg *vreg = additional->data[i];
+        if (vreg == spilled)
+          additional->data[i] = tmp;
+      }
+    }
   }
   if (ir->dst == spilled) {
     vec_insert(irs, ++j, new_ir_store_spilled(ir->dst, tmp));

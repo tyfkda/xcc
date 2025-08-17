@@ -151,8 +151,13 @@ static void remove_unused_vregs(RegAlloc *ra, BBContainer *bbcon) {
       for (int j = 0; j < bb->irs->len; ++j) {
         IR *ir = bb->irs->data[j];
         VReg *operands[] = {ir->opr1, ir->opr2};
-        for (int k = 0; k < 2; ++k) {
-          VReg *vreg = operands[k];
+        const int N = ARRAY_SIZE(operands);
+        int n = N;
+        Vector *additional = ir->additional_operands;
+        if (additional != NULL)
+          n += additional->len;
+        for (int k = 0; k < n; ++k) {
+          VReg *vreg = k < N ? operands[k] : additional->data[k - N];
           if (vreg != NULL && !(vreg->flag & VRF_CONST))
             vreg_read[vreg->virt] = true;
         }
@@ -229,6 +234,15 @@ static int replace_register_in_bb(BB *bb, VReg *target, VReg *alternation, int s
     if (ir->opr2 == target) {
       ir->opr2 = alternation;
       first = MIN(first, ip);
+    }
+
+    Vector *additional = ir->additional_operands;
+    if (additional != NULL) {
+      for (int i = 0; i < additional->len; ++i) {
+        VReg *vreg = additional->data[i];
+        if (vreg == target)
+          additional->data[i] = alternation;
+      }
     }
 
     if (ir->kind == IR_CALL) {

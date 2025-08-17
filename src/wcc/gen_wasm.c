@@ -1448,10 +1448,13 @@ void gen_expr_stmt(Expr *expr) {
 }
 
 static void gen_asm(Stmt *stmt) {
-  assert(stmt->asm_.str->kind == EX_STR);
+  assert(stmt->asm_.templates->len == 1);
+  assert(stmt->asm_.outputs == NULL);
+  assert(stmt->asm_.inputs == NULL);
 
   // Assume non-digit character is at the end.
-  for (const char *p = skip_whitespaces(stmt->asm_.str->str.buf);;) {
+  const char *buf = stmt->asm_.templates->data[0];
+  for (const char *p = skip_whitespaces(buf);;) {
     char *next;
     long op = strtol(p, &next, 10);
     if (next == p)
