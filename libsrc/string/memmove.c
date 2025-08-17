@@ -7,7 +7,7 @@ void *memmove(void *dst, const void *src, size_t n) {
 #define OP_LOCAL_GET      32   // 0x20
 #define OP_0xFC           252  // 0xfc
 #define OPFC_MEMORY_COPY  10   // 0x0a
-  __asm(
+  __asm volatile(
       S(OP_LOCAL_GET) ",0,"  // local.get 0
       S(OP_LOCAL_GET) ",1,"  // local.get 1
       S(OP_LOCAL_GET) ",2,"  // local.get 2

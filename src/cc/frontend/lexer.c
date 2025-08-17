@@ -53,6 +53,7 @@ static const struct {
   {"_Alignof", TK_ALIGNOF},
   {"typedef", TK_TYPEDEF},
   {"__asm", TK_ASM},
+  {"__asm__", TK_ASM},
 #ifndef __NO_FLONUM
   {"float", TK_FLOAT},
   {"double", TK_DOUBLE},

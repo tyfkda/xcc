@@ -383,6 +383,10 @@ enum {
   REACH_RETURN = 1 << 1,
 };
 
+enum {
+  ASM_VOLATILE = 1 << 0,
+};
+
 typedef struct Stmt {
   enum StmtKind kind;
   const Token *token;
@@ -446,6 +450,7 @@ typedef struct Stmt {
     struct {
       Expr *str;
       Expr *arg;
+      int flag;
     } asm_;
   };
 } Stmt;
@@ -462,7 +467,7 @@ Stmt *new_stmt_return(const Token *token, Expr *val);
 Stmt *new_stmt_goto(const Token *tok, const Token *label);
 Stmt *new_stmt_label(const Token *label, Stmt *follow);
 Stmt *new_stmt_vardecl(VarDecl *vardecl);
-Stmt *new_stmt_asm(const Token *token, Expr *str, Expr *arg);
+Stmt *new_stmt_asm(const Token *token, Expr *str, Expr *arg, int flag);
 
 // ================================================
 

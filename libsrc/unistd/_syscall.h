@@ -6,17 +6,19 @@
 
 #define SYSCALL(no)  _SYSCALL2(no)
 #define _SYSCALL2(no) \
-    __asm("mov $" #no ", %eax\n" \
-          "syscall")
+    __asm volatile( \
+        "mov $" #no ", %eax\n" \
+        "syscall")
 
 #define SYSCALL_RET(no, ret)  _SYSCALL_RET2(no, ret)
 #define _SYSCALL_RET2(no, ret) \
-    __asm("mov $" #no ", %%eax\n" \
-          "syscall" \
-          : "=r"(ret))
+    __asm volatile( \
+        "mov $" #no ", %%eax\n" \
+        "syscall" \
+        : "=r"(ret))
 
 // 4th parameter for syscall is `%r10`. `%r10` is caller save so no need to save/restore
-#define SYSCALL_ARGCOUNT(n)  do { if ((n) >= 4) __asm("mov %rcx, %r10"); } while (0)
+#define SYSCALL_ARGCOUNT(n)  do { if ((n) >= 4) __asm volatile("mov %rcx, %r10"); } while (0)
 
 #define __NR_read    0
 #define __NR_write   1
@@ -50,14 +52,16 @@
 
 #define SYSCALL(no)  _SYSCALL2(no)
 #define _SYSCALL2(no) \
-    __asm("mov x8, #" #no "\n" \
-          "svc #0")
+    __asm volatile( \
+        "mov x8, #" #no "\n" \
+        "svc #0")
 
 #define SYSCALL_RET(no, ret)  _SYSCALL_RET2(no, ret)
 #define _SYSCALL_RET2(no, ret) \
-    __asm("mov x8, #" #no "\n" \
-          "svc #0" \
-          : "=r"(ret))
+    __asm volatile( \
+        "mov x8, #" #no "\n" \
+        "svc #0" \
+        : "=r"(ret))
 
 #define __NR_read    63
 #define __NR_write   64
@@ -89,14 +93,16 @@
 
 #define SYSCALL(no)  _SYSCALL2(no)
 #define _SYSCALL2(no) \
-    __asm("li a7, " #no "\n" \
-          "ecall")
+    __asm volatile( \
+        "li a7, " #no "\n" \
+        "ecall")
 
 #define SYSCALL_RET(no, ret)  _SYSCALL_RET2(no, ret)
 #define _SYSCALL_RET2(no, ret) \
-    __asm("li a7, " #no "\n" \
-          "ecall" \
-          : "=r"(ret))
+    __asm volatile( \
+        "li a7, " #no "\n" \
+        "ecall" \
+        : "=r"(ret))
 
 #define __NR_getcwd    17
 #define __NR_dup       23

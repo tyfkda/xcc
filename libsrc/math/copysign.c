@@ -9,12 +9,12 @@ double copysign(double x, double f) {
 #define S_(x)  #x
 #define OP_LOCAL_GET      32   // 0x20
 #define OP_F64_COPYSIGN   166  // 0xa6
-  __asm(
+  __asm volatile(
       S(OP_LOCAL_GET) ",0,"  // local.get 0
       S(OP_LOCAL_GET) ",1,"  // local.get 1
       S(OP_F64_COPYSIGN));   // f64.copysign
 #elif defined(__riscv) && !defined(__GNUC__)
-  __asm("fsgnj.d fa0, fa0, fa1");
+  __asm volatile("fsgnj.d fa0, fa0, fa1");
 #else
   union { double d; int64_t q; } u;
   u.d = x;

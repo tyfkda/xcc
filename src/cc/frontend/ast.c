@@ -306,10 +306,11 @@ Stmt *new_stmt_vardecl(VarDecl *vardecl) {
   return stmt;
 }
 
-Stmt *new_stmt_asm(const Token *token, Expr *str, Expr *arg) {
+Stmt *new_stmt_asm(const Token *token, Expr *str, Expr *arg, int flag) {
   Stmt *stmt = new_stmt(ST_ASM, token);
   stmt->asm_.str = str;
   stmt->asm_.arg = arg;
+  stmt->asm_.flag = flag;
   return stmt;
 }
 

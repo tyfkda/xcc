@@ -584,6 +584,10 @@ extern inline Expr *parse_asm_arg(void) {
 }
 
 extern inline Stmt *parse_asm(const Token *tok) {
+  int flag = 0;
+  if (match(TK_VOLATILE))
+    flag |= ASM_VOLATILE;
+
   consume(TK_LPAR, "`(' expected");
 
   Expr *str = parse_expr();
@@ -598,7 +602,7 @@ extern inline Stmt *parse_asm(const Token *tok) {
 
   consume(TK_RPAR, "`)' expected");
   consume(TK_SEMICOL, "`;' expected");
-  return new_stmt_asm(tok, str, arg);
+  return new_stmt_asm(tok, str, arg, flag);
 }
 
 static Vector *parse_stmts(const Token **prbrace) {
