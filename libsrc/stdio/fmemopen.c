@@ -1,5 +1,6 @@
 #include "stdio.h"
 
+#include "errno.h"
 #include "fcntl.h"  // O_ACCMODE, etc.
 #include "stdbool.h"
 #include "stdlib.h"
@@ -118,8 +119,15 @@ void _fmemopen2(void *buf, size_t size, const char *mode, FILE *fp) {
 }
 
 FILE *fmemopen(void *buf, size_t size, const char *mode) {
+  if (size <= 0) {
+    errno = EINVAL;
+    return NULL;
+  }
+
   FILE *fp = calloc(1, sizeof(*fp));
-  if (fp != NULL) {
+  if (fp == NULL) {
+    errno = ENOMEM;
+  } else {
     _fmemopen2(buf, size, mode, fp);
   }
   return fp;

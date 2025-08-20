@@ -1,5 +1,6 @@
 #include "stdio.h"
 
+#include "errno.h"
 #include "fcntl.h"  // O_ACCMODE, etc.
 #include "stdlib.h"  // calloc
 #include "string.h"  // strchr
@@ -35,7 +36,9 @@ FILE *fdopen(int fd, const char *mode) {
     flag |= FF_BINARY;
 
   FILE *fp = calloc(1, size);
-  if (fp != NULL) {
+  if (fp == NULL) {
+    errno = ENOMEM;
+  } else {
     static const cookie_io_functions_t kIof = {
       .read = _fread,
       .write = _fwrite,
