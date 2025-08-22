@@ -1982,6 +1982,7 @@ static int g_shadow = 55;
 static inline void inline_shadow(int x) { g_shadow = x; }
 static inline int inline_conflict_varname(int x, int y) { return x * g_shadow + y; }
 static inline int inline_share_static_var(int add) { static int sum; if (add == 0) sum = 0; return sum += add; }
+static inline int inline_modifiy_param(int x) { int *p = &x; *p += 1; return x + x; }
 static inline int inline_factorial(int x) { return x <= 1 ? 1 : x * inline_factorial(x - 1); }
 static inline bool inline_even(int x);
 static inline bool inline_odd(int x)  { return x == 0 ? false : inline_even(x - 1); }
@@ -2102,6 +2103,11 @@ TEST(function) {
     for (int i = 0; i <= 10; ++i)
       result = inline_share_static_var(i);
     EXPECT("static variable in inline func", 55, result);
+  }
+  {
+    int val = 111;
+    EXPECT("inline func modifies parameter", 224, inline_modifiy_param(val));
+    EXPECT("modifying parameter has no effect", 111, val);
   }
   EXPECT("inline recursion", 5040, inline_factorial(7));
   EXPECT_FALSE(inline_even(9));  // Inline mutual recursion
