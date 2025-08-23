@@ -146,8 +146,7 @@ typedef struct Expr {
 
 bool parse_line(Line *line, ParseInfo *info);
 void parse_set_p(ParseInfo *info, const char *p);
-void handle_directive(ParseInfo *info, enum DirectiveType dir);
-void parse_error(ParseInfo *info, const char *message);
+bool parse_error(ParseInfo *info, const char *message);
 
 typedef struct {
   /*enum Opcode*/ int op;

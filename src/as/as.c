@@ -16,19 +16,71 @@
 #define LOAD_ADDRESS    START_ADDRESS
 #define DATA_ALIGN      (0x1000)
 
+static bool read_line_comment_skip(FILE *fp, ParseInfo *info) {
+  bool block_comment = false;
+  bool wait_line_end = true;
+  const char *p = info->p;
+  for (;;) {
+    if (p == NULL) {
+      ++info->lineno;
+      char *rawline = NULL;
+      size_t capa = 0;
+      ssize_t len = getline_chomp(&rawline, &capa, fp);
+      if (len == -1) {  // EOF
+        info->rawline = info->p = NULL;
+        if (block_comment)
+          parse_error(info, "Block comment not closed");
+        return false;
+      }
+      info->rawline = p = rawline;
+      wait_line_end = false;
+    }
+
+    if (!block_comment) {
+      const char *q = block_comment_start(p);
+      if (q != NULL) {
+        block_comment = true;
+        p = q + 2;
+      }
+    }
+    if (block_comment) {
+      p = block_comment_end(p);
+      if (p != NULL)
+        block_comment = false;
+      wait_line_end = true;
+      continue;  // Continue block comment.
+    }
+
+    p = skip_whitespaces(p);
+    if (*p == '/' && p[1] == '/') {  // Line comment.
+      p = NULL;
+      continue;
+    }
+
+    if (wait_line_end) {
+      if (*p != '\0')
+        parse_error(info, "Line end expected");
+      p = NULL;
+      continue;
+    }
+
+    break;
+  }
+
+  // Line.
+  info->p = p;
+  return true;
+}
+
 static void parse_file(FILE *fp, ParseInfo *info) {
-  info->lineno = 1;
+  info->lineno = 0;
   info->rawline = info->p = NULL;
   info->prefetched = NULL;
   set_current_section(info, kSecText, kSegText, SF_EXECUTABLE);
 
-  for (;; ++info->lineno) {
-    char *rawline = NULL;
-    size_t capa = 0;
-    ssize_t len = getline_chomp(&rawline, &capa, fp);
-    if (len == -1)
+  for (;;) {
+    if (!read_line_comment_skip(fp, info))
       break;
-    info->rawline = rawline;
 
     SectionInfo *section = info->current_section;
     Vector *irs = section->irs;
@@ -44,7 +96,7 @@ static void parse_file(FILE *fp, ParseInfo *info) {
     }
 
     if (line.dir != NODIRECTIVE)
-      handle_directive(info, line.dir);
+      continue;
 
     if (line.inst != NULL) {
       Code code;
