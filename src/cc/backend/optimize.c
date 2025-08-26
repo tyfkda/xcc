@@ -622,7 +622,8 @@ static void peephole(RegAlloc *ra, BB *bb) {
 // Depends on SSA.
 
 static int replace_register(BBContainer *bbcon, VReg *target, VReg *alternation) {
-  if (target->flag & VRF_FORCEMEMORY || alternation->flag & VRF_FORCEMEMORY)
+  if (target->flag & (VRF_FORCEMEMORY | VRF_VOLATILEREG) ||
+      alternation->flag & (VRF_FORCEMEMORY | VRF_VOLATILEREG))
     return INT_MAX;
 
   int first = INT_MAX;

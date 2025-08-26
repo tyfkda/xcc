@@ -32,17 +32,17 @@ enum VRegSize to_vsize(const Type *type) {
   return most_significant_bit(size);
 }
 
-int to_vflag(const Type *type) {
+int to_vflag_with_storage(const Type *type, int storage) {
   int flag = 0;
   if (is_flonum(type))
     flag |= VRF_FLONUM;
   if (type->qualifier & TQ_VOLATILE)
-    flag |= VRF_VOLATILE;
+    flag |= (storage & VS_REGISTER) ? (VRF_VOLATILEREG | VRF_NO_SPILL) : VRF_VOLATILE;
   return flag;
 }
 
-VReg *add_new_vreg(const Type *type) {
-  return reg_alloc_spawn(curra, to_vsize(type), to_vflag(type));
+VReg *add_new_vreg_with_storage(const Type *type, int storage) {
+  return reg_alloc_spawn(curra, to_vsize(type), to_vflag_with_storage(type, storage));
 }
 
 static Table builtin_function_table;  // <BuiltinFunctionProc>
@@ -301,7 +301,7 @@ static VReg *gen_variable(Expr *expr) {
 
       VReg *vreg = gen_lval(expr);
       int irflag = is_unsigned(expr->type) ? IRF_UNSIGNED : 0;
-      VReg *result = new_ir_load(vreg, to_vsize(expr->type), to_vflag(expr->type), irflag)->dst;
+      VReg *result = new_ir_load(vreg, to_vsize(expr->type), to_vflag_with_storage(expr->type, varinfo->storage), irflag)->dst;
       return result;
     }
   case TY_ARRAY:   // Use variable address as a pointer.
