@@ -2152,7 +2152,11 @@ static void gen_builtin_clz(Expr *expr, enum BuiltinFunctionPhase phase) {
     break;
   case BFP_GEN:
     gen_expr(value, true);
-    ADD_CODE(OP_I32_CLZ);
+    switch (type_size(value->type)) {
+    case 4:  ADD_CODE(OP_I32_CLZ); break;
+    case 8:  ADD_CODE(OP_I64_CLZ); break;
+    default: assert(false); break;
+    }
     break;
   }
 }
@@ -2168,7 +2172,11 @@ static void gen_builtin_ctz(Expr *expr, enum BuiltinFunctionPhase phase) {
     break;
   case BFP_GEN:
     gen_expr(value, true);
-    ADD_CODE(OP_I32_CTZ);
+    switch (type_size(value->type)) {
+    case 4:  ADD_CODE(OP_I32_CTZ); break;
+    case 8:  ADD_CODE(OP_I64_CTZ); break;
+    default: assert(false); break;
+    }
     break;
   }
 }
@@ -2184,7 +2192,11 @@ static void gen_builtin_popcount(Expr *expr, enum BuiltinFunctionPhase phase) {
     break;
   case BFP_GEN:
     gen_expr(value, true);
-    ADD_CODE(OP_I32_POPCNT);
+    switch (type_size(value->type)) {
+    case 4:  ADD_CODE(OP_I32_POPCNT); break;
+    case 8:  ADD_CODE(OP_I64_POPCNT); break;
+    default: assert(false); break;
+    }
     break;
   }
 }
@@ -2264,27 +2276,54 @@ void install_builtins(void) {
 
   {
     static BuiltinFunctionProc p_clz = &gen_builtin_clz;
-    Type *rettype = &tyInt;
     Vector *params = new_vector();
-    vec_push(params, &tyInt);
-    Type *type = new_func_type(rettype, params, false);
+    vec_push(params, get_fixnum_type(FX_INT, true, 0));
+    Type *type = new_func_type(&tyInt, params, false);
     add_builtin_function("__builtin_clz", type, &p_clz, true);
+
+    Vector *paramsl = new_vector();
+    vec_push(paramsl, get_fixnum_type(FX_LONG, true, 0));
+    Type *typel = new_func_type(get_fixnum_type(FX_LONG, false, 0), paramsl, false);
+    add_builtin_function("__builtin_clzl", typel, &p_clz, true);
+
+    Vector *paramsll = new_vector();
+    vec_push(paramsll, get_fixnum_type(FX_LLONG, true, 0));
+    Type *typell = new_func_type(get_fixnum_type(FX_LLONG, false, 0), paramsll, false);
+    add_builtin_function("__builtin_clzll", typell, &p_clz, true);
   }
   {
     static BuiltinFunctionProc p_ctz = &gen_builtin_ctz;
-    Type *rettype = &tyInt;
     Vector *params = new_vector();
-    vec_push(params, &tyInt);
-    Type *type = new_func_type(rettype, params, false);
+    vec_push(params, get_fixnum_type(FX_INT, true, 0));
+    Type *type = new_func_type(&tyInt, params, false);
     add_builtin_function("__builtin_ctz", type, &p_ctz, true);
+
+    Vector *paramsl = new_vector();
+    vec_push(paramsl, get_fixnum_type(FX_LONG, true, 0));
+    Type *typel = new_func_type(get_fixnum_type(FX_LONG, false, 0), paramsl, false);
+    add_builtin_function("__builtin_ctzl", typel, &p_ctz, true);
+
+    Vector *paramsll = new_vector();
+    vec_push(paramsll, get_fixnum_type(FX_LLONG, true, 0));
+    Type *typell = new_func_type(get_fixnum_type(FX_LLONG, false, 0), paramsll, false);
+    add_builtin_function("__builtin_ctzll", typell, &p_ctz, true);
   }
   {
     static BuiltinFunctionProc p_popcount = &gen_builtin_popcount;
-    Type *rettype = &tyInt;
     Vector *params = new_vector();
-    vec_push(params, &tyInt);
-    Type *type = new_func_type(rettype, params, false);
+    vec_push(params, get_fixnum_type(FX_INT, true, 0));
+    Type *type = new_func_type(&tyInt, params, false);
     add_builtin_function("__builtin_popcount", type, &p_popcount, true);
+
+    Vector *paramsl = new_vector();
+    vec_push(paramsl, get_fixnum_type(FX_LONG, true, 0));
+    Type *typel = new_func_type(get_fixnum_type(FX_LONG, false, 0), paramsl, false);
+    add_builtin_function("__builtin_popcountl", typel, &p_popcount, true);
+
+    Vector *paramsll = new_vector();
+    vec_push(paramsll, get_fixnum_type(FX_LLONG, true, 0));
+    Type *typell = new_func_type(get_fixnum_type(FX_LLONG, false, 0), paramsll, false);
+    add_builtin_function("__builtin_popcountll", typell, &p_popcount, true);
   }
 
   {

@@ -336,95 +336,158 @@ static void parse_builtins(Vector *decls) {
 #if defined(USE_SYS_LD)
 #define POPCOUNT_GENERIC \
     "static inline int __builtin_popcount(unsigned int x) {\n" \
-    "  x -= (x >> 1) & 0x55555555;\n" \
-    "  x = (x & 0x33333333) + ((x >> 2) & 0x33333333);\n" \
-    "  x = (x + (x >>  4)) & 0x0f0f0f0f;\n" \
+    "  x -= (x >> 1) & 0x55555555U;\n" \
+    "  x = (x & 0x33333333U) + ((x >> 2) & 0x33333333U);\n" \
+    "  x = (x + (x >>  4)) & 0x0f0f0f0fU;\n" \
     "  x = (x + (x >>  8));\n" \
-    "  x = (x + (x >> 16)) & 0x3f;\n" \
-    "  return x;" \
+    "  x = (x + (x >> 16)) & 0x3fU;\n" \
+    "  return x;\n" \
+    "}\n" \
+    "static inline int __builtin_popcountl(unsigned long x) {\n" \
+    "  return __builtin_popcount(x);" /* Assume sizeof(long) == sizeof(int) */ \
+    "}\n" \
+    "static inline int __builtin_popcountll(unsigned long long x) {\n" \
+    "  x -= (x >> 1) & 0x5555555555555555ULL;\n" \
+    "  x = (x & 0x3333333333333333ULL) + ((x >> 2) & 0x3333333333333333ULL);\n" \
+    "  x = (x + (x >>  4)) & 0x0f0f0f0f0f0f0f0fULL;\n" \
+    "  x = (x + (x >>  8));\n" \
+    "  x = (x + (x >> 16));\n" \
+    "  x = (x + (x >> 32)) & 0x7fULL;\n" \
+    "  return x;\n" \
     "}\n"
 #else
 #define POPCOUNT_GENERIC \
     "static inline int __builtin_popcount(unsigned int x) {\n" \
     "  extern int __popcount(unsigned int x);\n" \
     "  return __popcount(x);\n" \
+    "}\n" \
+    "static inline int __builtin_popcountl(unsigned long x) {\n" \
+    "  extern int __popcount(unsigned int x);\n" \
+    "  return __popcount(x);\n" /* Assume sizeof(long) == sizeof(int) */ \
+    "}\n" \
+    "static inline int __builtin_popcountll(unsigned long long x) {\n" \
+    "  extern int __popcountll(unsigned long long x);\n" \
+    "  return __popcountll(x);\n" \
     "}\n"
 #endif
 
 #if XCC_TARGET_ARCH == XCC_ARCH_X64
+
+# define CLZ(T, postfix) \
+    "static inline " S(T) " __builtin_clz" S(postfix) "(volatile register unsigned " S(T) " x) {\n" \
+    "  " S(T) " bsr;\n" \
+    "  __asm(" \
+    "      \"  bsr %1, %0\\n\"" \
+    "      : \"=r\"(bsr)" \
+    "      : \"ri\"(x));\n" \
+    "  return bsr ^ (sizeof(bsr) * " S(TARGET_CHAR_BIT) " - 1);\n" \
+    "}\n"
+
+# define CTZ(T, postfix) \
+    "static inline " S(T) " __builtin_ctz" S(postfix) "(volatile register unsigned " S(T) " x) {\n" \
+    "  " S(T) " result;\n" \
+    "  __asm(" \
+    "      \"  tzcnt %1, %0\\n\"" \
+    "      : \"=r\"(result)" \
+    "      : \"ri\"(x));\n" \
+    "  return result;\n" \
+    "}\n"
+
+# define POPCOUNT(T, postfix) \
+    "static inline int __builtin_popcount" S(postfix) "(volatile register unsigned " S(T) " x) {\n" \
+    "  " S(T) " result;\n" \
+    "  __asm(" \
+    "      \"  popcnt %1, %0\\n\"" \
+    "      : \"=r\"(result)" \
+    "      : \"r\"(x));\n" \
+    "  return result;\n" \
+    "}\n"
+
   static const char src[] =
-    "static inline int __builtin_clz(volatile register unsigned int x) {\n"
-    "  int bsr;\n"
-    "  __asm("
-    "      \"  bsr %1, %0\\n\""
-    "      : \"=r\"(bsr)"
-    "      : \"ri\"(x));\n"
-    "  return bsr ^ (sizeof(bsr) * " S(TARGET_CHAR_BIT) " - 1);\n"
-    "}\n"
-    "static inline int __builtin_ctz(volatile register unsigned int x) {\n"
-    "  int result;\n"
-    "  __asm("
-    "      \"  tzcnt %1, %0\\n\""
-    "      : \"=r\"(result)"
-    "      : \"ri\"(x));\n"
-    "  return result;\n"
-    "}\n"
-    "static inline int __builtin_popcount(volatile register unsigned int x) {\n"
-    "  int result;\n"
-    "  __asm("
-    "      \"  popcnt %1, %0\\n\""
-    "      : \"=r\"(result)"
-    "      : \"r\"(x));\n"
-    "  return result;\n"
-    "}\n"
+    CLZ(int, )
+    CLZ(long, l)
+    CLZ(long long, ll)
+    CTZ(int, )
+    CTZ(long, l)
+    CTZ(long long, ll)
+    POPCOUNT(int, )
+    POPCOUNT(long, l)
+    POPCOUNT(long long, ll)
   ;
 #elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+
+# define CLZ(T, postfix) \
+    "static inline " S(T) " __builtin_clz" S(postfix) "(volatile register unsigned " S(T) " x) {\n" \
+    "  " S(T) " result;\n" \
+    "  __asm(" \
+    "      \"  clz %0, %1\\n\"" \
+    "      : \"=r\"(result)" \
+    "      : \"r\"(x));\n" \
+    "  return result;\n" \
+    "}\n"
+
+# define CTZ(T, postfix) \
+    "static inline " S(T) " __builtin_ctz" S(postfix) "(volatile register unsigned " S(T) " x) {\n" \
+    "  " S(T) " result;\n" \
+    "  __asm(" \
+    "      \"  rbit %0, %1\\n\"" \
+    "      \"  clz %0, %0\\n\"" \
+    "      : \"=r\"(result)" \
+    "      : \"r\"(x));\n" \
+    "  return result;\n" \
+    "}\n"
+
   static const char src[] =
-    "static inline int __builtin_clz(volatile register unsigned int x) {\n"
-    "  int result;\n"
-    "  __asm("
-    "      \"  clz %0, %1\\n\""
-    "      : \"=r\"(result)"
-    "      : \"r\"(x));\n"
-    "  return result;\n"
-    "}\n"
-    "static inline int __builtin_ctz(volatile register unsigned int x) {\n"
-    "  int result;\n"
-    "  __asm("
-    "      \"  rbit %0, %1\\n\""
-    "      \"  clz %0, %0\\n\""
-    "      : \"=r\"(result)"
-    "      : \"r\"(x));\n"
-    "  return result;\n"
-    "}\n"
+    CLZ(int, )
+    CLZ(long, l)
+    CLZ(long long, ll)
+    CTZ(int, )
+    CTZ(long, l)
+    CTZ(long long, ll)
     POPCOUNT_GENERIC
   ;
 #elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+
+# define CLZ(T, postfix, w) \
+    "static inline int __builtin_clz" S(postfix) "(volatile register unsigned " S(T) " x) {\n" \
+    "  " S(T) " result;\n" \
+    "  __asm(" \
+    "      \"  clz" S(w) " %0, %1\\n\""  /* Requires ISA `zbb` extension. */ \
+    "      : \"=r\"(result)" \
+    "      : \"r\"(x));\n" \
+    "  return result;\n" \
+    "}\n"
+
+# define CTZ(T, postfix, w) \
+    "static inline int __builtin_ctz" S(postfix) "(volatile register unsigned " S(T) " x) {\n" \
+    "  " S(T) " result;\n" \
+    "  __asm(" \
+    "      \"  ctz" S(w) " %0, %1\\n\""  /* Requires ISA `zbb` extension. */ \
+    "      : \"=r\"(result)" \
+    "      : \"r\"(x));\n" \
+    "  return result;\n" \
+    "}\n"
+
+# define POPCOUNT(T, postfix, w) \
+    "static inline int __builtin_popcount" S(postfix) "(volatile register unsigned " S(T) " x) {\n" \
+    "  " S(T) " result;\n" \
+    "  __asm(" \
+    "      \"  cpop" S(w) " %0, %1\\n\""  /* Requires ISA `zbb` extension. */ \
+    "      : \"=r\"(result)" \
+    "      : \"r\"(x));\n" \
+    "  return result;\n" \
+    "}\n"
+
   static const char src[] =
-    "static inline int __builtin_clz(volatile register unsigned int x) {\n"
-    "  int result;\n"
-    "  __asm("
-    "      \"  clzw %0, %1\\n\""  // Requires ISA `zbb` extension.
-    "      : \"=r\"(result)"
-    "      : \"r\"(x));\n"
-    "  return result;\n"
-    "}\n"
-    "static inline int __builtin_ctz(volatile register unsigned int x) {\n"
-    "  int result;\n"
-    "  __asm("
-    "      \"  ctzw %0, %1\\n\""  // Requires ISA `zbb` extension.
-    "      : \"=r\"(result)"
-    "      : \"r\"(x));\n"
-    "  return result;\n"
-    "}\n"
-    "static inline int __builtin_popcount(volatile register unsigned int x) {\n"
-    "  int result;\n"
-    "  __asm("
-    "      \"  cpopw %0, %1\\n\""  // Requires ISA `zbb` extension.
-    "      : \"=r\"(result)"
-    "      : \"r\"(x));\n"
-    "  return result;\n"
-    "}\n"
+    CLZ(int, , w)
+    CLZ(long, l, )
+    CLZ(long long, ll, )
+    CTZ(int, , w)
+    CTZ(long, l, )
+    CTZ(long long, ll, )
+    POPCOUNT(int, , w)
+    POPCOUNT(long, l, )
+    POPCOUNT(long long, ll, )
   ;
 #else
   UNUSED(decls);

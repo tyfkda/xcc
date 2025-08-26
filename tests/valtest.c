@@ -2270,9 +2270,15 @@ TEST(extension) {
 }
 
 TEST(builtin) {
-  EXPECT("builtin clz", 12, __builtin_clz(0x000f0f00));
-  EXPECT("builtin ctz", 8, __builtin_ctz(0x000f0f00));
-  EXPECT("builtin popcount", 8, __builtin_popcount(0x000f0f00));
+  EXPECT("builtin clz", sizeof(0U) * CHAR_BIT - 20, __builtin_clz(0x000f0f00U));
+  EXPECT("builtin clzl", sizeof(0UL) * CHAR_BIT - 20, __builtin_clzl(0x000f0f00UL));
+  EXPECT("builtin clzll", sizeof(0ULL) * CHAR_BIT - 20, __builtin_clzll(0x000f0f00ULL));
+  EXPECT("builtin ctz", 8, __builtin_ctz(0x000f0f00U));
+  EXPECT("builtin ctzl", 8, __builtin_ctzl(0x000f0f00UL));
+  EXPECT("builtin ctzll", 8, __builtin_ctzll(0x000f0f00ULL));
+  EXPECT("builtin popcount", 8, __builtin_popcount(0x000f0f00U));
+  EXPECT("builtin popcountl", 8, __builtin_popcountl(0x000f0f00UL));
+  EXPECT("builtin popcountll", 8, __builtin_popcountll(0x000f0f00ULL));
 }
 
 //
