@@ -26,7 +26,7 @@ Token *consume(enum TokenKind kind, const char *error) {
   return tok;
 }
 
-extern inline void add_func_label(const Token *tok, Stmt *label) {
+static inline void add_func_label(const Token *tok, Stmt *label) {
   assert(curfunc != NULL);
   Table *table = curfunc->label_table;
   if (table == NULL) {
@@ -36,14 +36,14 @@ extern inline void add_func_label(const Token *tok, Stmt *label) {
     parse_error(PE_NOFATAL, tok, "Label `%.*s' already defined", NAMES(tok->ident));
 }
 
-extern inline void add_func_goto(Stmt *stmt) {
+static inline void add_func_goto(Stmt *stmt) {
   assert(curfunc != NULL);
   if (curfunc->gotos == NULL)
     curfunc->gotos = new_vector();
   vec_push(curfunc->gotos, stmt);
 }
 
-extern inline void check_goto_labels(Function *func) {
+static inline void check_goto_labels(Function *func) {
   Table *label_table = func->label_table;
 
   // Check whether goto label exist.
@@ -357,7 +357,7 @@ static Stmt *parse_switch(const Token *tok) {
   return stmt;
 }
 
-extern inline int find_case(Stmt *swtch, Fixnum v) {
+static inline int find_case(Stmt *swtch, Fixnum v) {
   Vector *cases = swtch->switch_.cases;
   for (int i = 0, len = cases->len; i < len; ++i) {
     Stmt *c = cases->data[i];
@@ -508,7 +508,7 @@ static Stmt *parse_for(const Token *tok) {
   return new_stmt_block(tok, stmts, scope, NULL);
 }
 
-extern inline Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
+static inline Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
   consume(TK_SEMICOL, "`;' expected");
   Stmt *parent = kind == ST_BREAK ? loop_scope.break_ : loop_scope.continu;
   if (parent == NULL) {
@@ -521,7 +521,7 @@ extern inline Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
   return stmt;
 }
 
-extern inline Stmt *parse_goto(const Token *tok) {
+static inline Stmt *parse_goto(const Token *tok) {
   Token *label = consume(TK_IDENT, "label for goto expected");
   consume(TK_SEMICOL, "`;' expected");
 
@@ -572,7 +572,7 @@ static Stmt *parse_return(const Token *tok) {
   return new_stmt_return(tok, val);
 }
 
-extern inline Expr *parse_asm_arg(void) {
+static inline Expr *parse_asm_arg(void) {
   /*const Token *str =*/ consume(TK_STR, "string literal expected");
   consume(TK_LPAR, "`(' expected");
   Expr *var = parse_expr();
@@ -583,7 +583,7 @@ extern inline Expr *parse_asm_arg(void) {
   return var;
 }
 
-extern inline Stmt *parse_asm(const Token *tok) {
+static Stmt *parse_asm(const Token *tok) {
   int flag = 0;
   if (match(TK_VOLATILE))
     flag |= ASM_VOLATILE;

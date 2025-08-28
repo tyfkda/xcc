@@ -20,8 +20,6 @@
 #include "util.h"
 #include "var.h"
 
-static void gen_expr_stmt(Expr *expr);
-
 void set_curbb(BB *bb) {
   assert(bb != NULL);
   assert(curfunc != NULL);
@@ -273,7 +271,7 @@ static void gen_clear(const Type *type, VReg *dst) {
   }
 }
 
-extern inline void gen_asm(Stmt *stmt) {
+static inline void gen_asm(Stmt *stmt) {
   assert(stmt->asm_.str->kind == EX_STR);
   VReg *result = NULL;
   const char *str = stmt->asm_.str->str.buf;
@@ -326,6 +324,10 @@ VReg *gen_stmts(Vector *stmts) {
   return result;
 }
 
+static inline void gen_expr_stmt(Expr *expr) {
+  gen_expr(expr);
+}
+
 VReg *gen_block(Stmt *stmt) {
   assert(stmt->kind == ST_BLOCK);
   // AST may moved, so code generation traversal may differ from lexical scope chain.
@@ -338,7 +340,7 @@ VReg *gen_block(Stmt *stmt) {
   return result;
 }
 
-extern inline void gen_return(Stmt *stmt) {
+static inline void gen_return(Stmt *stmt) {
   assert(curfunc != NULL);
   BB *bb = new_bb();
   FuncBackend *fnbe = curfunc->extra;
@@ -370,7 +372,7 @@ extern inline void gen_return(Stmt *stmt) {
   set_curbb(bb);
 }
 
-extern inline void gen_if(Stmt *stmt) {
+static inline void gen_if(Stmt *stmt) {
   BB *tbb = new_bb();
   BB *fbb = new_bb();
   gen_cond_jmp(stmt->if_.cond, tbb, fbb);
@@ -607,7 +609,7 @@ static void gen_continue(void) {
   set_curbb(bb);
 }
 
-extern inline void gen_goto(Stmt *stmt) {
+static inline void gen_goto(Stmt *stmt) {
   assert(curfunc->label_table != NULL);
   Stmt *label = table_get(curfunc->label_table, stmt->goto_.label->ident);
   assert(label != NULL);
@@ -615,7 +617,7 @@ extern inline void gen_goto(Stmt *stmt) {
   set_curbb(new_bb());
 }
 
-extern inline void gen_label(Stmt *stmt) {
+static inline void gen_label(Stmt *stmt) {
   if (stmt->label.bb != NULL)  // This case happens when the label is not used.
     set_curbb(stmt->label.bb);
   gen_stmt(stmt->label.stmt);
@@ -635,10 +637,6 @@ static void gen_vardecl(VarDecl *decl) {
   assert(varinfo != NULL);
   gen_clear_local_var(varinfo);
   gen_stmt(decl->init_stmt);
-}
-
-extern inline void gen_expr_stmt(Expr *expr) {
-  gen_expr(expr);
 }
 
 void gen_stmt(Stmt *stmt) {
@@ -928,7 +926,7 @@ bool gen_defun(Function *func) {
   return true;
 }
 
-extern inline void gen_defun_after(Function *func) {
+static inline void gen_defun_after(Function *func) {
   FuncBackend *fnbe = func->extra;
   curfunc = func;
   curra = fnbe->ra;
