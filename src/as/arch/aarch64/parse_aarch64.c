@@ -466,7 +466,7 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
     }
   }
 
-  if (opr_flag & (R32 | R64 | F32 | F64)) {
+  if (opr_flag & (R32 | R64 | RSP | F32 | F64)) {
     enum RegType reg = find_register(&info->p, opr_flag);
     if (reg != NOREG) {
       enum RegSize size;
@@ -501,7 +501,7 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
       operand->reg.size = size;
       operand->reg.no = no;
       operand->reg.sp = reg == SP;
-      return result;
+      return result & opr_flag;
     }
   }
 

@@ -432,7 +432,7 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
   if (opr_flag & (R8 | R16 | R32 | R64 | R8CL | XMM)) {
     if (*p == '%') {
       info->p = p + 1;
-      return parse_direct_register(info, operand);
+      return parse_direct_register(info, operand) & opr_flag;
     }
   }
 
