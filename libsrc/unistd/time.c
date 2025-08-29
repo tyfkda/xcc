@@ -4,7 +4,7 @@
 #if defined(__NR_time)
 time_t time(time_t *timer) {
   time_t ret;
-  SYSCALL_RET(__NR_time, ret);
+  SYSCALL_RET(__NR_time, ret, "r"(timer));
   return ret;
 }
 

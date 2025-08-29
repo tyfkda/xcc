@@ -1928,18 +1928,6 @@ static void check_unreachability(Stmt *stmt) {
 }
 
 void check_unused_variables(Function *func) {
-  assert(func->body_block != NULL);
-  assert(func->body_block->kind == ST_BLOCK);
-  Vector *stmts = func->body_block->block.stmts;
-  if (stmts->len > 0) {
-    // If __asm is used, variables might be used implicitly, so skip checking.
-    for (int i = 0; i < stmts->len; ++i) {
-      Stmt *stmt = stmts->data[i];
-      if (stmt->kind == ST_ASM)
-        return;
-    }
-  }
-
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     for (int j = 0; j < scope->vars->len; ++j) {

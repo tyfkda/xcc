@@ -9,6 +9,7 @@ double floor(double x) {
 #define S_(x)  #x
 #define OP_LOCAL_GET      32   // 0x20
 #define OP_F64_FLOOR      156  // 0x9c
+  (void)x;
   __asm volatile(
       S(OP_LOCAL_GET) ",0,"  // local.get 0
       S(OP_F64_FLOOR));      // f64.floor

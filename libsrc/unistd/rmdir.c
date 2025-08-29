@@ -4,7 +4,7 @@
 #if defined(__NR_rmdir)
 int rmdir(const char *pathname) {
   int ret;
-  SYSCALL_RET(__NR_rmdir, ret);
+  SYSCALL_RET(__NR_rmdir, ret, "r"(pathname));
   SET_ERRNO(ret);
   return ret;
 }

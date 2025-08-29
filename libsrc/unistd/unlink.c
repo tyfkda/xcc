@@ -4,7 +4,7 @@
 #if defined(__NR_unlink)
 int unlink(const char *pathname) {
   int ret;
-  SYSCALL_RET(__NR_unlink, ret);
+  SYSCALL_RET(__NR_unlink, ret, "r"(pathname));
   SET_ERRNO(ret);
   return ret;
 }

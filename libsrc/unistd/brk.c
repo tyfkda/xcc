@@ -6,7 +6,7 @@
 
 static void *_brk(void *addr) {
   void *ret;
-  SYSCALL_RET(__NR_brk, ret);
+  SYSCALL_RET(__NR_brk, ret, "r"(addr));
   return ret;
 }
 #elif defined(__APPLE__)

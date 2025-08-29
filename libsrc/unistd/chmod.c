@@ -4,7 +4,7 @@
 #if defined(__NR_chmod)
 int chmod(const char *pathname, mode_t mode) {
   int ret;
-  SYSCALL_RET(__NR_chmod, ret);
+  SYSCALL_RET(__NR_chmod, ret, "r"(pathname), "r"(mode));
   SET_ERRNO(ret);
   return ret;
 }

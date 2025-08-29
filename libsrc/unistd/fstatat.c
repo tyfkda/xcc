@@ -7,7 +7,7 @@ int fstatat(int fd, const char *pathname, struct stat *buf, int flag) {
 #if defined(__x86_64__)
   SYSCALL_ARGCOUNT(4);
 #endif
-  SYSCALL_RET(__NR_fstatat, ret);
+  SYSCALL_RET(__NR_fstatat, ret, "r"(fd), "r"(pathname), "r"(buf), "r"(flag));
   SET_ERRNO(ret);
   return ret;
 }
@@ -18,7 +18,7 @@ int fstatat(int fd, const char *pathname, struct stat *buf, int flag) {
 #if defined(__x86_64__)
   SYSCALL_ARGCOUNT(4);
 #endif
-  SYSCALL_RET(__NR_newfstatat, ret);
+  SYSCALL_RET(__NR_newfstatat, ret, "r"(fd), "r"(pathname), "r"(buf), "r"(flag));
   SET_ERRNO(ret);
   return ret;
 }
