@@ -73,6 +73,13 @@
 #define W_BXX(xx, rs1, rs2, ofs)  MAKE_CODE32(inst, code, STYPE(0, rs2, rs1, xx, 0x63) | SWIZZLE_BXX(ofs))
 #define W_ECALL()                 MAKE_CODE32(inst, code, UTYPE(0, 0, 0x73))
 
+#define W_CLZ(rd, rs)             MAKE_CODE32(inst, code, RTYPE(0x30, 0, rs, 0x01, rd, 0x13))
+#define W_CLZW(rd, rs)            MAKE_CODE32(inst, code, RTYPE(0x30, 0, rs, 0x01, rd, 0x1b))
+#define W_CTZ(rd, rs)             MAKE_CODE32(inst, code, RTYPE(0x30, 1, rs, 0x01, rd, 0x13))
+#define W_CTZW(rd, rs)            MAKE_CODE32(inst, code, RTYPE(0x30, 1, rs, 0x01, rd, 0x1b))
+#define W_CPOP(rd, rs)            MAKE_CODE32(inst, code, RTYPE(0x30, 2, rs, 0x01, rd, 0x13))
+#define W_CPOPW(rd, rs)           MAKE_CODE32(inst, code, RTYPE(0x30, 2, rs, 0x01, rd, 0x1b))
+
 #define W_FADD_D(rd, rs1, rs2)    MAKE_CODE32(inst, code, RTYPE(0x01, rs2, rs1, 0x07, rd, 0x53))
 #define W_FSUB_D(rd, rs1, rs2)    MAKE_CODE32(inst, code, RTYPE(0x05, rs2, rs1, 0x07, rd, 0x53))
 #define W_FMUL_D(rd, rs1, rs2)    MAKE_CODE32(inst, code, RTYPE(0x09, rs2, rs1, 0x07, rd, 0x53))

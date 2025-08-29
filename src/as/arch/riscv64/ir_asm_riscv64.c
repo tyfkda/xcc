@@ -13,6 +13,8 @@
 #include "table.h"
 #include "util.h"
 
+extern bool isa_zbb;
+
 static void sec_add_data(SectionInfo *section, const void *data, size_t bytes) {
   assert(!(section->flag & SF_BSS));
   data_append(section->ds, data, bytes);
@@ -353,6 +355,9 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                 break;
               }
             }
+            break;
+          case CLZ: case CLZW: case CTZ: case CTZW: case CPOP: case CPOPW:
+            isa_zbb = true;
             break;
           default:
             break;

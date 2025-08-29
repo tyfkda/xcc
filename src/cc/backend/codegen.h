@@ -28,9 +28,11 @@ VReg *gen_expr(Expr *expr);
 void gen_cond_jmp(Expr *cond, BB *tbb, BB *fbb);
 
 void set_curbb(BB *bb);
-VReg *add_new_vreg(const Type *type);
+VReg *add_new_vreg_with_storage(const Type *type, int storage);
+static inline VReg *add_new_vreg(const Type *type)  { return add_new_vreg_with_storage(type, 0); }
 enum VRegSize to_vsize(const Type *type);
-int to_vflag(const Type *type);
+int to_vflag_with_storage(const Type *type, int storage);
+static inline int to_vflag(const Type *type)  { return to_vflag_with_storage(type, 0); }
 
 bool is_stack_param(const Type *type);
 

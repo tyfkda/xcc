@@ -101,11 +101,12 @@ static void alloc_variable_registers(Function *func) {
         continue;
       }
 
-      VReg *vreg = add_new_vreg(type);
-      if (varinfo->storage & VS_REF_TAKEN)
+      const int storage = varinfo->storage;
+      VReg *vreg = add_new_vreg_with_storage(type, storage);
+      if (storage & VS_REF_TAKEN)
         vreg->flag |= VRF_REF;
       if (type->qualifier & TQ_VOLATILE)
-        vreg->flag |= VRF_VOLATILE;
+        vreg->flag |= (storage & VS_REGISTER) ? (VRF_VOLATILEREG | VRF_NO_SPILL) : VRF_VOLATILE;
       varinfo->local.vreg = vreg;
       varinfo->local.frameinfo = &vreg->frame;
     }

@@ -43,6 +43,10 @@ enum RawOpcode {
   R_RET,
   R_ECALL,
 
+  R_CLZ, R_CLZW,
+  R_CTZ, R_CTZW,
+  R_CPOP, R_CPOPW,
+
   R_FADD_D, R_FSUB_D, R_FMUL_D, R_FDIV_D,
   R_FADD_S, R_FSUB_S, R_FMUL_S, R_FDIV_S,
   R_FSQRT_D, R_FSQRT_S,
@@ -94,6 +98,10 @@ const char *kRawOpTable[] = {
   "call",
   "ret",
   "ecall",
+
+  "clz", "clzw",
+  "ctz", "ctzw",
+  "cpop", "cpopw",
 
   "fadd.d", "fsub.d", "fmul.d", "fdiv.d",
   "fadd.s", "fsub.s", "fmul.s", "fdiv.s",
@@ -448,6 +456,13 @@ const ParseInstTable kParseInstTable[] = {
   [R_CALL] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CALL, {EXP}} } },
   [R_RET] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){RET} } },
   [R_ECALL] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){ECALL} } },
+
+  [R_CLZ] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CLZ, {R64, R64}} } },
+  [R_CLZW] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CLZW, {R64, R64}} } },
+  [R_CTZ] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CTZ, {R64, R64}} } },
+  [R_CTZW] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CTZW, {R64, R64}} } },
+  [R_CPOP] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CPOP, {R64, R64}} } },
+  [R_CPOPW] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CPOPW, {R64, R64}} } },
 
   [R_FADD_D] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){FADD_D, {F64, F64, F64}} } },
   [R_FADD_S] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){FADD_S, {F64, F64, F64}} } },
