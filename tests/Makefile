@@ -157,7 +157,7 @@ test-std-valtest:
 ### Wasm version
 
 WCC:=../wcc
-WCC_TESTS:=valtest dvaltest fvaltest
+WCC_TESTS:=valtest dvaltest fvaltest goto_wcc_test test-wcc-goto-invalid
 
 .PHONY: test-wcc
 test-wcc:	test-wcc-sh $(foreach D, $(WCC_TESTS), $(addprefix test-wcc-,$(D))) test-wcc-examples
@@ -182,6 +182,7 @@ test-wcc-examples:
 valtest_WCCSRCS:=$(VAL_SRCS)
 dvaltest_WCCSRCS:=$(FVAL_SRCS)
 fvaltest_WCCSRCS:=$(FVAL_SRCS)
+goto_wcc_test_WCCSRCS:=goto_wcc_test.c
 
 define DEFINE_WCCTEST_TARGET
 .PHONY: test-wcc-$(1)
@@ -193,3 +194,16 @@ $(1).wasm:	$$($(1)_WCCSRCS) # $(WCC)
 	$(WCC) -o $$@ -Wall -Werror $$^
 endef
 $(foreach D, $(WCC_TESTS), $(eval $(call DEFINE_WCCTEST_TARGET,$(D))))
+
+.PHONY: test-wcc-goto-invalid
+test-wcc-goto-invalid:
+	@echo "## Goto invalid patterns test"
+	@XCC="$(WCC)" ./goto_wcc_invalid_test.sh
+
+.PHONY: test-wcc-goto
+test-wcc-goto:
+	@echo "## Goto shell script test cases"
+	@$(eval AWASM := $(shell basename `mktemp -u`).wasm)
+	@XCC="$(WCC)" \
+		AOUT="$(AWASM)" RUN_AOUT="../tool/runwasi $(AWASM)" \
+		./goto_wcc_test.sh
