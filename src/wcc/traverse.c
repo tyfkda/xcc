@@ -997,7 +997,7 @@ static void traverse_decl(Declaration *decl) {
     traverse_defun(decl->defun.func);
     break;
   case DCL_ASM:
-    parse_error(PE_NOFATAL, decl->asmstr->token, "`__asm` not allowed");
+    parse_error(PE_NOFATAL, decl->asm_.token, "`__asm` not allowed");
     break;
   }
 }

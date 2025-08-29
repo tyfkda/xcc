@@ -54,6 +54,9 @@ TEST(fmemopen) {
     fclose(fp);
     EXPECT_EQ(0, memcmp(buf, str, sizeof(str)));
   }
+
+  EXPECT_NULL(fmemopen((void*)buf, 0, "r"));  // Failed opening size 0 for read.
+  EXPECT_NULL(fmemopen((void*)buf, 0, "w"));  // Failed opening size 0 for write.
 }
 
 TEST(open_memstream) {

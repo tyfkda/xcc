@@ -41,6 +41,10 @@ enum Opcode {
   RET,
   ECALL,
 
+  CLZ, CLZW,
+  CTZ, CTZW,
+  CPOP, CPOPW,
+
   FADD_D, FSUB_D, FMUL_D, FDIV_D,
   FADD_S, FSUB_S, FMUL_S, FDIV_S,
   FSQRT_D, FSQRT_S,

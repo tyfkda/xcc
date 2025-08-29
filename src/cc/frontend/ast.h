@@ -166,7 +166,7 @@ typedef struct Token {
   union {
     const Name *ident;
     struct {
-      const char *buf;
+      char *buf;
       size_t len;  // String length, include last '\0'.
       enum StrKind kind;
     } str;
@@ -251,7 +251,7 @@ typedef struct Expr {
     Flonum flonum;
 #endif
     struct {
-      const char *buf;
+      char *buf;
       size_t len;  // String length, include last '\0'.
       enum StrKind kind;
     } str;
@@ -383,6 +383,22 @@ enum {
   REACH_RETURN = 1 << 1,
 };
 
+typedef struct {
+  const Token *constraint;
+  Expr *expr;
+} AsmArg;
+
+enum {
+  ASM_VOLATILE = 1 << 0,
+};
+
+typedef struct {
+  Vector *templates;  // [const char*, (uintptr_t)index, ...]
+  Vector *outputs;  // <AsmArg*>
+  Vector *inputs;   // <AsmArg*>
+  int flag;
+} Asm;
+
 typedef struct Stmt {
   enum StmtKind kind;
   const Token *token;
@@ -443,10 +459,7 @@ typedef struct Stmt {
       Expr *val;
     } return_;
     VarDecl *vardecl;
-    struct {
-      Expr *str;
-      Expr *arg;
-    } asm_;
+    Asm asm_;
   };
 } Stmt;
 
@@ -462,7 +475,7 @@ Stmt *new_stmt_return(const Token *token, Expr *val);
 Stmt *new_stmt_goto(const Token *tok, const Token *label);
 Stmt *new_stmt_label(const Token *label, Stmt *follow);
 Stmt *new_stmt_vardecl(VarDecl *vardecl);
-Stmt *new_stmt_asm(const Token *token, Expr *str, Expr *arg);
+Stmt *new_stmt_asm(const Token *token, Vector *template_, Vector *outputs, Vector *inputs, int flag);
 
 // ================================================
 
@@ -501,9 +514,12 @@ typedef struct Declaration {
     struct {
       Function *func;
     } defun;
-    Expr *asmstr;
+    struct {
+      const Token *token;
+      Asm *asm_;
+    } asm_;
   };
 } Declaration;
 
 Declaration *new_decl_defun(Function *func);
-Declaration *new_decl_asm(Expr *str);
+Declaration *new_decl_asm(const Token *token, Asm *asm_);

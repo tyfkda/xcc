@@ -20,8 +20,6 @@
 #include "util.h"
 #include "var.h"
 
-static void gen_expr_stmt(Expr *expr);
-
 void set_curbb(BB *bb) {
   assert(bb != NULL);
   assert(curfunc != NULL);
@@ -103,11 +101,12 @@ static void alloc_variable_registers(Function *func) {
         continue;
       }
 
-      VReg *vreg = add_new_vreg(type);
-      if (varinfo->storage & VS_REF_TAKEN)
+      const int storage = varinfo->storage;
+      VReg *vreg = add_new_vreg_with_storage(type, storage);
+      if (storage & VS_REF_TAKEN)
         vreg->flag |= VRF_REF;
       if (type->qualifier & TQ_VOLATILE)
-        vreg->flag |= VRF_VOLATILE;
+        vreg->flag |= (storage & VS_REGISTER) ? (VRF_VOLATILEREG | VRF_NO_SPILL) : VRF_VOLATILE;
       varinfo->local.vreg = vreg;
       varinfo->local.frameinfo = &vreg->frame;
     }
@@ -273,35 +272,25 @@ static void gen_clear(const Type *type, VReg *dst) {
   }
 }
 
-extern inline void gen_asm(Stmt *stmt) {
-  assert(stmt->asm_.str->kind == EX_STR);
-  VReg *result = NULL;
-  const char *str = stmt->asm_.str->str.buf;
-  if (stmt->asm_.arg != NULL) {
-    assert(stmt->asm_.arg->kind == EX_VAR);
-    result = gen_expr(stmt->asm_.arg);
-
-    // In gcc, `%' is handled only if `__asm' takes parameters.
-    // Otherwise, `%' is not handled.
-
-    // TODO: Embed parameters.
-    //   Here, just escape %.
-    if (strchr(str, '%') != NULL) {
-      size_t len = strlen(str + 1);
-      char *buf = malloc_or_die(len);
-      char *dst = buf;
-      for (const char *src = str;;) {
-        char c = *src++;
-        if (c == '%')
-          c = *src++;
-        *dst++ = c;
-        if (c == '\0')
-          break;
-      }
-      str = buf;
+static inline void gen_asm(Stmt *stmt) {
+  VReg *output = NULL;
+  Vector *registers = new_vector();
+  if (stmt->asm_.outputs != NULL) {
+    assert(stmt->asm_.outputs->len == 1);  // TODO: Handle multiple outputs.
+    const AsmArg *arg = stmt->asm_.outputs->data[0];
+    assert(arg->expr->kind == EX_VAR);
+    output = gen_expr(arg->expr);
+    vec_push(registers, output);
+  }
+  if (stmt->asm_.inputs != NULL) {
+    for (int i = 0; i < stmt->asm_.inputs->len; ++i) {
+      const AsmArg *arg = stmt->asm_.inputs->data[i];
+      VReg *vreg = gen_expr(arg->expr);
+      vec_push(registers, vreg);
     }
   }
-  new_ir_asm(str, result);
+
+  new_ir_asm(stmt->asm_.templates, output, registers);
 }
 
 VReg *gen_stmts(Vector *stmts) {
@@ -326,6 +315,10 @@ VReg *gen_stmts(Vector *stmts) {
   return result;
 }
 
+static inline void gen_expr_stmt(Expr *expr) {
+  gen_expr(expr);
+}
+
 VReg *gen_block(Stmt *stmt) {
   assert(stmt->kind == ST_BLOCK);
   // AST may moved, so code generation traversal may differ from lexical scope chain.
@@ -338,7 +331,7 @@ VReg *gen_block(Stmt *stmt) {
   return result;
 }
 
-extern inline void gen_return(Stmt *stmt) {
+static inline void gen_return(Stmt *stmt) {
   assert(curfunc != NULL);
   BB *bb = new_bb();
   FuncBackend *fnbe = curfunc->extra;
@@ -370,7 +363,7 @@ extern inline void gen_return(Stmt *stmt) {
   set_curbb(bb);
 }
 
-extern inline void gen_if(Stmt *stmt) {
+static inline void gen_if(Stmt *stmt) {
   BB *tbb = new_bb();
   BB *fbb = new_bb();
   gen_cond_jmp(stmt->if_.cond, tbb, fbb);
@@ -607,7 +600,7 @@ static void gen_continue(void) {
   set_curbb(bb);
 }
 
-extern inline void gen_goto(Stmt *stmt) {
+static inline void gen_goto(Stmt *stmt) {
   assert(curfunc->label_table != NULL);
   Stmt *label = table_get(curfunc->label_table, stmt->goto_.label->ident);
   assert(label != NULL);
@@ -615,7 +608,7 @@ extern inline void gen_goto(Stmt *stmt) {
   set_curbb(new_bb());
 }
 
-extern inline void gen_label(Stmt *stmt) {
+static inline void gen_label(Stmt *stmt) {
   if (stmt->label.bb != NULL)  // This case happens when the label is not used.
     set_curbb(stmt->label.bb);
   gen_stmt(stmt->label.stmt);
@@ -635,10 +628,6 @@ static void gen_vardecl(VarDecl *decl) {
   assert(varinfo != NULL);
   gen_clear_local_var(varinfo);
   gen_stmt(decl->init_stmt);
-}
-
-extern inline void gen_expr_stmt(Expr *expr) {
-  gen_expr(expr);
 }
 
 void gen_stmt(Stmt *stmt) {
@@ -928,7 +917,7 @@ bool gen_defun(Function *func) {
   return true;
 }
 
-extern inline void gen_defun_after(Function *func) {
+static inline void gen_defun_after(Function *func) {
   FuncBackend *fnbe = func->extra;
   curfunc = func;
   curra = fnbe->ra;

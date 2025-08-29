@@ -2,4 +2,7 @@
 
 set -e
 
-spike pk "$@"
+# zbb for clz, etc.
+ISA=rv64gc_zbb
+
+spike --isa=${ISA} pk "$@"

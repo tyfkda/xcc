@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <limits.h>  // CHAR_BIT
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdlib.h>  // malloc
@@ -51,11 +52,21 @@ bool starts_with(const char *str, const char *prefix) {
 }
 
 int most_significant_bit(size_t x) {
-  int bit;
-  for (bit = 0;; ++bit) {
-    x >>= 1;
-    if (x <= 0)
-      return bit;
+  assert(x > 0);
+#if defined(__GNUC__) || defined(__XCC)
+  if (sizeof(size_t) == sizeof(unsigned int)) {
+    return (int)(sizeof(x) * CHAR_BIT - 1) - __builtin_clz(x);
+  } else if (sizeof(size_t) == sizeof(unsigned long)) {
+    return (int)(sizeof(x) * CHAR_BIT - 1) - __builtin_clzl(x);
+  } else
+#endif
+  {
+    int bit;
+    for (bit = 0;; ++bit) {
+      x >>= 1;
+      if (x <= 0)
+        return bit;
+    }
   }
 }
 

@@ -30,6 +30,7 @@ enum RawOpcode {
   R_CMP,
   R_TEST,
   R_CWTL, R_CLTD, R_CQTO,
+  R_BSR, R_TZCNT, R_POPCNT,
 
   R_SETO, R_SETNO, R_SETB, R_SETAE, R_SETE, R_SETNE, R_SETBE, R_SETA,
   R_SETS, R_SETNS, R_SETP, R_SETNP, R_SETL, R_SETGE, R_SETLE, R_SETG,
@@ -74,6 +75,7 @@ const char *kRawOpTable[] = {
   "cmp",
   "test",
   "cwtl",  "cltd",  "cqto",
+  "bsr", "tzcnt", "popcnt",
 
   "seto",  "setno",  "setb",  "setae",  "sete",  "setne",  "setbe",  "seta",
   "sets",  "setns",  "setp",  "setnp",  "setl",  "setge",  "setle",  "setg",
@@ -432,7 +434,7 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
   if (opr_flag & (R8 | R16 | R32 | R64 | R8CL | XMM)) {
     if (*p == '%') {
       info->p = p + 1;
-      return parse_direct_register(info, operand);
+      return parse_direct_register(info, operand) & opr_flag;
     }
   }
 
@@ -607,6 +609,18 @@ const ParseInstTable kParseInstTable[] = {
   [R_CWTL] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CWTL} } },
   [R_CLTD] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CLTD} } },
   [R_CQTO] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CQTO} } },
+  [R_BSR] = { 3, (const ParseOpArray*[]){
+    &(ParseOpArray){BSR, {R16, R16}},   &(ParseOpArray){BSR, {R32, R32}},
+    &(ParseOpArray){BSR, {R64, R64}},
+  } },
+  [R_TZCNT] = { 3, (const ParseOpArray*[]){
+    &(ParseOpArray){TZCNT, {R16, R16}},   &(ParseOpArray){TZCNT, {R32, R32}},
+    &(ParseOpArray){TZCNT, {R64, R64}},
+  } },
+  [R_POPCNT] = { 3, (const ParseOpArray*[]){
+    &(ParseOpArray){POPCNT, {R16, R16}},   &(ParseOpArray){POPCNT, {R32, R32}},
+    &(ParseOpArray){POPCNT, {R64, R64}},
+  } },
   [R_SETO]  = { 1, (const ParseOpArray*[]){ &(ParseOpArray){SETO,  {R8}} } },
   [R_SETNO] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){SETNO, {R8}} } },
   [R_SETB]  = { 1, (const ParseOpArray*[]){ &(ParseOpArray){SETB,  {R8}} } },

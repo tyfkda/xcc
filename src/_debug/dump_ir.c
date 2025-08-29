@@ -167,7 +167,21 @@ static void dump_ir(FILE *fp, IR *ir, RegAlloc *ra) {
     }
     fprintf(fp, "\n");
     break;
-  case IR_ASM:    fprintf(fp, "\"%s\"\n", ir->asm_.str); break;
+  case IR_ASM:
+    {
+      fprintf(fp, "[\n");
+      Vector *templates = ir->asm_.templates;
+      for (int i = 0; i < templates->len; i += 2) {
+        const char *str = templates->data[i];
+        fputs(str, fp);
+        if (i + 1 < templates->len) {
+          uintptr_t index = (uintptr_t)templates->data[i + 1];
+          fprintf(fp, "%%%" PRIdPTR, index);
+        }
+      }
+      fprintf(fp, "]\n");
+    }
+    break;
   }
 }
 

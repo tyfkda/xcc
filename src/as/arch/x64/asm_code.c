@@ -1361,6 +1361,56 @@ static unsigned char *asm_cqto(Inst *inst, Code *code) {
   return code->buf;
 }
 
+static unsigned char *asm_bsr(Inst *inst, Code *code) {
+  enum RegSize size = inst->opr[0].reg.size;
+  int sno = opr_regno(&inst->opr[0].reg);
+  int dno = opr_regno(&inst->opr[1].reg);
+  short buf[] = {
+    MAKE_REX0(size, dno, sno, 0x0f),
+    0xbd,
+    0xc0 | (inst->opr[1].reg.no << 3) | inst->opr[0].reg.no,
+  };
+  unsigned char *p = code->buf;
+  p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+  return p;
+}
+
+static unsigned char *asm_tzcnt(Inst *inst, Code *code) {
+  enum RegSize size = inst->opr[0].reg.size;
+  unsigned char prefix = 0xf3;
+  int sno = opr_regno(&inst->opr[0].reg);
+  int dno = opr_regno(&inst->opr[1].reg);
+  short buf[] = {
+    (size) == REG16 ? 0x66 : -1, \
+    prefix,
+    sno >= 8 || dno >= 8 || size == REG64 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) | (size != REG64 ? 0 : 8) : -1,
+    0x0f,
+    0xbc,
+    (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+  };
+  unsigned char *p = code->buf;
+  p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+  return p;
+}
+
+static unsigned char *asm_popcnt(Inst *inst, Code *code) {
+  enum RegSize size = inst->opr[0].reg.size;
+  unsigned char prefix = 0xf3;
+  int sno = opr_regno(&inst->opr[0].reg);
+  int dno = opr_regno(&inst->opr[1].reg);
+  short buf[] = {
+    (size) == REG16 ? 0x66 : -1, \
+    prefix,
+    sno >= 8 || dno >= 8 || size == REG64 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) | (size != REG64 ? 0 : 8) : -1,
+    0x0f,
+    0xb8,
+    (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+  };
+  unsigned char *p = code->buf;
+  p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
+  return p;
+}
+
 static unsigned char *asm_set_r(Inst *inst, Code *code) {
   unsigned char *p = code->buf;
   short buf[] = {
@@ -1588,6 +1638,9 @@ static const AsmInstFunc table[] = {
   [CWTL] = asm_cwtl,
   [CLTD] = asm_cltd,
   [CQTO] = asm_cqto,
+  [BSR] = asm_bsr,
+  [TZCNT] = asm_tzcnt,
+  [POPCNT] = asm_popcnt,
   [SETO] = asm_set_r,  [SETNO] = asm_set_r,  [SETB] = asm_set_r,  [SETAE] = asm_set_r,
   [SETE] = asm_set_r,  [SETNE] = asm_set_r,  [SETBE] = asm_set_r,  [SETA] = asm_set_r,
   [SETS] = asm_set_r,  [SETNS] = asm_set_r,  [SETP] = asm_set_r,  [SETNP] = asm_set_r,

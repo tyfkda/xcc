@@ -1982,6 +1982,7 @@ static int g_shadow = 55;
 static inline void inline_shadow(int x) { g_shadow = x; }
 static inline int inline_conflict_varname(int x, int y) { return x * g_shadow + y; }
 static inline int inline_share_static_var(int add) { static int sum; if (add == 0) sum = 0; return sum += add; }
+static inline int inline_modifiy_param(int x) { int *p = &x; *p += 1; return x + x; }
 static inline int inline_factorial(int x) { return x <= 1 ? 1 : x * inline_factorial(x - 1); }
 static inline bool inline_even(int x);
 static inline bool inline_odd(int x)  { return x == 0 ? false : inline_even(x - 1); }
@@ -2102,6 +2103,11 @@ TEST(function) {
     for (int i = 0; i <= 10; ++i)
       result = inline_share_static_var(i);
     EXPECT("static variable in inline func", 55, result);
+  }
+  {
+    int val = 111;
+    EXPECT("inline func modifies parameter", 224, inline_modifiy_param(val));
+    EXPECT("modifying parameter has no effect", 111, val);
   }
   EXPECT("inline recursion", 5040, inline_factorial(7));
   EXPECT_FALSE(inline_even(9));  // Inline mutual recursion
@@ -2264,15 +2270,15 @@ TEST(extension) {
 }
 
 TEST(builtin) {
-#if defined(__wasm)
-  {
-    EXPECT("builtin clz", 12, __builtin_clz(0x000f0f00));
-
-    EXPECT("builtin ctz", 8, __builtin_ctz(0x000f0f00));
-
-    EXPECT("builtin popcount", 8, __builtin_popcount(0x000f0f00));
-  }
-#endif
+  EXPECT("builtin clz", sizeof(0U) * CHAR_BIT - 20, __builtin_clz(0x000f0f00U));
+  EXPECT("builtin clzl", sizeof(0UL) * CHAR_BIT - 20, __builtin_clzl(0x000f0f00UL));
+  EXPECT("builtin clzll", sizeof(0ULL) * CHAR_BIT - 20, __builtin_clzll(0x000f0f00ULL));
+  EXPECT("builtin ctz", 8, __builtin_ctz(0x000f0f00U));
+  EXPECT("builtin ctzl", 8, __builtin_ctzl(0x000f0f00UL));
+  EXPECT("builtin ctzll", 8, __builtin_ctzll(0x000f0f00ULL));
+  EXPECT("builtin popcount", 8, __builtin_popcount(0x000f0f00U));
+  EXPECT("builtin popcountl", 8, __builtin_popcountl(0x000f0f00UL));
+  EXPECT("builtin popcountll", 8, __builtin_popcountll(0x000f0f00ULL));
 }
 
 //

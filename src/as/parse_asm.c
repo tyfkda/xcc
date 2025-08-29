@@ -144,10 +144,11 @@ LabelInfo *add_label_table(Table *label_table, const Name *label, SectionInfo *s
   return info;
 }
 
-void parse_error(ParseInfo *info, const char *message) {
+bool parse_error(ParseInfo *info, const char *message) {
   fprintf(stderr, "%s(%d): %s\n", info->filename, info->lineno, message);
   fprintf(stderr, "%s\n", info->rawline);
   ++info->error_count;
+  return false;
 }
 
 static enum DirectiveType find_directive(const char *p, size_t n) {
@@ -571,24 +572,6 @@ Expr *parse_expr(ParseInfo *info) {
   return parse_add(info);
 }
 
-static void check_line_end(ParseInfo *info) {
-  const char *p = info->p;
-  for (;;) {
-    const char *q = block_comment_start(p);
-    if (q == NULL)
-      break;
-    p = block_comment_end(q);
-    if (p == NULL) {
-      parse_error(info, "Block comment not closed");
-      return;
-    }
-  }
-  p = skip_whitespaces(p);
-  if (*p != '\0' && !(*p == '/' && p[1] == '/')) {
-    parse_error(info, "Syntax error");
-  }
-}
-
 #define R_NOOP  0
 
 #if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
@@ -624,7 +607,7 @@ static /*enum RawOpcode*/int find_raw_opcode(ParseInfo *info) {
   return R_NOOP;
 }
 
-void parse_inst(ParseInfo *info, Line *line) {
+static bool parse_inst(ParseInfo *info, Line *line) {
   Inst inst;
   inst.op = NOOP;
   for (int i = 0; i < (int)ARRAY_SIZE(inst.opr); ++i)
@@ -652,7 +635,8 @@ void parse_inst(ParseInfo *info, Line *line) {
         if (*info->p != ',') {
           if (candidates[0]->opr_flags[i] == 0)
             break;
-          return;  // Error
+          parse_error(info, "comma expected");
+          return false;  // Error
         }
         info->p = skip_whitespaces(info->p + 1);
       }
@@ -661,8 +645,9 @@ void parse_inst(ParseInfo *info, Line *line) {
       const char *before = info->p;
       unsigned int result = parse_operand(info, opr_flags, opr);
       if (result == 0) {
+        parse_error(info, "illegal operand");
         info->p = before;
-        return;  // Error
+        return false;  // Error
       }
 
       for (int j = 0; j < n; ++j) {
@@ -708,42 +693,6 @@ void parse_inst(ParseInfo *info, Line *line) {
     Inst *cloned = calloc_or_die(sizeof(inst));
     *cloned = inst;
     line->inst = cloned;
-  }
-}
-
-bool parse_line(Line *line, ParseInfo *info) {
-  memset(line, 0, sizeof(*line));
-  line->label = NULL;
-  line->inst = NULL;
-  line->dir = NODIRECTIVE;
-
-  const char *p = skip_whitespaces(info->rawline);
-  info->p = p;
-  const char *q = get_label_end(info);
-  const char *r = skip_whitespaces(q);
-  if (*r == ':') {
-    const Name *label = unquote_label(p, q);
-    if (label == NULL) {
-      parse_error(info, "Illegal label");
-    } else {
-      info->p = p;
-      line->label = label;
-      info->p = r + 1;
-    }
-  } else {
-    if (*p == '.') {
-      enum DirectiveType dir = find_directive(p + 1, q - p - 1);
-      if (dir == NODIRECTIVE) {
-        parse_error(info, "Unknown directive");
-        return false;
-      }
-      line->dir = dir;
-      info->p = r;
-    } else if (*p != '\0') {
-      info->p = p;
-      parse_inst(info, line);
-      check_line_end(info);
-    }
   }
   return true;
 }
@@ -841,7 +790,7 @@ static uint32_t parse_section_flag(ParseInfo *info) {
 }
 #endif
 
-void handle_directive(ParseInfo *info, enum DirectiveType dir) {
+static bool handle_directive(ParseInfo *info, enum DirectiveType dir) {
   SectionInfo *section = info->current_section;
   Vector *irs = section->irs;
 
@@ -852,7 +801,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
   case DT_STRING:
     {
       if (*info->p != '"')
-        parse_error(info, "`\"' expected");
+        return parse_error(info, "`\"' expected");
       ++info->p;
       const char *p = info->p;
       size_t len = unescape_string(info, NULL);
@@ -870,16 +819,14 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
     {
       const Name *name = parse_label(info);
       if (name == NULL)
-        parse_error(info, ".comm: label expected");
+        return parse_error(info, ".comm: label expected");
       info->p = skip_whitespaces(info->p);
       if (*info->p != ',')
-        parse_error(info, ".comm: `,' expected");
+        return parse_error(info, ".comm: `,' expected");
       info->p = skip_whitespaces(info->p + 1);
       int64_t size;
-      if (!immediate(&info->p, &size) || size <= 0) {
-        parse_error(info, ".comm: size expected");
-        return;
-      }
+      if (!immediate(&info->p, &size) || size <= 0)
+        return parse_error(info, ".comm: size expected");
 
       int64_t align = 0;
       if (*info->p == ',') {
@@ -891,8 +838,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
             align < 1
 #endif
         ) {
-          parse_error(info, ".comm: optional alignment expected");
-          return;
+          return parse_error(info, ".comm: optional alignment expected");
         }
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
         // p2align on macOS.
@@ -909,7 +855,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
 
       LabelInfo *label = add_label_table(info->label_table, name, section, true, false);
       if (label == NULL)
-        return;
+        return false;
       label->size = size;
       label->align = align;
       label->flag |= LF_COMM;
@@ -920,7 +866,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
     {
       int64_t num;
       if (!immediate(&info->p, &num))
-        parse_error(info, ".zero: number expected");
+        return parse_error(info, ".zero: number expected");
       vec_push(irs, new_ir_zero(num));
     }
     break;
@@ -941,7 +887,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
     {
       int64_t align;
       if (!immediate(&info->p, &align))
-        parse_error(info, ".align: number expected");
+        return parse_error(info, ".align: number expected");
       vec_push(irs, new_ir_align(align));
     }
     break;
@@ -949,7 +895,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
     {
       int64_t align;
       if (!immediate(&info->p, &align))
-        parse_error(info, ".align: number expected");
+        return parse_error(info, ".align: number expected");
       vec_push(irs, new_ir_align(1 << align));
     }
     break;
@@ -957,23 +903,20 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
   case DT_TYPE:
     {
       const Name *name = parse_label(info);
-      if (name == NULL) {
-        parse_error(info, ".type: label expected");
-        break;
-      }
-      if (*info->p != ',') {
-        parse_error(info, ".type: `,' expected");
-        break;
-      }
+      if (name == NULL)
+        return parse_error(info, ".type: label expected");
+      if (*info->p != ',')
+        return parse_error(info, ".type: `,' expected");
       info->p = skip_whitespaces(info->p + 1);
       enum LabelKind kind = LK_NONE;
       if (strcmp(info->p, "@function") == 0) {
         kind = LK_FUNC;
+        info->p += 9;
       } else if (strcmp(info->p, "@object") == 0) {
         kind = LK_OBJECT;
+        info->p += 7;
       } else {
-        parse_error(info, "illegal .type");
-        break;
+        return parse_error(info, "illegal .type");
       }
 
       LabelInfo *label = add_label_table(info->label_table, name, section, false, false);
@@ -989,10 +932,8 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
   case DT_QUAD:
     {
       Expr *expr = parse_expr(info);
-      if (expr == NULL) {
-        parse_error(info, "expression expected");
-        break;
-      }
+      if (expr == NULL)
+        return parse_error(info, "expression expected");
 
       assert(expr->kind != EX_FLONUM);
       if (expr->kind == EX_FIXNUM) {
@@ -1014,10 +955,8 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
   case DT_DOUBLE:
     {
       Expr *expr = parse_expr(info);
-      if (expr == NULL) {
-        parse_error(info, "expression expected");
-        break;
-      }
+      if (expr == NULL)
+        return parse_error(info, "expression expected");
 
       Flonum value;
       switch (expr->kind) {
@@ -1055,8 +994,7 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
       if (name == NULL) {
         char buf[32];
         snprintf(buf, sizeof(buf), "%s: label expected", dir == DT_GLOBL ? ".globl" : ".local");
-        parse_error(info, buf);
-        return;
+        return parse_error(info, buf);
       }
 
       LabelInfo *label = add_label_table(info->label_table, name, section, false, dir == DT_GLOBL);
@@ -1072,10 +1010,8 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
   case DT_SECTION:
     {
       const Name *name = parse_section_name(info);
-      if (name == NULL) {
-        parse_error(info, ".section: section name expected");
-        return;
-      }
+      if (name == NULL)
+        return parse_error(info, ".section: section name expected");
 #if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
       int flag = 0;
       const char *p = skip_whitespaces(info->p);
@@ -1088,16 +1024,12 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
       set_current_section(info, sectname, kSegRodata, flag);
 #else
       const char *p = skip_whitespaces(info->p);
-      if (*p != ',') {
-        parse_error(info, "`,' expected");
-        return;
-      }
+      if (*p != ',')
+        return parse_error(info, "`,' expected");
       info->p = skip_whitespaces(p + 1);
       const Name *name2 = parse_section_name(info);
-      if (name2 == NULL) {
-        parse_error(info, ".section: section name expected");
-        return;
-      }
+      if (name2 == NULL)
+        return parse_error(info, ".section: section name expected");
 
       int flag = 0;
       p = skip_whitespaces(info->p);
@@ -1111,10 +1043,8 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
             flag |= SF_CSTRLITERALS;
           }
         }
-        if (flag == 0) {
-          parse_error(info, ".section: section name expected");
-          return;
-        }
+        if (flag == 0)
+          return parse_error(info, ".section: section name expected");
       }
 
       char *segname = strndup(name->chars, name->bytes);
@@ -1133,6 +1063,43 @@ void handle_directive(ParseInfo *info, enum DirectiveType dir) {
     break;
 #endif
   }
+
+  return true;
+}
+
+bool parse_line(Line *line, ParseInfo *info) {
+  memset(line, 0, sizeof(*line));
+  line->label = NULL;
+  line->inst = NULL;
+  line->dir = NODIRECTIVE;
+
+  const char *p = skip_whitespaces(info->p);
+  info->p = p;
+  const char *q = get_label_end(info);
+  const char *r = skip_whitespaces(q);
+  if (*r == ':') {
+    const Name *label = unquote_label(p, q);
+    if (label == NULL)
+      return parse_error(info, "Illegal label");
+    line->label = label;
+    info->p = p = skip_whitespaces(r + 1);
+  } else if (*p == '.') {
+    enum DirectiveType dir = find_directive(p + 1, q - p - 1);
+    if (dir == NODIRECTIVE) {
+      parse_error(info, "Unknown directive");
+      return false;
+    }
+    line->dir = dir;
+    info->p = r;
+    return handle_directive(info, dir);
+  }
+
+  if (*p != '\0') {
+    info->p = p;
+    if (!parse_inst(info, line))
+      return false;
+  }
+  return true;
 }
 
 Value calc_expr(Table *label_table, const Expr *expr) {

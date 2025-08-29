@@ -47,10 +47,11 @@ RegAlloc *curra;
 // Intermediate Representation
 
 static IR *new_ir(enum IrKind kind) {
-  IR *ir = malloc_or_die(sizeof(*ir));
+  IR *ir = calloc_or_die(sizeof(*ir));
   ir->kind = kind;
   ir->flag = 0;
   ir->dst = ir->opr1 = ir->opr2 = NULL;
+  ir->additional_operands = NULL;
   if (curbb != NULL)
     vec_push(curbb->irs, ir);
   return ir;
@@ -361,9 +362,10 @@ IR *new_ir_keep(VReg *dst, VReg *opr1, VReg *opr2) {
   return ir;
 }
 
-void new_ir_asm(const char *asm_, VReg *dst) {
+void new_ir_asm(Vector *templates, VReg *dst, Vector *registers) {
   IR *ir = new_ir(IR_ASM);
-  ir->asm_.str = asm_;
+  ir->asm_.templates = templates;
+  ir->additional_operands = registers;
   ir->dst = dst;
 }
 
@@ -514,8 +516,13 @@ void analyze_reg_flow(BBContainer *bbcon) {
     for (int j = 0; j < irs->len; ++j) {
       IR *ir = irs->data[j];
       VReg *vregs[] = {ir->opr1, ir->opr2};
-      for (int k = 0; k < 2; ++k) {
-        VReg *vreg = vregs[k];
+      const int N = ARRAY_SIZE(vregs);
+      int n = N;
+      Vector *additional = ir->additional_operands;
+      if (additional != NULL)
+        n += additional->len;
+      for (int k = 0; k < n; ++k) {
+        VReg *vreg = k < N ? vregs[k] : additional->data[k - N];
         if (vreg == NULL || vreg->flag & VRF_CONST)
           continue;
         if (!vec_contains(assigned_regs, vreg))

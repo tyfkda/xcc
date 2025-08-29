@@ -29,6 +29,7 @@ enum RawOpcode {
   R_BEQ, R_BNE, R_BHS, R_BLO, R_BMI, R_BPL, R_BVS, R_BVC,
   R_BHI, R_BLS, R_BGE, R_BLT, R_BGT, R_BLE, R_BAL, R_BNV,
   R_CBZ, R_CBNZ,
+  R_CLZ, R_RBIT,
   R_BL, R_BLR,
   R_RET,
   R_SVC,
@@ -59,6 +60,7 @@ const char *kRawOpTable[] = {
   "beq", "bne", "bhs", "blo", "bmi", "bpl", "bvs", "bvc",
   "bhi", "bls", "bge", "blt", "bgt", "ble", "bal", "bnv",
   "cbz", "cbnz",
+  "clz", "rbit",
   "bl", "blr",
   "ret",
   "svc",
@@ -466,7 +468,7 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
     }
   }
 
-  if (opr_flag & (R32 | R64 | F32 | F64)) {
+  if (opr_flag & (R32 | R64 | RSP | F32 | F64)) {
     enum RegType reg = find_register(&info->p, opr_flag);
     if (reg != NOREG) {
       enum RegSize size;
@@ -501,7 +503,7 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
       operand->reg.size = size;
       operand->reg.no = no;
       operand->reg.sp = reg == SP;
-      return result;
+      return result & opr_flag;
     }
   }
 
@@ -668,6 +670,14 @@ const ParseInstTable kParseInstTable[] = {
   [R_BNV] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BNV, {EXP}} } },
   [R_CBZ] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CBZ, {R32 | R64, EXP}} } },
   [R_CBNZ] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){CBNZ, {R32 | R64, EXP}} } },
+  [R_CLZ] = { 2, (const ParseOpArray*[]){
+    &(ParseOpArray){CLZ, {R32, R32}},
+    &(ParseOpArray){CLZ, {R64, R64}},
+  } },
+  [R_RBIT] = { 2, (const ParseOpArray*[]){
+    &(ParseOpArray){RBIT, {R32, R32}},
+    &(ParseOpArray){RBIT, {R64, R64}},
+  } },
   [R_BL] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BL, {EXP}} } },
   [R_BLR] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){BLR, {R64}} } },
   [R_RET] = { 1, (const ParseOpArray*[]){ &(ParseOpArray){RET} } },

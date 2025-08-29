@@ -91,6 +91,10 @@ char *mangle(char *label) {
 #endif
 }
 
+void emit_asm_raw(const char *str) {
+  fputs(str, emit_fp);
+}
+
 void emit_asm0(const char *op) {
   fprintf(emit_fp, "\t%s\n", op);
 }
@@ -357,9 +361,10 @@ bool is_weak_attr(Table *attributes) {
   return attributes != NULL && table_try_get(attributes, alloc_name("weak", NULL, false), NULL);
 }
 
-static void emit_asm(Expr *asmstr) {
-  assert(asmstr->kind == EX_STR);
-  EMIT_ASM(asmstr->str.buf);
+static void emit_asm(const Asm *asm_) {
+  assert(asm_->templates->len == 1);
+  const char *str = asm_->templates->data[0];
+  EMIT_ASM(str);
 }
 
 void emit_bb_irs(BBContainer *bbcon) {
@@ -534,7 +539,7 @@ void emit_code(Vector *decls) {
       emit_defun(decl->defun.func);
       break;
     case DCL_ASM:
-      emit_asm(decl->asmstr);
+      emit_asm(decl->asm_.asm_);
       break;
     }
   }

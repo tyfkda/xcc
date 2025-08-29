@@ -217,6 +217,12 @@ static unsigned char *asm_2r(Inst *inst, Code *code) {
   case SNEZ:   P_SNEZ(rd, rs); break;
   case SLTZ:   P_SLTZ(rd, rs); break;
   case SGTZ:   P_SGTZ(rd, rs); break;
+  case CLZ:    W_CLZ(rd, rs); break;
+  case CLZW:   W_CLZW(rd, rs); break;
+  case CTZ:    W_CTZ(rd, rs); break;
+  case CTZW:   W_CTZW(rd, rs); break;
+  case CPOP:   W_CPOP(rd, rs); break;
+  case CPOPW:  W_CPOPW(rd, rs); break;
   default: assert(false); return NULL;
   }
   return code->buf;
@@ -638,6 +644,10 @@ static const AsmInstFunc table[] = {
   [CALL] = asm_call_d,
   [RET] = asm_ret,
   [ECALL] = asm_ecall,
+
+  [CLZ] = asm_2r, [CLZW] = asm_2r,
+  [CTZ] = asm_2r, [CTZW] = asm_2r,
+  [CPOP] = asm_2r, [CPOPW] = asm_2r,
 
   [FADD_D] = asm_3fr, [FSUB_D] = asm_3fr, [FMUL_D] = asm_3fr, [FDIV_D] = asm_3fr,
   [FADD_S] = asm_3fr, [FSUB_S] = asm_3fr, [FMUL_S] = asm_3fr, [FDIV_S] = asm_3fr,

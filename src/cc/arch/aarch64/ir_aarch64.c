@@ -964,14 +964,28 @@ static void ei_keep(IR *ir) {
 }
 
 static void ei_asm(IR *ir) {
-  EMIT_ASM(ir->asm_.str);
-  if (ir->dst != NULL) {
-    assert(!(ir->dst->flag & VRF_CONST));
-    int pow = ir->dst->vsize;
-    assert(0 <= pow && pow < 4);
-    const char **regs = kRegSizeTable[pow];
-    MOV(regs[ir->dst->phys], regs[GET_X0_INDEX()]);
+  Vector *templates = ir->asm_.templates;
+  Vector *registers = ir->additional_operands;
+  for (int i = 0, n = templates->len; i < n; i += 2) {
+    const char *str = templates->data[i];
+    emit_asm_raw(str);
+    if (i + 1 < n) {
+      uintptr_t index = (uintptr_t)templates->data[i + 1];
+      assert(index < (uintptr_t)registers->len);
+      VReg *value = registers->data[index];
+      assert(!(value->flag & VRF_FLONUM));  // TODO:
+      if (value->flag & VRF_CONST) {
+        emit_asm_raw(IM(value->fixnum));
+      } else {
+        assert(value->phys >= 0);
+        int pow = value->vsize;
+        assert(0 <= pow && pow < 4);
+        const char **regs = kRegSizeTable[pow];
+        emit_asm_raw(regs[value->phys]);
+      }
+    }
   }
+  emit_asm_raw("\n");
 }
 
 const EmitIrFunc kEmitIrFuncTable[] = {

@@ -16,7 +16,7 @@ static void proc_exit(int code) {
 #ifdef __NR_exit_group
   SYSCALL(__NR_exit_group);
 #endif
-  SYSCALL(__NR_exit);
+  SYSCALL(__NR_exit, "r"(code));
   for (;;)
     ;
 }

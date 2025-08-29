@@ -4,7 +4,7 @@
 #if defined(__NR_mkdir)
 int mkdir(const char *pathname, mode_t mode) {
   int ret;
-  SYSCALL_RET(__NR_mkdir, ret);
+  SYSCALL_RET(__NR_mkdir, ret, "r"(pathname), "r"(mode));
   SET_ERRNO(ret);
   return ret;
 }

@@ -156,7 +156,7 @@ static Token *stringize(const Vector *arg) {
     const Token *tok = arg->data[i];
     sb_append(&sb, tok->begin, tok->end);
   }
-  const char *str = sb_to_string(&sb);
+  char *str = sb_to_string(&sb);
   size_t len = strlen(str);
 
   sb_clear(&sb);

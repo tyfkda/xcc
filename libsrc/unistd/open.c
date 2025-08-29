@@ -5,7 +5,7 @@
 #if defined(__NR_open)
 int open(const char *fn, int flag, mode_t mode) {
   int ret;
-  SYSCALL_RET(__NR_open, ret);
+  SYSCALL_RET(__NR_open, ret, "r"(fn), "r"(flag), "r"(mode));
   SET_ERRNO(ret);
   return ret;
 }

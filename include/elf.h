@@ -107,6 +107,8 @@ typedef uint16_t Elf64_Section;
 #define SHT_HIPROC        (0x7fffffff)
 #define SHT_LOUSER        (0x80000000)
 
+#define SHT_RISCV_ATTRIBUTES  (SHT_LOPROC + 3)
+
 #define SHF_WRITE         (1 << 0)        /* Writable */
 #define SHF_ALLOC         (1 << 1)        /* Occupies memory during execution */
 #define SHF_EXECINSTR     (1 << 2)        /* Executable */

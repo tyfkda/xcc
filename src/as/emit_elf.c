@@ -13,6 +13,10 @@
 #include "table.h"
 #include "util.h"
 
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+bool isa_zbb = false;
+#endif
+
 typedef struct {
   Strtab strtab;
   Table indices;
@@ -360,6 +364,19 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
   uint64_t strtab_ofs = addr;
   addr += symtab.strtab.size;
 
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+  const char kRiscvAttributesArch[] = "riscv";
+  static const char *kRiscvAttributes[] = {
+    "rv64i2p1_m2p0_a2p1_f2p2_d2p2_c2p0_zicsr2p0_zmmul1p0_zaamo1p0_zalrsc1p0",
+    "rv64i2p1_m2p0_a2p1_f2p2_d2p2_c2p0_zicsr2p0_zifencei2p0_zmmul1p0_zaamo1p0_zalrsc1p0_zbb1p0",
+  };
+  const char *riscv_attributes = kRiscvAttributes[isa_zbb];
+  const size_t riscv_attributes_str_size = strlen(riscv_attributes) + 1;  // Include '\0'
+  size_t riscv_attributes_total_size = 1 + 4 + sizeof(kRiscvAttributesArch) + 1 + 4 + 1 + riscv_attributes_str_size;
+  uint64_t riscv_attributes_ofs = addr;
+  addr += riscv_attributes_total_size;
+#endif
+
   // Section headers.
   Strtab shstrtab;
   strtab_init(&shstrtab);
@@ -371,6 +388,9 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
     SectionInfo *section = sections->data[sec];
     index += section->rela_count > 0;
   }
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+  ++index;  // For .riscv.attributes section.
+#endif
   Elf64_Word strtab_index = index++;
   Elf64_Word symtab_index = index;
   int shnum = index + 2;  // symtab, shstrtab
@@ -438,6 +458,17 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
     };
     data_append(&section_headers, &shdr, sizeof(shdr));
   }
+
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+  Elf64_Shdr riscv_attributes_sec = {
+    .sh_name = strtab_add(&shstrtab, alloc_name(".riscv.attributes", NULL, false)),
+    .sh_type = SHT_RISCV_ATTRIBUTES,
+    .sh_offset = riscv_attributes_ofs,
+    .sh_size = riscv_attributes_total_size,
+    .sh_addralign = 1,
+  };
+  data_append(&section_headers, &riscv_attributes_sec, sizeof(riscv_attributes_sec));
+#endif
 
   Elf64_Shdr strtabsec = {
     .sh_name = strtab_add(&shstrtab, alloc_name(".strtab", NULL, false)),
@@ -518,6 +549,23 @@ int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table, Vector *
   put_padding(ofp, symtab_ofs);
   fwrite(symtab.buf, sizeof(*symtab.buf), symtab.count, ofp);
   fwrite(strtab_dump(&symtab.strtab), symtab.strtab.size, 1, ofp);
+
+#if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+  const unsigned char RISCV_ATTRIBUTES_MAGIC = 0x41;
+  fputc(RISCV_ATTRIBUTES_MAGIC, ofp);
+  {
+    uint32_t total_size = riscv_attributes_total_size - 1;
+    fwrite(&total_size, sizeof(total_size), 1, ofp);  // TODO: Ensure little endian.
+  }
+  fwrite(kRiscvAttributesArch, sizeof(kRiscvAttributesArch), 1, ofp);
+  fputc(0x01, ofp);  // ?
+  {
+    uint32_t size = 1 + 4 + 1 + riscv_attributes_str_size;
+    fwrite(&size, sizeof(size), 1, ofp);  // TODO: Ensure little endian.
+  }
+  fputc(0x05, ofp);  // ?
+  fwrite(riscv_attributes, riscv_attributes_str_size, 1, ofp);  // Output last '\0'.
+#endif
 
   assert(ofp == stdout || ftell(ofp) == (long)shstrtab_ofs);
   fwrite(strtab_dump(&shstrtab), shstrtab.size, 1, ofp);

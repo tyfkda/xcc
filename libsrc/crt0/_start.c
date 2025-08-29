@@ -37,23 +37,26 @@ static void start2(int argc, char *argv[], char *env[]) {
 void _start(void) {
   (void)start2;  // Avoid warning: unused function 'start2'
 #if defined(__x86_64__)
-  __asm("mov (%rsp), %rdi\n"
-        "lea 8(%rsp), %rsi\n"
-        "lea 8(%rsi, %rdi, 8), %rdx\n"
-        "jmp start2");
+  __asm volatile(
+      "mov (%rsp), %rdi\n"
+      "lea 8(%rsp), %rsi\n"
+      "lea 8(%rsi, %rdi, 8), %rdx\n"
+      "jmp start2");
 #elif defined(__aarch64__)
-  __asm("ldr x0, [sp]\n"
-        "add x1, sp, #8\n"
-        "add x2, x1, #8\n"
-        "add x2, x2, x0, lsl #3\n"
-        "b start2");
+  __asm volatile(
+      "ldr x0, [sp]\n"
+      "add x1, sp, #8\n"
+      "add x2, x1, #8\n"
+      "add x2, x2, x0, lsl #3\n"
+      "b start2");
 #elif defined(__riscv)
-  __asm("lw a0, 0(sp)\n"  // argc
-        "addi a1, sp, 8\n"  // argv
-        "slli a2, a0, 3\n"
-        "addi a2, a2, 8\n"
-        "add  a2, a2, a1\n"  // envp
-        "j start2\n");
+  __asm volatile(
+      "lw a0, 0(sp)\n"  // argc
+      "addi a1, sp, 8\n"  // argv
+      "slli a2, a0, 3\n"
+      "addi a2, a2, 8\n"
+      "add  a2, a2, a1\n"  // envp
+      "j start2\n");
 #else
 #error unknown target
 #endif

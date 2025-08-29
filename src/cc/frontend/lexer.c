@@ -53,6 +53,7 @@ static const struct {
   {"_Alignof", TK_ALIGNOF},
   {"typedef", TK_TYPEDEF},
   {"__asm", TK_ASM},
+  {"__asm__", TK_ASM},
 #ifndef __NO_FLONUM
   {"float", TK_FLOAT},
   {"double", TK_DOUBLE},
@@ -246,7 +247,7 @@ void set_source_file(FILE *fp, const char *filename) {
 
 void set_source_string(const char *line, const char *filename, int lineno) {
   Line *p = malloc_or_die(sizeof(*p));
-  p->filename = lexer.filename;
+  p->filename = filename;
   p->buf = line;
   p->lineno = lineno;
 

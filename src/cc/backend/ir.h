@@ -33,8 +33,9 @@ enum VRegSize {
 #define VRF_NO_SPILL     (1 << 6)  // No Spill
 #define VRF_UNUSED       (1 << 7)  // Unused
 #define VRF_VOLATILE     (1 << 8)  // Volatile
+#define VRF_VOLATILEREG  (1 << 9)  // Volatile, but register
 
-#define VRF_MASK         (VRF_FLONUM | VRF_VOLATILE)
+#define VRF_MASK         (VRF_FLONUM)
 #define VRF_FORCEMEMORY  (VRF_REF | VRF_SPILLED | VRF_VOLATILE)
 
 typedef struct VReg {
@@ -147,6 +148,7 @@ typedef struct IR {
   VReg *dst;
   VReg *opr1;
   VReg *opr2;
+  Vector *additional_operands;  // <VReg*>
 
   union {
     struct {
@@ -181,7 +183,7 @@ typedef struct IR {
     } pusharg;
     IrCallInfo *call;
     struct {
-      const char *str;
+      Vector *templates;  // [const char*, (intptr_t)register-index, ...]
     } asm_;
   };
 } IR;
@@ -216,7 +218,7 @@ void new_ir_result(VReg *vreg, int flag);
 void new_ir_subsp(VReg *value, VReg *dst);
 IR *new_ir_cast(VReg *vreg, bool src_unsigned, enum VRegSize dstsize, int vflag);
 IR *new_ir_keep(VReg *dst, VReg *opr1, VReg *opr2);
-void new_ir_asm(const char *asm_, VReg *dst);
+void new_ir_asm(Vector *templates, VReg *dst, Vector *registers);
 
 IR *new_ir_load_spilled(VReg *vreg, VReg *src, int flag);
 IR *new_ir_store_spilled(VReg *dst, VReg *vreg);

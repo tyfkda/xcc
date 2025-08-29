@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <inttypes.h>  // PRId64
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "ast.h"
@@ -26,7 +27,7 @@ Token *consume(enum TokenKind kind, const char *error) {
   return tok;
 }
 
-extern inline void add_func_label(const Token *tok, Stmt *label) {
+static inline void add_func_label(const Token *tok, Stmt *label) {
   assert(curfunc != NULL);
   Table *table = curfunc->label_table;
   if (table == NULL) {
@@ -36,14 +37,14 @@ extern inline void add_func_label(const Token *tok, Stmt *label) {
     parse_error(PE_NOFATAL, tok, "Label `%.*s' already defined", NAMES(tok->ident));
 }
 
-extern inline void add_func_goto(Stmt *stmt) {
+static inline void add_func_goto(Stmt *stmt) {
   assert(curfunc != NULL);
   if (curfunc->gotos == NULL)
     curfunc->gotos = new_vector();
   vec_push(curfunc->gotos, stmt);
 }
 
-extern inline void check_goto_labels(Function *func) {
+static inline void check_goto_labels(Function *func) {
   Table *label_table = func->label_table;
 
   // Check whether goto label exist.
@@ -357,7 +358,7 @@ static Stmt *parse_switch(const Token *tok) {
   return stmt;
 }
 
-extern inline int find_case(Stmt *swtch, Fixnum v) {
+static inline int find_case(Stmt *swtch, Fixnum v) {
   Vector *cases = swtch->switch_.cases;
   for (int i = 0, len = cases->len; i < len; ++i) {
     Stmt *c = cases->data[i];
@@ -508,7 +509,7 @@ static Stmt *parse_for(const Token *tok) {
   return new_stmt_block(tok, stmts, scope, NULL);
 }
 
-extern inline Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
+static inline Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
   consume(TK_SEMICOL, "`;' expected");
   Stmt *parent = kind == ST_BREAK ? loop_scope.break_ : loop_scope.continu;
   if (parent == NULL) {
@@ -521,7 +522,7 @@ extern inline Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
   return stmt;
 }
 
-extern inline Stmt *parse_goto(const Token *tok) {
+static inline Stmt *parse_goto(const Token *tok) {
   Token *label = consume(TK_IDENT, "label for goto expected");
   consume(TK_SEMICOL, "`;' expected");
 
@@ -572,33 +573,97 @@ static Stmt *parse_return(const Token *tok) {
   return new_stmt_return(tok, val);
 }
 
-extern inline Expr *parse_asm_arg(void) {
-  /*const Token *str =*/ consume(TK_STR, "string literal expected");
-  consume(TK_LPAR, "`(' expected");
-  Expr *var = parse_expr();
-  if (var == NULL || var->kind != EX_VAR) {
-    parse_error(PE_FATAL, var != NULL ? var->token : NULL, "string literal expected");
+static Vector *parse_asm_arg(void) {
+  const Token *constraint = match(TK_STR);
+  if (constraint == NULL)
+    return NULL;
+
+  Vector *result = new_vector();
+  for (;;) {
+    if (consume(TK_LPAR, "`(' expected")) {
+      Expr *expr = parse_assign();
+      consume(TK_RPAR, "`)' expected");
+
+      AsmArg *arg = calloc_or_die(sizeof(*arg));
+      arg->constraint = constraint;
+      arg->expr = expr;
+      mark_var_used(expr);
+      vec_push(result, arg);
+    }
+
+    if (!match(TK_COMMA))
+      break;
+
+    constraint = consume(TK_STR, "string literal expected");
   }
-  consume(TK_RPAR, "`)' expected");
-  return var;
+  return result;
 }
 
-extern inline Stmt *parse_asm(const Token *tok) {
+static Stmt *parse_asm(const Token *tok) {
+  int flag = 0;
+  if (match(TK_VOLATILE))
+    flag |= ASM_VOLATILE;
+
   consume(TK_LPAR, "`(' expected");
 
-  Expr *str = parse_expr();
+  Expr *str = parse_assign();
   if (str == NULL || str->kind != EX_STR) {
     parse_error(PE_FATAL, str != NULL ? str->token : NULL, "`__asm' expected string literal");
   }
 
-  Expr *arg = NULL;
+  Vector *outputs = NULL, *inputs = NULL;
   if (match(TK_COLON)) {
-    arg = parse_asm_arg();
+    outputs = parse_asm_arg();
+    if (match(TK_COLON)) {
+      inputs = parse_asm_arg();
+    }
   }
 
   consume(TK_RPAR, "`)' expected");
   consume(TK_SEMICOL, "`;' expected");
-  return new_stmt_asm(tok, str, arg);
+
+  Vector *templates = new_vector();
+  unsigned long param_count = 0;
+  if (outputs != NULL)
+    param_count += outputs->len;
+  if (inputs != NULL)
+    param_count += inputs->len;
+  {
+    char *buf = str->str.buf;  // Buffer will be modified.
+    size_t len = str->str.len;
+    char *top = buf, *p = top;
+    for (;;) {
+      char *q = strchr(p, '%');
+      if (q == NULL) {
+        if (*top != '\0')
+          vec_push(templates, top);
+        break;
+      }
+
+      ++q;
+      if (*q == '%') {  // %% => %
+        memmove(q, q + 1, len - (q - top - 1));
+        p = q;
+      } else {
+        char *r;
+        unsigned long index = strtoul(q, &r, 10);
+        if (r > q) {  // Number:
+          if (index >= param_count) {
+            parse_error(PE_FATAL, str->token, "Invalid index");
+          }
+          q[-1] = '\0';
+          vec_push(templates, top);
+          vec_push(templates, (void*)(uintptr_t)index);
+          len -= r - top;
+          top = p = r;
+        } else {  // Non-template: ignored.
+          p = q;
+        }
+      }
+    }
+  }
+
+  return new_stmt_asm(tok, templates, outputs, inputs, flag);
 }
 
 static Vector *parse_stmts(const Token **prbrace) {
@@ -985,9 +1050,7 @@ static Declaration *parse_declaration(Vector *decls) {
   Token *tok;
   if ((tok = match(TK_ASM)) != NULL) {
     Stmt *asm_ = parse_asm(tok);
-    if (asm_->asm_.arg != NULL)
-      parse_error(PE_NOFATAL, asm_->token, "no argument required");
-    return new_decl_asm(asm_->asm_.str);
+    return new_decl_asm(tok, &asm_->asm_);
   }
 
   Table *attributes = parse_attributes(NULL);
