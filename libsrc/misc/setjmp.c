@@ -30,7 +30,9 @@ int setjmp(jmp_buf env) {
       "mov %r14, 48(%rdi)\n"
       "mov %r15, 56(%rdi)\n"
       SAVE_FREGS
-      "xor %eax, %eax");
+      "xor %eax, %eax"
+      : /* no output */
+      : "r"(env));
 }
 #elif defined(__aarch64__)
 int setjmp(jmp_buf env) {
@@ -53,7 +55,9 @@ int setjmp(jmp_buf env) {
       "stp x26, x27, [x0, #80]\n"
       "str x28, [x0, #96]\n"  // x29 is already saved (fp).
       SAVE_FREGS
-      "mov w0, wzr");
+      "mov w0, wzr"
+      : /* no output */
+      : "r"(env));
 }
 #elif defined(__riscv)
 int setjmp(jmp_buf env) {
@@ -90,7 +94,9 @@ int setjmp(jmp_buf env) {
       "sd s10, 96(a0)\n"
       "sd s11, 104(a0)\n"
       SAVE_FREGS
-      "li a0, 0\n");
+      "li a0, 0\n"
+      : /* no output */
+      : "r"(env));
 }
 #endif
 #endif

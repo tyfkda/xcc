@@ -272,34 +272,24 @@ static void gen_clear(const Type *type, VReg *dst) {
 }
 
 static inline void gen_asm(Stmt *stmt) {
-  assert(stmt->asm_.str->kind == EX_STR);
-  VReg *result = NULL;
-  const char *str = stmt->asm_.str->str.buf;
-  if (stmt->asm_.arg != NULL) {
-    assert(stmt->asm_.arg->kind == EX_VAR);
-    result = gen_expr(stmt->asm_.arg);
-
-    // In gcc, `%' is handled only if `__asm' takes parameters.
-    // Otherwise, `%' is not handled.
-
-    // TODO: Embed parameters.
-    //   Here, just escape %.
-    if (strchr(str, '%') != NULL) {
-      size_t len = strlen(str + 1);
-      char *buf = malloc_or_die(len);
-      char *dst = buf;
-      for (const char *src = str;;) {
-        char c = *src++;
-        if (c == '%')
-          c = *src++;
-        *dst++ = c;
-        if (c == '\0')
-          break;
-      }
-      str = buf;
+  VReg *output = NULL;
+  Vector *registers = new_vector();
+  if (stmt->asm_.outputs != NULL) {
+    assert(stmt->asm_.outputs->len == 1);  // TODO: Handle multiple outputs.
+    const AsmArg *arg = stmt->asm_.outputs->data[0];
+    assert(arg->expr->kind == EX_VAR);
+    output = gen_expr(arg->expr);
+    vec_push(registers, output);
+  }
+  if (stmt->asm_.inputs != NULL) {
+    for (int i = 0; i < stmt->asm_.inputs->len; ++i) {
+      const AsmArg *arg = stmt->asm_.inputs->data[i];
+      VReg *vreg = gen_expr(arg->expr);
+      vec_push(registers, vreg);
     }
   }
-  new_ir_asm(str, result);
+
+  new_ir_asm(stmt->asm_.templates, output, registers);
 }
 
 VReg *gen_stmts(Vector *stmts) {

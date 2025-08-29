@@ -4,7 +4,7 @@
 #if defined(__NR_pipe)
 int pipe(int *pipefd) {
   int ret;
-  SYSCALL_RET(__NR_pipe, ret);
+  SYSCALL_RET(__NR_pipe, ret, "r"(pipefd));
   SET_ERRNO(ret);
   return ret;
 }

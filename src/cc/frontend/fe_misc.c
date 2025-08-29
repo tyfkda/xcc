@@ -187,7 +187,7 @@ void define_enum_member(Type *type, const Token *ident, int value) {
   varinfo->enum_member.value = value;
 }
 
-Expr *string_expr(const Token *token, const char *str, ssize_t len, enum StrKind kind) {
+Expr *string_expr(const Token *token, char *str, ssize_t len, enum StrKind kind) {
   enum FixnumKind fxkind = FX_CHAR;
   bool is_unsigned = false;
 #ifndef __NO_WCHAR
@@ -211,7 +211,7 @@ Expr *proc_builtin_function_name(const Token *tok) {
   if (curfunc == NULL) {
     parse_error(PE_NOFATAL, tok, "must be inside function");
     static const char nulstr[] = "";
-    return string_expr(tok, nulstr, 0, STR_CHAR);
+    return string_expr(tok, strdup(nulstr), 0, STR_CHAR);
   }
 
   // Make nul-terminated function name.
@@ -1928,18 +1928,6 @@ static void check_unreachability(Stmt *stmt) {
 }
 
 void check_unused_variables(Function *func) {
-  assert(func->body_block != NULL);
-  assert(func->body_block->kind == ST_BLOCK);
-  Vector *stmts = func->body_block->block.stmts;
-  if (stmts->len > 0) {
-    // If __asm is used, variables might be used implicitly, so skip checking.
-    for (int i = 0; i < stmts->len; ++i) {
-      Stmt *stmt = stmts->data[i];
-      if (stmt->kind == ST_ASM)
-        return;
-    }
-  }
-
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     for (int j = 0; j < scope->vars->len; ++j) {
@@ -2281,6 +2269,20 @@ static Expr *duplicate_inline_function_expr(Function *targetfunc, Scope *targets
   return NULL;
 }
 
+static Vector *duplicate_inline_function_asm_args(Function *targetfunc, Scope *targetscope, Vector *srcs) {
+  if (srcs == NULL)
+    return NULL;
+  Vector *dups = new_vector();
+  for (int i = 0; i < srcs->len; ++i) {
+    AsmArg *src = srcs->data[i];
+    AsmArg *dup = calloc_or_die(sizeof(*dup));
+    dup->constraint = src->constraint;
+    dup->expr = duplicate_inline_function_expr(targetfunc, targetscope, src->expr);
+    vec_push(dups, dup);
+  }
+  return dups;
+}
+
 static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
   if (stmt == NULL)
     return NULL;
@@ -2453,7 +2455,15 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
       decl->init_stmt = duplicate_inline_function_stmt(targetfunc, targetscope, d->init_stmt);
       return new_stmt_vardecl(decl);
     }
-  case ST_EMPTY: case ST_GOTO: case ST_ASM:
+  case ST_ASM:
+    {
+      Vector *outputs = duplicate_inline_function_asm_args(targetfunc, targetscope, stmt->asm_.outputs);
+      Vector *inputs = duplicate_inline_function_asm_args(targetfunc, targetscope, stmt->asm_.inputs);
+      Stmt *dup = new_stmt_asm(stmt->token, stmt->asm_.templates, outputs, inputs, stmt->asm_.flag);
+      return dup;
+    }
+    break;
+  case ST_EMPTY: case ST_GOTO:
     return stmt;
   }
   return NULL;

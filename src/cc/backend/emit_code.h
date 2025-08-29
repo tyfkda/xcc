@@ -35,6 +35,7 @@ char *mangle(char *label);
 
 void init_emit(FILE *fp);
 void emit_label(const char *label);
+void emit_asm_raw(const char *op);
 void emit_asm0(const char *op);
 void emit_asm1(const char *op, const char *a1);
 void emit_asm2(const char *op, const char *a1, const char *a2);

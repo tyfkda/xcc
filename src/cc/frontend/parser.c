@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <inttypes.h>  // PRId64
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "ast.h"
@@ -572,15 +573,30 @@ static Stmt *parse_return(const Token *tok) {
   return new_stmt_return(tok, val);
 }
 
-static inline Expr *parse_asm_arg(void) {
-  /*const Token *str =*/ consume(TK_STR, "string literal expected");
-  consume(TK_LPAR, "`(' expected");
-  Expr *var = parse_expr();
-  if (var == NULL || var->kind != EX_VAR) {
-    parse_error(PE_FATAL, var != NULL ? var->token : NULL, "string literal expected");
+static Vector *parse_asm_arg(void) {
+  const Token *constraint = match(TK_STR);
+  if (constraint == NULL)
+    return NULL;
+
+  Vector *result = new_vector();
+  for (;;) {
+    if (consume(TK_LPAR, "`(' expected")) {
+      Expr *expr = parse_assign();
+      consume(TK_RPAR, "`)' expected");
+
+      AsmArg *arg = calloc_or_die(sizeof(*arg));
+      arg->constraint = constraint;
+      arg->expr = expr;
+      mark_var_used(expr);
+      vec_push(result, arg);
+    }
+
+    if (!match(TK_COMMA))
+      break;
+
+    constraint = consume(TK_STR, "string literal expected");
   }
-  consume(TK_RPAR, "`)' expected");
-  return var;
+  return result;
 }
 
 static Stmt *parse_asm(const Token *tok) {
@@ -590,19 +606,64 @@ static Stmt *parse_asm(const Token *tok) {
 
   consume(TK_LPAR, "`(' expected");
 
-  Expr *str = parse_expr();
+  Expr *str = parse_assign();
   if (str == NULL || str->kind != EX_STR) {
     parse_error(PE_FATAL, str != NULL ? str->token : NULL, "`__asm' expected string literal");
   }
 
-  Expr *arg = NULL;
+  Vector *outputs = NULL, *inputs = NULL;
   if (match(TK_COLON)) {
-    arg = parse_asm_arg();
+    outputs = parse_asm_arg();
+    if (match(TK_COLON)) {
+      inputs = parse_asm_arg();
+    }
   }
 
   consume(TK_RPAR, "`)' expected");
   consume(TK_SEMICOL, "`;' expected");
-  return new_stmt_asm(tok, str, arg, flag);
+
+  Vector *templates = new_vector();
+  unsigned long param_count = 0;
+  if (outputs != NULL)
+    param_count += outputs->len;
+  if (inputs != NULL)
+    param_count += inputs->len;
+  {
+    char *buf = str->str.buf;  // Buffer will be modified.
+    size_t len = str->str.len;
+    char *top = buf, *p = top;
+    for (;;) {
+      char *q = strchr(p, '%');
+      if (q == NULL) {
+        if (*top != '\0')
+          vec_push(templates, top);
+        break;
+      }
+
+      ++q;
+      if (*q == '%') {  // %% => %
+        memmove(q, q + 1, len - (q - top - 1));
+        p = q;
+      } else {
+        char *r;
+        unsigned long index = strtoul(q, &r, 10);
+        if (r > q) {  // Number:
+          if (index >= param_count) {
+            parse_error(PE_FATAL, str->token, "Invalid index");
+          }
+          q[-1] = '\0';
+          vec_push(templates, top);
+          vec_push(templates, (void*)(uintptr_t)index);
+          len -= r - top;
+          top = p = r;
+        } else {  // Non-template: ignored.
+          p = q;
+        }
+      }
+    }
+  }
+
+  return new_stmt_asm(tok, templates, outputs, inputs, flag);
 }
 
 static Vector *parse_stmts(const Token **prbrace) {
@@ -989,9 +1050,7 @@ static Declaration *parse_declaration(Vector *decls) {
   Token *tok;
   if ((tok = match(TK_ASM)) != NULL) {
     Stmt *asm_ = parse_asm(tok);
-    if (asm_->asm_.arg != NULL)
-      parse_error(PE_NOFATAL, asm_->token, "no argument required");
-    return new_decl_asm(asm_->asm_.str);
+    return new_decl_asm(tok, &asm_->asm_);
   }
 
   Table *attributes = parse_attributes(NULL);

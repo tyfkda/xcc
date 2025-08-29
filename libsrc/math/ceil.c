@@ -9,6 +9,7 @@ double ceil(double x) {
 #define S_(x)  #x
 #define OP_LOCAL_GET      32   // 0x20
 #define OP_F64_CEIL       155  // 0x9b
+  (void)x;
   __asm volatile(
       S(OP_LOCAL_GET) ",0,"  // local.get 0
       S(OP_F64_CEIL));       // f64.ceil

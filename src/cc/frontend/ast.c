@@ -306,10 +306,11 @@ Stmt *new_stmt_vardecl(VarDecl *vardecl) {
   return stmt;
 }
 
-Stmt *new_stmt_asm(const Token *token, Expr *str, Expr *arg, int flag) {
+Stmt *new_stmt_asm(const Token *token, Vector *templates, Vector *outputs, Vector *inputs, int flag) {
   Stmt *stmt = new_stmt(ST_ASM, token);
-  stmt->asm_.str = str;
-  stmt->asm_.arg = arg;
+  stmt->asm_.templates = templates;
+  stmt->asm_.outputs = outputs;
+  stmt->asm_.inputs = inputs;
   stmt->asm_.flag = flag;
   return stmt;
 }
@@ -328,9 +329,10 @@ Declaration *new_decl_defun(Function *func) {
   return decl;
 }
 
-Declaration *new_decl_asm(Expr *str) {
+Declaration *new_decl_asm(const Token *token, Asm *asm_) {
   Declaration *decl = new_decl(DCL_ASM);
-  decl->asmstr = str;
+  decl->asm_.token = token;
+  decl->asm_.asm_ = asm_;
   return decl;
 }
 

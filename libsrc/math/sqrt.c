@@ -7,15 +7,16 @@ double sqrt(double x) {
 #define S_(x)  #x
 #define OP_LOCAL_GET      32   // 0x20
 #define OP_F64_SQRT       159  // 0x9f
+  (void)x;
   __asm volatile(
       S(OP_LOCAL_GET) ",0,"  // local.get 0
       S(OP_F64_SQRT));       // f64.sqrt
 #elif defined(__x86_64__) && !defined(__GNUC__)
-  __asm volatile("sqrtsd %xmm0, %xmm0");
+  __asm volatile("sqrtsd %xmm0, %xmm0" : : "r"(x));
 #elif defined(__aarch64__) && !defined(__GNUC__)
-  __asm volatile("fsqrt d0, d0");
+  __asm volatile("fsqrt d0, d0" : : "r"(x));
 #elif defined(__riscv) && !defined(__GNUC__)
-  __asm volatile("fsqrt.d fa0, fa0");
+  __asm volatile("fsqrt.d fa0, fa0" : : "r"(x));
 #else
   if (x < 0)
     return NAN;

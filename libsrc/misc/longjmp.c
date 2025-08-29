@@ -34,7 +34,9 @@ void longjmp(jmp_buf env, int result) {
       "test %eax, %eax\n"
       "jne L.longjmp_0\n"
       "mov $1, %eax\n"
-      "L.longjmp_0:");
+      "L.longjmp_0:"
+      : /* no output */
+      : "r"(env), "r"(result));
 }
 #elif defined(__aarch64__)
 void longjmp(jmp_buf env, int result) {
@@ -61,7 +63,9 @@ void longjmp(jmp_buf env, int result) {
       "cmp w0, wzr\n"
       "bne L.longjmp_0\n"
       "mov w0, #1\n"
-      "L.longjmp_0:");
+      "L.longjmp_0:"
+      : /* no output */
+      : "r"(env), "r"(result));
 }
 #elif defined(__riscv)
 void longjmp(jmp_buf env, int result) {
@@ -101,7 +105,9 @@ void longjmp(jmp_buf env, int result) {
       "mv a0, a1\n"
       "bne a0, zero, L.longjmp_0\n"
       "li a0, 1\n"
-      "L.longjmp_0:");
+      "L.longjmp_0:"
+      : /* no output*/
+      : "r"(env), "r"(result));
 }
 #endif
 #endif

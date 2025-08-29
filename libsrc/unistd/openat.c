@@ -9,7 +9,7 @@ int openat(int dirfd, const char *fn, int flag, mode_t mode) {
 #if defined(__x86_64__)
   SYSCALL_ARGCOUNT(4);
 #endif
-  SYSCALL_RET(__NR_openat, ret);
+  SYSCALL_RET(__NR_openat, ret, "r"(dirfd), "r"(fn), "r"(flag), "r"(mode));
   SET_ERRNO(ret);
   return ret;
 }

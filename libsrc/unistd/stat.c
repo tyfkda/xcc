@@ -4,7 +4,7 @@
 #if defined(__NR_stat)
 int stat(const char *pathname, struct stat *buf) {
   int ret;
-  SYSCALL_RET(__NR_stat, ret);
+  SYSCALL_RET(__NR_stat, ret, "r"(pathname), "r"(buf));
   SET_ERRNO(ret);
   return ret;
 }

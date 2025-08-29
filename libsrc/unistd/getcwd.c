@@ -11,7 +11,7 @@ extern int _getcwd(char *, size_t);
 
 static int _getcwd(char *buffer, size_t size) {
   int ret;
-  SYSCALL_RET(__NR_getcwd, ret);
+  SYSCALL_RET(__NR_getcwd, ret, "r"(buffer), "r"(size));
   SET_ERRNO(ret);
   return ret;
 }
