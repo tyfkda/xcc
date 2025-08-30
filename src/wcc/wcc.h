@@ -11,6 +11,7 @@ typedef struct Expr Expr;
 typedef struct Function Function;
 typedef struct Name Name;
 typedef struct Scope Scope;
+typedef struct Stmt Stmt;
 typedef struct Table Table;
 typedef struct Token Token;
 typedef struct Type Type;
@@ -84,6 +85,19 @@ typedef struct {
   uint32_t symbol_index;
 } TableInfo;
 
+// Local variable information for WASM
+struct VReg {
+  int32_t param_index;
+  union {
+    struct {  // Primitive(i32, i64, f32, f64)
+      uint32_t local_index;
+    } prim;
+    struct {  // Non-primitive
+      int32_t offset;  // for base pointer
+    } non_prim;
+  };
+};
+
 // traverse
 void traverse_ast(Vector *decls);
 
@@ -99,6 +113,30 @@ void modify_ast_for_setjmp(int n);
 void gen(Vector *decls);
 void gen_expr(Expr *expr, bool needval);
 void gen_expr_stmt(Expr *expr);
+void gen_lval(Expr *expr);
+void gen_store(const Type *type);
+void gen_set_to_var(Expr *var);
+void gen_cond(Expr *cond, bool tf, bool needval);
+unsigned char get_func_ret_wtype(const Type *rettype);
+void gen_clear_local_var(const VarInfo *varinfo);
+void gen_bpofs(int32_t offset);
+
+void gen_stmt(Stmt *stmt, bool is_last);
+void gen_stmts(Vector *stmts, bool is_last);
+
+#define CODE  (curcodeds)
+
+#define ADD_LEB128(x)  data_leb128(CODE, -1, x)
+#define ADD_ULEB128(x) data_uleb128(CODE, -1, x)
+#define ADD_VARINT32(x)   data_varint32(CODE, -1, x)
+#define ADD_VARUINT32(x)  data_varuint32(CODE, -1, x)
+
+// TODO: Endian.
+#define ADD_F32(x)     do { float f = (x); add_code((unsigned char*)&f, sizeof(f)); } while (0)
+#define ADD_F64(x)     do { double d = (x); add_code((unsigned char*)&d, sizeof(d)); } while (0)
+
+#define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
+void add_code(const unsigned char *buf, size_t size);
 
 enum BuiltinFunctionPhase {
   BFP_TRAVERSE,
@@ -108,8 +146,7 @@ typedef void (*BuiltinFunctionProc)(Expr *expr, enum BuiltinFunctionPhase phase)
 void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc,
                           bool add_to_scope);
 
-#define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
-void add_code(const unsigned char *buf, size_t size);
+// wcc_builtin
 
 void install_builtins(void);
 
