@@ -591,7 +591,7 @@ static inline void gen_funargs(Expr *expr, FuncallWork *work) {
   if (expr->type->kind == TY_STRUCT) {
     const Token *token = alloc_dummy_ident();
     Type *type = expr->type;
-    ret_varinfo = scope_add(curscope, token, type, 0);
+    ret_varinfo = scope_add(curscope, token, type, VS_USED);
     FrameInfo *fi = calloc_or_die(sizeof(*fi));
     fi->size = type_size(type);
     fi->offset = 0;

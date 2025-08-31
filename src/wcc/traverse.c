@@ -238,7 +238,7 @@ static void te_funcall(Expr **pexpr, bool needval) {
     assert(curfunc->scopes != NULL);
     assert(curfunc->scopes->len > 0);
     VarInfo *varinfo = add_var_to_scope(curfunc->scopes->data[0], alloc_dummy_ident(),
-                                        rettype, 0, false);
+                                        rettype, VS_USED, false);
     FuncallInfo *fcinfo = calloc_or_die(sizeof(*fcinfo));
     fcinfo->varinfo = varinfo;
     expr->funcall.fcinfo = fcinfo;
@@ -274,7 +274,7 @@ static void te_funcall(Expr **pexpr, bool needval) {
       assert(curfunc != NULL);
       assert(curfunc->scopes->len > 0);
       Scope *topscope = curfunc->scopes->data[0];
-      scope_add(topscope, lspident, &tyVoidPtr, 0);
+      scope_add(topscope, lspident, &tyVoidPtr, VS_USED);
     }
 
     if (finfo->stack_work_size < work_size)
@@ -521,7 +521,7 @@ static void traverse_switch(Stmt *stmt) {
     Scope *scope = curfunc->scopes->data[0];
     const Token *ident = alloc_dummy_ident();
     Type *type = stmt->switch_.value->type;
-    scope_add(scope, ident, type, 0);
+    scope_add(scope, ident, type, VS_USED);
 
     // switch (complex)  =>  switch ((tmp = complex, tmp))
     Expr *var = new_expr_variable(ident->ident, type, NULL, scope);
@@ -811,7 +811,7 @@ static void traverse_defun(Function *func) {
 
     const Name *name = alloc_name(VA_ARGS_NAME, NULL, false);
     const Token *ident = alloc_ident(name, NULL, name->chars, name->chars + name->bytes);
-    scope_add(func->scopes->data[0], ident, tyvalist, VS_PARAM);
+    scope_add(func->scopes->data[0], ident, tyvalist, VS_PARAM | VS_USED);
   }
 
   register_func_info(func->ident->ident, func, NULL, 0);
