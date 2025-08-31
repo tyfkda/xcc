@@ -5,6 +5,7 @@
 #include <stdlib.h>  // malloc
 #include <string.h>
 
+#include "ast.h"
 #include "fe_misc.h"  // alloc_dummy_ident
 #include "table.h"
 #include "type.h"

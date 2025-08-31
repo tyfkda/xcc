@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 #include "ast.h"
+#include "expr.h"
 #include "fe_misc.h"
 #include "initializer.h"
 #include "lexer.h"

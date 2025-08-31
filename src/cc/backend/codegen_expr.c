@@ -6,6 +6,7 @@
 
 #include "ast.h"
 #include "be_aux.h"
+#include "expr.h"
 #include "fe_misc.h"  // curscope, extract_bitfield_vale
 #include "ir.h"
 #include "regalloc.h"

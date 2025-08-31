@@ -4,6 +4,8 @@
 #include <assert.h>
 #include <stdbool.h>
 
+#include "ast.h"
+#include "expr.h"
 #include "fe_misc.h"
 #include "table.h"
 #include "type.h"

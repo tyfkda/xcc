@@ -14,6 +14,7 @@
 
 #include "ast.h"
 #include "cc_misc.h"  // is_funciton_no_output
+#include "expr.h"
 #include "fe_misc.h"  // curfunc
 #include "parser.h"
 #include "table.h"

@@ -10,6 +10,7 @@
 
 #include "ast.h"
 #include "be_aux.h"
+#include "expr.h"
 #include "codegen.h"
 #include "fe_misc.h"
 #include "ir.h"
