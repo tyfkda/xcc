@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>  // size_t
 #include <stdint.h>
+#include <stdio.h>
 
 typedef struct Name Name;
 typedef struct Vector Vector;
@@ -118,6 +119,23 @@ typedef struct {
   uint32_t combined_index;
 } SymbolInfo;
 
+typedef struct DataSegmentForLink {
+  unsigned char *content;
+  uint32_t start;
+  uint32_t size;
+} DataSegmentForLink;
+
+typedef struct TagData {
+  uint32_t attribute;
+  uint32_t typeindex;
+} TagData;
+
+typedef struct ElemSegmentForLink {
+  uint32_t *content;
+  uint32_t start;
+  uint32_t count;
+} ElemSegmentForLink;
+
 typedef struct WasmObj {
   unsigned char *buffer;
   size_t bufsiz;
@@ -141,15 +159,15 @@ typedef struct WasmObj {
     uint32_t count;
   } func;
   struct {
-    struct DataSegmentForLink *segments;
+    DataSegmentForLink *segments;
     uint32_t count;
   } data;
   struct {
-    struct TagData *data;
+    TagData *data;
     uint32_t count;
   } tag;
   struct {
-    struct ElemSegmentForLink *segments;
+    ElemSegmentForLink *segments;
     uint32_t count;
   } elem;
   struct {
@@ -158,3 +176,10 @@ typedef struct WasmObj {
     uint32_t count;
   } reloc[2];  // 0=code, 1=data
 } WasmObj;
+
+void wasmobj_init(WasmObj *wasmobj);
+WasmObj *read_wasm(FILE *fp, const char *filename, size_t filesize);
+WasmSection *find_section(WasmObj *wasmobj, uint8_t secid);
+
+int64_t read_leb128(unsigned char *p, unsigned char **next);
+uint64_t read_uleb128(unsigned char *p, unsigned char **next);
