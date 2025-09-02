@@ -253,7 +253,7 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     }
 #endif
 
-    VarInfo *varinfo = add_var_to_scope(curscope, ident, type, tmp_storage);
+    VarInfo *varinfo = add_var_to_scope(curscope, ident, type, tmp_storage, false);
     if (type->kind != TY_FUNC) {
       Initializer *init = match(TK_ASSIGN) ? parse_initializer() : NULL;
 
@@ -827,7 +827,7 @@ static Function *define_func(Type *functype, const Token *ident, const Vector *p
   func->params = param_vars;
   VarInfo *varinfo = scope_find(global_scope, func->ident->ident, NULL);
   if (varinfo == NULL) {
-    varinfo = add_var_to_scope(global_scope, ident, functype, storage);
+    varinfo = add_var_to_scope(global_scope, ident, functype, storage, false);
   } else {
     Declaration *predecl = varinfo->global.funcdecl;
     if (predecl != NULL) {
@@ -1015,15 +1015,14 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
         }
         // Check LBRACE?
       } else {
+        bool has_initializer = match(TK_ASSIGN) != NULL;
         VarInfo *varinfo = NULL;
-        if (ident != NULL) {
-          varinfo = find_var_from_scope(curscope, ident, type, storage);
-          if (varinfo == NULL)
-            varinfo = add_var_to_scope(global_scope, ident, type, storage);
-        }
+        if (ident != NULL)
+          varinfo = add_var_to_scope(global_scope, ident, type, storage, !has_initializer);
 
-        Initializer *init = NULL;
-        if (match(TK_ASSIGN) != NULL) {
+        Initializer *init = varinfo->global.init;
+        assert(curvarinfo == NULL);
+        if (has_initializer) {
           curvarinfo = varinfo;
           init = parse_initializer();
         }

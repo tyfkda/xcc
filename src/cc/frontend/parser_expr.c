@@ -347,7 +347,7 @@ static Expr *variable(Token *ident) {
     parse_error(PE_NOFATAL, ident, "`%.*s' undeclared", NAMES(ident->ident));
     type = &tyInt;
     scope = curscope;
-    add_var_to_scope(scope, ident, type, VS_USED);
+    add_var_to_scope(scope, ident, type, VS_USED, false);
   }
   return new_expr_variable(name, type, ident, scope);
 }

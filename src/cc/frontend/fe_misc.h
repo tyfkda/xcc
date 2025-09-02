@@ -73,8 +73,8 @@ extern const enum FixnumKind kLongKinds[];
 void check_type_combination(const TypeCombination *tc, const Token *tok);
 bool no_type_combination(const TypeCombination *tc, int storage_mask, int qualifier_mask);
 
-VarInfo *find_var_from_scope(Scope *scope, const Token *ident, Type *type, int storage);
-VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int storage);
+VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int storage,
+                          bool allow_defined);
 Token *alloc_dummy_ident(void);
 Expr *alloc_tmp_var(Scope *scope, Type *type);
 void define_enum_member(Type *type, const Token *ident, int value);

@@ -136,7 +136,8 @@ bool no_type_combination(const TypeCombination *tc, int storage_mask, int qualif
       tc->float_num == 0 && tc->double_num == 0;
 }
 
-VarInfo *find_var_from_scope(Scope *scope, const Token *ident, Type *type, int storage) {
+static VarInfo *find_var_from_scope(Scope *scope, const Token *ident, Type *type, int storage,
+                                    bool allow_defined) {
   assert(ident != NULL);
   const Name *name = ident->ident;
   assert(name != NULL);
@@ -146,20 +147,23 @@ VarInfo *find_var_from_scope(Scope *scope, const Token *ident, Type *type, int s
     if (!same_type(type, varinfo->type)) {
       parse_error(PE_NOFATAL, ident, "`%.*s' type conflict", NAMES(name));
     } else if (!(storage & VS_EXTERN)) {
-      if (varinfo->storage & VS_EXTERN)
+      if (varinfo->storage & VS_EXTERN) {
         varinfo->storage &= ~VS_EXTERN;
-      else if (is_global_scope(scope) && varinfo->global.init == NULL)
+      } else if (is_global_scope(scope) && varinfo->global.init == NULL) {
         ;  // Ignore variable duplication if predecessor doesn't have initializer.
-      else
-        parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(name));
+      } else {
+        if (!allow_defined)
+          parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(name));
+      }
     }
     return varinfo;
   }
   return NULL;
 }
 
-VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int storage) {
-  VarInfo *varinfo = find_var_from_scope(scope, ident, type, storage);
+VarInfo *add_var_to_scope(Scope *scope, const Token *ident, Type *type, int storage,
+                          bool allow_defined) {
+  VarInfo *varinfo = find_var_from_scope(scope, ident, type, storage, allow_defined);
   if (varinfo != NULL)
     return varinfo;
 
@@ -184,7 +188,7 @@ Expr *alloc_tmp_var(Scope *scope, Type *type) {
 }
 
 void define_enum_member(Type *type, const Token *ident, int value) {
-  VarInfo *varinfo = add_var_to_scope(curscope, ident, type, VS_ENUM_MEMBER);
+  VarInfo *varinfo = add_var_to_scope(curscope, ident, type, VS_ENUM_MEMBER, false);
   varinfo->enum_member.value = value;
 }
 
