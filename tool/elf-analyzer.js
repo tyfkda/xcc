@@ -41,9 +41,50 @@ const StructDefinition = {
     {name: 'sh_addralign', type: 'Elf64_Xword'},
     {name: 'sh_entsize', type: 'Elf64_Xword'},
   ],
+  Elf64_Sym: [
+    {name: 'st_name', type: 'symstroff'},
+    {name: 'st_info', type: 'uchar'},
+    {name: 'st_other', type: 'uchar'},
+    {name: 'st_shndx', type: 'Elf64_Section'},
+    {name: 'st_value', type: 'Elf64_Addr'},
+    {name: 'st_size', type: 'Elf64_Xword'},
+  ],
+  Elf64_Rela: [
+    {name: 'r_offset', type: 'Elf64_Addr'},
+    {name: 'r_info', type: 'RINFO'},
+    {name: 'r_addend', type: 'Elf64_Sxword'},
+  ],
+}
+
+const SHT_NULL          = 0
+const SHT_PROGBITS      = 1
+const SHT_SYMTAB        = 2
+const SHT_STRTAB        = 3
+const SHT_RELA          = 4
+const SHT_HASH          = 5
+const SHT_DYNAMIC       = 6
+const SHT_NOTE          = 7
+const SHT_NOBITS        = 8
+const SHT_REL           = 9
+const SHT_SHLIB         = 10
+const SHT_DYNSYM        = 11
+const SHT_INIT_ARRAY    = 14
+const SHT_FINI_ARRAY    = 15
+const SHT_PREINIT_ARRAY = 16
+
+const SHT_LOPROC        = 0x70000000
+const SHT_HIPROC        = 0x7fffffff
+const SHT_RISCV_ATTRIBUTES = SHT_LOPROC + 3
+
+const CommandNameTable = {
+  [SHT_SYMTAB]: 'SHT_SYMTAB',
 }
 
 const TypeInfos = {
+  uint8_t: {size: 1, unsigned: true},
+  int8_t: {size: 1},
+  uint16_t: {size: 2, unsigned: true},
+  int16_t: {size: 2},
   uint32_t: {size: 4, unsigned: true},
   int32_t: {size: 4},
   uint64_t: {size: 8, unsigned: true},
@@ -58,36 +99,53 @@ const TypeInfos = {
 
   Elf64_Word: {size: 4, unsigned: true},
   Elf64_Xword: {size: 8, unsigned: true},
+  Elf64_Sxword: {size: 8},
   Elf64_Addr: {size: 8, unsigned: true},
   Elf64_Off: {size: 8, unsigned: true},
 
   Elf64_SectionType: {size: 4, unsigned: true},
   stroff: {size: 4, unsigned: true},
+  symstroff: {size: 4, unsigned: true},
+
+  Elf64_Section: {size: 2, unsigned: true},
 
   cmd_t: {size: 4, unsigned: true},
+  RINFO: {size: 8, unsigned: true},
 }
 
 const SectionTypeNames = new Map([
-  [0, 'SHT_NULL'],
-  [1, 'SHT_PROGBITS'],
-  [2, 'SHT_SYMTAB'],
-  [3, 'SHT_STRTAB'],
-  [4, 'SHT_RELA'],
-  [8, 'SHT_NOBITS'],
-  [14, 'SHT_INIT_ARRAY'],
-  [15, 'SHT_FINI_ARRAY'],
-  [16, 'SHT_PREINIT_ARRAY'],
-  [0x70000003, 'SHT_RISCV_ATTRIBUTES'],
+  [SHT_NULL, 'SHT_NULL'],
+  [SHT_PROGBITS, 'SHT_PROGBITS'],
+  [SHT_SYMTAB, 'SHT_SYMTAB'],
+  [SHT_STRTAB, 'SHT_STRTAB'],
+  [SHT_RELA, 'SHT_RELA'],
+  [SHT_HASH, 'SHT_HASH'],
+  [SHT_DYNAMIC, 'SHT_DYNAMIC'],
+  [SHT_NOTE, 'SHT_NOTE'],
+  [SHT_NOBITS, 'SHT_NOBITS'],
+  [SHT_REL, 'SHT_REL'],
+  [SHT_SHLIB, 'SHT_SHLIB'],
+  [SHT_DYNSYM, 'SHT_DYNSYM'],
+  [SHT_INIT_ARRAY, 'SHT_INIT_ARRAY'],
+  [SHT_FINI_ARRAY, 'SHT_FINI_ARRAY'],
+  [SHT_PREINIT_ARRAY, 'SHT_PREINIT_ARRAY'],
+  [SHT_RISCV_ATTRIBUTES, 'SHT_RISCV_ATTRIBUTES'],
 ])
 
+function bigIntToNumber(v) {
+  const n = Number(v)
+  return Number.isSafeInteger(n) ? n : v
+}
+
 class ElfAnalyzer {
+  header = null
+  loadCommands = []
+  data = null
+  offset = 0
+  sections = []
+  strtbl = null
+
   constructor() {
-    this.header = null
-    this.loadCommands = []
-    this.data = null
-    this.offset = 0
-    this.sections = []
-    this.strtbl = null
   }
 
   analyze(fileName) {
@@ -99,9 +157,9 @@ class ElfAnalyzer {
       process.exit(1)
     }
 
-    this.dumpStruct(this.header)
+    this.dumpHexAndStruct(this.header)
     for (let i = 0; i < this.header.e_phnum; ++i) {
-      this.dumpStruct(this.readStruct('proghdr'))
+      this.dumpHexAndStruct(this.readStruct('proghdr'))
     }
 
     if (this.header.e_shnum > 0) {
@@ -111,9 +169,46 @@ class ElfAnalyzer {
       const strsec = this.sections[this.header.e_shstrndx]
       const offset = Number(strsec.sh_offset)
       this.strtbl = this.data.slice(offset, offset + Number(strsec.sh_size))
-
-      this.sections.forEach(section => this.dumpStruct(section))
     }
+
+    const blocks = []
+    for (const section of this.sections) {
+      const block = this.analyzeSectionData(section)
+      if (block != null) {
+        block.section = section
+        blocks.push(block)
+      }
+    }
+
+    blocks.sort((a, b) => a.section.sh_offset - b.section.sh_offset)
+
+    for (const block of blocks) {
+      let type = block.type
+      const name = CommandNameTable[type] || type
+      const section = block.section
+      const offset = section.sh_offset
+      const size = section.sh_size
+
+      if (offset > this.offset) {
+        const slice = this.data.slice(this.offset, offset)
+        if (slice.some(b => b !== 0)) {
+          console.error(`Warning: data is not empty between 0x${this.offset.toString(16)} and 0x${offset.toString(16)}`)
+        }
+      }
+
+      this.currentSection = section
+
+      console.log()
+      this.dumpHex(this.data.slice(offset, offset + size), offset)
+      console.log(`# ${name}`)
+      if (block.arrayCount != null) {
+        block.elements.forEach((element) => this.dumpStruct(element))
+      }
+
+      this.offset = offset + size
+    }
+
+    this.sections.forEach(section => this.dumpHexAndStruct(section))
   }
 
   setUpFile(fileName) {
@@ -125,10 +220,50 @@ class ElfAnalyzer {
     return header.e_ident.slice(0, 4) === '\x7fELF'
   }
 
-  dumpStruct(element) {
+  analyzeSectionData(section) {
+    let size = section.sh_size
+    if (size <= 0)
+      return null
+
+    this.offset = section.sh_offset
+    switch (section.sh_type) {
+    case SHT_SYMTAB:
+      {
+        const elements = []
+        const arrayCount = (size / 24) | 0
+        for (let i = 0; i < arrayCount; ++i) {
+          elements.push(this.readStruct('Elf64_Sym'))
+        }
+        return {type: `symtab`, arrayCount, elements}
+      }
+    case SHT_RELA:
+      {
+        const elements = []
+        const arrayCount = (size / 24) | 0
+        for (let i = 0; i < arrayCount; ++i) {
+          elements.push(this.readStruct('Elf64_Rela'))
+        }
+        return {type: `symtab`, arrayCount, elements}
+      }
+
+    default:
+      {
+        let type = SectionTypeNames.get(section.sh_type)
+        const m = type.match(/^SHT_(.*)/)
+        if (m)
+          type = m[1].toLowerCase()
+        return {type}
+      }
+    }
+  }
+
+  dumpHexAndStruct(element) {
     console.log()
     this.dumpHex(element._rawBytes, element._startOffset)
+    this.dumpStruct(element)
+  }
 
+  dumpStruct(element) {
     console.log(`# struct ${element._structName}`)
     const structMembers = StructDefinition[element._structName]
     for (const member of structMembers) {
@@ -152,11 +287,31 @@ class ElfAnalyzer {
             value = `"${s}"`
           }
           break
+        case 'symstroff':
+          {
+            const section = this.currentSection
+            const strtab = this.sections[section.sh_link]
+            const start = strtab.sh_offset + value
+            const end = this.data.indexOf(0, start)
+            const s = this.data.slice(start, end).toString()
+            value = `"${s}" (0x${value.toString(16)})`
+          }
+          break
+        case 'RINFO':
+          {
+            const sym = (value / (2 ** 32)) | 0
+            const type = value & 0xffffffff
+            value = `{sym=${sym}, type=${type}}`
+          }
+          break
         default:
           {
             const tinfo = TypeInfos[type]
             const hex = value.toString(16)
             switch (tinfo.size) {
+            case 1:
+              value = `0x${hex.padStart(2, '0')}`
+              break
             case 2:
               value = `0x${hex.padStart(4, '0')}`
               break
@@ -245,14 +400,17 @@ class ElfAnalyzer {
       {
         const tinfo = TypeInfos[type]
         switch (tinfo.size) {
+        case 1:
+          return tinfo.unsigned ? data.readUInt8(offset) : data.readInt8(offset)
         case 2:
           return tinfo.unsigned ? data.readUInt16LE(offset) : data.readInt16LE(offset)
         case 4:
           return tinfo.unsigned ? data.readUInt32LE(offset) : data.readInt32LE(offset)
         case 8:
-          return tinfo.unsigned ? data.readBigUInt64LE(offset) : data.readBigInt64LE(offset)
+          return bigIntToNumber(tinfo.unsigned ? data.readBigUInt64LE(offset)
+                                               : data.readBigInt64LE(offset))
         default:
-          throw new Error(`Unknown type: ${member.type}`)
+          throw new Error(`Unknown type: ${type}`)
         }
       }
     }

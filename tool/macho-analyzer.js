@@ -220,9 +220,24 @@ const StructDefinition = {
     {name: 'current_version', type: 'uint32_t'},
     {name: 'compatibility_version', type: 'uint32_t'},
   ],
+  nlist_64: [
+    {name: 'n_strx', type: 'uint32_t'},
+    {name: 'n_type', type: 'uint8_t'},
+    {name: 'n_sect', type: 'uint8_t'},
+    {name: 'n_desc', type: 'uint16_t'},
+    {name: 'n_value', type: 'uint64_t'},
+  ],
+  relocation_info: [
+    {name: 'r_address', type: 'int32_t'},
+    {name: 'r_info', type: 'uint32_t'},
+  ],
 }
 
 const TypeInfos = {
+  uint8_t: {size: 1, unsigned: true},
+  int8_t: {size: 1},
+  uint16_t: {size: 2, unsigned: true},
+  int16_t: {size: 2},
   uint32_t: {size: 4, unsigned: true},
   int32_t: {size: 4},
   uint64_t: {size: 8, unsigned: true},
@@ -230,12 +245,22 @@ const TypeInfos = {
   cmd_t: {size: 4, unsigned: true},
 }
 
+const S_REGULAR = 0x00
+const S_ZEROFILL = 0x01
+
+function bigIntToNumber(v) {
+  const n = Number(v)
+  return Number.isSafeInteger(n) ? n : v
+}
+
 class MachAnalyzer {
+  header = null
+  loadCommands = []
+  data = null
+  offset = 0
+  offsetStack = []
+
   constructor() {
-    this.header = null
-    this.loadCommands = []
-    this.data = null
-    this.offset = 0
   }
 
   analyze(fileName) {
@@ -247,7 +272,7 @@ class MachAnalyzer {
       process.exit(1)
     }
 
-    this.dumpStruct(this.header)
+    this.dumpHexAndStruct(this.header)
 
     this.loadCommands = []
     const ncmds = this.header.ncmds
@@ -257,16 +282,30 @@ class MachAnalyzer {
       const command = this.readLoadCommand()
       this.loadCommands.push(command)
 
-      this.dumpStruct(command)
+      this.dumpHexAndStruct(command)
       switch (command._structName) {
       case 'segment_command_64':
         for (let j = 0; j < command.nsects; ++j) {
           const section = this.readStruct('section_64')
           sections.push(section)
-          this.dumpStruct(section)
-          blocks.push({offset: section.offset, size: Number(section.size), type: section.sectname})
+          this.dumpHexAndStruct(section)
+          const block = this.analyzeSegment(section)
+          if (block != null) {
+            if (Array.isArray(block))
+              blocks.concat(block)
+            else
+              blocks.push(block)
+          }
           if (section.nreloc > 0) {
-            blocks.push({offset: section.reloff, size: section.nreloc * 8, type: 'reloc'})
+            this.pushFileOffset()
+            const elements = []
+            const arrayCount = section.nreloc
+            this.setFileOffset(section.reloff)
+            for (let i = 0; i < arrayCount; ++i) {
+              elements.push(this.readStruct('relocation_info'))
+            }
+            blocks.push({type: 'RELOC', offset: section.reloff, size: section.nreloc * 8, elements, arrayCount})
+            this.popFileOffset()
           }
         }
         break
@@ -276,8 +315,19 @@ class MachAnalyzer {
         }
         break
       case 'symtab_command':
-        blocks.push({offset: command.symoff, size: 0x10 * command.nsyms, type: command.cmd})
-        blocks.push({offset: command.stroff, size: command.strsize, type: 'string'})
+        {
+          this.pushFileOffset()
+          const elements = []
+          const arrayCount = command.nsyms
+          this.setFileOffset(command.symoff)
+          for (let i = 0; i < arrayCount; ++i) {
+            elements.push(this.readStruct('nlist_64'))
+          }
+          blocks.push({type: command.cmd, offset: command.symoff, size: 0x10 * command.nsyms, elements, arrayCount})
+
+          blocks.push({type: 'string', offset: command.stroff, size: command.strsize})
+          this.popFileOffset()
+        }
         break
       case 'dysymtab_command':
         if (command.indirectsymoff !== 0) {
@@ -310,6 +360,9 @@ class MachAnalyzer {
       console.log()
       this.dumpHex(this.data.slice(offset, offset + size), offset)
       console.log(`# ${name}`)
+      if (block.arrayCount != null) {
+        block.elements.forEach((element) => this.dumpStruct(element))
+      }
 
       this.offset = offset + size
     }
@@ -320,15 +373,39 @@ class MachAnalyzer {
     this.offset = 0
   }
 
+  pushFileOffset() {
+    this.offsetStack.push(this.offset)
+  }
+
+  popFileOffset() {
+    this.offset = this.offsetStack.pop()
+  }
+
+  setFileOffset(position) {
+    this.offset = position
+  }
+
   isHeaderLegal(header) {
     const magic64 = 0xfeedfacf
     return header.magic === magic64
   }
 
-  dumpStruct(element) {
+  analyzeSegment(section) {
+    const size = Number(section.size)
+    if (size <= 0 || section.flags === S_ZEROFILL)
+      return null
+
+    const segment = {offset: section.offset, size, type: section.sectname}
+    return segment
+  }
+
+  dumpHexAndStruct(element) {
     console.log()
     this.dumpHex(element._rawBytes, element._startOffset)
+    this.dumpStruct(element)
+  }
 
+  dumpStruct(element) {
     console.log(`# struct ${element._structName}`)
     const structMembers = StructDefinition[element._structName]
     for (const member of structMembers) {
@@ -347,6 +424,9 @@ class MachAnalyzer {
             const tinfo = TypeInfos[type]
             const hex = value.toString(16)
             switch (tinfo.size) {
+            case 1:
+              value = `0x${hex.padStart(2, '0')}`
+              break
             case 2:
               value = `0x${hex.padStart(4, '0')}`
               break
@@ -446,14 +526,17 @@ class MachAnalyzer {
       {
         const tinfo = TypeInfos[type]
         switch (tinfo.size) {
+        case 1:
+          return tinfo.unsigned ? data.readUInt8(offset) : data.readInt8(offset)
         case 2:
           return tinfo.unsigned ? data.readUInt16LE(offset) : data.readInt16LE(offset)
         case 4:
           return tinfo.unsigned ? data.readUInt32LE(offset) : data.readInt32LE(offset)
         case 8:
-          return tinfo.unsigned ? data.readBigUInt64LE(offset) : data.readBigInt64LE(offset)
+          return bigIntToNumber(tinfo.unsigned ? data.readBigUInt64LE(offset)
+                                               : data.readBigInt64LE(offset))
         default:
-          throw new Error(`Unknown type: ${member.type}`)
+          throw new Error(`Unknown type: ${type}`)
         }
       }
     }
