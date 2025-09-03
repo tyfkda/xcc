@@ -788,7 +788,7 @@ static Table *parse_attribute(Table *attributes) {  // <Token*>
   return attributes;
 }
 
-static Table *parse_attributes(Table *attributes) {
+Table *parse_attributes(Table *attributes) {
   for (;;) {
     if (match(TK_ATTRIBUTE)) {
       attributes = parse_attribute(attributes);

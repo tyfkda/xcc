@@ -10,6 +10,7 @@
 
 typedef struct Expr Expr;
 typedef struct Name Name;
+typedef struct Table Table;
 typedef struct Vector Vector;
 
 // Fixnum
@@ -68,6 +69,7 @@ typedef struct MemberInfo {
 
 typedef struct StructInfo {
   MemberInfo *members;
+  Table *attributes;  // <Token*>
   ssize_t size;
   int member_count;
   size_t align;

@@ -343,6 +343,7 @@ Type *get_callee_type(Type *type) {
 StructInfo *create_struct_info(MemberInfo *members, int count, bool is_union, bool is_flexible) {
   StructInfo *sinfo = malloc_or_die(sizeof(*sinfo));
   sinfo->members = members;
+  sinfo->attributes = NULL;
   sinfo->member_count = count;
   sinfo->is_union = is_union;
   sinfo->is_flexible = is_flexible;

@@ -168,7 +168,11 @@ static StructInfo *parse_struct(bool is_union) {
     } while (flex_arr_mem == NULL && match(TK_COMMA));
     consume(TK_SEMICOL, "`;' expected");
   }
-  return create_struct_info(members, count, is_union, flex_arr_mem != NULL);
+
+  Table *attributes = parse_attributes(NULL);
+  StructInfo *sinfo = create_struct_info(members, count, is_union, flex_arr_mem != NULL);
+  sinfo->attributes = attributes;
+  return sinfo;
 }
 
 static Type *parse_typeof(const Token *tok) {
