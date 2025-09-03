@@ -92,7 +92,7 @@ static Type *parse_enum(void) {
 }
 
 // Parse struct or union definition `{...}`
-static StructInfo *parse_struct(bool is_union) {
+static StructInfo *parse_struct(bool is_union, Table *attributes) {
   int count = 0;
   MemberInfo *members = NULL;
   Token *flex_arr_mem = NULL;  // Flexible array member appeared.
@@ -201,10 +201,28 @@ static StructInfo *parse_struct(bool is_union) {
     consume(TK_SEMICOL, "`;' expected");
   }
 
+  attributes = parse_attributes(attributes);
+
   int flag = is_union ? SIF_UNION : 0;
   if (flex_arr_mem != NULL)
     flag |= SIF_FLEXIBLE;
-  return create_struct_info(members, count, flag);
+  size_t aligned = 0;
+  if (attributes != NULL) {
+    if (table_try_get(attributes, alloc_name("packed", NULL, false), NULL))
+      flag |= SIF_PACKED;
+    Vector *v;
+    if (table_try_get(attributes, alloc_name("aligned", NULL, false), (void**)&v)) {
+      // TODO: Calculate expression.
+      if (v->len != 1 || ((Token*)v->data[0])->kind != TK_INTLIT) {
+        parse_error(PE_NOFATAL, v->data[0], "constant integer expected");
+      } else {
+        const Token *tok = v->data[0];
+        aligned = tok->fixnum.value;
+      }
+    }
+  }
+
+  return create_struct_info(members, count, flag, aligned);
 }
 
 static Type *parse_typeof(const Token *tok) {
@@ -302,21 +320,24 @@ Type *parse_raw_type(int *pstorage) {
         if (!no_type_combination(&tc, 0, 0))
           parse_error(PE_NOFATAL, tok, ILLEGAL_TYPE_COMBINATION);
 
-        bool is_union = tok->kind == TK_UNION;
+        Table *attributes = parse_attributes(NULL);
         const Name *name = NULL;
         Token *ident;
         if ((ident = match(TK_IDENT)) != NULL)
           name = ident->ident;
 
+        attributes = parse_attributes(attributes);
         StructInfo *sinfo = NULL;
         if (match(TK_LBRACE)) {  // Definition
-          sinfo = parse_struct(is_union);
+          bool is_union = tok->kind == TK_UNION;
+          sinfo = parse_struct(is_union, attributes);
           if (name != NULL)
             handle_define_type_tag(curscope, ident, TAG_STRUCT, sinfo);
         } else {
           if (name != NULL) {
             sinfo = find_struct(curscope, name, NULL);
             if (sinfo != NULL) {
+              bool is_union = tok->kind == TK_UNION;
               if (((sinfo->flag & SIF_UNION) != 0) != is_union)
                 parse_error(PE_NOFATAL, tok, "wrong tag for `%.*s'", NAMES(name));
             }
@@ -324,7 +345,7 @@ Type *parse_raw_type(int *pstorage) {
         }
 
         if (name == NULL && sinfo == NULL) {
-          parse_error(PE_NOFATAL, tok, "illegal struct/union usage");
+          parse_error(PE_NOFATAL, NULL, "illegal struct/union usage");
           type = &tyInt;  // Dummy.
         } else {
           type = create_struct_type(sinfo, name, tc.qualifier);

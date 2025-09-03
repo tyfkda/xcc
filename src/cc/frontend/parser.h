@@ -32,5 +32,6 @@ Expr *parse_assign(void);
 Expr *parse_expr(void);
 Stmt *parse_block(const Token *tok, Scope *scope);
 Initializer *parse_initializer(void);
+Table *parse_attributes(Table *attributes);  // <Token*>
 
 Token *consume(enum TokenKind kind, const char *error);

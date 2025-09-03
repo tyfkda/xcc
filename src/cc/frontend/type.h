@@ -68,6 +68,7 @@ typedef struct MemberInfo {
 
 #define SIF_UNION     (1 << 0)
 #define SIF_FLEXIBLE  (1 << 1)
+#define SIF_PACKED    (1 << 2)
 
 typedef struct StructInfo {
   MemberInfo *members;
@@ -170,7 +171,7 @@ Type *get_callee_type(Type *type);
 
 // Struct
 
-StructInfo *create_struct_info(MemberInfo *members, int count, int flag);
+StructInfo *create_struct_info(MemberInfo *members, int count, int flag, size_t aligned);
 Type *create_struct_type(StructInfo *sinfo, const Name *name, int qualifier);
 int find_struct_member(const StructInfo *sinfo, const Name *name);
 

@@ -63,7 +63,7 @@ TEST(print_type) {
   }
 
   {
-    StructInfo *sinfo = create_struct_info(NULL, 0, 0);
+    StructInfo *sinfo = create_struct_info(NULL, 0, 0, 0);
     const Name *name = alloc_name("Foo", NULL, false);
     Type *type = create_struct_type(sinfo, name, 0);
     check_print_type("struct Foo", type);

@@ -225,6 +225,7 @@ void construct_initial_value(const Type *type, const Initializer *init,
     {
       const StructInfo *sinfo = type->struct_.info;
       assert(init == NULL || (init->kind == IK_MULTI && init->multi->len == sinfo->member_count));
+      bool packed = sinfo->flag & SIF_PACKED;
       int count = 0;
       int offset = 0;
       for (int i = 0, n = sinfo->member_count; i < n; ++i) {
@@ -246,7 +247,7 @@ void construct_initial_value(const Type *type, const Initializer *init,
         }
         if (mem_init != NULL || !(sinfo->flag & SIF_UNION)) {
           int align = align_size(member->type);
-          if (offset % align != 0) {
+          if (!packed && offset % align != 0) {
             assert(vtable->emit_align != NULL);
             (*vtable->emit_align)(ud, align);
             offset = ALIGN(offset, align);

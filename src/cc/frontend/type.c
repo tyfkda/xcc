@@ -137,11 +137,12 @@ static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t
 }
 #endif
 
-static void calc_struct_size(StructInfo *sinfo) {
+static void calc_struct_size(StructInfo *sinfo, size_t aligned) {
   assert(sinfo != NULL);
   if (sinfo->size >= 0)
     return;
 
+  bool packed = sinfo->flag & SIF_PACKED;
   size_t size = 0;
   size_t max_align = 1;
 
@@ -157,7 +158,8 @@ static void calc_struct_size(StructInfo *sinfo) {
 #endif
       {
         align = align_size(minfo->type);
-        size = ALIGN(size, align);
+        if (!packed)
+          size = ALIGN(size, align);
         minfo->offset = size;
         size += sz;
       }
@@ -179,9 +181,9 @@ static void calc_struct_size(StructInfo *sinfo) {
       max_align = align;
   }
 
-  size = ALIGN(size, max_align);
-  sinfo->size = size;
-  sinfo->align = max_align;
+  size_t align = aligned > 0 ? aligned : packed ? 1 : max_align;
+  sinfo->size = ALIGN(size, align);
+  sinfo->align = align;
 }
 
 size_t type_size(const Type *type) {
@@ -340,14 +342,14 @@ Type *get_callee_type(Type *type) {
 }
 
 // Struct
-StructInfo *create_struct_info(MemberInfo *members, int count, int flag) {
+StructInfo *create_struct_info(MemberInfo *members, int count, int flag, size_t aligned) {
   StructInfo *sinfo = malloc_or_die(sizeof(*sinfo));
   sinfo->members = members;
   sinfo->member_count = count;
   sinfo->flag = flag;
   sinfo->size = -1;
   sinfo->align = 0;
-  calc_struct_size(sinfo);
+  calc_struct_size(sinfo, aligned);
   return sinfo;
 }
 

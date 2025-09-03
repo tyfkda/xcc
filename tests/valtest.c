@@ -1448,6 +1448,31 @@ TEST(struct) {
     EXPECT_TRUE(v1.x == 11 && v1.y == 22 && v1.z == 33);  // Argument entity is not modified.
   }
 
+  {  // __attribute__((packed))
+    typedef struct {
+      int8_t i8;
+      int64_t i64;
+      int16_t i16;
+      int32_t i32;
+    } __attribute__((packed)) Packed;
+    static Packed packed = { .i8 = 0x59, .i16 = 0x789a, .i32 = 0x6789abcd, .i64 = 0x1f2e3d4c5b6a7980 };
+    EXPECT("packed struct", 15, sizeof(packed));
+    EXPECT("packed struct:i8", 0x59, packed.i8);
+    EXPECT("packed struct:i16", 0x789a, packed.i16);
+    EXPECT("packed struct:i32", 0x6789abcd, packed.i32);
+    EXPECT("packed struct:i64", 0x1f2e3d4c5b6a7980, packed.i64);
+  }
+  {  // __attribute__((aligned(N)))
+    typedef struct __attribute__((aligned(8))) {
+      int8_t v;
+    } Aligned;
+    static Aligned aligned[3] = { {12}, {34}, {56} };
+    EXPECT("aligned struct", 24, sizeof(aligned));
+    EXPECT("aligned struct:1", 12, aligned[0].v);
+    EXPECT("aligned struct:2", 34, aligned[1].v);
+    EXPECT("aligned struct:3", 56, aligned[2].v);
+  }
+
   {
     struct FlexibleArrayMember {
       int a;

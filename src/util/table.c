@@ -1,5 +1,6 @@
 #include "table.h"
 
+#include <assert.h>
 #include <stdlib.h>  // malloc
 #include <string.h>
 
@@ -125,11 +126,13 @@ Table *alloc_table(void) {
 }
 
 void table_init(Table *table) {
+  assert(table != NULL);
   table->entries = NULL;
   table->count = table->used = table->capacity = 0;
 }
 
 void *table_get(Table *table, const Name *key) {
+  assert(table != NULL);
   if (table->count == 0)
     return NULL;
 
@@ -141,6 +144,7 @@ void *table_get(Table *table, const Name *key) {
 }
 
 bool table_try_get(Table *table, const Name *key, void **output) {
+  assert(table != NULL);
   if (table->count == 0)
     return false;
 
@@ -154,6 +158,7 @@ bool table_try_get(Table *table, const Name *key, void **output) {
 }
 
 bool table_put(Table *table, const Name *key, void *value) {
+  assert(table != NULL);
   const int MIN_CAPACITY = 15;
   if (table->used >= table->capacity / 2) {
     int capacity = table->capacity * 2 - 1;  // Keep odd.
@@ -176,6 +181,7 @@ bool table_put(Table *table, const Name *key, void *value) {
 }
 
 bool table_delete(Table *table, const Name *key) {
+  assert(table != NULL);
   if (table->count == 0)
     return false;
 
@@ -192,6 +198,7 @@ bool table_delete(Table *table, const Name *key) {
 }
 
 int table_iterate(const Table *table, int iterator, const Name **pkey, void **pvalue) {
+  assert(table != NULL);
   int capacity = table->capacity;
   for (; iterator < capacity; ++iterator) {
     const TableEntry *entry = &table->entries[iterator];
