@@ -10,6 +10,7 @@
 
 #include "ast.h"
 #include "be_aux.h"
+#include "expr.h"
 #include "codegen.h"
 #include "fe_misc.h"
 #include "ir.h"
@@ -375,12 +376,12 @@ static void parse_builtins(Vector *decls) {
 
 # define CLZ(T, postfix) \
     "static inline " S(T) " __builtin_clz" S(postfix) "(volatile register unsigned " S(T) " x) {\n" \
-    "  " S(T) " bsr;\n" \
+    "  " S(T) " result;\n" \
     "  __asm(" \
-    "      \"  bsr %1, %0\\n\"" \
-    "      : \"=r\"(bsr)" \
+    "      \"  lzcnt %1, %0\\n\"" \
+    "      : \"=r\"(result)" \
     "      : \"ri\"(x));\n" \
-    "  return bsr ^ (sizeof(bsr) * " S(TARGET_CHAR_BIT) " - 1);\n" \
+    "  return result;\n" \
     "}\n"
 
 # define CTZ(T, postfix) \

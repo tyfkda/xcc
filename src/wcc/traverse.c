@@ -7,6 +7,7 @@
 
 #include "ast.h"
 #include "cc_misc.h"  // is_function_omitted
+#include "expr.h"
 #include "fe_misc.h"  // curscope
 #include "table.h"
 #include "type.h"
@@ -385,7 +386,7 @@ static void te_funcall(Expr **pexpr, bool needval) {
     assert(curfunc->scopes != NULL);
     assert(curfunc->scopes->len > 0);
     VarInfo *varinfo = add_var_to_scope(curfunc->scopes->data[0], alloc_dummy_ident(),
-                                        functype->func.ret, 0);
+                                        functype->func.ret, 0, false);
     FuncExtra *extra = curfunc->extra;
     assert(extra != NULL);
     if (extra->funcall_results == NULL)

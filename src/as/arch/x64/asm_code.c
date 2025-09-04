@@ -1385,7 +1385,7 @@ static unsigned char *asm_tzcnt(Inst *inst, Code *code) {
     prefix,
     sno >= 8 || dno >= 8 || size == REG64 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) | (size != REG64 ? 0 : 8) : -1,
     0x0f,
-    0xbc,
+    inst->op == LZCNT ? 0xbd : 0xbc,
     (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
   };
   unsigned char *p = code->buf;
@@ -1639,6 +1639,7 @@ static const AsmInstFunc table[] = {
   [CLTD] = asm_cltd,
   [CQTO] = asm_cqto,
   [BSR] = asm_bsr,
+  [LZCNT] = asm_tzcnt,
   [TZCNT] = asm_tzcnt,
   [POPCNT] = asm_popcnt,
   [SETO] = asm_set_r,  [SETNO] = asm_set_r,  [SETB] = asm_set_r,  [SETAE] = asm_set_r,

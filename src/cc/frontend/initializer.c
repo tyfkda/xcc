@@ -4,6 +4,8 @@
 #include <assert.h>
 #include <stdbool.h>
 
+#include "ast.h"
+#include "expr.h"
 #include "fe_misc.h"
 #include "table.h"
 #include "type.h"
@@ -91,7 +93,7 @@ static VarInfo *str_to_char_array(Scope *scope, Type *type, Initializer *init) {
   assert(type->kind == TY_ARRAY && is_char_type(type->pa.ptrof, init->single->str.kind));
   const Token *ident = alloc_dummy_ident();
   int flag = VS_STATIC | VS_USED | (is_pure_string(init->single) ? VS_STRING : 0);
-  VarInfo *varinfo = add_var_to_scope(scope, ident, type, flag);
+  VarInfo *varinfo = add_var_to_scope(scope, ident, type, flag, false);
   if (is_global_scope(scope))
     varinfo->global.init = init;
   else

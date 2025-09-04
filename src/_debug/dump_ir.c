@@ -20,7 +20,7 @@ static bool keep_virtual_register;
 
 ////////////////////////////////////////////////
 
-extern void install_builtins(void);
+extern void install_builtins(Vector *decls);
 
 static const char *kSize[] = {".b", ".w", ".d", ""};
 
@@ -222,7 +222,7 @@ static void dump_func_ir(Function *func) {
     fprintf(fp, "  stack (offset=%4d, size=%zu): %.*s  : ", varinfo->local.frameinfo->offset,
             type_size(varinfo->type), NAMES(varinfo->ident->ident));
     print_type(fp, varinfo->type);
-    fprintf(fp, "\n");
+    fprintf(fp, ", storage=0x%x\n", varinfo->storage);
   }
 
   RegAlloc *ra = fnbe->ra;
@@ -360,7 +360,7 @@ void do_dump_ir(Vector *decls) {
   }
 }
 
-static void init_compiler(void) {
+static void init_compiler(Vector *decls) {
   init_lexer();
   init_global();
 
@@ -371,7 +371,7 @@ static void init_compiler(void) {
   //set_fixnum_size(FX_LLONG, 8, 8);
   //set_fixnum_size(FX_ENUM,  4, 4);
 
-  install_builtins();
+  install_builtins(decls);
 }
 
 static void compile1(FILE *ifp, const char *filename, Vector *decls) {
@@ -420,9 +420,9 @@ int main(int argc, char *argv[]) {
   }
 
   // Compile.
-  init_compiler();
-
   Vector *toplevel = new_vector();
+  init_compiler(toplevel);
+
   int iarg = optind;
   if (iarg < argc) {
     for (int i = iarg; i < argc; ++i) {

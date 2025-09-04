@@ -99,6 +99,7 @@ function test_function() {
   compile_error 'conflict func' 'void sub(); int sub(int, char**){return 0;} int main(int argc, char** argv){return sub(argc, argv);}'
   compile_error 'duplicate var & func' 'int main; int main(){return 0;}'
   compile_error 'duplicate func & var' 'int main(){return 0;} int main;'
+  try_direct 'duplicate var w/o initializer' 33 'int x, x = 33, x; int main(void) {return x;}'
   try_direct 'infinite loop and exit' 77 '#include <stdlib.h>\nint main(){for (int i = 0; ; ++i) if (i == 10) exit(77);}'
   try_direct 'multiple prototype' 22 'int foo(), bar=76, qux(); int main(){return foo() - qux();} int foo(){return 98;} int qux(){return bar;}'
 
