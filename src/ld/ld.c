@@ -505,10 +505,16 @@ static void collect_sections_elfobj(LinkEditor *ld, ElfObj *elfobj, const char *
     assert(shdr->sh_size > 0);
 
     const char *s = &strbuf[shdr->sh_name];
-    if (strcmp(s, name) == 0) {  // TODO: Wild card
-      vec_push(seclist, section);
-      elfobj->prog_sections->data[i] = NULL;
+    size_t namelen = strlen(name);
+    if (namelen > 0 && name[namelen - 1] == '*') {  // Wild card
+      if (strncmp(s, name, namelen - 1) != 0)
+        continue;
+    } else {
+      if (strcmp(s, name) != 0)
+        continue;
     }
+    vec_push(seclist, section);
+    elfobj->prog_sections->data[i] = NULL;
   }
 }
 
@@ -1031,14 +1037,17 @@ static const ElemData kCodeSectionNames[] = {
 };
 static const ElemData kDataSectionNames[] = {
   {.kind = LEK_SECTION, .section = {.name = ".data"}},
+  {.kind = LEK_SECTION, .section = {.name = ".data.*"}},
 
   {.kind = LEK_ALIGN, .align = 8},
   {.kind = LEK_SYMBOL, .symbol = {.name = "__init_array_start"}},
+  {.kind = LEK_SECTION, .section = {.name = ".init_array.*"}},
   {.kind = LEK_SECTION, .section = {.name = ".init_array"}},
   {.kind = LEK_SYMBOL, .symbol = {.name = "__init_array_end"}},
 
   {.kind = LEK_SYMBOL, .symbol = {.name = "__fini_array_start"}},
   {.kind = LEK_SECTION, .section = {.name = ".fini_array"}},
+  {.kind = LEK_SECTION, .section = {.name = ".fini_array.*"}},
   {.kind = LEK_SYMBOL, .symbol = {.name = "__fini_array_end"}},
 
   {.kind = LEK_SECTION, .section = {.name = ".bss"}},
