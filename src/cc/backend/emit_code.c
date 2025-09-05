@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <inttypes.h>  // PRId64
+#include <limits.h>  // INT_MAX
 #include <stdarg.h>
 #include <stdint.h>  // int64_t
 #include <stdlib.h>  // realloc
@@ -394,6 +395,39 @@ void emit_bb_irs(BBContainer *bbcon) {
   }
 }
 
+#if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
+static void emit_decls_ctor_dtor_priority(AttrFuncContainer *container, const char *section_prefix) {
+  if (container->len > 0) {
+    emit_comment(NULL);
+    int priority = -1;
+    for (int i = 0; i < container->len; ++i) {
+      FuncAndPriority *fap = &container->data[i];
+      if (priority != fap->priority) {
+        priority = fap->priority;
+        char section_name[20];
+        if (priority == INT_MAX) {
+          snprintf(section_name, sizeof(section_name), ".%s_array", section_prefix);
+        } else {
+          char fmt[20];
+          snprintf(fmt, sizeof(fmt), ".%s_array.%%05d", section_prefix);
+          snprintf(section_name, sizeof(section_name), fmt, priority);
+        }
+        _SECTION(section_name);
+        EMIT_ALIGN(TARGET_POINTER_SIZE);
+      }
+
+      Function *func = fap->func;
+      bool global = true;
+      const Name *name = func->ident->ident;
+      const VarInfo *varinfo = scope_find(global_scope, name, NULL);
+      if (varinfo != NULL)
+        global = (varinfo->storage & VS_STATIC) == 0;
+      _QUAD(format_func_name(name, global));
+    }
+  }
+}
+#endif
+
 static void emit_decls_ctor_dtor(Vector *decls) {
   AttrFuncContainer ctors, dtors;
   enumerate_ctor_dtors(decls, &ctors, &dtors);
@@ -416,34 +450,8 @@ static void emit_decls_ctor_dtor(Vector *decls) {
   // For Apple platforms, the constructor function that registers the destructor function is
   // generated, so no need to handle the destructor functions.
 #else
-  if (ctors.len > 0) {
-    emit_comment(NULL);
-    _SECTION(".init_array");
-    EMIT_ALIGN(TARGET_POINTER_SIZE);
-    for (int i = 0; i < ctors.len; ++i) {
-      Function *func = ctors.data[i].func;
-      bool global = true;
-      const Name *name = func->ident->ident;
-      const VarInfo *varinfo = scope_find(global_scope, name, NULL);
-      if (varinfo != NULL)
-        global = (varinfo->storage & VS_STATIC) == 0;
-      _QUAD(format_func_name(name, global));
-    }
-  }
-  if (dtors.len > 0) {
-    emit_comment(NULL);
-    _SECTION(".fini_array");
-    EMIT_ALIGN(8);
-    for (int i = 0; i < dtors.len; ++i) {
-      Function *func = dtors.data[i].func;
-      bool global = true;
-      const Name *name = func->ident->ident;
-      const VarInfo *varinfo = scope_find(global_scope, name, NULL);
-      if (varinfo != NULL)
-        global = (varinfo->storage & VS_STATIC) == 0;
-      _QUAD(format_func_name(name, global));
-    }
-  }
+  emit_decls_ctor_dtor_priority(&ctors, "init");
+  emit_decls_ctor_dtor_priority(&dtors, "fini");
 #endif
 }
 
