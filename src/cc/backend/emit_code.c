@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <inttypes.h>  // PRId64
+#include <limits.h>  // INT_MAX
 #include <stdarg.h>
 #include <stdint.h>  // int64_t
 #include <stdlib.h>  // realloc
@@ -430,12 +431,24 @@ void emit_bb_irs(BBContainer *bbcon) {
 static void emit_decls_ctor_dtor_priority(AttrFuncContainer *container, const char *section_prefix) {
   if (container->len > 0) {
     emit_comment(NULL);
-    char section_name[20];
-    snprintf(section_name, sizeof(section_name), ".%s_array", section_prefix);
-    _SECTION(section_name);
-    EMIT_ALIGN(TARGET_POINTER_SIZE);
+    int priority = -1;
     for (int i = 0; i < container->len; ++i) {
-      Function *func = container->data[i].func;
+      FuncAndPriority *fap = &container->data[i];
+      if (priority != fap->priority) {
+        priority = fap->priority;
+        char section_name[20];
+        if (priority == INT_MAX) {
+          snprintf(section_name, sizeof(section_name), ".%s_array", section_prefix);
+        } else {
+          char fmt[20];
+          snprintf(fmt, sizeof(fmt), ".%s_array.%%05d", section_prefix);
+          snprintf(section_name, sizeof(section_name), fmt, priority);
+        }
+        _SECTION(section_name);
+        EMIT_ALIGN(TARGET_POINTER_SIZE);
+      }
+
+      Function *func = fap->func;
       bool global = true;
       const Name *name = func->ident->ident;
       const VarInfo *varinfo = scope_find(global_scope, name, NULL);
