@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <inttypes.h>  // PRId64
+#include <limits.h>  // INT_MAX
 #include <stdarg.h>
 #include <stdint.h>  // int64_t
 #include <stdlib.h>  // realloc
@@ -417,10 +418,20 @@ static void emit_decls_ctor_dtor(Vector *decls) {
 #else
   if (ctors.len > 0) {
     emit_comment(NULL);
-    _SECTION(".init_array");
-    EMIT_ALIGN(TARGET_POINTER_SIZE);
+    int priority = -1;
     for (int i = 0; i < ctors.len; ++i) {
-      Function *func = ctors.data[i].func;
+      FuncAndPriority *fap = &ctors.data[i];
+      if (priority != fap->priority) {
+        priority = fap->priority;
+        if (priority == INT_MAX) {
+          _SECTION(".init_array");
+        } else {
+          _SECTION(fmt(".init_array.%05d", priority));
+        }
+        EMIT_ALIGN(TARGET_POINTER_SIZE);
+      }
+
+      Function *func = fap->func;
       bool global = true;
       const Name *name = func->ident->ident;
       const VarInfo *varinfo = scope_find(global_scope, name, NULL);
