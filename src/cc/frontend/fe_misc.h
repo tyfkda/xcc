@@ -110,6 +110,7 @@ Stmt *embed_inline_funcall(VarInfo *varinfo);
 Function *define_func(Type *functype, const Token *ident, const Vector *param_vars,
                       int storage, Table *attributes);
 
+int get_func_priority(Function *func, const Name *attr_name);
 void enumerate_ctors(Vector *decls, Vector *ctors);  // ctors=<Function*>
 void enumerate_dtors(Vector *decls, Vector *dtors);  // dtors=<Function*>
 

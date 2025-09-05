@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <inttypes.h>  // PRId64
+#include <limits.h>  // INT_MAX
 #include <stdarg.h>
 #include <stdint.h>  // int64_t
 #include <stdlib.h>  // realloc
@@ -423,15 +424,28 @@ void emit_bb_irs(BBContainer *bbcon) {
 }
 
 #ifndef NO_DESTRUCTOR
-static void emit_decls_ctor_dtor_priority(Vector *container, const char *section_prefix) {
+static void emit_decls_ctor_dtor_priority(Vector *container, const char *section_prefix,
+                                          const Name *attr_name) {
   if (container->len > 0) {
     emit_comment(NULL);
-    char section_name[20];
-    snprintf(section_name, sizeof(section_name), ".%s_array", section_prefix);
-    _SECTION(section_name);
-    EMIT_ALIGN(TARGET_POINTER_SIZE);
+    int priority = -1;
     for (int i = 0; i < container->len; ++i) {
       Function *func = container->data[i];
+      int new_priority = get_func_priority(func, attr_name);
+      if (priority != new_priority) {
+        priority = new_priority;
+        char section_name[20];
+        if (priority == INT_MAX) {
+          snprintf(section_name, sizeof(section_name), ".%s_array", section_prefix);
+        } else {
+          char fmt[20];
+          snprintf(fmt, sizeof(fmt), ".%s_array.%%05d", section_prefix);
+          snprintf(section_name, sizeof(section_name), fmt, priority);
+        }
+        _SECTION(section_name);
+        EMIT_ALIGN(TARGET_POINTER_SIZE);
+      }
+
       bool global = true;
       const Name *name = func->ident->ident;
       const VarInfo *varinfo = scope_find(global_scope, name, NULL);
@@ -465,11 +479,11 @@ static void emit_decls_ctor_dtor(Vector *decls) {
   // For Apple platforms, the constructor function that registers the destructor function is
   // generated, so no need to handle the destructor functions.
 #else
-  emit_decls_ctor_dtor_priority(&ctors, "init");
+  emit_decls_ctor_dtor_priority(&ctors, "init", alloc_cname("constructor"));
 
   Vector dtors;
   enumerate_dtors(decls, &dtors);
-  emit_decls_ctor_dtor_priority(&dtors, "fini");
+  emit_decls_ctor_dtor_priority(&dtors, "fini", alloc_cname("destructor"));
 #endif
 }
 

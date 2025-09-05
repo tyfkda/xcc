@@ -91,6 +91,7 @@ typedef struct {
     struct {
       uint32_t type_index;
       uint32_t indirect_index;
+      uint32_t ctor_priority;
     } func;
     struct {
       uint8_t wtype;

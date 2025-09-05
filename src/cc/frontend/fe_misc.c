@@ -1325,7 +1325,7 @@ Function *define_func(Type *functype, const Token *ident, const Vector *param_va
   return func;
 }
 
-static int get_func_priority(Function *func, const Name *attr_name) {
+int get_func_priority(Function *func, const Name *attr_name) {
   // Accept: `constructor`, `constructor(priority)`
   // Low value means high priority, negative value ignored.
   const int MAX = 65535;

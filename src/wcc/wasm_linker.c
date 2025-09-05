@@ -236,6 +236,11 @@ static bool enumerate_unresolved(WasmLinker *linker) {
   return err_count == 0;
 }
 
+int cmp_ctor_funcs(const void *a, const void *b) {
+  SymbolInfo *const *ppa = a, *const *ppb = b;
+  return (int)(*ppb)->func.ctor_priority - (int)(*ppa)->func.ctor_priority;
+}
+
 static void generate_init_funcs(WasmLinker *linker) {
   if (linker->files->len <= 0)
     return;
@@ -245,7 +250,7 @@ static void generate_init_funcs(WasmLinker *linker) {
   if (strcmp(generated->filename, LINKER_GENERATED_FILENAME) != 0)
     return;
 
-  Vector *init_funcs = new_vector();
+  Vector *init_funcs = new_vector();  // <SymbolInfo*>
   for (int i = 0; i < linker->files->len; ++i) {
     File *file = linker->files->data[i];
     switch (file->kind) {
@@ -267,6 +272,8 @@ static void generate_init_funcs(WasmLinker *linker) {
       break;
     }
   }
+
+  mymergesort(init_funcs->data, init_funcs->len, sizeof(void*), cmp_ctor_funcs);
 
   // Generate
   assert(generated->kind == FK_WASMOBJ);

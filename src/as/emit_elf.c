@@ -381,6 +381,13 @@ static inline uint64_t arrange_section_offsets(Work *work) {
   return offset;
 }
 
+static bool match_section_name(const Name *section_name, const char *name, int len) {
+  const char *chars = section_name->chars;
+  int bytes = section_name->bytes;
+  return strncmp(chars, name, len) == 0 &&
+         (bytes == len || (bytes > len && chars[len] == '.'));
+}
+
 static inline void construct_section_headers(Work *work, uint64_t offset) {
   Vector *sections = work->sections;
 
@@ -408,8 +415,8 @@ static inline void construct_section_headers(Work *work, uint64_t offset) {
   };
   data_append(section_headers, &nulsec, sizeof(nulsec));
 
-  const Name *init_array_name = alloc_cname(".init_array");
-  const Name *fini_array_name = alloc_cname(".fini_array");
+  const char init_array_name[] = ".init_array";
+  const char fini_array_name[] = ".fini_array";
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
     size_t size = section->ds != NULL ? section->ds->len : section->bss_size;
@@ -424,9 +431,9 @@ static inline void construct_section_headers(Work *work, uint64_t offset) {
     Elf64_Word type;
     if (section->flag & SF_BSS)
       type = SHT_NOBITS;
-    else if (equal_name(section->name, init_array_name))
+    else if (match_section_name(section->name, init_array_name, sizeof(init_array_name) - 1))
       type = SHT_INIT_ARRAY;
-    else if (equal_name(section->name, fini_array_name))
+    else if (match_section_name(section->name, fini_array_name, sizeof(fini_array_name) - 1))
       type = SHT_FINI_ARRAY;
     else
       type = SHT_PROGBITS;

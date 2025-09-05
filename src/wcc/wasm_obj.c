@@ -142,6 +142,8 @@ static void read_import_section(WasmObj *wasmobj, unsigned char *p) {
         sym->flags = 0;
         sym->local_index = index;
         sym->func.type_index = type_index;
+        sym->func.indirect_index = -1;
+        sym->func.ctor_priority = -1;
         vec_push(wasmobj->import.functions, sym);
       }
       break;
@@ -311,6 +313,8 @@ static inline unsigned char *read_linking_symbol_general(
       func_type = VOIDP2INT(func_types->data[i]);
     }
     sym->func.type_index = func_type;
+    sym->func.indirect_index = -1;
+    sym->func.ctor_priority = -1;
     vec_push(wasmobj->linking.func_symtab, sym);
   }
 
@@ -421,10 +425,11 @@ static inline void read_linking_init_funcs(WasmObj *wasmobj, unsigned char *p) {
   Vector *init_funcs = new_vector();
   uint32_t count = read_uleb128(p, &p);
   for (uint32_t i = 0; i < count; ++i) {
-    /*uint32_t priority =*/ read_uleb128(p, &p);  // TODO: Sort by priority.
+    uint32_t priority = read_uleb128(p, &p);
     uint32_t index = read_uleb128(p, &p);
     assert(index < (uint32_t)wasmobj->linking.symtab->len);
     SymbolInfo *sym = wasmobj->linking.symtab->data[index];
+    sym->func.ctor_priority = priority;
     vec_push(init_funcs, sym);
   }
   wasmobj->linking.init_funcs = init_funcs;
