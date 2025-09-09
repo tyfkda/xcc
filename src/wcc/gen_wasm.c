@@ -1976,7 +1976,7 @@ static Expr *proc_builtin_nan(const Token *ident) {
     parse_error(PE_NOFATAL, fmt->token, "String literal expected");
   }
 
-  const uint64_t MASK = (1UL << 52) - 1UL;
+  const uint64_t MASK = ((uint64_t)1 << 52) - 1UL;
   union { double d; uint64_t q; } u;
   u.d = NAN;
   u.q = (u.q & ~MASK) | (significand & MASK);

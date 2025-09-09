@@ -10,6 +10,10 @@
 
 #include "./xtest.h"
 
+#ifndef __NO_FLONUM
+#include "math.h"
+#endif
+
 #if defined(__GNUC__)
 #pragma GCC diagnostic ignored "-Wimplicit-int"
 #endif
@@ -2279,6 +2283,15 @@ TEST(builtin) {
   EXPECT("builtin popcount", 8, __builtin_popcount(0x000f0f00U));
   EXPECT("builtin popcountl", 8, __builtin_popcountl(0x000f0f00UL));
   EXPECT("builtin popcountll", 8, __builtin_popcountll(0x000f0f00ULL));
+
+#ifndef __NO_FLONUM
+  {
+    union { double nan; uint64_t x; } u;
+    u.nan = __builtin_nan("0xdeadbeefcafebabe");
+    EXPECT_TRUE(isnan(u.nan));
+    EXPECT("builtin nan", 0x7ffdbeefcafebabe, u.x);
+  }
+#endif
 }
 
 //

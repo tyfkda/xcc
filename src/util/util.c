@@ -330,15 +330,15 @@ void show_error_line(const char *line, const char *p, int len) {
 }
 
 bool is_im8(int64_t x) {
-  return x <= ((1L << 7) - 1) && x >= -(1L << 7);
+  return x <= (((int64_t)1 << 7) - 1) && x >= -((int64_t)1 << 7);
 }
 
 bool is_im16(int64_t x) {
-  return x <= ((1L << 15) - 1) && x >= -(1L << 15);
+  return x <= (((int64_t)1 << 15) - 1) && x >= -((int64_t)1 << 15);
 }
 
 bool is_im32(int64_t x) {
-  return x <= ((1L << 31) - 1) && x >= -(1L << 31);
+  return x <= (((int64_t)1 << 31) - 1) && x >= -((int64_t)1 << 31);
 }
 
 const char *skip_whitespaces(const char *s) {
@@ -528,7 +528,7 @@ void data_concat(DataStorage *dst, DataStorage *src) {
 
 void data_leb128(DataStorage *data, ssize_t pos, int64_t val) {
   unsigned char buf[12], *p = buf;
-  const int64_t MAX = 1 << 6;
+  const int64_t MAX = (int64_t)1 << 6;
   for (;;) {
     if (val < MAX && val >= -MAX) {
       *p++ = val & 0x7f;
@@ -542,7 +542,7 @@ void data_leb128(DataStorage *data, ssize_t pos, int64_t val) {
 
 void data_uleb128(DataStorage *data, ssize_t pos, uint64_t val) {
   unsigned char buf[12], *p = buf;
-  const uint64_t MAX = 1 << 7;
+  const uint64_t MAX = (uint64_t)1 << 7;
   for (;;) {
     if (val < MAX) {
       *p++ = val & 0x7f;
