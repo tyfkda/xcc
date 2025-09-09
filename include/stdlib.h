@@ -7,12 +7,12 @@
 #define EXIT_SUCCESS  0
 #define EXIT_FAILURE  1
 
-int atoi(const char* s);
-long atol(const char* s);
-long long atoll(const char* s);
+int atoi(const char *s);
+long atol(const char *s);
+long long atoll(const char *s);
 void *malloc(size_t size);
-void free(void* ptr);
-void *realloc(void* ptr, size_t size);
+void free(void *ptr);
+void *realloc(void *ptr, size_t size);
 void *calloc(size_t size, size_t n);
 
 _Noreturn void exit(int code);
@@ -27,7 +27,7 @@ int abs(int x);
 long labs(long x);
 long long llabs(long long x);
 
-void qsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *));
+void qsort(void *base, size_t nmemb, size_t size, int (*compare)(const void*, const void*));
 void *bsearch(const void *key, const void *base, size_t nmemb, size_t size,
               int (*compare)(const void*, const void*));
 

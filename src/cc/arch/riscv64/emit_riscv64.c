@@ -129,8 +129,7 @@ static void move_params_to_assigned(Function *func) {
       }
     }
   }
-
-  #undef kFRegParam64s
+#undef kFRegParam64s
 }
 
 static size_t detect_funcall_work_size(Function *func) {
@@ -219,7 +218,8 @@ void emit_defun_body(Function *func) {
       vaarg_params_saved = put_vaarg_params(func);
 
       // Re-align frame size.
-      frame_size = ALIGN(fnbe->frame_size + funcall_work_size + vaarg_params_saved, 16) - vaarg_params_saved;
+      frame_size = ALIGN(fnbe->frame_size + funcall_work_size + vaarg_params_saved, 16) -
+                   vaarg_params_saved;
     }
 
     fp_saved = fnbe->frame_size > 0 || fnbe->ra->flag & RAF_STACK_FRAME;

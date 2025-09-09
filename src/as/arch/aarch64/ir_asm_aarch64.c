@@ -133,8 +133,8 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
               Value value = calc_expr(label_table, offset->expr);
               if (value.label != NULL) {
                 static const int table[][2] = {
-                  { LF_GOT, UNRES_GOT_HI },
-                  { LF_GOT | LF_PAGEOFF, UNRES_GOT_LO },
+                  {LF_GOT, UNRES_GOT_HI},
+                  {LF_GOT | LF_PAGEOFF, UNRES_GOT_LO},
                 };
                 size_t i;
                 for (i = 0; i < ARRAY_SIZE(table); ++i) {
@@ -161,9 +161,9 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
               Value value = calc_expr(label_table, expr->expr);
               if (value.label != NULL) {
                 static const int table[][2] = {
-                  { 0, UNRES_PCREL_HI },
-                  { LF_PAGE, UNRES_PCREL_HI },
-                  { LF_GOT | LF_PAGE, UNRES_GOT_HI },
+                  {0, UNRES_PCREL_HI},
+                  {LF_PAGE, UNRES_PCREL_HI},
+                  {LF_GOT | LF_PAGE, UNRES_GOT_HI},
                 };
                 size_t i;
                 for (i = 0; i < ARRAY_SIZE(table); ++i) {

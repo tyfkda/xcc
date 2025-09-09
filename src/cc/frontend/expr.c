@@ -874,8 +874,7 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
 #ifndef __NO_FLONUM
     case EX_FLONUM:
       switch (rhs->kind) {
-      case EX_STR:
-        break;
+      case EX_STR: break;
       case EX_FIXNUM: assert(false); break;
       case EX_FLONUM:
         {

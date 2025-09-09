@@ -130,8 +130,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   VReg *p = new_ir_bofs(fi)->dst;
   if (offset > 0) {
     enum VRegSize vsize = to_vsize(&tyVoidPtr);
-    p = new_ir_bop(IR_ADD, p, new_const_vreg(offset, vsize), vsize,
-                   IRF_UNSIGNED);
+    p = new_ir_bop(IR_ADD, p, new_const_vreg(offset, vsize), vsize, IRF_UNSIGNED);
   }
   new_ir_mov(varinfo->local.vreg, p, IRF_UNSIGNED);
   return NULL;

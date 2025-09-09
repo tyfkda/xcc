@@ -32,7 +32,7 @@ static inline bool assemble_error(ParseInfo *info, const char *message) {
   return false;
 }
 
-static const uint32_t kPrePost[] = { 2, 3, 1 };
+static const uint32_t kPrePost[] = {2, 3, 1};
 
 static unsigned char *asm_noop(Inst *inst, Code *code) {
   UNUSED(inst);
@@ -257,7 +257,9 @@ static unsigned char *asm_ldrstr(Inst *inst, Code *code) {
     assert(opr2->indirect.reg.size == REG64);
     // assert(opr2->indirect.offset == NULL || opr2->indirect.offset->kind == EX_FIXNUM);
     ExprWithFlag *offset_expr = &opr2->indirect.offset;
-    int64_t offset = offset_expr->expr != NULL && offset_expr->expr->kind == EX_FIXNUM ? offset_expr->expr->fixnum : 0;
+    int64_t offset = offset_expr->expr != NULL && offset_expr->expr->kind == EX_FIXNUM
+                         ? offset_expr->expr->fixnum
+                         : 0;
     assert(offset < (1 << (6 + 3)) && offset >= -(1 << (6 + 3)));
     uint32_t base = opr2->indirect.reg.no;
     uint32_t prepost = kPrePost[opr2->indirect.prepost];
@@ -343,7 +345,8 @@ static unsigned char *asm_ldrstr(Inst *inst, Code *code) {
           }
           s2 = n == b;
         }
-        W_STR_R(b, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, s2, opt);
+        W_STR_R(b, opr1->reg.no, opr2->register_offset.base_reg.no,
+                opr2->register_offset.index_reg.no, s2, opt);
       }
       break;
     default: assert(false); break;
@@ -471,7 +474,9 @@ static unsigned char *asm_f_ldrstr(Inst *inst, Code *code) {
     assert(opr2->indirect.reg.size == REG64);
     // assert(opr2->indirect.offset == NULL || opr2->indirect.offset->kind == EX_FIXNUM);
     ExprWithFlag *offset_expr = &opr2->indirect.offset;
-    int64_t offset = offset_expr->expr != NULL && offset_expr->expr->kind == EX_FIXNUM ? offset_expr->expr->fixnum : 0;
+    int64_t offset = offset_expr->expr != NULL && offset_expr->expr->kind == EX_FIXNUM
+                         ? offset_expr->expr->fixnum
+                         : 0;
     assert(offset < (1 << (6 + 3)) && offset >= -(1 << (6 + 3)));
     uint32_t base = opr2->indirect.reg.no;
     uint32_t prepost = kPrePost[opr2->indirect.prepost];

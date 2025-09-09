@@ -66,7 +66,7 @@ static StructInfo *parse_struct(bool is_union) {
   Token *flex_arr_mem = NULL;  // Flexible array member appeared.
   while (!match(TK_RBRACE)) {
     if (flex_arr_mem != NULL) {
-      parse_error(PE_NOFATAL, flex_arr_mem, "Flexible array meber must be last element");
+      parse_error(PE_NOFATAL, flex_arr_mem, "Flexible array member must be last element");
       flex_arr_mem = NULL;
     }
 
@@ -246,24 +246,12 @@ Type *parse_raw_type(int *pstorage) {
       ASSERT_PARSE_ERROR((tc.qualifier & TQ_RESTRICT) == 0, tok, MULTIPLE_QUALIFIER_SPECIFIED);
       tc.qualifier |= TQ_RESTRICT;
       continue;
-    case TK_CHAR:
-      ++tc.char_num;
-      continue;
-    case TK_SHORT:
-      ++tc.short_num;
-      continue;
-    case TK_INT:
-      ++tc.int_num;
-      continue;
-    case TK_LONG:
-      ++tc.long_num;
-      continue;
-    case TK_FLOAT:
-      ++tc.float_num;
-      continue;
-    case TK_DOUBLE:
-      ++tc.double_num;
-      continue;
+    case TK_CHAR: ++tc.char_num; continue;
+    case TK_SHORT: ++tc.short_num; continue;
+    case TK_INT: ++tc.int_num; continue;
+    case TK_LONG: ++tc.long_num; continue;
+    case TK_FLOAT: ++tc.float_num; continue;
+    case TK_DOUBLE: ++tc.double_num; continue;
     default: break;
     }
 

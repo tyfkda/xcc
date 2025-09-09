@@ -129,7 +129,8 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
     UnresolvedInfo *u = unresolved->data[i];
     SectionInfo *section = u->src_section;
     struct relocation_info *rela;
-    section->rela_buf = rela = realloc_or_die(section->rela_buf, ++section->rela_count * sizeof(*rela));
+    section->rela_buf = rela = realloc_or_die(section->rela_buf,
+                                              ++section->rela_count * sizeof(*rela));
     rela += section->rela_count - 1;
     switch (u->kind) {
     case UNRES_ABS64:
@@ -200,7 +201,8 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         assert(symidx >= 0);
 
         assert(u->add == 0);
-        uint32_t type = u->kind == UNRES_GOT_HI ? ARM64_RELOC_GOT_LOAD_PAGE21 : ARM64_RELOC_GOT_LOAD_PAGEOFF12;
+        uint32_t type = u->kind == UNRES_GOT_HI ? ARM64_RELOC_GOT_LOAD_PAGE21
+                                                : ARM64_RELOC_GOT_LOAD_PAGEOFF12;
         SET_RELOCATION_INFO(rela, u->offset, symidx, u->kind == UNRES_GOT_HI ? 1 : 0, 2, 1, type);
       }
       break;
@@ -216,7 +218,8 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
 
         if (u->add != 0) {
           struct relocation_info *rela2;
-          section->rela_buf = rela2 = realloc_or_die(section->rela_buf, ++section->rela_count * sizeof(*rela2));
+          section->rela_buf = rela2 = realloc_or_die(section->rela_buf,
+                                                     ++section->rela_count * sizeof(*rela2));
           rela2 += section->rela_count - 1;
 
           SET_RELOCATION_INFO(rela2, u->offset, u->add, 0, 2, 0, ARM64_RELOC_ADDEND);

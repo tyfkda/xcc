@@ -306,7 +306,8 @@ Stmt *new_stmt_vardecl(VarDecl *vardecl) {
   return stmt;
 }
 
-Stmt *new_stmt_asm(const Token *token, Vector *templates, Vector *outputs, Vector *inputs, int flag) {
+Stmt *new_stmt_asm(const Token *token, Vector *templates, Vector *outputs, Vector *inputs,
+                   int flag) {
   Stmt *stmt = new_stmt(ST_ASM, token);
   stmt->asm_.templates = templates;
   stmt->asm_.outputs = outputs;

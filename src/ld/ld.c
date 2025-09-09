@@ -179,7 +179,8 @@ static uint64_t ld_symbol_address(LinkEditor *ld, const Name *name) {
 #define W_ADDI(rd, rs, imm)       MAKE_CODE32(ITYPE(imm, rs, 0x00, rd, 0x13))
 #define P_NOP()                   W_ADDI(ZERO, ZERO, 0)
 
-static uint64_t calc_rela_sym_address(LinkEditor *ld, ElfObj *elfobj, const Elf64_Rela *rela, const Elf64_Sym *sym, const ElfSectionInfo *strinfo) {
+static uint64_t calc_rela_sym_address(LinkEditor *ld, ElfObj *elfobj, const Elf64_Rela *rela,
+                                      const Elf64_Sym *sym, const ElfSectionInfo *strinfo) {
   uint64_t address = 0;
   switch (ELF64_ST_BIND(sym->st_info)) {
   case STB_LOCAL:

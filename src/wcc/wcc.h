@@ -109,7 +109,7 @@ void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc
                           bool add_to_scope);
 
 #define ADD_CODE(...)  do { unsigned char buf[] = {__VA_ARGS__}; add_code(buf, sizeof(buf)); } while (0)
-void add_code(const unsigned char* buf, size_t size);
+void add_code(const unsigned char *buf, size_t size);
 
 void install_builtins(void);
 
@@ -177,7 +177,8 @@ typedef struct FuncExtra {
 
 Expr *get_sp_var(void);
 unsigned char to_wtype(const Type *type);
-bool is_global_datsec_var(const VarInfo *varinfo, Scope *scope);  // Whether this global variable put on data section.
+/// Whether this global variable put on data section.
+bool is_global_datsec_var(const VarInfo *varinfo, Scope *scope);
 size_t calc_funcall_work_size(Expr *expr);
 
 extern DataStorage *curcodeds;

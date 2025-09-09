@@ -1809,7 +1809,7 @@ void gen(Vector *decls) {
 
 static TagInfo *register_longjmp_tag(void) {
   static const char kTagName[] = "__c_longjmp";
-  // Exception type: (jmp_buf* env)
+  // Exception type: (jmp_buf *env)
   Vector *params = new_vector();
   vec_push(params, &tyVoidPtr);
   Type *functype = new_func_type(&tyVoid, params, false);
@@ -1848,9 +1848,8 @@ static void gen_builtin_longjmp(Expr *expr, enum BuiltinFunctionPhase phase) {
       if (!is_const(arg) && arg->kind != EX_VAR) {
         // (tmp = arg, tmp)
         Expr *tmp = alloc_tmp_var(curscope, arg->type);
-        Expr *comma = new_expr_bop(EX_COMMA, &tyVoid, tok,
-                                   new_expr_bop(EX_ASSIGN, &tyVoid, tok, tmp, arg),
-                                   tmp);
+        Expr *assign = new_expr_bop(EX_ASSIGN, &tyVoid, tok, tmp, arg);
+        Expr *comma = new_expr_bop(EX_COMMA, &tyVoid, tok, assign, tmp);
         args->data[i] = comma;
       }
     }

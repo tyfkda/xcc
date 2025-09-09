@@ -89,8 +89,8 @@ static void move_params_to_assigned(Function *func) {
   extern const char *kFReg32s[], *kFReg64s[];
 
   // Assume fp-parameters are arranged from index 0.
-  #define kFRegParam32s  kFReg32s
-  #define kFRegParam64s  kFReg64s
+#define kFRegParam32s  kFReg32s
+#define kFRegParam64s  kFReg64s
 
   RegParamInfo iparams[MAX_REG_ARGS];
   RegParamInfo fparams[MAX_FREG_ARGS];
@@ -162,8 +162,8 @@ static void move_params_to_assigned(Function *func) {
 #endif
   }
 
-  #undef kFRegParam32s
-  #undef kFRegParam64s
+#undef kFRegParam32s
+#undef kFRegParam64s
 }
 
 static size_t detect_funcall_work_size(Function *func) {

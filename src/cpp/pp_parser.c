@@ -327,7 +327,7 @@ static PpResult unary(Token *tok) {
 }
 
 static PpResult binary(PpResult lhs, Token *tok) {
-  const ParseRule* rule = get_rule(tok->kind);
+  const ParseRule *rule = get_rule(tok->kind);
   assert(rule != NULL);
   PpResult rhs = parse_precedence(rule->precedence + 1);
 
@@ -370,7 +370,7 @@ static PpResult binary(PpResult lhs, Token *tok) {
 }
 
 static PpResult ternary(PpResult expr, Token *tok) {
-  const ParseRule* rule = get_rule(tok->kind);
+  const ParseRule *rule = get_rule(tok->kind);
   assert(rule != NULL);
   PpResult tval = pp_expr();
 

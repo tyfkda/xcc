@@ -206,7 +206,8 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                 // Put rela even if the label is defined in the same object file.
                 UnresolvedInfo *info;
                 info = calloc_or_die(sizeof(*info));
-                info->kind = (ir->code.flag & INST_LONG_OFFSET) ? UNRES_RISCV_JAL : UNRES_RISCV_RVC_JUMP;
+                info->kind = (ir->code.flag & INST_LONG_OFFSET) ? UNRES_RISCV_JAL
+                                                                : UNRES_RISCV_RVC_JUMP;
                 info->label = value.label;
                 info->src_section = section;
                 info->offset = address - start_address;

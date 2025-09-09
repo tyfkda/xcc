@@ -710,33 +710,21 @@ static Stmt *parse_stmt(void) {
     if (match(TK_COLON))
       return parse_label(tok);
     break;
-  case TK_CASE:
-  case TK_DEFAULT:
+  case TK_CASE: case TK_DEFAULT:
     return parse_case(tok);
-  case TK_SEMICOL:
-    return new_stmt(ST_EMPTY, tok);
-  case TK_LBRACE:
-    return parse_block(tok, NULL);
-  case TK_IF:
-    return parse_if(tok);
-  case TK_SWITCH:
-    return parse_switch(tok);
-  case TK_WHILE:
-    return parse_while(tok);
-  case TK_DO:
-    return parse_do_while(tok);
-  case TK_FOR:
-    return parse_for(tok);
+  case TK_SEMICOL:  return new_stmt(ST_EMPTY, tok);
+  case TK_LBRACE:  return parse_block(tok, NULL);
+  case TK_IF:  return parse_if(tok);
+  case TK_SWITCH:  return parse_switch(tok);
+  case TK_WHILE:  return parse_while(tok);
+  case TK_DO:  return parse_do_while(tok);
+  case TK_FOR:  return parse_for(tok);
   case TK_BREAK: case TK_CONTINUE:
     return parse_break_continue(tok->kind == TK_BREAK ? ST_BREAK : ST_CONTINUE, tok);
-  case TK_GOTO:
-    return parse_goto(tok);
-  case TK_RETURN:
-    return parse_return(tok);
-  case TK_ASM:
-    return parse_asm(tok);
-  default:
-    break;
+  case TK_GOTO:  return parse_goto(tok);
+  case TK_RETURN:  return parse_return(tok);
+  case TK_ASM:  return parse_asm(tok);
+  default:  break;
   }
 
   unget_token(tok);

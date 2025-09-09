@@ -9,7 +9,7 @@
 #include "util.h"
 
 static const enum VRegSize vtVoidPtr = VRegSize8;
-static const enum VRegSize vtBool    = VRegSize4;
+static const enum VRegSize vtBool = VRegSize4;
 
 Phi *new_phi(VReg *dst, Vector *params) {
   Phi *phi = malloc_or_die(sizeof(*phi));
@@ -36,7 +36,7 @@ enum ConditionKind invert_cond(enum ConditionKind cond) {
 // Virtual register
 
 void spill_vreg(VReg *vreg) {
-  vreg->phys = -1;  //SPILLED_REG_NO(ra);
+  vreg->phys = -1;  // SPILLED_REG_NO(ra);
   assert(!(vreg->flag & VRF_NO_SPILL));
   vreg->flag |= VRF_SPILLED;
 }
@@ -112,7 +112,7 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, 
         case IR_BITXOR:  value = lval ^ rval; break;
         case IR_LSHIFT:  value = lval << rval; break;
         case IR_RSHIFT:
-          //assert(opr1->type->kind == TY_FIXNUM);
+          // assert(opr1->type->kind == TY_FIXNUM);
           if (flag & IRF_UNSIGNED)
             value = (uint64_t)lval >> rval;
           else

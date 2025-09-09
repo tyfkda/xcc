@@ -137,7 +137,8 @@ int calculate_func_param_bottom(Function *func) {
   unsigned long used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
   int callee_save_count = count_callee_save_regs(used, fused);
 
-  return (callee_save_count * TARGET_POINTER_SIZE) + (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
+  return (callee_save_count * TARGET_POINTER_SIZE) +
+         (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
 }
 
 Vector *collect_caller_save_regs(unsigned long living) {

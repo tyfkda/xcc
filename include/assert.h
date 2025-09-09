@@ -5,7 +5,7 @@
 
 #elif defined(__APPLE__)
 
-void __assert_rtn(const char *, const char *, int, const char *); // __dead2 __cold __disable_tail_calls;
+void __assert_rtn(const char*, const char*, int, const char*); // __dead2 __cold __disable_tail_calls;
 #define assert(x)  ((x) ? ((void)0) : __assert_rtn(__FUNCTION__, __FILE__, __LINE__, #x))
 
 #else

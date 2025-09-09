@@ -14,7 +14,7 @@ TEST(vector) {
   EXPECT_EQ(0, vec->len);
 
   for (int i = 0; i < 100; i++)
-    vec_push(vec, (void *)(intptr_t)i);
+    vec_push(vec, (void*)(intptr_t)i);
 
   EXPECT_EQ(100, vec->len);
   EXPECT_EQ(0, (intptr_t)vec->data[0]);

@@ -364,12 +364,12 @@ static void init_compiler(Vector *decls) {
   init_lexer();
   init_global();
 
-  //set_fixnum_size(FX_CHAR,  1, 1);
-  //set_fixnum_size(FX_SHORT, 2, 2);
-  //set_fixnum_size(FX_INT,   4, 4);
-  //set_fixnum_size(FX_LONG,  8, 8);
-  //set_fixnum_size(FX_LLONG, 8, 8);
-  //set_fixnum_size(FX_ENUM,  4, 4);
+  // set_fixnum_size(FX_CHAR,  1, 1);
+  // set_fixnum_size(FX_SHORT, 2, 2);
+  // set_fixnum_size(FX_INT,   4, 4);
+  // set_fixnum_size(FX_LONG,  8, 8);
+  // set_fixnum_size(FX_LLONG, 8, 8);
+  // set_fixnum_size(FX_ENUM,  4, 4);
 
   install_builtins(decls);
 }

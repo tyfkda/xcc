@@ -22,5 +22,5 @@ int calculate_func_param_bottom(Function *func);
 void emit_bb_irs(BBContainer *bbcon);
 void emit_defun_body(Function *func);
 
-typedef void (*EmitIrFunc)(IR *);
+typedef void (*EmitIrFunc)(IR*);
 extern const EmitIrFunc kEmitIrFuncTable[];

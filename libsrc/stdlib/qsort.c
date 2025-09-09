@@ -2,7 +2,7 @@
 #include "alloca.h"
 #include "string.h"  // memcpy
 
-void qsort(void *base, size_t nmemb, size_t size, int (*compare)(const void *, const void *)) {
+void qsort(void *base, size_t nmemb, size_t size, int (*compare)(const void*, const void*)) {
   if (nmemb <= 1)
     return;
 

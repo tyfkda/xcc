@@ -780,12 +780,14 @@ static void out_global_section(WasmLinker *linker) {
 #ifndef __NO_FLONUM
       case WT_F32:
         data_push(&globals_section, OP_F32_CONST);
-        data_append(&globals_section, &sym->global.f32value, sizeof(sym->global.f32value));  // !Endian
+        data_append(&globals_section, &sym->global.f32value,
+                    sizeof(sym->global.f32value));  // !Endian
         data_push(&globals_section, OP_END);
         break;
       case WT_F64:
         data_push(&globals_section, OP_F64_CONST);
-        data_append(&globals_section, &sym->global.f64value, sizeof(sym->global.f64value));  // !Endian
+        data_append(&globals_section, &sym->global.f64value,
+                    sizeof(sym->global.f64value));  // !Endian
         data_push(&globals_section, OP_END);
         break;
 #endif

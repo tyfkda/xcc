@@ -446,7 +446,7 @@ static void emit_decls_ctor_dtor(Vector *decls) {
   }
   if (dtors->len > 0) {
     emit_comment(NULL);
-      _SECTION(".fini_array");
+    _SECTION(".fini_array");
     EMIT_ALIGN(8);
     for (int i = 0; i < dtors->len; ++i) {
       Function *func = dtors->data[i];
@@ -514,7 +514,8 @@ static void emit_defun(Function *func) {
 
   VarInfo *funcvi = scope_find(global_scope, func->ident->ident, NULL);
   assert(funcvi != NULL);
-  if (emit || (funcvi->storage & VS_USED)) {  // Static inline function is not emitted, but it must output its static variables.
+  if (emit || (funcvi->storage & VS_USED)) {
+    // Static inline function is not emitted, but it must output its static variables.
     // Static variables.
     Vector *vars = func->static_vars;
     if (vars != NULL && vars->len > 0) {

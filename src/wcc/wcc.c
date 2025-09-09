@@ -275,7 +275,6 @@ static void parse_linker_options(const char *arg, WasmLinkerOptions *lopts) {
   fprintf(stderr, "Warning: unknown option: %s\n", arg_bak);
 }
 
-
 static void parse_options(int argc, char *argv[], Options *opts) {
   enum {
     OPT_HELP = 128,

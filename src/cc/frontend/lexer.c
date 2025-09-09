@@ -496,7 +496,7 @@ static Token *read_num(const char **pp) {
 }
 
 const char *read_ident(const char *p_) {
-  const unsigned char *p = (const unsigned char *)p_;
+  const unsigned char *p = (const unsigned char*)p_;
   unsigned char uc = *p;
   int ucc = isutf8first(uc) - 1;
   if (!(ucc > 0 || isalpha(uc) || uc == '_'))

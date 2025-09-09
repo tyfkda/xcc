@@ -293,7 +293,8 @@ static ExprWithFlag parse_expr_with_flag(ParseInfo *info) {
   return (ExprWithFlag){expr, flag};
 }
 
-static unsigned int parse_indirect_register(ParseInfo *info, ExprWithFlag *offset, Operand *operand) {
+static unsigned int parse_indirect_register(ParseInfo *info, ExprWithFlag *offset,
+                                            Operand *operand) {
   enum RegType index_reg = NOREG;
   Expr *scale = NULL;
   // Already read "(%".

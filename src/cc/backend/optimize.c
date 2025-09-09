@@ -412,7 +412,7 @@ static bool constant_folding(RegAlloc *ra, IR *ir) {
     if ((ir->opr2->flag & VRF_CONST) &&
         (   (!(ir->opr2->flag & VRF_FLONUM) && ir->opr2->fixnum == 0)
 #ifndef __NO_FLONUM
-          || ( (ir->opr2->flag & VRF_FLONUM) && ir->opr2->flonum.value == 0)
+         || ( (ir->opr2->flag & VRF_FLONUM) && ir->opr2->flonum.value == 0)
 #endif
         )) {
       // Stay as it is, DIV or MOD instruction accepts even if both operands are constant.

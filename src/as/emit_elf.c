@@ -155,7 +155,8 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
     UnresolvedInfo *u = unresolved->data[i];
     SectionInfo *section = u->src_section;
     Elf64_Rela *rela;
-    section->rela_buf = rela = realloc_or_die(section->rela_buf, ++section->rela_count * sizeof(*rela));
+    section->rela_buf = rela = realloc_or_die(section->rela_buf,
+                                              ++section->rela_count * sizeof(*rela));
     rela += section->rela_count - 1;
     switch (u->kind) {
     case UNRES_ABS64:
@@ -304,7 +305,8 @@ static void construct_relas(Vector *unresolved, Symtab *symtab, Table *label_tab
         assert(symidx >= 0);
 
         rela->r_offset = u->offset;
-        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_RISCV_JAL ? R_RISCV_JAL : R_RISCV_RVC_JUMP);
+        rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_RISCV_JAL ? R_RISCV_JAL
+                                                                       : R_RISCV_RVC_JUMP);
         rela->r_addend = u->add;
       }
       break;

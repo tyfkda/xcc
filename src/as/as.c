@@ -274,11 +274,11 @@ int main(int argc, char *argv[]) {
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
   extern int emit_macho_obj(const char *ofn, Vector *sections, Table *label_table,
                             Vector *unresolved);
-  #define EMIT_OBJ emit_macho_obj
+# define EMIT_OBJ emit_macho_obj
 #else
   extern int emit_elf_obj(const char *ofn, Vector *sections, Table *label_table,
                           Vector *unresolved);
-  #define EMIT_OBJ emit_elf_obj
+# define EMIT_OBJ emit_elf_obj
 #endif
   int result = EMIT_OBJ(ofn, sections, &label_table, unresolved);
   if (result != 0) {

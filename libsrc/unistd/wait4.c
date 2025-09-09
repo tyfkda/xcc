@@ -3,7 +3,7 @@
 #include "_syscall.h"
 #include "errno.h"
 
-pid_t wait4(pid_t pid, int* status, int options, struct rusage *usage) {
+pid_t wait4(pid_t pid, int *status, int options, struct rusage *usage) {
   int ret;
 #if defined(__x86_64__)
   SYSCALL_ARGCOUNT(4);

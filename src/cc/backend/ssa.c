@@ -196,7 +196,7 @@ static void insert_phis(BBContainer *bbcon, int original_vreg_count) {
 }
 
 // To make BB merging flow only from unconditional transition, insert BB.
-static int insert_unconditional_bb(BBContainer *bbcon, int ito, int ifrom, IR* last) {
+static int insert_unconditional_bb(BBContainer *bbcon, int ito, int ifrom, IR *last) {
   BB *to = bbcon->data[ito];
   BB *from = bbcon->data[ifrom];
   BB *bb = new_bb();

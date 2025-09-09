@@ -439,7 +439,7 @@ static Expr *unary(Token *tok) {
 }
 
 static Expr *binary(Expr *lhs, Token *tok) {
-  const ParseRule* rule = get_rule(tok->kind);
+  const ParseRule *rule = get_rule(tok->kind);
   assert(rule != NULL);
   Expr *rhs = parse_precedence(rule->precedence + 1);
 
@@ -480,7 +480,7 @@ static Expr *binary(Expr *lhs, Token *tok) {
 }
 
 static Expr *ternary(Expr *expr, Token *tok) {
-  const ParseRule* rule = get_rule(tok->kind);
+  const ParseRule *rule = get_rule(tok->kind);
   assert(rule != NULL);
   Expr *tval = parse_expr();
 

@@ -17,7 +17,8 @@
 // AArch64: Calling Convention
 //   X8(XR):              Indirect return value address.
 //   X16(IP0), X17(IP1):  Intra-Procedure-call scratch registers.
-//   X18(PR):             Platform register. Used for some operating-system-specific special purpose or an additional caller-saved register.
+//   X18(PR):             Platform register. Used for some operating-system-specific special purpose
+//                        or an additional caller-saved register.
 //                        Apple: The platforms reserve register x18. Don’t use this register.
 //   X29(FP):             Frame pointer (Callee save)
 
@@ -163,7 +164,8 @@ int calculate_func_param_bottom(Function *func) {
                                      saves);
   int callee_save_count = ALIGN(count, 2) + ALIGN(fcount, 2);
 
-  return (callee_save_count * TARGET_POINTER_SIZE) + (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
+  return (callee_save_count * TARGET_POINTER_SIZE) +
+         (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
 }
 #undef N
 

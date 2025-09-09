@@ -133,7 +133,8 @@ int calculate_func_param_bottom(Function *func) {
                                      &saves[count]);
   int total = count + fcount;
 
-  return (ALIGN(total, 2) * TARGET_POINTER_SIZE) + (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
+  return (ALIGN(total, 2) * TARGET_POINTER_SIZE) +
+         (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
 }
 #undef N
 

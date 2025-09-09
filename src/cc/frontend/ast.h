@@ -475,7 +475,8 @@ Stmt *new_stmt_return(const Token *token, Expr *val);
 Stmt *new_stmt_goto(const Token *tok, const Token *label);
 Stmt *new_stmt_label(const Token *label, Stmt *follow);
 Stmt *new_stmt_vardecl(VarDecl *vardecl);
-Stmt *new_stmt_asm(const Token *token, Vector *template_, Vector *outputs, Vector *inputs, int flag);
+Stmt *new_stmt_asm(const Token *token, Vector *template_, Vector *outputs, Vector *inputs,
+                   int flag);
 
 // ================================================
 

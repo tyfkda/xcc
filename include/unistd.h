@@ -44,7 +44,7 @@ void *sbrk(intptr_t increment);
 #if !defined(__wasm)
 int unlinkat(int dirfd, const char *pathname, int flags);
 int dup(int);
-int pipe(int *);
+int pipe(int*);
 int pipe2(int *pipefd, int flag);
 int isatty(int fd);
 

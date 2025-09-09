@@ -208,7 +208,8 @@ static bool modify_if_setjmp(LexicalStack *lp, Expr *jmpbuf_env, Expr *var) {
   Stmt *env_to_tmp = NULL;
   if (jmpbuf_env->kind != EX_VAR) {
     Expr *tmp = alloc_tmp_var(curscope, jmpbuf_env->type);
-    env_to_tmp = new_stmt_expr(new_expr_bop(EX_ASSIGN, &tyVoid, jmpbuf_env->token, tmp, jmpbuf_env));
+    env_to_tmp = new_stmt_expr(
+        new_expr_bop(EX_ASSIGN, &tyVoid, jmpbuf_env->token, tmp, jmpbuf_env));
     jmpbuf_env = tmp;
   }
 
@@ -227,11 +228,9 @@ static bool modify_if_setjmp(LexicalStack *lp, Expr *jmpbuf_env, Expr *var) {
   vec_push(args, var);
   vec_push(args, try_block_expr);
 
-  Expr *try_catch_longjmp = new_expr_funcall(
-      token, functype,
-      new_expr_variable(alloc_name("__builtin_try_catch_longjmp", NULL, false), functype, token,
-                        global_scope),
-      args);
+  Expr *try_catch_fn = new_expr_variable(alloc_name("__builtin_try_catch_longjmp", NULL, false),
+                                         functype, token, global_scope);
+  Expr *try_catch_longjmp = new_expr_funcall(token, functype, try_catch_fn, args);
 
   Vector *stmts = new_vector();
   if (env_to_tmp != NULL)

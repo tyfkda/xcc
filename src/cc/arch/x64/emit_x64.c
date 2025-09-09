@@ -146,8 +146,7 @@ static void move_params_to_assigned(Function *func) {
     }
 #endif
   }
-
-  #undef kFRegParam64s
+#undef kFRegParam64s
 }
 
 static size_t detect_funcall_work_size(Function *func) {

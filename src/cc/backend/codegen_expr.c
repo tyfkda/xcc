@@ -200,7 +200,7 @@ static VReg *gen_cast(Expr *expr) {
       // Assume that integer is represented in Two's complement
       size_t bit = dst_size * TARGET_CHAR_BIT;
       UFixnum mask = (-1UL) << bit;
-      if (!is_unsigned(dst_type) && (value & ((Fixnum)1 << (bit - 1))))    // signed && negative
+      if (!is_unsigned(dst_type) && (value & ((Fixnum)1 << (bit - 1))))  // signed && negative
         value |= mask;
       else
         value &= ~mask;
@@ -302,8 +302,9 @@ static VReg *gen_variable(Expr *expr) {
 
       VReg *vreg = gen_lval(expr);
       int irflag = is_unsigned(expr->type) ? IRF_UNSIGNED : 0;
-      VReg *result = new_ir_load(vreg, to_vsize(expr->type), to_vflag_with_storage(expr->type, varinfo->storage), irflag)->dst;
-      return result;
+      IR *ir = new_ir_load(vreg, to_vsize(expr->type),
+                           to_vflag_with_storage(expr->type, varinfo->storage), irflag);
+      return ir->dst;
     }
   case TY_ARRAY:   // Use variable address as a pointer.
   case TY_STRUCT:  // struct value is handled as a pointer.
@@ -834,7 +835,7 @@ static VReg *gen_inlined(Expr *expr) {
 }
 
 VReg *gen_expr(Expr *expr) {
-  typedef VReg *(*GenExprFunc)(Expr *);
+  typedef VReg *(*GenExprFunc)(Expr*);
   static const GenExprFunc table[] = {
     [EX_FIXNUM] = gen_fixnum, [EX_FLONUM] = gen_flonum, [EX_STR] = gen_str,
     [EX_VAR] = gen_variable,

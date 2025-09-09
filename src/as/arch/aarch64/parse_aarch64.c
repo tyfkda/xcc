@@ -332,7 +332,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
       p = skip_whitespaces(p);
       if (*p == ',') {
         p = skip_whitespaces(p + 1);
-        static const char kExtendTable[][5] = { "sxtw", "uxtw", "lsl", "sxtx" };
+        static const char kExtendTable[][5] = {"sxtw", "uxtw", "lsl", "sxtx"};
         for (int i = 0; i < (int)ARRAY_SIZE(kExtendTable); ++i) {
           const char *name = kExtendTable[i];
           size_t n = strlen(name);
