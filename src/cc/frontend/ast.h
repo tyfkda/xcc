@@ -279,7 +279,8 @@ typedef struct Expr {
     struct {
       struct Expr *func;
       Vector *args;  // <Expr*>
-      void *info;
+      // codegen
+      struct FuncallInfo *info;
     } funcall;
     struct {
       const Name *funcname;

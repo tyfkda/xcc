@@ -128,8 +128,8 @@ enum ConditionKind invert_cond(enum ConditionKind cond);
 
 typedef struct {
   // Precall
+  size_t stack_args_size;
   int arg_count;
-  int stack_args_size;
   unsigned long living_pregs;
   Vector *caller_saves;  // <const char*>
 
