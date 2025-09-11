@@ -221,32 +221,62 @@ static void gen_ternary(Expr *expr, bool needval) {
   --cur_depth;
 }
 
-static void gen_funcall_by_name(const Name *funcname) {
-  FuncInfo *info = table_get(&func_info_table, funcname);
-  assert(info != NULL);
-  ADD_CODE(OP_CALL);
-  FuncExtra *extra = curfunc->extra;
-  DataStorage *code = extra->code;
-  RelocInfo *ri = calloc_or_die(sizeof(*ri));
-  ri->type = R_WASM_FUNCTION_INDEX_LEB;
-  ri->offset = code->len;
-  ri->addend = 0;
-  ri->index = info->index;
-  vec_push(extra->reloc_code, ri);
+typedef struct {
+  Expr *lspvar;
+  size_t offset;
+  size_t vaarg_offset;
+  int param_count;
+  bool vaargs;
+} FuncallWork;
 
-  ADD_VARUINT32(info->index);
-}
+static inline void gen_funarg(Expr *arg, int i, FuncallWork *work) {
+  size_t offset = work->offset;
+  Expr *lspvar = work->lspvar;
+  if (is_stack_param(arg->type)) {
+    assert(lspvar != NULL);
+    size_t size = type_size(arg->type);
+    if (size > 0) {
+      offset = ALIGN(offset, align_size(arg->type));
+      // _memcpy(global.sp + sarg_offset, &arg, size);
+      Expr *src = lspvar;
+      if (offset != 0)
+        src = new_expr_bop(EX_ADD, &tySize, NULL, lspvar, new_expr_fixlit(&tySize, NULL, offset));
+      gen_expr(src, true);
+      gen_expr(arg, true);
 
-static void gen_funcall(Expr *expr) {
-  Expr *func = expr->funcall.func;
-  if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
-    BuiltinFunctionProc *proc = table_get(&builtin_function_table, func->var.name);
-    if (proc != NULL) {
-      (*proc)(expr, BFP_GEN);
-      return;
+      ADD_CODE(OP_I32_CONST);
+      ADD_LEB128(size);
+      ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);  // src, dst
+      offset += size;
     }
+  } else if (i < work->param_count) {
+    gen_expr(arg, true);
+  } else {
+    // *(global.sp + offset) = arg
+    offset = ALIGN(offset, align_size(arg->type));
+    if (offset != 0) {
+      gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, lspvar,
+                            new_expr_fixlit(&tySize, NULL, offset)),
+               true);
+    } else {
+      gen_expr(lspvar, true);
+    }
+    const Type *t = arg->type;
+    assert(!(t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT));
+    offset += type_size(t);
+
+    gen_expr(arg, true);
+    gen_store(t);
   }
 
+  if (work->vaargs && i == work->param_count - 1)
+    work->vaarg_offset = offset;
+
+  work->offset = offset;
+}
+
+static inline void gen_funargs(Expr *expr) {
+  Expr *func = expr->funcall.func;
   Vector *args = expr->funcall.args;
   int arg_count = args->len;
 
@@ -283,94 +313,94 @@ static void gen_funcall(Expr *expr) {
     gen_lval(e);
   }
 
-  size_t offset = 0, vaarg_offset = 0;
+  FuncallWork work;
+  work.lspvar = lspvar;
+  work.offset = 0;
+  work.vaarg_offset = 0;
+  work.param_count = param_count;
+  work.vaargs = functype->func.vaargs;
   for (int i = 0; i < arg_count; ++i) {
     Expr *arg = args->data[i];
-    if (is_stack_param(arg->type)) {
-      assert(lspvar != NULL);
-      size_t size = type_size(arg->type);
-      if (size > 0) {
-        offset = ALIGN(offset, align_size(arg->type));
-        // _memcpy(global.sp + sarg_offset, &arg, size);
-        if (offset != 0) {
-          gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, lspvar,
-                                new_expr_fixlit(&tySize, NULL, offset)),
-                   true);
-        } else {
-          gen_expr(lspvar, true);
-        }
-        gen_expr(arg, true);
-
-        ADD_CODE(OP_I32_CONST);
-        ADD_LEB128(size);
-        ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);  // src, dst
-        offset += size;
-      }
-    } else if (i < param_count) {
-      gen_expr(arg, true);
-    } else {
-      // *(global.sp + offset) = arg
-      offset = ALIGN(offset, align_size(arg->type));
-      if (offset != 0) {
-        gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, lspvar,
-                              new_expr_fixlit(&tySize, NULL, offset)),
-                 true);
-      } else {
-        gen_expr(lspvar, true);
-      }
-      const Type *t = arg->type;
-      assert(!(t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT));
-      offset += type_size(t);
-
-      gen_expr(arg, true);
-      gen_store(t);
-    }
-
-    if (functype->func.vaargs && i == param_count - 1)
-      vaarg_offset = offset;
+    gen_funarg(arg, i, &work);
   }
+
   if (functype->func.vaargs) {
     // Top of vaargs.
     if (arg_count > param_count) {
       gen_expr(lspvar, true);
-      if (vaarg_offset != 0) {
+      if (work.vaarg_offset != 0) {
         ADD_CODE(OP_I32_CONST);
-        ADD_LEB128(vaarg_offset);
+        ADD_LEB128(work.vaarg_offset);
         ADD_CODE(OP_I32_ADD);
       }
     } else {
       ADD_CODE(OP_I32_CONST, 0);  // NULL
     }
   }
+}
 
+static inline void gen_funcall_by_name(const Name *funcname) {
+  FuncInfo *info = table_get(&func_info_table, funcname);
+  assert(info != NULL);
+  ADD_CODE(OP_CALL);
+
+  FuncExtra *extra = curfunc->extra;
+  DataStorage *code = extra->code;
+  RelocInfo *ri = calloc_or_die(sizeof(*ri));
+  ri->type = R_WASM_FUNCTION_INDEX_LEB;
+  ri->offset = code->len;
+  ri->addend = 0;
+  ri->index = info->index;
+  vec_push(extra->reloc_code, ri);
+  ADD_VARUINT32(info->index);
+}
+
+static inline void gen_funcall_sub(Expr *expr) {
+  Expr *func = expr->funcall.func;
   if (func->type->kind == TY_FUNC && func->kind == EX_VAR) {
     gen_funcall_by_name(func->var.name);
-  } else {
-    gen_expr(func, true);
-    ADD_CODE(OP_CALL_INDIRECT);
+    return;
+  }
 
-    FuncExtra *extra = curfunc->extra;
-    DataStorage *code = extra->code;
-    {
-      int index = get_func_type_index(functype);
-      assert(index >= 0);
-      RelocInfo *ri = calloc_or_die(sizeof(*ri));
-      ri->type = R_WASM_TYPE_INDEX_LEB;
-      ri->index = index;
-      ri->offset = code->len;
-      vec_push(extra->reloc_code, ri);
-      ADD_VARUINT32(index);
-    }
-    {
-      TableInfo *ti = getsert_indirect_function_table();
-      RelocInfo *ri = calloc_or_die(sizeof(*ri));
-      ri->type = R_WASM_TABLE_NUMBER_LEB;
-      ri->index = ti->symbol_index;
-      ri->offset = code->len;
-      vec_push(extra->reloc_code, ri);
-      ADD_VARUINT32(ti->index);  // table index
+  gen_expr(func, true);
+  ADD_CODE(OP_CALL_INDIRECT);
+
+  FuncExtra *extra = curfunc->extra;
+  DataStorage *code = extra->code;
+  {
+    Type *functype = get_callee_type(func->type);
+    int index = get_func_type_index(functype);
+    assert(index >= 0);
+    RelocInfo *ri = calloc_or_die(sizeof(*ri));
+    ri->type = R_WASM_TYPE_INDEX_LEB;
+    ri->index = index;
+    ri->offset = code->len;
+    vec_push(extra->reloc_code, ri);
+    ADD_VARUINT32(index);
+  }
+  {
+    TableInfo *ti = getsert_indirect_function_table();
+    RelocInfo *ri = calloc_or_die(sizeof(*ri));
+    ri->type = R_WASM_TABLE_NUMBER_LEB;
+    ri->index = ti->symbol_index;
+    ri->offset = code->len;
+    vec_push(extra->reloc_code, ri);
+    ADD_VARUINT32(ti->index);  // table index
+  }
+}
+
+static void gen_funcall(Expr *expr) {
+  Expr *func = expr->funcall.func;
+  if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
+    BuiltinFunctionProc *proc = table_get(&builtin_function_table, func->var.name);
+    if (proc != NULL) {
+      (*proc)(expr, BFP_GEN);
+      return;
     }
   }
+
+  gen_funargs(expr);
+  gen_funcall_sub(expr);
 }
 
 void gen_bpofs(int32_t offset) {

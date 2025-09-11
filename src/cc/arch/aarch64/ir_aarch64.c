@@ -208,7 +208,7 @@ Vector *collect_caller_save_regs(unsigned long living) {
   return saves;
 }
 
-static void push_caller_save_regs(Vector *saves, int offset) {
+static void push_caller_save_regs(Vector *saves, size_t offset) {
   assert((saves->len & 1) == 0);
   offset += saves->len * TARGET_POINTER_SIZE;
   for (int i = 0; i < saves->len; ) {
@@ -222,7 +222,7 @@ static void push_caller_save_regs(Vector *saves, int offset) {
   }
 }
 
-static void pop_caller_save_regs(Vector *saves, int offset) {
+static void pop_caller_save_regs(Vector *saves, size_t offset) {
   assert((saves->len & 1) == 0);
   for (int i = saves->len; i > 0; ) {
     const char *save2 = saves->data[--i];
@@ -909,7 +909,7 @@ static void ei_pusharg(IR *ir) {
 }
 
 static void ei_call(IR *ir) {
-  int total = ir->call->stack_args_size;
+  size_t total = ir->call->stack_args_size;
   push_caller_save_regs(ir->call->caller_saves, total);
 
   if (ir->call->label != NULL) {
