@@ -358,14 +358,14 @@ static inline void set_call_info(IrCallInfo *call, const Name *label, bool globa
   call->vaarg_start = vaarg_start;
 }
 
+#define ARGF_FLONUM    (1 << 0)
+#define ARGF_FP_AS_GP  (1 << 1)
+
 typedef struct {
   ssize_t offset;
   ssize_t size;
   int reg_index;
-  bool is_flo;
-#if VAARG_FP_AS_GP
-  bool fp_as_gp;
-#endif
+  int flag;
 } ArgInfo;
 
 typedef struct {
@@ -397,18 +397,16 @@ static inline ArgInfo *collect_funargs(const Type *functype, int arg_start, Vect
     const Type *arg_type = arg->type;
     assert(arg_type->kind != TY_ARRAY);
     p->size = type_size(arg_type);
-    bool is_flo = is_flonum(arg_type);
+    if (is_flonum(arg_type))
+      p->flag |= ARGF_FLONUM;
     bool is_vaarg = functype->func.vaargs && functype->func.params != NULL &&
                     i >= functype->func.params->len;
     UNUSED(is_vaarg);
 #if VAARG_FP_AS_GP
-    p->fp_as_gp = false;
-    if (is_vaarg) {
-      is_flo = false;
-      p->fp_as_gp = true;
-    }
+    if (is_vaarg)
+      p->flag |= ARGF_FP_AS_GP;
 #endif
-    p->is_flo = is_flo;
+    bool is_flo = (p->flag & (ARGF_FLONUM | ARGF_FP_AS_GP)) == ARGF_FLONUM;
     bool stack_arg = is_stack_param(arg_type) ||
                      reg_index[is_flo] >= kArchSetting.max_reg_args[is_flo];
 #if VAARG_ON_STACK
@@ -439,7 +437,7 @@ static inline VReg *gen_funarg(Expr *arg, int i, ArgInfo *arg_infos, FuncallWork
   VReg *vreg = gen_expr(arg);
   const ArgInfo *p = &arg_infos[i];
   if (p->offset < 0) {
-    bool is_flo = p->is_flo;
+    bool is_flo = (p->flag & (ARGF_FLONUM | ARGF_FP_AS_GP)) == ARGF_FLONUM;
     int regarg = ++work->regarg[is_flo];
     int index = work->reg_arg_count[is_flo] - regarg;
     if (!is_flo && work->ret_varinfo != NULL)
@@ -449,7 +447,7 @@ static inline VReg *gen_funarg(Expr *arg, int i, ArgInfo *arg_infos, FuncallWork
 #if !VAARG_FP_AS_GP
     UNUSED(ir);
 #else
-    if (!is_flo && p->fp_as_gp)
+    if (!is_flo && (p->flag & ARGF_FP_AS_GP))
       ir->pusharg.fp_as_gp = true;
 #endif
   } else {
