@@ -360,6 +360,7 @@ static inline void set_call_info(IrCallInfo *call, const Name *label, bool globa
 
 #define ARGF_FLONUM    (1 << 0)
 #define ARGF_FP_AS_GP  (1 << 1)
+#define ARGF_ON_STACK  (1 << 2)
 
 typedef struct {
   ssize_t offset;
@@ -414,6 +415,7 @@ static inline ArgInfo *collect_funargs(const Type *functype, int arg_start, Vect
       stack_arg = true;
 #endif
     if (stack_arg) {
+      p->flag |= ARGF_ON_STACK;
       offset = ALIGN(offset, align_size(arg_type));
       p->offset = offset;
       offset += ALIGN(p->size, TARGET_POINTER_SIZE);
