@@ -985,7 +985,7 @@ static void ei_call(IR *ir) {
     int total_arg_count = ir->call->total_arg_count;
     int freg = 0;
     for (int i = 0; i < total_arg_count; ++i) {
-      if (ir->call->args[i]->flag & VRF_FLONUM) {
+      if (ir->call->args[i] != NULL && ir->call->args[i]->flag & VRF_FLONUM) {
         ++freg;
         if (freg >= kArchSetting.max_reg_args[FPREG])
           break;

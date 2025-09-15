@@ -456,12 +456,13 @@ static inline VReg *gen_funarg(Expr *arg, int i, ArgInfo *arg_infos, FuncallWork
     enum VRegSize offset_type = 2;  //{.size = 4, .align = 4};  // TODO:
     ssize_t ofs = p->offset;
     VReg *dst = new_ir_sofs(new_const_vreg(ofs, offset_type))->dst;
-    if (is_stack_param(arg->type)) {
-      gen_memcpy(arg->type, dst, vreg);
-    } else {
+    if (is_prim_type(arg->type)) {
       int flag = is_unsigned(arg->type) ? IRF_UNSIGNED : 0;
       new_ir_store(dst, vreg, flag);
+    } else {
+      gen_memcpy(arg->type, dst, vreg);
     }
+    vreg = NULL;
   }
   return vreg;
 }
