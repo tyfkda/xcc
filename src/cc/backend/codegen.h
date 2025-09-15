@@ -54,8 +54,7 @@ typedef struct {
 } RegParamInfo;
 
 void enumerate_register_params(
-    Function *func, RegParamInfo iargs[], int max_ireg, RegParamInfo fargs[], int max_freg,
-    int *piarg_count, int *pfarg_count);
+    Function *func, RegParamInfo *pargs[2], const int max_reg[2], int parg_count[2]);
 
 bool gen_defun(Function *func);
 void prepare_register_allocation(Function *func);

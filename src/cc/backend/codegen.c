@@ -112,19 +112,12 @@ static void alloc_variable_registers(Function *func) {
     }
   }
 
-  struct RegSet {
-    int index;
-    int max;
-  } regparams[2] = {
-    {.index = 0, .max = kArchSetting.max_reg_args},
-    {.index = 0, .max = kArchSetting.max_freg_args},
-  };
-  enum RegKind { IREG = 0, FREG = 1 };
+  int regcount[2] = {0, 0};
 
   // Handle if return value is on the stack.
   if (func->type->func.ret->kind == TY_STRUCT) {
     prepare_retvar(func);
-    ++regparams[IREG].index;
+    ++regcount[GPREG];
   }
 
   // Count register parameters, or set flag.
@@ -135,10 +128,10 @@ static void alloc_variable_registers(Function *func) {
       VReg *vreg = varinfo->local.vreg;
       if (vreg != NULL) {
         vreg->flag |= VRF_PARAM;
-        enum RegKind k = (vreg->flag & VRF_FLONUM) ? FREG : IREG;
-        struct RegSet *p = &regparams[k];
-        if (p->index < p->max)
-          vreg->reg_param_index = p->index++;
+        bool is_flo = (vreg->flag & VRF_FLONUM) != 0;
+        int *p = &regcount[is_flo];
+        if (*p < kArchSetting.max_reg_args[is_flo])
+          vreg->reg_param_index = (*p)++;
         else
           vreg->flag |= VRF_STACK_PARAM;
       }
@@ -147,14 +140,12 @@ static void alloc_variable_registers(Function *func) {
 }
 
 void enumerate_register_params(
-    Function *func, RegParamInfo iargs[], int max_ireg, RegParamInfo fargs[], int max_freg,
-    int *piarg_count, int *pfarg_count) {
-  int iarg_count = 0;
-  int farg_count = 0;
+    Function *func, RegParamInfo *pargs[2], const int max_reg[2], int parg_count[2]) {
+  int arg_count[2] = {0, 0};
 
   VReg *retval = ((FuncBackend*)func->extra)->retval;
   if (retval != NULL) {
-    RegParamInfo *p = &iargs[iarg_count++];
+    RegParamInfo *p = &pargs[GPREG][arg_count[GPREG]++];
     p->type = &tyVoidPtr;
     p->vreg = retval;
     p->index = 0;
@@ -171,13 +162,9 @@ void enumerate_register_params(
       assert(vreg != NULL);
       RegParamInfo *p = NULL;
       int index = 0;
-      if (is_flonum(type)) {
-        if (farg_count < max_freg)
-          p = &fargs[index = farg_count++];
-      } else {
-        if (iarg_count < max_ireg)
-          p = &iargs[index = iarg_count++];
-      }
+      bool is_flo = is_flonum(type);
+      if (arg_count[is_flo] < max_reg[is_flo])
+        p = &pargs[is_flo][index = arg_count[is_flo]++];
       if (p != NULL) {
         p->type = type;
         p->vreg = vreg;
@@ -186,8 +173,8 @@ void enumerate_register_params(
     }
   }
 
-  *piarg_count = iarg_count;
-  *pfarg_count = farg_count;
+  parg_count[GPREG] = arg_count[GPREG];
+  parg_count[FPREG] = arg_count[FPREG];
 }
 
 static enum VRegSize get_elem_vtype(const Type *type) {
@@ -699,7 +686,7 @@ void map_virtual_to_physical_registers(RegAlloc *ra) {
 
 // Detect living registers for each instruction.
 void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
-  int maxbit = ra->settings->phys_max + ra->settings->fphys_max;
+  int maxbit = ra->settings->regset[GPREG].phys_max + ra->settings->regset[FPREG].phys_max;
   unsigned long living_pregs = 0;
   assert((int)sizeof(living_pregs) * CHAR_BIT >= maxbit);
   LiveInterval **livings = ALLOCA(sizeof(*livings) * maxbit);
@@ -708,7 +695,7 @@ void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
 
 #define VREGFOR(li, ra)  ((VReg*)ra->vregs->data[li->virt])
 #define BITNO(li, ra)    (li->phys + (VREGFOR(li, ra)->flag & VRF_FLONUM ? floreg_offset : 0))
-  const int floreg_offset = ra->settings->phys_max;
+  const int floreg_offset = ra->settings->regset[GPREG].phys_max;
   // Activate function parameters a priori.
   for (int i = 0; i < ra->vregs->len; ++i) {
     LiveInterval *li = ra->sorted_intervals[i];
@@ -773,7 +760,7 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
 #if VAARG_FP_AS_GP
     // Register parameters are put below stack frame, so not added to frame_size.
 #else
-    frame_size = (kArchSetting.max_reg_args + kArchSetting.max_freg_args) * TARGET_POINTER_SIZE;
+    frame_size = (kArchSetting.max_reg_args[GPREG] + kArchSetting.max_reg_args[FPREG]) * TARGET_POINTER_SIZE;
 #endif
   }
 

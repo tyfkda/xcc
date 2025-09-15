@@ -8,9 +8,13 @@ typedef struct FuncBackend FuncBackend;
 typedef struct IR IR;
 typedef struct RegAllocSettings RegAllocSettings;
 
+enum RegSet {
+  GPREG,  // General-purpose
+  FPREG,  // Floating-point
+};
+
 typedef struct {
-  int max_reg_args;
-  int max_freg_args;
+  int max_reg_args[2];  // [0]=gp-reg, [1]=fp-reg
 } ArchSetting;
 
 extern const ArchSetting kArchSetting;
