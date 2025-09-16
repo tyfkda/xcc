@@ -779,30 +779,34 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
 
   bool require_stack_frame = false;
 
-  // Allocate stack variables onto stack frame.
+  // Parameters.
+  for (int i = 0; i < func->params->len; ++i) {
+    VarInfo *varinfo = func->params->data[i];
+    assert(is_local_storage(varinfo));
+    if (is_stack_param(varinfo->type)) {
+      FrameInfo *fi = varinfo->local.frameinfo;
+      fi->offset = param_offset = ALIGN(param_offset, align_size(varinfo->type));
+      param_offset += ALIGN(type_size(varinfo->type), TARGET_POINTER_SIZE);
+      require_stack_frame = true;
+      continue;
+    }
+    assert(varinfo->local.vreg != NULL);
+    if (varinfo->local.vreg->flag & VRF_STACK_PARAM) {
+      FrameInfo *fi = varinfo->local.frameinfo;
+      fi->offset = param_offset = ALIGN(param_offset, TARGET_POINTER_SIZE);
+      param_offset += TARGET_POINTER_SIZE;
+      require_stack_frame = true;
+      continue;
+    }
+  }
+
+  // Local variables.
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
-      if (!is_local_storage(varinfo))
+      if (!is_local_storage(varinfo) || (varinfo->storage & VS_PARAM))
         continue;
-
-      if (varinfo->storage & VS_PARAM) {
-        assert(is_stack_param(varinfo->type) || varinfo->local.vreg != NULL);
-        if (is_stack_param(varinfo->type)) {
-          FrameInfo *fi = varinfo->local.frameinfo;
-          fi->offset = param_offset = ALIGN(param_offset, align_size(varinfo->type));
-          param_offset += ALIGN(type_size(varinfo->type), TARGET_POINTER_SIZE);
-          require_stack_frame = true;
-          continue;
-        } else if (varinfo->local.vreg->flag & VRF_STACK_PARAM) {
-          FrameInfo *fi = varinfo->local.frameinfo;
-          fi->offset = param_offset = ALIGN(param_offset, TARGET_POINTER_SIZE);
-          param_offset += TARGET_POINTER_SIZE;
-          require_stack_frame = true;
-          continue;
-        }
-      }
 
       if (is_prim_type(varinfo->type)) {
         // Primitive type variables are handled according to RegAlloc results in below.
