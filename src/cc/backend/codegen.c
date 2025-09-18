@@ -91,7 +91,7 @@ static void alloc_variable_registers(Function *func) {
       varinfo->local.frameinfo = NULL;
       Type *type = varinfo->type;
 #if STRUCT_ARG_AS_POINTER
-      if (varinfo->storage & VS_PARAM && type->kind == TY_STRUCT) {
+      if (varinfo->storage & VS_PARAM && type->kind == TY_STRUCT && !is_small_struct(type)) {
         varinfo->type = type = ptrof(type);  // Caution! Overwrite type as its pointer.
       }
 #endif
@@ -142,6 +142,7 @@ static void alloc_variable_registers(Function *func) {
 
 int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo *args) {
   int arg_count[2] = {0, 0};
+  int reg_index[2] = {0, 0};
   int total = 0;
 
   FuncBackend *fnbe = func->extra;
@@ -152,6 +153,7 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
     p->vreg = retval;
     p->index = 0;
     ++arg_count[GPREG];
+    ++reg_index[GPREG];
   }
 
   const Vector *params = func->params;
@@ -159,17 +161,23 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
     for (int i = 0, len = params->len; i < len; ++i) {
       const VarInfo *varinfo = params->data[i];
       const Type *type = varinfo->type;
-      if (is_stack_param(type))
+      size_t n = 1;
+      if (is_stack_param(type)) {
+        if (type->kind != TY_STRUCT || !is_small_struct(type))
           continue;
+        n = (type_size(type) + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+      }
       bool is_flo = is_flonum(type);
-      if (arg_count[is_flo] >= max_reg[is_flo])
+      int regidx = reg_index[is_flo];
+      if (regidx + (int)n > max_reg[is_flo])
         continue;
+      reg_index[is_flo] += n;
+
       RegParamInfo *p = &args[total++];
-      VReg *vreg = varinfo->local.vreg;
-      assert(vreg != NULL);
       p->varinfo = varinfo;
-      p->vreg = vreg;
-      p->index = arg_count[is_flo]++;
+      p->vreg = varinfo->local.vreg;  // Might be NULL (small struct).
+      p->index = regidx;
+      arg_count[is_flo] += 1;
     }
   }
   return arg_count[GPREG] + arg_count[FPREG];
@@ -764,15 +772,34 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
 
   bool require_stack_frame = false;
 
+  int arg_start = is_prim_type(func->type->func.ret) ? 0 : 1;
+  int reg_index[2] = {arg_start, 0};  // [0]=gp-reg, [1]=fp-reg
+
   // Parameters.
   for (int i = 0; i < func->params->len; ++i) {
     VarInfo *varinfo = func->params->data[i];
     assert(is_local_storage(varinfo));
     const Type *type = varinfo->type;
     size_t size = type_size(type), align = align_size(type);
-    if (!is_stack_param(type)) {
-      if (!(varinfo->local.vreg->flag & VRF_STACK_PARAM))
+    bool is_flo = is_flonum(type);
+    if (is_small_struct(type)) {
+      size_t n = (size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+      if (reg_index[is_flo] + (int)n <= kArchSetting.max_reg_args[is_flo]) {
+        // Small struct, passed by register.
+        reg_index[GPREG] += n;
+
+        // Allocate stack frame.
+        FrameInfo *fi = varinfo->local.frameinfo;
+        frame_size = ALIGN(frame_size + size, align);
+        fi->offset = -(int)frame_size;
+        continue;
+      }
+    } else if (!is_stack_param(type)) {
+      assert(varinfo->local.vreg != NULL);
+      if (!(varinfo->local.vreg->flag & VRF_STACK_PARAM)) {
+        reg_index[is_flo] += 1;
         continue;  // Passed by register.
+      }
       size = align = TARGET_POINTER_SIZE;
     }
 

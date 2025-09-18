@@ -92,6 +92,46 @@ static void move_params_to_assigned(Function *func) {
     RegParamInfo *p = &params[i];
     VReg *vreg = p->vreg;
     const Type *type = p->varinfo->type;
+    if (vreg == NULL) {
+      // Small struct passed by value: Store to the stack frame.
+      size_t size = type_size(type);
+      if (size <= 0)
+        continue;
+      FrameInfo *fi = p->varinfo->local.frameinfo;
+      int offset = fi->offset;
+      assert(offset < 0);
+      int index = p->index;
+      for (;;) {
+        size_t s;
+        for (int i = VRegSize8; i >= VRegSize1; --i) {
+          s = 1U << i;
+          if (s <= size)
+            break;
+        }
+
+        int pow = most_significant_bit(s);
+        const char *src = kRegSizeTable[pow][ArchRegParamMapping[index]];
+        const char *dst = OFFSET_INDIRECT(offset, RBP, NULL, 1);
+        // TODO: Check alignment?
+        MOV(src, dst);
+        size -= s;
+        offset += s;
+        if (size <= 0)
+          break;
+        if (s >= TARGET_POINTER_SIZE) {
+          ++index;
+        } else {
+          const char *opr2 = IM(s * TARGET_CHAR_BIT);
+          const char *s64 = kRegSizeTable[VRegSize8][ArchRegParamMapping[index]];
+          SHR(opr2, s64);
+        }
+      }
+
+      size_t n = (size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+      reg_index[GPREG] += n;
+      continue;
+    }
+
     if (vreg->flag & VRF_FLONUM) {
       const char *src = kFRegParam64s[p->index];
       if (vreg->flag & VRF_SPILLED) {

@@ -253,7 +253,7 @@ Expr *reduce_refer(Expr *expr) {
         if (type->kind == TY_STRUCT) {
           VarInfo *varinfo = scope_find(target->var.scope, target->var.name, NULL);
           assert(varinfo != NULL);
-          if (varinfo->storage & VS_PARAM) {  // The parameter is passed by reference.
+          if (varinfo->storage & VS_PARAM && !is_small_struct(type)) {  // The parameter is passed by reference.
             if (varinfo->type->kind == TY_PTR) {
               assert(varinfo->type->pa.ptrof == type);
               target->type = type = varinfo->type;
