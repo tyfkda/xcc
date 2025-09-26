@@ -21,8 +21,7 @@
 #define MAX_FREG_ARGS  (8)
 
 const ArchSetting kArchSetting = {
-  .max_reg_args = MAX_REG_ARGS,
-  .max_freg_args = MAX_FREG_ARGS,
+  .max_reg_args = {MAX_REG_ARGS, MAX_FREG_ARGS},
 };
 
 char *im(int64_t x) {
@@ -46,21 +45,21 @@ static int put_vaarg_params(Function *func) {
 #if VAARG_ON_STACK
   return 0;
 #else
-  RegParamInfo iparams[MAX_REG_ARGS];
-  RegParamInfo fparams[MAX_FREG_ARGS];
-  int iparam_count = 0;
-  int fparam_count = 0;
-  enumerate_register_params(func, iparams, MAX_REG_ARGS, fparams, MAX_FREG_ARGS,
-                            &iparam_count, &fparam_count);
+  RegParamInfo iparams_[MAX_REG_ARGS];
+  RegParamInfo fparams_[MAX_FREG_ARGS];
+  RegParamInfo *params[2] = {iparams_, fparams_};
+  int param_count[2] = {0, 0};
+  const int max_reg_args[2] = {MAX_REG_ARGS, MAX_FREG_ARGS};
+  enumerate_register_params(func, max_reg_args, params, param_count);
 
   int size = 0;
-  int n = MAX_REG_ARGS - iparam_count;
+  int n = MAX_REG_ARGS - param_count[GPREG];
   if (n > 0) {
     int size_org = n * TARGET_POINTER_SIZE;
     size = ALIGN(n, 2) * TARGET_POINTER_SIZE;
     int offset = size - size_org;
     ADDI(SP, SP, IM(-size));
-    for (int i = iparam_count; i < MAX_REG_ARGS; ++i, offset += TARGET_POINTER_SIZE)
+    for (int i = param_count[GPREG]; i < MAX_REG_ARGS; ++i, offset += TARGET_POINTER_SIZE)
       SD(kRegParam64s[i], IMMEDIATE_OFFSET(offset, SP));
   }
   return size;
@@ -75,16 +74,16 @@ static void move_params_to_assigned(Function *func) {
   // Assume fp-parameters are arranged from index 0.
   #define kFRegParam64s  kFReg64s
 
-  RegParamInfo iparams[MAX_REG_ARGS];
-  RegParamInfo fparams[MAX_FREG_ARGS];
-  int iparam_count = 0;
-  int fparam_count = 0;
-  enumerate_register_params(func, iparams, MAX_REG_ARGS, fparams, MAX_FREG_ARGS,
-                            &iparam_count, &fparam_count);
+  RegParamInfo iparams_[MAX_REG_ARGS];
+  RegParamInfo fparams_[MAX_FREG_ARGS];
+  RegParamInfo *params[2] = {iparams_, fparams_};
+  int param_count[2] = {0, 0};
+  const int max_reg_args[2] = {MAX_REG_ARGS, MAX_FREG_ARGS};
+  enumerate_register_params(func, max_reg_args, params, param_count);
 
   // Generate code to store parameters to the destination.
-  for (int i = 0; i < iparam_count; ++i) {
-    RegParamInfo *p = &iparams[i];
+  for (int i = 0; i < param_count[GPREG]; ++i) {
+    RegParamInfo *p = &params[GPREG][i];
     VReg *vreg = p->vreg;
     size_t size = type_size(p->type);
     int pow = most_significant_bit(size);
@@ -113,8 +112,8 @@ static void move_params_to_assigned(Function *func) {
       MV(dst, src);
     }
   }
-  for (int i = 0; i < fparam_count; ++i) {
-    RegParamInfo *p = &fparams[i];
+  for (int i = 0; i < param_count[FPREG]; ++i) {
+    RegParamInfo *p = &params[FPREG][i];
     VReg *vreg = p->vreg;
     const char *src = kFRegParam64s[p->index];
     if (vreg->flag & VRF_SPILLED) {
@@ -211,7 +210,6 @@ void emit_defun_body(Function *func) {
   size_t frame_size = ALIGN(fnbe->frame_size + funcall_work_size, 16);
   bool fp_saved = false;  // Frame pointer saved?
   bool ra_saved = false;  // Return Address register saved?
-  unsigned long used_reg_bits = fnbe->ra->used_reg_bits;
   int vaarg_params_saved = 0;
   if (!no_stmt) {
     if (func->type->func.vaargs) {
@@ -233,11 +231,11 @@ void emit_defun_body(Function *func) {
       SD(FP, IMMEDIATE_OFFSET0(SP));
 
       // FP is saved, so omit from callee save.
-      used_reg_bits &= ~(1UL << GET_FPREG_INDEX());
+      fnbe->ra->used_reg_bits[GPREG] &= ~(1UL << GET_FPREG_INDEX());
     }
 
     // Callee save.
-    push_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
+    push_callee_save_regs(fnbe->ra->used_reg_bits[GPREG], fnbe->ra->used_reg_bits[1]);
 
     if (fp_saved)
       MV(FP, SP);
@@ -263,7 +261,7 @@ void emit_defun_body(Function *func) {
       else if (frame_size > 0)
         ADDI(SP, SP, IM(frame_size));
 
-      pop_callee_save_regs(used_reg_bits, fnbe->ra->used_freg_bits);
+      pop_callee_save_regs(fnbe->ra->used_reg_bits[GPREG], fnbe->ra->used_reg_bits[FPREG]);
 
       if (fp_saved || ra_saved) {
         LD(FP, IMMEDIATE_OFFSET0(SP));

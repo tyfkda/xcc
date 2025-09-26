@@ -112,19 +112,12 @@ static void alloc_variable_registers(Function *func) {
     }
   }
 
-  struct RegSet {
-    int index;
-    int max;
-  } regparams[2] = {
-    {.index = 0, .max = kArchSetting.max_reg_args},
-    {.index = 0, .max = kArchSetting.max_freg_args},
-  };
-  enum RegKind { IREG = 0, FREG = 1 };
+  int regcount[2] = {0, 0};
 
   // Handle if return value is on the stack.
   if (func->type->func.ret->kind == TY_STRUCT) {
     prepare_retvar(func);
-    ++regparams[IREG].index;
+    ++regcount[GPREG];
   }
 
   // Count register parameters, or set flag.
@@ -135,10 +128,10 @@ static void alloc_variable_registers(Function *func) {
       VReg *vreg = varinfo->local.vreg;
       if (vreg != NULL) {
         vreg->flag |= VRF_PARAM;
-        enum RegKind k = (vreg->flag & VRF_FLONUM) ? FREG : IREG;
-        struct RegSet *p = &regparams[k];
-        if (p->index < p->max)
-          vreg->reg_param_index = p->index++;
+        bool is_flo = (vreg->flag & VRF_FLONUM) != 0;
+        int *p = &regcount[is_flo];
+        if (*p < kArchSetting.max_reg_args[is_flo])
+          vreg->reg_param_index = (*p)++;
         else
           vreg->flag |= VRF_STACK_PARAM;
       }
@@ -146,15 +139,13 @@ static void alloc_variable_registers(Function *func) {
   }
 }
 
-void enumerate_register_params(
-    Function *func, RegParamInfo iargs[], int max_ireg, RegParamInfo fargs[], int max_freg,
-    int *piarg_count, int *pfarg_count) {
-  int iarg_count = 0;
-  int farg_count = 0;
+void enumerate_register_params(Function *func, const int max_reg[2],
+                               RegParamInfo *args[2], int arg_count[2]) {
+  arg_count[GPREG] = arg_count[FPREG] = 0;
 
   VReg *retval = ((FuncBackend*)func->extra)->retval;
   if (retval != NULL) {
-    RegParamInfo *p = &iargs[iarg_count++];
+    RegParamInfo *p = &args[GPREG][arg_count[GPREG]++];
     p->type = &tyVoidPtr;
     p->vreg = retval;
     p->index = 0;
@@ -167,27 +158,18 @@ void enumerate_register_params(
       const Type *type = varinfo->type;
       if (is_stack_param(type))
         continue;
+      bool is_flo = is_flonum(type);
+      if (arg_count[is_flo] >= max_reg[is_flo])
+        continue;
+      int index = arg_count[is_flo]++;
+      RegParamInfo *p = &args[is_flo][index];
       VReg *vreg = varinfo->local.vreg;
       assert(vreg != NULL);
-      RegParamInfo *p = NULL;
-      int index = 0;
-      if (is_flonum(type)) {
-        if (farg_count < max_freg)
-          p = &fargs[index = farg_count++];
-      } else {
-        if (iarg_count < max_ireg)
-          p = &iargs[index = iarg_count++];
-      }
-      if (p != NULL) {
-        p->type = type;
-        p->vreg = vreg;
-        p->index = index;
-      }
+      p->type = type;
+      p->vreg = vreg;
+      p->index = index;
     }
   }
-
-  *piarg_count = iarg_count;
-  *pfarg_count = farg_count;
 }
 
 static enum VRegSize get_elem_vtype(const Type *type) {
@@ -699,7 +681,7 @@ void map_virtual_to_physical_registers(RegAlloc *ra) {
 
 // Detect living registers for each instruction.
 void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
-  int maxbit = ra->settings->phys_max + ra->settings->fphys_max;
+  int maxbit = ra->settings->regset[GPREG].phys_max + ra->settings->regset[FPREG].phys_max;
   unsigned long living_pregs = 0;
   assert((int)sizeof(living_pregs) * CHAR_BIT >= maxbit);
   LiveInterval **livings = ALLOCA(sizeof(*livings) * maxbit);
@@ -708,7 +690,7 @@ void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
 
 #define VREGFOR(li, ra)  ((VReg*)ra->vregs->data[li->virt])
 #define BITNO(li, ra)    (li->phys + (VREGFOR(li, ra)->flag & VRF_FLONUM ? floreg_offset : 0))
-  const int floreg_offset = ra->settings->phys_max;
+  const int floreg_offset = ra->settings->regset[GPREG].phys_max;
   // Activate function parameters a priori.
   for (int i = 0; i < ra->vregs->len; ++i) {
     LiveInterval *li = ra->sorted_intervals[i];
@@ -773,7 +755,7 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
 #if VAARG_FP_AS_GP
     // Register parameters are put below stack frame, so not added to frame_size.
 #else
-    frame_size = (kArchSetting.max_reg_args + kArchSetting.max_freg_args) * TARGET_POINTER_SIZE;
+    frame_size = (kArchSetting.max_reg_args[GPREG] + kArchSetting.max_reg_args[FPREG]) * TARGET_POINTER_SIZE;
 #endif
   }
 
@@ -783,21 +765,18 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
   for (int i = 0; i < func->params->len; ++i) {
     VarInfo *varinfo = func->params->data[i];
     assert(is_local_storage(varinfo));
-    if (is_stack_param(varinfo->type)) {
-      FrameInfo *fi = varinfo->local.frameinfo;
-      fi->offset = param_offset = ALIGN(param_offset, align_size(varinfo->type));
-      param_offset += ALIGN(type_size(varinfo->type), TARGET_POINTER_SIZE);
-      require_stack_frame = true;
-      continue;
+    const Type *type = varinfo->type;
+    size_t size = type_size(type), align = align_size(type);
+    if (!is_stack_param(type)) {
+      if (!(varinfo->local.vreg->flag & VRF_STACK_PARAM))
+        continue;  // Passed by register.
+      size = align = TARGET_POINTER_SIZE;
     }
-    assert(varinfo->local.vreg != NULL);
-    if (varinfo->local.vreg->flag & VRF_STACK_PARAM) {
-      FrameInfo *fi = varinfo->local.frameinfo;
-      fi->offset = param_offset = ALIGN(param_offset, TARGET_POINTER_SIZE);
-      param_offset += TARGET_POINTER_SIZE;
-      require_stack_frame = true;
-      continue;
-    }
+
+    FrameInfo *fi = varinfo->local.frameinfo;
+    fi->offset = param_offset = ALIGN(param_offset, align);
+    param_offset += ALIGN(size, TARGET_POINTER_SIZE);
+    require_stack_frame = true;
   }
 
   // Local variables.

@@ -92,12 +92,18 @@ static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
 const RegAllocSettings kArchRegAllocSettings = {
   .detect_extra_occupied = detect_extra_occupied,
   .reg_param_mapping = ArchRegParamMapping,
-  .phys_max = PHYSICAL_REG_MAX,
-  .phys_temporary_count = PHYSICAL_REG_TEMPORARY,
+  {
+    {
+      .phys_max = PHYSICAL_REG_MAX,
+      .phys_temporary_count = PHYSICAL_REG_TEMPORARY,
+    },
 #ifndef __NO_FLONUM
-  .fphys_max = PHYSICAL_FREG_MAX,
-  .fphys_temporary_count = PHYSICAL_FREG_TEMPORARY,
+    {
+      .phys_max = PHYSICAL_FREG_MAX,
+      .phys_temporary_count = PHYSICAL_FREG_TEMPORARY,
+    },
 #endif
+  },
 };
 
 //
@@ -158,10 +164,11 @@ void pop_callee_save_regs(unsigned long used, unsigned long fused) {
 int calculate_func_param_bottom(Function *func) {
   const char *saves[(N + 1) & ~1];
   FuncBackend *fnbe = func->extra;
-  unsigned long used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
-  int count = enum_callee_save_regs(used, CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs, kReg64s, saves);
-  int fcount = enum_callee_save_regs(fused, CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs, kFReg64s,
-                                     saves);
+  const unsigned long *pused = fnbe->ra->used_reg_bits;
+  int count = enum_callee_save_regs(pused[GPREG], CALLEE_SAVE_REG_COUNT, kCalleeSaveRegs,
+                                    kReg64s, saves);
+  int fcount = enum_callee_save_regs(pused[FPREG], CALLEE_SAVE_FREG_COUNT, kCalleeSaveFRegs,
+                                     kFReg64s, saves);
   int callee_save_count = ALIGN(count, 2) + ALIGN(fcount, 2);
 
   return (callee_save_count * TARGET_POINTER_SIZE) +

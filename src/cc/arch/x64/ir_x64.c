@@ -78,12 +78,18 @@ static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
 const RegAllocSettings kArchRegAllocSettings = {
   .detect_extra_occupied = detect_extra_occupied,
   .reg_param_mapping = ArchRegParamMapping,
-  .phys_max = PHYSICAL_REG_MAX,
-  .phys_temporary_count = PHYSICAL_REG_TEMPORARY,
+  {
+    {
+      .phys_max = PHYSICAL_REG_MAX,
+      .phys_temporary_count = PHYSICAL_REG_TEMPORARY,
+    },
 #ifndef __NO_FLONUM
-  .fphys_max = PHYSICAL_FREG_MAX,
-  .fphys_temporary_count = PHYSICAL_FREG_TEMPORARY,
+    {
+      .phys_max = PHYSICAL_FREG_MAX,
+      .phys_temporary_count = PHYSICAL_FREG_TEMPORARY,
+    },
 #endif
+  },
 };
 
 //
@@ -134,8 +140,8 @@ void pop_callee_save_regs(unsigned long used, unsigned long fused) {
 
 int calculate_func_param_bottom(Function *func) {
   FuncBackend *fnbe = func->extra;
-  unsigned long used = fnbe->ra->used_reg_bits, fused = fnbe->ra->used_freg_bits;
-  int callee_save_count = count_callee_save_regs(used, fused);
+  const unsigned long *pused = fnbe->ra->used_reg_bits;
+  int callee_save_count = count_callee_save_regs(pused[GPREG], pused[FPREG]);
 
   return (callee_save_count * TARGET_POINTER_SIZE) +
          (TARGET_POINTER_SIZE * 2);  // Return address, saved base pointer.
@@ -979,9 +985,9 @@ static void ei_call(IR *ir) {
     int total_arg_count = ir->call->total_arg_count;
     int freg = 0;
     for (int i = 0; i < total_arg_count; ++i) {
-      if (ir->call->args[i]->flag & VRF_FLONUM) {
+      if (ir->call->args[i] != NULL && ir->call->args[i]->flag & VRF_FLONUM) {
         ++freg;
-        if (freg >= kArchSetting.max_freg_args)
+        if (freg >= kArchSetting.max_reg_args[FPREG])
           break;
       }
     }

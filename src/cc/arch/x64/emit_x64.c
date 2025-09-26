@@ -23,8 +23,7 @@ int count_callee_save_regs(unsigned long used, unsigned long fused);
 #define MAX_FREG_ARGS  (8)
 
 const ArchSetting kArchSetting = {
-  .max_reg_args = MAX_REG_ARGS,
-  .max_freg_args = MAX_FREG_ARGS,
+  .max_reg_args = {MAX_REG_ARGS, MAX_FREG_ARGS},
 };
 
 char *im(int64_t x) {
@@ -83,16 +82,16 @@ static void move_params_to_assigned(Function *func) {
   // Assume fp-parameters are arranged from index 0.
   #define kFRegParam64s  kFReg64s
 
-  RegParamInfo iparams[MAX_REG_ARGS];
-  RegParamInfo fparams[MAX_FREG_ARGS];
-  int iparam_count = 0;
-  int fparam_count = 0;
-  enumerate_register_params(func, iparams, MAX_REG_ARGS, fparams, MAX_FREG_ARGS,
-                            &iparam_count, &fparam_count);
+  RegParamInfo iparams_[MAX_REG_ARGS];
+  RegParamInfo fparams_[MAX_FREG_ARGS];
+  RegParamInfo *params[2] = {iparams_, fparams_};
+  int param_count[2] = {0, 0};
+  const int max_reg_args[2] = {MAX_REG_ARGS, MAX_FREG_ARGS};
+  enumerate_register_params(func, max_reg_args, params, param_count);
 
   // Generate code to store parameters to the destination.
-  for (int i = 0; i < iparam_count; ++i) {
-    RegParamInfo *p = &iparams[i];
+  for (int i = 0; i < param_count[GPREG]; ++i) {
+    RegParamInfo *p = &params[GPREG][i];
     VReg *vreg = p->vreg;
     size_t size = type_size(p->type);
     int pow = most_significant_bit(size);
@@ -107,8 +106,8 @@ static void move_params_to_assigned(Function *func) {
       MOV(src, dst);
     }
   }
-  for (int i = 0; i < fparam_count; ++i) {
-    RegParamInfo *p = &fparams[i];
+  for (int i = 0; i < param_count[FPREG]; ++i) {
+    RegParamInfo *p = &params[FPREG][i];
     VReg *vreg = p->vreg;
     const char *src = kFRegParam64s[p->index];
     if (vreg->flag & VRF_SPILLED) {
@@ -135,12 +134,12 @@ static void move_params_to_assigned(Function *func) {
   }
 
   if (func->type->func.vaargs) {
-    for (int i = iparam_count; i < MAX_REG_ARGS; ++i) {
+    for (int i = param_count[GPREG]; i < MAX_REG_ARGS; ++i) {
       int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
       MOV(kRegSizeTable[3][ArchRegParamMapping[i]], OFFSET_INDIRECT(offset, RBP, NULL, 1));
     }
 #ifndef __NO_FLONUM
-    for (int i = fparam_count; i < MAX_FREG_ARGS; ++i) {
+    for (int i = param_count[FPREG]; i < MAX_FREG_ARGS; ++i) {
       int offset = (i - MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
       MOVSD(kFRegParam64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
     }
@@ -234,7 +233,8 @@ void emit_defun_body(Function *func) {
   int callee_saved_count = 0;
   if (!no_stmt) {
     // Callee save.
-    callee_saved_count = push_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
+    callee_saved_count = push_callee_save_regs(
+        fnbe->ra->used_reg_bits[GPREG], fnbe->ra->used_reg_bits[FPREG]);
 
     // When function is called, return address is pused onto the stack by caller,
     // so default offset is 8.
@@ -274,7 +274,7 @@ void emit_defun_body(Function *func) {
         ADD(IM(frame_size), RSP);
       }
 
-      pop_callee_save_regs(fnbe->ra->used_reg_bits, fnbe->ra->used_freg_bits);
+      pop_callee_save_regs(fnbe->ra->used_reg_bits[GPREG], fnbe->ra->used_reg_bits[FPREG]);
     }
 
     RET();

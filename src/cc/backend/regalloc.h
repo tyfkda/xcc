@@ -30,10 +30,10 @@ typedef struct LiveInterval {
 typedef struct RegAllocSettings {
   unsigned long (*detect_extra_occupied)(RegAlloc *ra, IR *ir);
   const int *reg_param_mapping;
-  int phys_max;              // Max physical register count.
-  int phys_temporary_count;  // Temporary register count (= start index for saved registers)
-  int fphys_max;             // Floating-point register.
-  int fphys_temporary_count;
+  struct {
+    int phys_max;              // Max physical register count.
+    int phys_temporary_count;  // Temporary register count (= start index for saved registers)
+  } regset[2];
 } RegAllocSettings;
 
 #define RAF_STACK_FRAME  (1 << 0)  // Require stack frame
@@ -46,8 +46,7 @@ typedef struct RegAlloc {
   LiveInterval *intervals;  // size=vregs->len
   LiveInterval **sorted_intervals;
 
-  unsigned long used_reg_bits;
-  unsigned long used_freg_bits;
+  unsigned long used_reg_bits[2];
   int flag;
   int original_vreg_count;
 } RegAlloc;

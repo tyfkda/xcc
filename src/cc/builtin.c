@@ -102,7 +102,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   }
 
   int offset = 0;
-  int gn = 0, fn = 0;
+  int reg_count[2] = {0, 0};  // [0]=gp-reg, [1]=fp-reg
   for (int i = 0; i < params->len; ++i) {
     VarInfo *info = params->data[i];
     const Type *t = info->type;
@@ -111,15 +111,10 @@ static VReg *gen_builtin_va_start(Expr *expr) {
       size = type_size(t);
       align = align_size(t);
     } else {
-      if (is_flonum(t)) {
-        if (fn >= kArchSetting.max_freg_args)
-          size = align = TARGET_POINTER_SIZE;
-        ++fn;
-      } else {
-        if (gn >= kArchSetting.max_reg_args)
-          size = align = TARGET_POINTER_SIZE;
-        ++gn;
-      }
+      bool is_flo = is_flonum(t);
+      if (reg_count[is_flo] >= kArchSetting.max_reg_args[is_flo])
+        size = align = TARGET_POINTER_SIZE;
+      ++reg_count[is_flo];
     }
     if (size > 0)
       offset = ALIGN(offset, align) + size;
@@ -170,8 +165,8 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     }
   }
 
-  const int MAX_REG_ARGS = kArchSetting.max_reg_args;
-  const int MAX_FREG_ARGS = kArchSetting.max_freg_args;
+  const int MAX_REG_ARGS = kArchSetting.max_reg_args[0];
+  const int MAX_FREG_ARGS = kArchSetting.max_reg_args[1];
   int offset = 0;
   if (gn >= MAX_REG_ARGS) {
     offset = (gn - MAX_REG_ARGS) * TARGET_POINTER_SIZE;
@@ -179,14 +174,14 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     // Check whether register arguments saved on stack has padding.
     RegParamInfo iparams[8];
     RegParamInfo fparams[8];
+    RegParamInfo *params[2] = {iparams, fparams};
     assert(MAX_REG_ARGS <= (int)ARRAY_SIZE(iparams));
     assert(MAX_FREG_ARGS <= (int)ARRAY_SIZE(fparams));
-    int iparam_count = 0;
-    int fparam_count = 0;
-    enumerate_register_params(curfunc, iparams, MAX_REG_ARGS, fparams, MAX_FREG_ARGS,
-                              &iparam_count, &fparam_count);
+    int param_count[2] = {0, 0};
+    const int max_reg_args[2] = {MAX_REG_ARGS, MAX_FREG_ARGS};
+    enumerate_register_params(curfunc, max_reg_args, params, param_count);
 
-    int n = MAX_REG_ARGS - iparam_count;
+    int n = MAX_REG_ARGS - param_count[GPREG];
     if (n > 0) {
       int size_org = n * TARGET_POINTER_SIZE;
       int size = ALIGN(n, 2) * TARGET_POINTER_SIZE;
@@ -232,7 +227,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     return NULL;
   }
 
-  int gn = 0, fn = 0;
+  int reg_count[2] = {0, 0};  // [0]=gp-reg, [1]=fp-reg
   size_t mem_offset = 0;
   for (int i = 0; i < params->len; ++i) {
     VarInfo *info = params->data[i];
@@ -240,26 +235,25 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     if (is_stack_param(t)) {
       mem_offset += ALIGN(type_size(t), 8);
     } else {
-      if (is_flonum(t))
-        ++fn;
-      else
-        ++gn;
+      bool is_flo = is_flonum(t);
+      ++reg_count[is_flo];
     }
   }
 
-  // ap->gp_offset = gn * TARGET_POINTER_SIZE
-  const int MAX_REG_ARGS = kArchSetting.max_reg_args;
-  const int MAX_FREG_ARGS = kArchSetting.max_freg_args;
-  VReg *ap = gen_expr(args->data[0]);
+  // ap->gp_offset = reg_count[GPREG] * TARGET_POINTER_SIZE
+  const int *MAX_REG_ARGS = kArchSetting.max_reg_args;
+  VReg *ap = gen_expr(args->data[GPREG]);
   VReg *gp_offset = ap;
   new_ir_store(gp_offset,
-               new_const_vreg(MIN(gn, MAX_REG_ARGS) * TARGET_POINTER_SIZE, to_vsize(&tyInt)), 0);
+               new_const_vreg(MIN(reg_count[GPREG], MAX_REG_ARGS[GPREG]) * TARGET_POINTER_SIZE,
+                              to_vsize(&tyInt)),
+               0);
 
-  // ap->fp_offset = (MAX_REG_ARGS + fn) * TARGET_POINTER_SIZE
+  // ap->fp_offset = (MAX_REG_ARGS[FPREG] + reg_count[FPREG]) * TARGET_POINTER_SIZE
   VReg *fp_offset = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt), to_vsize(&tySize)),
                                ap->vsize, IRF_UNSIGNED);
   new_ir_store(fp_offset,
-               new_const_vreg((MAX_REG_ARGS + MIN(fn, MAX_FREG_ARGS)) * TARGET_POINTER_SIZE,
+               new_const_vreg((MAX_REG_ARGS[GPREG] + MIN(reg_count[FPREG], MAX_REG_ARGS[FPREG])) * TARGET_POINTER_SIZE,
                               to_vsize(&tySize)),
                0);
 
@@ -272,7 +266,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     FuncBackend *fnbe = curfunc->extra;
     FrameInfo *fi = &fnbe->vaarg_frame_info;
     VReg *p = new_ir_bofs(fi)->dst;
-    int gs = MAX(gn - MAX_REG_ARGS, 0), fs = MAX(fn - MAX_FREG_ARGS, 0);
+    int gs = MAX(reg_count[GPREG] - MAX_REG_ARGS[GPREG], 0), fs = MAX(reg_count[FPREG] - MAX_REG_ARGS[FPREG], 0);
     size_t offset = (gs + fs) * TARGET_POINTER_SIZE + mem_offset;
     if (offset > 0) {
       VReg *addend = new_const_vreg(offset, vsize);
@@ -281,7 +275,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     new_ir_store(overflow_arg_area, p, 0);
   }
 
-  // ap->reg_save_area = -(MAX_REG_ARGS + MAX_FREG_ARGS) * TARGET_POINTER_SIZE
+  // ap->reg_save_area = -(MAX_REG_ARGS[GPREG] + MAX_REG_ARGS[FPREG]) * TARGET_POINTER_SIZE
   {
     enum VRegSize vsize = to_vsize(&tyVoidPtr);
     VReg *reg_save_area = new_ir_bop(
@@ -289,7 +283,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
         new_const_vreg(type_size(&tyInt) + type_size(&tyInt) + type_size(&tyVoidPtr), vsize),
         vsize, IRF_UNSIGNED);
     FrameInfo *fi = malloc_or_die(sizeof(*fi));
-    fi->offset = -(MAX_REG_ARGS + MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
+    fi->offset = -(MAX_REG_ARGS[GPREG] + MAX_REG_ARGS[FPREG]) * TARGET_POINTER_SIZE;
     VReg *p = new_ir_bofs(fi)->dst;
     new_ir_store(reg_save_area, p, 0);
   }
