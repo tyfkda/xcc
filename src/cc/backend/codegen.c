@@ -139,16 +139,17 @@ static void alloc_variable_registers(Function *func) {
   }
 }
 
-void enumerate_register_params(Function *func, const int max_reg[2],
-                               RegParamInfo *args[2], int arg_count[2]) {
-  arg_count[GPREG] = arg_count[FPREG] = 0;
+int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo *args) {
+  int arg_count[2] = {0, 0};
+  int total = 0;
 
   VReg *retval = ((FuncBackend*)func->extra)->retval;
   if (retval != NULL) {
-    RegParamInfo *p = &args[GPREG][arg_count[GPREG]++];
+    RegParamInfo *p = &args[total++];
     p->type = &tyVoidPtr;
     p->vreg = retval;
     p->index = 0;
+    ++arg_count[GPREG];
   }
 
   const Vector *params = func->params;
@@ -161,15 +162,15 @@ void enumerate_register_params(Function *func, const int max_reg[2],
       bool is_flo = is_flonum(type);
       if (arg_count[is_flo] >= max_reg[is_flo])
         continue;
-      int index = arg_count[is_flo]++;
-      RegParamInfo *p = &args[is_flo][index];
+      RegParamInfo *p = &args[total++];
       VReg *vreg = varinfo->local.vreg;
       assert(vreg != NULL);
       p->type = type;
       p->vreg = vreg;
-      p->index = index;
+      p->index = arg_count[is_flo]++;
     }
   }
+  return arg_count[GPREG] + arg_count[FPREG];
 }
 
 static enum VRegSize get_elem_vtype(const Type *type) {
