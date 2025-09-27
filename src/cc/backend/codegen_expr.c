@@ -416,9 +416,9 @@ static inline ArgInfo *collect_funargs(const Type *functype, int arg_start, Vect
 #endif
 
     size_t regnum = 1;
-    if (arg_type->kind == TY_STRUCT) {
-      size_t n = (type_size(arg_type) + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
-      if (n <= 2 && reg_index[GPREG] + (int)n <= kArchSetting.max_reg_args[GPREG]) {
+    if (arg_type->kind == TY_STRUCT && p->size <= TARGET_POINTER_SIZE * 2) {
+      size_t n = (p->size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+      if (reg_index[GPREG] + (int)n <= kArchSetting.max_reg_args[GPREG]) {
         assert(!is_flo);
         stack_arg = false;
         regnum = n;
@@ -453,6 +453,7 @@ static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *
   size_t n = (size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
 
   // Assumed little endian.
+fprintf(stderr, "Small struct argument: size=%zu, n=%zu\n", size, n);
   for (size_t i = n; i-- > 0; ) {
     VReg *opr = vreg;
     size_t offset = i * TARGET_POINTER_SIZE;
@@ -463,7 +464,7 @@ static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *
     int regarg = ++work->regarg[GPREG];
     int arg_start = work->ret_varinfo != NULL ? 1 : 0;
     int index = work->reg_arg_count[GPREG] - regarg + arg_start;
-fprintf(stderr, "Small struct argument, regarg=%d, reg_arg_count=%d, regarg=%d, index=%d\n", work->regarg[GPREG], work->reg_arg_count[GPREG], regarg, index);
+fprintf(stderr, "  index=%d\n", index);
     assert(index < kArchSetting.max_reg_args[GPREG]);
     new_ir_pusharg(loaded, index);
   }
