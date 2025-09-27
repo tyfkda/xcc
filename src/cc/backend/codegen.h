@@ -53,8 +53,7 @@ typedef struct {
   int index;
 } RegParamInfo;
 
-void enumerate_register_params(Function *func, const int max_reg[2],
-                               RegParamInfo *args[2], int arg_count[2]);
+int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo *args);
 
 bool gen_defun(Function *func);
 void prepare_register_allocation(Function *func);

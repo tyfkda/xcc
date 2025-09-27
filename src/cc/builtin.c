@@ -172,16 +172,20 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     offset = (gn - MAX_REG_ARGS) * TARGET_POINTER_SIZE;
   } else {
     // Check whether register arguments saved on stack has padding.
-    RegParamInfo iparams[8];
-    RegParamInfo fparams[8];
-    RegParamInfo *params[2] = {iparams, fparams};
-    assert(MAX_REG_ARGS <= (int)ARRAY_SIZE(iparams));
-    assert(MAX_FREG_ARGS <= (int)ARRAY_SIZE(fparams));
-    int param_count[2] = {0, 0};
+    // RegParamInfo params[MAX_REG_ARGS + MAX_FREG_ARGS];  // Use VLA?
+    RegParamInfo params[8 + 8];
+    assert(MAX_REG_ARGS <= 8);
+    assert(MAX_FREG_ARGS <= 8);
     const int max_reg_args[2] = {MAX_REG_ARGS, MAX_FREG_ARGS};
-    enumerate_register_params(curfunc, max_reg_args, params, param_count);
+    int param_count = enumerate_register_params(curfunc, max_reg_args, params);
 
-    int n = MAX_REG_ARGS - param_count[GPREG];
+    int ngp = 0;
+    for (int i = 0; i < param_count; ++i) {
+      VReg *vreg = params[i].vreg;
+      if (!(vreg->flag & VRF_FLONUM))
+        ++ngp;
+    }
+    int n = MAX_REG_ARGS - ngp;
     if (n > 0) {
       int size_org = n * TARGET_POINTER_SIZE;
       int size = ALIGN(n, 2) * TARGET_POINTER_SIZE;

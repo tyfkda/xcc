@@ -91,55 +91,54 @@ static void move_params_to_assigned(Function *func) {
 #define kFRegParam32s  kFReg32s
 #define kFRegParam64s  kFReg64s
 
-  RegParamInfo iparams[MAX_REG_ARGS];
-  RegParamInfo fparams[MAX_FREG_ARGS];
-  RegParamInfo *params[2] = {iparams, fparams};
-  int param_count[2] = {0, 0};
+  RegParamInfo params[MAX_REG_ARGS + MAX_FREG_ARGS];
   const int max_reg_args[2] = {MAX_REG_ARGS, MAX_FREG_ARGS};
-  enumerate_register_params(func, max_reg_args, params, param_count);
+  int param_count = enumerate_register_params(func, max_reg_args, params);
+  int reg_index[2] = {0, 0};
 
   // Generate code to store parameters to the destination.
-  for (int i = 0; i < param_count[GPREG]; ++i) {
-    RegParamInfo *p = &params[GPREG][i];
+  for (int i = 0; i < param_count; ++i) {
+    RegParamInfo *p = &params[i];
     VReg *vreg = p->vreg;
-    size_t size = type_size(p->type);
-    int pow = most_significant_bit(size);
-    assert(IS_POWER_OF_2(size) && pow < 4);
-    const char *src = kRegSizeTable[pow][ArchRegParamMapping[p->index]];
-    if (vreg->flag & VRF_SPILLED) {
-      int offset = vreg->frame.offset;
-      assert(offset != 0);
-      const char *dst;
-      if (offset >= -256) {
-        dst = IMMEDIATE_OFFSET(FP, offset);
+    if (vreg->flag & VRF_FLONUM) {
+      const char *src = (p->type->flonum.kind >= FL_DOUBLE ? kFRegParam64s : kFRegParam32s)[p->index];
+      if (vreg->flag & VRF_SPILLED) {
+        int offset = vreg->frame.offset;
+        assert(offset != 0);
+        STR(src, IMMEDIATE_OFFSET(FP, offset));
       } else {
-        mov_immediate(X9, offset, true, false);  // x9 broken.
-        dst = REG_OFFSET(FP, X9, NULL);
+        if (p->index != vreg->phys) {
+          const char *dst = (p->type->flonum.kind >= FL_DOUBLE ? kFReg64s : kFReg32s)[vreg->phys];
+          FMOV(dst, src);
+        }
       }
-      switch (pow) {
-      case 0:          STRB(src, dst); break;
-      case 1:          STRH(src, dst); break;
-      case 2: case 3:  STR(src, dst); break;
-      default: assert(false); break;
-      }
-    } else if (ArchRegParamMapping[p->index] != vreg->phys) {
-      const char *dst = kRegSizeTable[pow][vreg->phys];
-      MOV(dst, src);
-    }
-  }
-  for (int i = 0; i < param_count[FPREG]; ++i) {
-    RegParamInfo *p = &params[FPREG][i];
-    VReg *vreg = p->vreg;
-    const char *src = (p->type->flonum.kind >= FL_DOUBLE ? kFRegParam64s : kFRegParam32s)[p->index];
-    if (vreg->flag & VRF_SPILLED) {
-      int offset = vreg->frame.offset;
-      assert(offset != 0);
-      STR(src, IMMEDIATE_OFFSET(FP, offset));
+      ++reg_index[FPREG];
     } else {
-      if (p->index != vreg->phys) {
-        const char *dst = (p->type->flonum.kind >= FL_DOUBLE ? kFReg64s : kFReg32s)[vreg->phys];
-        FMOV(dst, src);
+      size_t size = type_size(p->type);
+      int pow = most_significant_bit(size);
+      assert(IS_POWER_OF_2(size) && pow < 4);
+      const char *src = kRegSizeTable[pow][ArchRegParamMapping[p->index]];
+      if (vreg->flag & VRF_SPILLED) {
+        int offset = vreg->frame.offset;
+        assert(offset != 0);
+        const char *dst;
+        if (offset >= -256) {
+          dst = IMMEDIATE_OFFSET(FP, offset);
+        } else {
+          mov_immediate(X9, offset, true, false);  // x9 broken.
+          dst = REG_OFFSET(FP, X9, NULL);
+        }
+        switch (pow) {
+        case 0:          STRB(src, dst); break;
+        case 1:          STRH(src, dst); break;
+        case 2: case 3:  STR(src, dst); break;
+        default: assert(false); break;
+        }
+      } else if (ArchRegParamMapping[p->index] != vreg->phys) {
+        const char *dst = kRegSizeTable[pow][vreg->phys];
+        MOV(dst, src);
       }
+      ++reg_index[GPREG];
     }
   }
 
@@ -149,12 +148,12 @@ static void move_params_to_assigned(Function *func) {
   bool vaargs = func->type->func.vaargs;
 #endif
   if (vaargs) {
-    for (int i = param_count[GPREG]; i < MAX_REG_ARGS; ++i) {
+    for (int i = reg_index[GPREG]; i < MAX_REG_ARGS; ++i) {
       int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
       STR(kRegSizeTable[3][ArchRegParamMapping[i]], IMMEDIATE_OFFSET(FP, offset));
     }
 #ifndef __NO_FLONUM
-    for (int i = param_count[FPREG]; i < MAX_FREG_ARGS; ++i) {
+    for (int i = reg_index[FPREG]; i < MAX_FREG_ARGS; ++i) {
       int offset = (i - MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
       STR(kFRegParam64s[i], IMMEDIATE_OFFSET(FP, offset));
     }
