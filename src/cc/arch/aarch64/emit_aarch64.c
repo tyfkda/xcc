@@ -100,21 +100,22 @@ static void move_params_to_assigned(Function *func) {
   for (int i = 0; i < param_count; ++i) {
     RegParamInfo *p = &params[i];
     VReg *vreg = p->vreg;
+    const Type *type = p->varinfo->type;
     if (vreg->flag & VRF_FLONUM) {
-      const char *src = (p->type->flonum.kind >= FL_DOUBLE ? kFRegParam64s : kFRegParam32s)[p->index];
+      const char *src = (type->flonum.kind >= FL_DOUBLE ? kFRegParam64s : kFRegParam32s)[p->index];
       if (vreg->flag & VRF_SPILLED) {
         int offset = vreg->frame.offset;
         assert(offset != 0);
         STR(src, IMMEDIATE_OFFSET(FP, offset));
       } else {
         if (p->index != vreg->phys) {
-          const char *dst = (p->type->flonum.kind >= FL_DOUBLE ? kFReg64s : kFReg32s)[vreg->phys];
+          const char *dst = (type->flonum.kind >= FL_DOUBLE ? kFReg64s : kFReg32s)[vreg->phys];
           FMOV(dst, src);
         }
       }
       ++reg_index[FPREG];
     } else {
-      size_t size = type_size(p->type);
+      size_t size = type_size(type);
       int pow = most_significant_bit(size);
       assert(IS_POWER_OF_2(size) && pow < 4);
       const char *src = kRegSizeTable[pow][ArchRegParamMapping[p->index]];

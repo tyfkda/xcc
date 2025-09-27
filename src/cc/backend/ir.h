@@ -9,6 +9,7 @@
 typedef struct BB BB;
 typedef struct Name Name;
 typedef struct RegAlloc RegAlloc;
+typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 
 typedef struct FrameInfo {
@@ -267,6 +268,7 @@ typedef struct FuncBackend {
   RegAlloc *ra;
   BBContainer *bbcon;
   BB *ret_bb;
+  VarInfo *retvarinfo;
   VReg *retval;
   VReg *result_dst;
   Vector *funcalls;

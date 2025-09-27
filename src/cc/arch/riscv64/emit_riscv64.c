@@ -99,7 +99,8 @@ static void move_params_to_assigned(Function *func) {
         }
       }
     } else {
-      size_t size = type_size(p->type);
+      const Type *type = p->varinfo->type;
+      size_t size = type_size(type);
       int pow = most_significant_bit(size);
       assert(IS_POWER_OF_2(size) && pow < 4);
       const char *src = kReg64s[ArchRegParamMapping[p->index]];
