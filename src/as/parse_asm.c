@@ -790,281 +790,305 @@ static uint32_t parse_section_flag(ParseInfo *info) {
 }
 #endif
 
-static bool handle_directive(ParseInfo *info, enum DirectiveType dir) {
+static bool dir_string(ParseInfo *info, enum DirectiveType dir) {
+  if (*info->p != '"')
+    return parse_error(info, "`\"' expected");
+  ++info->p;
+  const char *p = info->p;
+  size_t len = unescape_string(info, NULL);
+  if (dir == DT_STRING)
+    ++len;
+  char *str = calloc_or_die(len);
+  info->p = p;  // Again.
+  unescape_string(info, str);
+
   SectionInfo *section = info->current_section;
   Vector *irs = section->irs;
+  vec_push(irs, new_ir_data(str, len));
+  return true;
+}
 
-  switch (dir) {
-  case NODIRECTIVE:
-    break;
-  case DT_ASCII:
-  case DT_STRING:
-    {
-      if (*info->p != '"')
-        return parse_error(info, "`\"' expected");
-      ++info->p;
-      const char *p = info->p;
-      size_t len = unescape_string(info, NULL);
-      if (dir == DT_STRING)
-        ++len;
-      char *str = calloc_or_die(len);
-      info->p = p;  // Again.
-      unescape_string(info, str);
+static bool dir_comm(ParseInfo *info, enum DirectiveType dir) {
+  UNUSED(dir);
+  const Name *name = parse_label(info);
+  if (name == NULL)
+    return parse_error(info, ".comm: label expected");
+  info->p = skip_whitespaces(info->p);
+  if (*info->p != ',')
+    return parse_error(info, ".comm: `,' expected");
+  info->p = skip_whitespaces(info->p + 1);
+  int64_t size;
+  if (!immediate(&info->p, &size) || size <= 0)
+    return parse_error(info, ".comm: size expected");
 
-      vec_push(irs, new_ir_data(str, len));
-    }
-    break;
-
-  case DT_COMM:
-    {
-      const Name *name = parse_label(info);
-      if (name == NULL)
-        return parse_error(info, ".comm: label expected");
-      info->p = skip_whitespaces(info->p);
-      if (*info->p != ',')
-        return parse_error(info, ".comm: `,' expected");
-      info->p = skip_whitespaces(info->p + 1);
-      int64_t size;
-      if (!immediate(&info->p, &size) || size <= 0)
-        return parse_error(info, ".comm: size expected");
-
-      int64_t align = 0;
-      if (*info->p == ',') {
-        info->p = skip_whitespaces(info->p + 1);
-        if (!immediate(&info->p, &align) ||
+  int64_t align = 0;
+  if (*info->p == ',') {
+    info->p = skip_whitespaces(info->p + 1);
+    if (!immediate(&info->p, &align) ||
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-            align < 0
+        align < 0
 #else
-            align < 1
+        align < 1
 #endif
-        ) {
-          return parse_error(info, ".comm: optional alignment expected");
-        }
+    ) {
+      return parse_error(info, ".comm: optional alignment expected");
+    }
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-        // p2align on macOS.
-        align = 1 << align;
-#endif
-      }
-
-      SectionInfo *section = get_section_info(info, kSecBss, kSegBss, SF_BSS | SF_WRITABLE);
-      irs = section->irs;
-      if (align > 1)
-        vec_push(irs, new_ir_align(align));
-      vec_push(irs, new_ir_label(name));
-      vec_push(irs, new_ir_bss(size));
-
-      LabelInfo *label = add_label_table(info->label_table, name, section, true, false);
-      if (label == NULL)
-        return false;
-      label->size = size;
-      label->align = align;
-      label->flag |= LF_COMM;
-    }
-    break;
-
-  case DT_ZERO:
-    {
-      int64_t num;
-      if (!immediate(&info->p, &num))
-        return parse_error(info, ".zero: number expected");
-      vec_push(irs, new_ir_zero(num));
-    }
-    break;
-
-  case DT_TEXT:
-    set_current_section(info, kSecText, kSegText, SF_EXECUTABLE);
-    break;
-
-  case DT_DATA:
-    set_current_section(info, kSecData, kSegData, SF_WRITABLE);
-    break;
-
-  case DT_BSS:
-    set_current_section(info, kSecBss, kSegBss, SF_BSS | SF_WRITABLE);
-    break;
-
-  case DT_ALIGN:
-    {
-      int64_t align;
-      if (!immediate(&info->p, &align))
-        return parse_error(info, ".align: number expected");
-      vec_push(irs, new_ir_align(align));
-    }
-    break;
-  case DT_P2ALIGN:
-    {
-      int64_t align;
-      if (!immediate(&info->p, &align))
-        return parse_error(info, ".align: number expected");
-      vec_push(irs, new_ir_align(1 << align));
-    }
-    break;
-
-  case DT_TYPE:
-    {
-      const Name *name = parse_label(info);
-      if (name == NULL)
-        return parse_error(info, ".type: label expected");
-      if (*info->p != ',')
-        return parse_error(info, ".type: `,' expected");
-      info->p = skip_whitespaces(info->p + 1);
-      enum LabelKind kind = LK_NONE;
-      if (strcmp(info->p, "@function") == 0) {
-        kind = LK_FUNC;
-        info->p += 9;
-      } else if (strcmp(info->p, "@object") == 0) {
-        kind = LK_OBJECT;
-        info->p += 7;
-      } else {
-        return parse_error(info, "illegal .type");
-      }
-
-      LabelInfo *label = add_label_table(info->label_table, name, section, false, false);
-      if (label != NULL) {
-        label->kind = kind;
-      }
-    }
-    break;
-
-  case DT_BYTE:
-  case DT_SHORT:
-  case DT_LONG:
-  case DT_QUAD:
-    {
-      Expr *expr = parse_expr(info);
-      if (expr == NULL)
-        return parse_error(info, "expression expected");
-
-      assert(expr->kind != EX_FLONUM);
-      if (expr->kind == EX_FIXNUM) {
-        // TODO: Target endian.
-        long value = expr->fixnum;
-        int size = 1 << (dir - DT_BYTE);
-        unsigned char *buf = malloc_or_die(size);
-        for (int i = 0; i < size; ++i)
-          buf[i] = value >> (8 * i);
-        vec_push(irs, new_ir_data(buf, size));
-      } else {
-        vec_push(irs, new_ir_expr((enum IrKind)(IR_EXPR_BYTE + (dir - DT_BYTE)), expr));
-      }
-    }
-    break;
-
-#ifndef __NO_FLONUM
-  case DT_FLOAT:
-  case DT_DOUBLE:
-    {
-      Expr *expr = parse_expr(info);
-      if (expr == NULL)
-        return parse_error(info, "expression expected");
-
-      Flonum value;
-      switch (expr->kind) {
-      case EX_FIXNUM:  value = expr->fixnum; break;
-      case EX_FLONUM:  value = expr->flonum; break;
-      default:
-        assert(false);
-        value = -1;
-        break;
-      }
-      int size;
-      switch (dir) {
-      default: assert(false); // Fallthrough
-      case DT_DOUBLE:  size = sizeof(double); break;
-      case DT_FLOAT:   size = sizeof(float); break;
-      }
-      unsigned char *buf = malloc_or_die(size);
-      if (dir == DT_FLOAT) {
-        float fval = value;
-        memcpy(buf, (void*)&fval, sizeof(fval));  // TODO: Endian
-      } else {
-        double dval = value;
-        memcpy(buf, (void*)&dval, sizeof(dval));  // TODO: Endian
-      }
-      vec_push(irs, new_ir_data(buf, size));
-    }
-    break;
-#endif
-
-  case DT_GLOBL:
-  case DT_LOCAL:
-  case DT_WEAK:
-    {
-      const Name *name = parse_label(info);
-      if (name == NULL) {
-        char buf[32];
-        snprintf(buf, sizeof(buf), "%s: label expected", dir == DT_GLOBL ? ".globl" : ".local");
-        return parse_error(info, buf);
-      }
-
-      LabelInfo *label = add_label_table(info->label_table, name, section, false, dir == DT_GLOBL);
-      if (label == NULL) {
-        ++info->error_count;
-      } else {
-        if (dir == DT_WEAK)
-          label->flag |= LF_WEAK;
-      }
-    }
-    break;
-
-  case DT_SECTION:
-    {
-      const Name *name = parse_section_name(info);
-      if (name == NULL)
-        return parse_error(info, ".section: section name expected");
-#if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
-      int flag = 0;
-      const char *p = skip_whitespaces(info->p);
-      if (*p == ',') {
-        info->p = p + 1;
-        flag = parse_section_flag(info);
-      }
-
-      char *sectname = strndup(name->chars, name->bytes);
-      set_current_section(info, sectname, kSegRodata, flag);
-#else
-      const char *p = skip_whitespaces(info->p);
-      if (*p != ',')
-        return parse_error(info, "`,' expected");
-      info->p = skip_whitespaces(p + 1);
-      const Name *name2 = parse_section_name(info);
-      if (name2 == NULL)
-        return parse_error(info, ".section: section name expected");
-
-      int flag = 0;
-      p = skip_whitespaces(info->p);
-      if (*p == ',') {
-        info->p = p + 1;
-        const Name *modname = parse_section_name(info);
-        if (modname != NULL) {
-          if (equal_name(modname, alloc_name("mod_init_funcs", NULL, false))) {
-            flag |= SF_INIT_FUNCS;
-          } else if (equal_name(modname, alloc_name("cstring_literals", NULL, false))) {
-            flag |= SF_CSTRLITERALS;
-          }
-        }
-        if (flag == 0)
-          return parse_error(info, ".section: section name expected");
-      }
-
-      char *segname = strndup(name->chars, name->bytes);
-      char *sectname = strndup(name2->chars, name2->bytes);
-      section = set_current_section(info, sectname, segname, flag);
-#endif
-    }
-    break;
-
-  case DT_EXTERN:
-    break;
-
-#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-  case DT_SUBSECTIONS_VIA_SYMBOLS:
-    // TODO: Handle this flag.
-    break;
+    // p2align on macOS.
+    align = 1 << align;
 #endif
   }
 
+  SectionInfo *section = get_section_info(info, kSecBss, kSegBss, SF_BSS | SF_WRITABLE);
+  Vector *irs = section->irs;
+  if (align > 1)
+    vec_push(irs, new_ir_align(align));
+  vec_push(irs, new_ir_label(name));
+  vec_push(irs, new_ir_bss(size));
+
+  LabelInfo *label = add_label_table(info->label_table, name, section, true, false);
+  if (label == NULL)
+    return false;
+  label->size = size;
+  label->align = align;
+  label->flag |= LF_COMM;
   return true;
+}
+
+static bool dir_zero(ParseInfo *info, enum DirectiveType dir) {
+  UNUSED(dir);
+  int64_t num;
+  if (!immediate(&info->p, &num))
+    return parse_error(info, ".zero: number expected");
+
+  SectionInfo *section = info->current_section;
+  Vector *irs = section->irs;
+  vec_push(irs, new_ir_zero(num));
+  return true;
+}
+
+static bool dir_text(ParseInfo *info, enum DirectiveType dir) {
+  UNUSED(dir);
+  set_current_section(info, kSecText, kSegText, SF_EXECUTABLE);
+  return true;
+}
+
+static bool dir_data(ParseInfo *info, enum DirectiveType dir) {
+  UNUSED(dir);
+  set_current_section(info, kSecData, kSegData, SF_WRITABLE);
+  return true;
+}
+
+static bool dir_bss(ParseInfo *info, enum DirectiveType dir) {
+  UNUSED(dir);
+  set_current_section(info, kSecBss, kSegBss, SF_BSS | SF_WRITABLE);
+  return true;
+}
+
+static bool dir_align(ParseInfo *info, enum DirectiveType dir) {
+  int64_t align;
+  if (!immediate(&info->p, &align))
+    return parse_error(info, ".align: number expected");
+  if (dir == DT_P2ALIGN)
+    align = 1 << align;
+
+  SectionInfo *section = info->current_section;
+  Vector *irs = section->irs;
+  vec_push(irs, new_ir_align(align));
+  return true;
+}
+
+static bool dir_type(ParseInfo *info, enum DirectiveType dir) {
+  UNUSED(dir);
+  const Name *name = parse_label(info);
+  if (name == NULL)
+    return parse_error(info, ".type: label expected");
+  if (*info->p != ',')
+    return parse_error(info, ".type: `,' expected");
+  info->p = skip_whitespaces(info->p + 1);
+  enum LabelKind kind = LK_NONE;
+  if (strcmp(info->p, "@function") == 0) {
+    kind = LK_FUNC;
+    info->p += 9;
+  } else if (strcmp(info->p, "@object") == 0) {
+    kind = LK_OBJECT;
+    info->p += 7;
+  } else {
+    return parse_error(info, "illegal .type");
+  }
+
+  SectionInfo *section = info->current_section;
+  LabelInfo *label = add_label_table(info->label_table, name, section, false, false);
+  if (label != NULL) {
+    label->kind = kind;
+  }
+  return true;
+}
+
+static bool dir_bytes(ParseInfo *info, enum DirectiveType dir) {
+  Expr *expr = parse_expr(info);
+  if (expr == NULL)
+    return parse_error(info, "expression expected");
+
+  SectionInfo *section = info->current_section;
+  Vector *irs = section->irs;
+
+  assert(expr->kind != EX_FLONUM);
+  if (expr->kind == EX_FIXNUM) {
+    // TODO: Target endian.
+    long value = expr->fixnum;
+    int size = 1 << (dir - DT_BYTE);
+    unsigned char *buf = malloc_or_die(size);
+    for (int i = 0; i < size; ++i)
+      buf[i] = value >> (8 * i);
+    vec_push(irs, new_ir_data(buf, size));
+  } else {
+    vec_push(irs, new_ir_expr((enum IrKind)(IR_EXPR_BYTE + (dir - DT_BYTE)), expr));
+  }
+  return true;
+}
+
+#ifndef __NO_FLONUM
+static bool dir_float(ParseInfo *info, enum DirectiveType dir) {
+  Expr *expr = parse_expr(info);
+  if (expr == NULL)
+    return parse_error(info, "expression expected");
+
+  Flonum value;
+  switch (expr->kind) {
+  case EX_FIXNUM:  value = expr->fixnum; break;
+  case EX_FLONUM:  value = expr->flonum; break;
+  default:
+    assert(false);
+    value = -1;
+    break;
+  }
+  int size;
+  switch (dir) {
+  default: assert(false); // Fallthrough
+  case DT_DOUBLE:  size = sizeof(double); break;
+  case DT_FLOAT:   size = sizeof(float); break;
+  }
+  unsigned char *buf = malloc_or_die(size);
+  if (dir == DT_FLOAT) {
+    float fval = value;
+    memcpy(buf, (void*)&fval, sizeof(fval));  // TODO: Endian
+  } else {
+    double dval = value;
+    memcpy(buf, (void*)&dval, sizeof(dval));  // TODO: Endian
+  }
+
+  SectionInfo *section = info->current_section;
+  Vector *irs = section->irs;
+  vec_push(irs, new_ir_data(buf, size));
+  return true;
+}
+#endif
+
+static bool dir_label_attrib(ParseInfo *info, enum DirectiveType dir) {
+  const Name *name = parse_label(info);
+  if (name == NULL) {
+    char buf[32];
+    snprintf(buf, sizeof(buf), "%s: label expected", dir == DT_GLOBL ? ".globl" : ".local");
+    return parse_error(info, buf);
+  }
+
+  SectionInfo *section = info->current_section;
+  LabelInfo *label = add_label_table(info->label_table, name, section, false, dir == DT_GLOBL);
+  if (label == NULL) {
+    ++info->error_count;
+  } else {
+    if (dir == DT_WEAK)
+      label->flag |= LF_WEAK;
+  }
+  return true;
+}
+
+static bool dir_section(ParseInfo *info, enum DirectiveType dir) {
+  UNUSED(dir);
+  const Name *name = parse_section_name(info);
+  if (name == NULL)
+    return parse_error(info, ".section: section name expected");
+#if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
+  int flag = 0;
+  const char *p = skip_whitespaces(info->p);
+  if (*p == ',') {
+    info->p = p + 1;
+    flag = parse_section_flag(info);
+  }
+
+  char *sectname = strndup(name->chars, name->bytes);
+  set_current_section(info, sectname, kSegRodata, flag);
+#else
+  const char *p = skip_whitespaces(info->p);
+  if (*p != ',')
+    return parse_error(info, "`,' expected");
+  info->p = skip_whitespaces(p + 1);
+  const Name *name2 = parse_section_name(info);
+  if (name2 == NULL)
+    return parse_error(info, ".section: section name expected");
+
+  int flag = 0;
+  p = skip_whitespaces(info->p);
+  if (*p == ',') {
+    info->p = p + 1;
+    const Name *modname = parse_section_name(info);
+    if (modname != NULL) {
+      if (equal_name(modname, alloc_name("mod_init_funcs", NULL, false))) {
+        flag |= SF_INIT_FUNCS;
+      } else if (equal_name(modname, alloc_name("cstring_literals", NULL, false))) {
+        flag |= SF_CSTRLITERALS;
+      }
+    }
+    if (flag == 0)
+      return parse_error(info, ".section: section name expected");
+  }
+
+  char *segname = strndup(name->chars, name->bytes);
+  char *sectname = strndup(name2->chars, name2->bytes);
+  set_current_section(info, sectname, segname, flag);
+#endif
+  return true;
+}
+
+#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+static bool dir_subsections_via_symbols(ParseInfo *info, enum DirectiveType dir) {
+  // TODO: Handle this flag.
+  UNUSED(info);
+  UNUSED(dir);
+  return true;
+}
+#endif
+
+static inline bool handle_directive(ParseInfo *info, enum DirectiveType dir) {
+  typedef bool (*DirectiveFunc)(ParseInfo *info, enum DirectiveType dir);
+
+  static const DirectiveFunc kDirectiveFuncTable[] = {
+    [NODIRECTIVE] = NULL,
+    [DT_ASCII] = dir_string, [DT_STRING] = dir_string,
+    [DT_SECTION] = dir_section,
+    [DT_TEXT] = dir_text,
+    [DT_DATA] = dir_data,
+    [DT_BSS] = dir_bss,
+    [DT_ALIGN] = dir_align, [DT_P2ALIGN] = dir_align,
+    [DT_TYPE] = dir_type,
+    [DT_BYTE] = dir_bytes, [DT_SHORT] = dir_bytes, [DT_LONG] = dir_bytes, [DT_QUAD] = dir_bytes,
+    [DT_COMM] = dir_comm,
+    [DT_ZERO] = dir_zero,
+    [DT_GLOBL] = dir_label_attrib, [DT_LOCAL] = dir_label_attrib, [DT_WEAK] = dir_label_attrib,
+    [DT_EXTERN] = NULL,
+  #ifndef __NO_FLONUM
+    [DT_FLOAT] = dir_float, [DT_DOUBLE] = dir_float,
+  #endif
+  #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
+    [DT_SUBSECTIONS_VIA_SYMBOLS] = dir_subsections_via_symbols,
+  #endif
+  };
+
+  DirectiveFunc func = kDirectiveFuncTable[dir];
+  if (func == NULL)
+    return true;
+  return (*func)(info, dir);
 }
 
 bool parse_line(Line *line, ParseInfo *info) {

@@ -566,21 +566,8 @@ static Vector *emit_data_section(EmitWasm *ew) {
   return reloc_data;
 }
 
-static void emit_linking_section(EmitWasm *ew) {
-  DataStorage linking_section;
-  static const char kLinkingName[] = "linking";
-  const int LINK_VERSION = 2;
-  data_init(&linking_section);
-  data_open_chunk(&linking_section);
-  data_string(&linking_section, kLinkingName, sizeof(kLinkingName) - 1);
-  data_uleb128(&linking_section, -1, LINK_VERSION);
-
-  // Symbol table.
-  data_push(&linking_section, LT_WASM_SYMBOL_TABLE);  // subsec type
-  data_open_chunk(&linking_section);  // Payload start.
-  data_open_chunk(&linking_section);
+static inline uint32_t emit_linking_symtab_function(DataStorage *linking_section) {
   uint32_t count = 0;
-  // Functions
   for (int k = 0; k < 2; ++k) {  // To match function index and linking order, do twice.
     const Name *name;
     FuncInfo *info;
@@ -603,18 +590,22 @@ static void emit_linking_section(EmitWasm *ew) {
         flags |= WASM_SYM_EXPLICIT_NAME;
       }
 
-      data_push(&linking_section, SIK_SYMTAB_FUNCTION);  // kind
-      data_uleb128(&linking_section, -1, flags);
-      data_uleb128(&linking_section, -1, info->index);
+      data_push(linking_section, SIK_SYMTAB_FUNCTION);  // kind
+      data_uleb128(linking_section, -1, flags);
+      data_uleb128(linking_section, -1, info->index);
 
       if (info->func != NULL ||  // Defined function: put name. otherwise not required.
           flags & WASM_SYM_EXPLICIT_NAME) {
-        data_string(&linking_section, name->chars, name->bytes);
+        data_string(linking_section, name->chars, name->bytes);
       }
       ++count;
     }
   }
-  // Globals
+  return count;
+}
+
+static inline uint32_t emit_linking_symtab_global(EmitWasm *ew, DataStorage *linking_section) {
+  uint32_t count = 0;
   for (int k = 0; k < 3; ++k) {  // 0=unresolved, 1=resolved(data), 2=resolved(bss)
     const Name *name;
     GVarInfo *info;
@@ -640,58 +631,83 @@ static void emit_linking_section(EmitWasm *ew) {
         flags |= WASM_SYM_BINDING_LOCAL | WASM_SYM_VISIBILITY_HIDDEN;
 
       if (is_global_datsec_var(varinfo, global_scope)) {
-        data_push(&linking_section, SIK_SYMTAB_DATA);  // kind
-        data_uleb128(&linking_section, -1, flags);
+        data_push(linking_section, SIK_SYMTAB_DATA);  // kind
+        data_uleb128(linking_section, -1, flags);
         const Name *name = varinfo->ident->ident;
-        data_string(&linking_section, name->chars, name->bytes);
+        data_string(linking_section, name->chars, name->bytes);
         if (!(info->flag & GVF_UNRESOLVED)) {  // Defined global: put name. otherwise not required.
-          data_uleb128(&linking_section, -1, info->item_index);
-          data_uleb128(&linking_section, -1, 0);  // offset (must start from the begining)
-          data_uleb128(&linking_section, -1, type_size(varinfo->type));  // size
+          data_uleb128(linking_section, -1, info->item_index);
+          data_uleb128(linking_section, -1, 0);  // offset (must start from the begining)
+          data_uleb128(linking_section, -1, type_size(varinfo->type));  // size
         }
       } else {
-        data_push(&linking_section, SIK_SYMTAB_GLOBAL);  // kind
-        data_uleb128(&linking_section, -1, flags);
-        data_uleb128(&linking_section, -1, info->item_index);
+        data_push(linking_section, SIK_SYMTAB_GLOBAL);  // kind
+        data_uleb128(linking_section, -1, flags);
+        data_uleb128(linking_section, -1, info->item_index);
         if (info->item_index >= ew->import_global_count) {
           const Name *name = varinfo->ident->ident;
-          data_string(&linking_section, name->chars, name->bytes);
+          data_string(linking_section, name->chars, name->bytes);
         }
       }
 
       ++count;
     }
   }
+  return count;
+}
+
+static inline uint32_t emit_linking_symtab_table(DataStorage *linking_section) {
+  uint32_t count = 0;
   if (tables->len > 0) {  // Table
     for (int i = 0, len = tables->len; i < len; ++i) {
       TableInfo *ti = tables->data[i];
       int flags = WASM_SYM_UNDEFINED | WASM_SYM_EXPORTED | WASM_SYM_NO_STRIP;
-      data_push(&linking_section, SIK_SYMTAB_TABLE);  // kind
-      data_uleb128(&linking_section, -1, flags);
-      data_uleb128(&linking_section, -1, ti->index);
+      data_push(linking_section, SIK_SYMTAB_TABLE);  // kind
+      data_uleb128(linking_section, -1, flags);
+      data_uleb128(linking_section, -1, ti->index);
       ++count;
     }
   }
+  return count;
+}
+
+static inline uint32_t emit_linking_symtab_event(DataStorage *linking_section) {
+  uint32_t count = 0;
   if (tags->len > 0) {  // Tag
     for (int i = 0, len = tags->len; i < len; ++i) {
       TagInfo *ti = tags->data[i];
       int flags = WASM_SYM_BINDING_WEAK;
-      data_push(&linking_section, SIK_SYMTAB_EVENT);  // kind
-      data_uleb128(&linking_section, -1, flags);
-      data_uleb128(&linking_section, -1, ti->index);
-      data_string(&linking_section, ti->name->chars, ti->name->bytes);
+      data_push(linking_section, SIK_SYMTAB_EVENT);  // kind
+      data_uleb128(linking_section, -1, flags);
+      data_uleb128(linking_section, -1, ti->index);
+      data_string(linking_section, ti->name->chars, ti->name->bytes);
       ++count;
     }
   }
-  data_close_chunk(&linking_section, count);
-  data_close_chunk(&linking_section, -1);  // Put payload size.
+  return count;
+}
 
-  // Data segments.
+static inline void emit_linking_symbol_table(EmitWasm *ew, DataStorage *linking_section) {
+  data_push(linking_section, LT_WASM_SYMBOL_TABLE);  // subsec type
+  data_open_chunk(linking_section);  // Payload start.
+  data_open_chunk(linking_section);
+  uint32_t count = 0;
+
+  count += emit_linking_symtab_function(linking_section);
+  count += emit_linking_symtab_global(ew, linking_section);
+  count += emit_linking_symtab_table(linking_section);
+  count += emit_linking_symtab_event(linking_section);
+
+  data_close_chunk(linking_section, count);
+  data_close_chunk(linking_section, -1);  // Put payload size.
+}
+
+static inline void emit_linking_segment_info(EmitWasm *ew, DataStorage *linking_section) {
   Vector *segments = ew->data_segments;
   if (segments->len > 0) {
-    data_push(&linking_section, LT_WASM_SEGMENT_INFO);  // subsec type
-    data_open_chunk(&linking_section);  // Payload start.
-    data_uleb128(&linking_section, -1, segments->len);
+    data_push(linking_section, LT_WASM_SEGMENT_INFO);  // subsec type
+    data_open_chunk(linking_section);  // Payload start.
+    data_uleb128(linking_section, -1, segments->len);
     for (int i = 0; i < segments->len; ++i) {
       DataSegment *segment = segments->data[i];
       VarInfo *varinfo = segment->gvarinfo->varinfo;
@@ -707,27 +723,43 @@ static void emit_linking_section(EmitWasm *ew) {
       }
 
       const Name *name = varinfo->ident->ident;
-      data_string(&linking_section, name->chars, name->bytes);
-      data_uleb128(&linking_section, -1, segment->p2align);
-      data_uleb128(&linking_section, -1, flags);
+      data_string(linking_section, name->chars, name->bytes);
+      data_uleb128(linking_section, -1, segment->p2align);
+      data_uleb128(linking_section, -1, flags);
     }
-    data_close_chunk(&linking_section, -1);
+    data_close_chunk(linking_section, -1);
   }
+}
 
+static inline void emit_linking_init_funcs(DataStorage *linking_section) {
   if (init_funcs != NULL) {
-    data_push(&linking_section, LT_WASM_INIT_FUNCS);  // subsec type
-    data_open_chunk(&linking_section);  // Payload start.
-    data_uleb128(&linking_section, -1, init_funcs->len);  // Count
+    data_push(linking_section, LT_WASM_INIT_FUNCS);  // subsec type
+    data_open_chunk(linking_section);  // Payload start.
+    data_uleb128(linking_section, -1, init_funcs->len);  // Count
     for (int i = 0; i < init_funcs->len; ++i) {
       Function *func = init_funcs->data[i];
       FuncInfo *info;
       info = table_get(&func_info_table, func->ident->ident);
       assert(info != NULL);
-      data_uleb128(&linking_section, -1, 65535);  // Priority
-      data_uleb128(&linking_section, -1, info->index);  // Symbol index
+      data_uleb128(linking_section, -1, 65535);  // Priority
+      data_uleb128(linking_section, -1, info->index);  // Symbol index
     }
-    data_close_chunk(&linking_section, -1);
+    data_close_chunk(linking_section, -1);
   }
+}
+
+static void emit_linking_section(EmitWasm *ew) {
+  DataStorage linking_section;
+  static const char kLinkingName[] = "linking";
+  const int LINK_VERSION = 2;
+  data_init(&linking_section);
+  data_open_chunk(&linking_section);
+  data_string(&linking_section, kLinkingName, sizeof(kLinkingName) - 1);
+  data_uleb128(&linking_section, -1, LINK_VERSION);
+
+  emit_linking_symbol_table(ew, &linking_section);
+  emit_linking_segment_info(ew, &linking_section);
+  emit_linking_init_funcs(&linking_section);
 
   if (linking_section.len > 0) {
     data_close_chunk(&linking_section, -1);

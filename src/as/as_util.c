@@ -27,7 +27,7 @@ size_t strtab_add(Strtab *strtab, const Name *name) {
   }
 }
 
-void *strtab_dump(Strtab *strtab) {
+void *strtab_dump(const Strtab *strtab) {
   void *buf = malloc_or_die(strtab->size);
   unsigned char *p = buf;
   const Name *name;

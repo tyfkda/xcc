@@ -215,14 +215,194 @@ static uint64_t calc_rela_sym_address(LinkEditor *ld, ElfObj *elfobj, const Elf6
   return address + rela->r_addend;
 }
 
+typedef struct {
+  LinkEditor *ld;
+  ElfObj *elfobj;
+
+  const Elf64_Shdr *shdr;
+  const Elf64_Rela *relas;
+  const ElfSectionInfo *symhdrinfo;
+  const ElfSectionInfo *strinfo;
+
+  uint64_t address;
+  void *p;
+  uint64_t pc;
+} ResolveRelaWork;
+
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+static inline bool resolve_rela_element(const ResolveRelaWork *work, int j, Elf64_Xword rtype) {
+  UNUSED(j);
+  switch (rtype) {
+  case R_X86_64_64:
+    *(uint64_t*)work->p = work->address;
+    break;
+  case R_X86_64_PC32:
+  case R_X86_64_PLT32:
+    *(uint32_t*)work->p = work->address - work->pc;
+    break;
+  }
+  return true;
+}
+
+#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+static inline bool resolve_rela_element(const ResolveRelaWork *work, int j, Elf64_Xword rtype) {
+  UNUSED(j);
+  switch (rtype) {
+  case R_AARCH64_ABS64:
+    *(uint64_t*)work->p = work->address;
+    break;
+  case R_AARCH64_ADR_PREL_PG_HI21:  // Page(S+A)-Page(P)
+    {
+      const int PAGE = 12;
+      const uint32_t MASK = ~0x60ffffe0;
+      uint32_t d = (work->address >> PAGE) - (work->pc >> PAGE);
+      *(uint32_t*)work->p = (*(uint32_t*)work->p & MASK) | ((d & 0x03) << 29) | ((d & 0x1ffffc) << 3);
+    }
+    break;
+  case R_AARCH64_ADD_ABS_LO12_NC:  // S + A
+    {
+      const uint32_t MASK = ~(((1U << 12) - 1) << 10);
+      *(uint32_t*)work->p = (*(uint32_t*)work->p & MASK) | ((work->address << 10) & ~MASK);
+    }
+    break;
+  case R_AARCH64_CALL26:  // S+A-P
+    {
+      const uint32_t MASK = -(1U << 26);
+      *(uint32_t*)work->p = (*(uint32_t*)work->p & MASK) | (((work->address - work->pc) >> 2) & ~MASK);
+    }
+    break;
+
+  case R_AARCH64_ADR_GOT_PAGE:
+  case R_AARCH64_LD64_GOT_LO12_NC:
+    assert(!"TODO: Implement");
+    break;
+  }
+  return true;
+}
+
+#elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+static inline bool resolve_rela_element(const ResolveRelaWork *work, int j, Elf64_Xword rtype) {
+  switch (rtype) {
+  case R_RISCV_64:
+    *(uint64_t*)work->p = work->address;
+    break;
+  case R_RISCV_CALL:
+    {
+      int64_t offset = work->address - work->pc;
+      assert(offset < (1L << 19) && offset >= -(1L << 19));  // TODO
+      *(uint32_t*)work->p = W_JAL(RA, offset);
+    }
+    break;
+  case R_RISCV_RELAX:
+    {
+      // TODO: Check
+      assert(j > 0);
+      const Elf64_Rela *rela0 = &work->relas[j - 1];
+      switch (ELF64_R_TYPE(rela0->r_info)) {
+      case R_RISCV_CALL:
+        ((uint32_t*)work->p)[1] = P_NOP();
+        break;
+      case R_RISCV_PCREL_HI20:
+      case R_RISCV_PCREL_LO12_I:
+      case R_RISCV_HI20:
+      case R_RISCV_LO12_I:
+        break;
+      default: assert(false); break;
+      }
+    }
+    break;
+  case R_RISCV_PCREL_HI20:
+  case R_RISCV_HI20:
+    {
+      int64_t offset = work->address - (rtype == R_RISCV_PCREL_HI20 ? work->pc : 0);
+      assert(offset < (1L << 31) && offset >= -(1L << 31));
+      // const uint32_t MASK20 = (1U << 20) - 1;
+      const uint32_t MASK12 = (1U << 12) - 1;
+      if ((offset & MASK12) >= (1U << 11))
+        offset += 1U << 12;
+      *(uint32_t*)work->p = (*(uint32_t*)work->p & MASK12) | ((uint32_t)offset & ~MASK12);
+    }
+    break;
+  case R_RISCV_PCREL_LO12_I:
+  case R_RISCV_LO12_I:
+    {
+      // Get corresponding HI20 rela, and calculate the offset.
+      // Assume [..., [j-2]=PCREL_HI20, [j-1]=RELAX, [j]=PCREL_LO12_I, ...]
+      assert(j >= 2);
+      const Elf64_Rela *hirela = &work->relas[j - 2];
+      Elf64_Word hitype = ELF64_R_TYPE(hirela->r_info);
+      assert((rtype == R_RISCV_PCREL_LO12_I &&
+              hitype == R_RISCV_PCREL_HI20) ||
+             (rtype == R_RISCV_LO12_I &&
+              hitype == R_RISCV_HI20));
+      const Elf64_Sym *hisym = &work->symhdrinfo->symtab.syms[ELF64_R_SYM(hirela->r_info)];
+      uint64_t hiaddress = calc_rela_sym_address(work->ld, work->elfobj, hirela, hisym, work->strinfo);
+      uint64_t hipc = work->elfobj->section_infos[work->shdr->sh_info].progbits.address + hirela->r_offset;
+
+      int64_t offset = hiaddress - (rtype == R_RISCV_PCREL_LO12_I ? hipc : 0);
+      assert(offset < (1L << 31) && offset >= -(1L << 31));
+      const uint32_t MASK20 = (1U << 20) - 1;
+      const uint32_t MASK12 = (1U << 12) - 1;
+      *(uint32_t*)work->p = (*(uint32_t*)work->p & MASK20) | (((uint32_t)offset & MASK12) << 20);
+    }
+    break;
+  case R_RISCV_RVC_JUMP:
+    {
+      int64_t offset = work->address - work->pc;
+      assert(offset < (1L << 11) && offset >= -(1L << 11));
+
+      uint16_t *q = (uint16_t*)work->p;
+      assert((*q & 0xe003) == 0xa001);  // c.j
+      *q = (*q & 0xe003) | SWIZZLE_C_J(offset);
+    }
+    break;
+  case R_RISCV_JAL:
+    {
+      int64_t offset = work->address - work->pc;
+      assert(offset < (1L << 19) && offset >= -(1L << 19));
+
+      uint32_t *q = (uint32_t*)work->p;
+      assert((*q & 0x0000007f) == 0x6f);  // jal
+      *q = (*q & 0x0000007f) | SWIZZLE_JAL(offset);
+    }
+    break;
+  case R_RISCV_BRANCH:
+  case R_RISCV_RVC_BRANCH:
+    {
+      int64_t offset = work->address - work->pc;
+
+      const Elf64_Rela *rela = &work->relas[j];
+      if (ELF64_R_TYPE(rela->r_info) == R_RISCV_RVC_BRANCH) {
+        assert(offset < (1 << 8) && offset >= -(1 << 8));
+        // c.beqz, c.bnez
+        uint16_t *q = (uint16_t*)work->p;
+        assert((*q & 0xc003) == 0xc001);  // c.beqz or c.bnez
+        *q = (*q & 0xe383) | SWIZZLE_C_BXX(offset);
+      } else {
+        assert(offset < (1 << 13) && offset >= -(1 << 13));
+        uint32_t *q = (uint32_t*)work->p;
+        *q = (*q & 0x01fff07f) | SWIZZLE_BXX(offset);
+      }
+    }
+    break;
+  default:
+    return false;
+  }
+  return true;
+}
+#endif
+
 static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
+  ResolveRelaWork work;
+  memset(&work, 0x00, sizeof(work));
+  work.ld = ld;
+  work.elfobj = elfobj;
+
   int error_count = 0;
   for (Elf64_Half sec = 0; sec < elfobj->ehdr.e_shnum; ++sec) {
-    Elf64_Shdr *shdr = &elfobj->shdrs[sec];
+    const Elf64_Shdr *shdr = &elfobj->shdrs[sec];
     if (shdr->sh_type != SHT_RELA || shdr->sh_size <= 0)
       continue;
-    const Elf64_Rela *relas = read_or_die(elfobj->fp, NULL, shdr->sh_offset + elfobj->start_offset,
-                                          shdr->sh_size, "read error");
     const Elf64_Shdr *symhdr = &elfobj->shdrs[shdr->sh_link];
     const ElfSectionInfo *symhdrinfo = &elfobj->section_infos[shdr->sh_link];
     const ElfSectionInfo *strinfo = &elfobj->section_infos[symhdr->sh_link];
@@ -235,164 +415,27 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
       continue;
     }
 
+    const Elf64_Rela *relas = read_or_die(elfobj->fp, NULL, shdr->sh_offset + elfobj->start_offset,
+                                          shdr->sh_size, "read error");
+    work.shdr = shdr;
+    work.relas = relas;
+    work.symhdrinfo = symhdrinfo;
+    work.strinfo = strinfo;
+
     size_t symbol_count = elfobj->symtab_section->symtab.count;
     for (size_t j = 0, n = shdr->sh_size / sizeof(Elf64_Rela); j < n; ++j) {
       const Elf64_Rela *rela = &relas[j];
       assert(ELF64_R_SYM(rela->r_info) < symbol_count);
       const Elf64_Sym *sym = &symhdrinfo->symtab.syms[ELF64_R_SYM(rela->r_info)];
-      uint64_t address = calc_rela_sym_address(ld, elfobj, rela, sym, strinfo);
+      work.address = calc_rela_sym_address(ld, elfobj, rela, sym, strinfo);
 
-      void *p = dst_info->progbits.content + rela->r_offset;
-      uint64_t pc = elfobj->section_infos[shdr->sh_info].progbits.address + rela->r_offset;
-      switch (ELF64_R_TYPE(rela->r_info)) {
-#if XCC_TARGET_ARCH == XCC_ARCH_X64
-      case R_X86_64_64:
-        *(uint64_t*)p = address;
-        break;
-      case R_X86_64_PC32:
-      case R_X86_64_PLT32:
-        *(uint32_t*)p = address - pc;
-        break;
+      work.p = dst_info->progbits.content + rela->r_offset;
+      work.pc = elfobj->section_infos[shdr->sh_info].progbits.address + rela->r_offset;
 
-#elif XCC_TARGET_ARCH == XCC_ARCH_AARCH64
-      case R_AARCH64_ABS64:
-        *(uint64_t*)p = address;
-        break;
-      case R_AARCH64_ADR_PREL_PG_HI21:  // Page(S+A)-Page(P)
-        {
-          const int PAGE = 12;
-          const uint32_t MASK = ~0x60ffffe0;
-          uint32_t d = (address >> PAGE) - (pc >> PAGE);
-          *(uint32_t*)p = (*(uint32_t*)p & MASK) | ((d & 0x03) << 29) | ((d & 0x1ffffc) << 3);
-        }
-        break;
-      case R_AARCH64_ADD_ABS_LO12_NC:  // S + A
-        {
-          const uint32_t MASK = ~(((1U << 12) - 1) << 10);
-          *(uint32_t*)p = (*(uint32_t*)p & MASK) | ((address << 10) & ~MASK);
-        }
-        break;
-      case R_AARCH64_CALL26:  // S+A-P
-        {
-          const uint32_t MASK = -(1U << 26);
-          *(uint32_t*)p = (*(uint32_t*)p & MASK) | (((address - pc) >> 2) & ~MASK);
-        }
-        break;
-
-      case R_AARCH64_ADR_GOT_PAGE:
-      case R_AARCH64_LD64_GOT_LO12_NC:
-        assert(!"TODO: Implement");
-        break;
-
-#elif XCC_TARGET_ARCH == XCC_ARCH_RISCV64
-      case R_RISCV_64:
-        *(uint64_t*)p = address;
-        break;
-      case R_RISCV_CALL:
-        {
-          int64_t offset = address - pc;
-          assert(offset < (1L << 19) && offset >= -(1L << 19));  // TODO
-          *(uint32_t*)p = W_JAL(RA, offset);
-        }
-        break;
-      case R_RISCV_RELAX:
-        {
-          // TODO: Check
-          assert(j > 0);
-          const Elf64_Rela *rela0 = &relas[j - 1];
-          switch (ELF64_R_TYPE(rela0->r_info)) {
-          case R_RISCV_CALL:
-            ((uint32_t*)p)[1] = P_NOP();
-            break;
-          case R_RISCV_PCREL_HI20:
-          case R_RISCV_PCREL_LO12_I:
-          case R_RISCV_HI20:
-          case R_RISCV_LO12_I:
-            break;
-          default: assert(false); break;
-          }
-        }
-        break;
-      case R_RISCV_PCREL_HI20:
-      case R_RISCV_HI20:
-        {
-          int64_t offset = address - (ELF64_R_TYPE(rela->r_info) == R_RISCV_PCREL_HI20 ? pc : 0);
-          assert(offset < (1L << 31) && offset >= -(1L << 31));
-          // const uint32_t MASK20 = (1U << 20) - 1;
-          const uint32_t MASK12 = (1U << 12) - 1;
-          if ((offset & MASK12) >= (1U << 11))
-            offset += 1U << 12;
-          *(uint32_t*)p = (*(uint32_t*)p & MASK12) | ((uint32_t)offset & ~MASK12);
-        }
-        break;
-      case R_RISCV_PCREL_LO12_I:
-      case R_RISCV_LO12_I:
-        {
-          // Get corresponding HI20 rela, and calculate the offset.
-          // Assume [..., [j-2]=PCREL_HI20, [j-1]=RELAX, [j]=PCREL_LO12_I, ...]
-          assert(j >= 2);
-          const Elf64_Rela *hirela = &relas[j - 2];
-          Elf64_Word type = ELF64_R_TYPE(rela->r_info);
-          Elf64_Word hitype = ELF64_R_TYPE(hirela->r_info);
-          assert((type == R_RISCV_PCREL_LO12_I &&
-                  hitype == R_RISCV_PCREL_HI20) ||
-                 (type == R_RISCV_LO12_I &&
-                  hitype == R_RISCV_HI20));
-          const Elf64_Sym *hisym = &symhdrinfo->symtab.syms[ELF64_R_SYM(hirela->r_info)];
-          uint64_t hiaddress = calc_rela_sym_address(ld, elfobj, hirela, hisym, strinfo);
-          uint64_t hipc = elfobj->section_infos[shdr->sh_info].progbits.address + hirela->r_offset;
-
-          int64_t offset = hiaddress - (type == R_RISCV_PCREL_LO12_I ? hipc : 0);
-          assert(offset < (1L << 31) && offset >= -(1L << 31));
-          const uint32_t MASK20 = (1U << 20) - 1;
-          const uint32_t MASK12 = (1U << 12) - 1;
-          *(uint32_t*)p = (*(uint32_t*)p & MASK20) | (((uint32_t)offset & MASK12) << 20);
-        }
-        break;
-      case R_RISCV_RVC_JUMP:
-        {
-          int64_t offset = address - pc;
-          assert(offset < (1L << 11) && offset >= -(1L << 11));
-
-          uint16_t *q = (uint16_t*)p;
-          assert((*q & 0xe003) == 0xa001);  // c.j
-          *q = (*q & 0xe003) | SWIZZLE_C_J(offset);
-        }
-        break;
-      case R_RISCV_JAL:
-        {
-          int64_t offset = address - pc;
-          assert(offset < (1L << 19) && offset >= -(1L << 19));
-
-          uint32_t *q = (uint32_t*)p;
-          assert((*q & 0x0000007f) == 0x6f);  // jal
-          *q = (*q & 0x0000007f) | SWIZZLE_JAL(offset);
-        }
-        break;
-      case R_RISCV_BRANCH:
-      case R_RISCV_RVC_BRANCH:
-        {
-          int64_t offset = address - pc;
-
-          if (ELF64_R_TYPE(rela->r_info) == R_RISCV_RVC_BRANCH) {
-            assert(offset < (1 << 8) && offset >= -(1 << 8));
-            // c.beqz, c.bnez
-            uint16_t *q = (uint16_t*)p;
-            assert((*q & 0xc003) == 0xc001);  // c.beqz or c.bnez
-            *q = (*q & 0xe383) | SWIZZLE_C_BXX(offset);
-          } else {
-            assert(offset < (1 << 13) && offset >= -(1 << 13));
-            uint32_t *q = (uint32_t*)p;
-            *q = (*q & 0x01fff07f) | SWIZZLE_BXX(offset);
-          }
-        }
-        break;
-#endif
-
-      default:
-        fprintf(stderr, "Unhandled rela type: %" PRIx32 "\n", (uint32_t)ELF64_R_TYPE(rela->r_info));
+      uint32_t rtype = ELF64_R_TYPE(rela->r_info);
+      if (!resolve_rela_element(&work, j, rtype)) {
+        fprintf(stderr, "Unhandled rela type: %" PRIx32 "\n", rtype);
         ++error_count;
-        break;
       }
     }
   }

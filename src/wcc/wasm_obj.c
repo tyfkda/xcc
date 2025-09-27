@@ -264,18 +264,167 @@ static void read_elem_section(WasmObj *wasmobj, unsigned char *p) {
   wasmobj->elem.count = count;
 }
 
+// Function/global/table
+static inline unsigned char *read_linking_symbol_general(
+    WasmObj *wasmobj, unsigned char *p, enum SymInfoKind kind, uint32_t flags, Vector *import) {
+  SymbolInfo *sym = NULL;
+
+  uint32_t index = read_uleb128(p, &p);
+  bool imported_symbol = import != NULL && index < (uint32_t)import->len;
+  bool explicit_name = flags & WASM_SYM_EXPLICIT_NAME;
+  sym = imported_symbol ? import->data[index] : calloc_or_die(sizeof(*sym));
+  if (!imported_symbol || explicit_name) {
+    const Name *name = read_wasm_string(p, &p);
+    if (!imported_symbol)
+      sym->name = name;
+  }
+  sym->kind = kind;
+  sym->flags = flags;
+  sym->local_index = index;
+
+  if (kind == SIK_SYMTAB_FUNCTION) {
+    uint32_t func_type;
+    if (index < (uint32_t)import->len) {
+      SymbolInfo *p = wasmobj->import.functions->data[index];
+      if (p->kind != SIK_SYMTAB_FUNCTION)
+        error("symbol is not function: %.*s", NAMES(sym->name));
+      func_type = p->func.type_index;
+    } else {
+      Vector *func_types = wasmobj->func.types;
+      uint32_t i = index - wasmobj->import.functions->len;
+      if (func_types == NULL || i >= (uint32_t)func_types->len)
+        error("illegal function type index: %.*s", NAMES(sym->name));
+      func_type = VOIDP2INT(func_types->data[i]);
+    }
+    sym->func.type_index = func_type;
+  }
+
+  vec_push(wasmobj->linking.symtab, sym);
+  return p;
+}
+
+static inline unsigned char *read_linking_symbol_data(
+    WasmObj *wasmobj, unsigned char *p, uint32_t flags) {
+  const Name *symname = read_wasm_string(p, &p);
+  uint32_t index = 0;
+  uint32_t offset = 0;
+  uint32_t size = 0;
+  if (!(flags & WASM_SYM_UNDEFINED)) {
+    index = read_uleb128(p, &p);
+    offset = read_uleb128(p, &p);
+    size = read_uleb128(p, &p);
+  }
+
+  SymbolInfo *sym = calloc_or_die(sizeof(*sym));
+  sym->module_name = NULL;
+  sym->name = symname;
+  sym->kind = SIK_SYMTAB_DATA;
+  sym->flags = flags;
+  sym->local_index = index;
+  sym->data.offset = offset;
+  sym->data.size = size;
+  sym->data.address = 0;
+  vec_push(wasmobj->linking.symtab, sym);
+  return p;
+}
+
+static inline unsigned char *read_linking_symbol_event(
+    WasmObj *wasmobj, unsigned char *p, uint32_t flags) {
+  uint32_t index = read_uleb128(p, &p);
+  const Name *symname = read_wasm_string(p, &p);
+  if (index >= wasmobj->tag.count)
+    error("illegal tag index: %.*s", NAMES(symname));
+
+  SymbolInfo *sym = calloc_or_die(sizeof(*sym));
+  sym->module_name = NULL;
+  sym->name = symname;
+  sym->kind = SIK_SYMTAB_EVENT;
+  sym->flags = flags;
+  sym->local_index = -1;  // Unused.
+  sym->tag.index = index;
+  vec_push(wasmobj->linking.symtab, sym);
+  return p;
+}
+
+static inline void read_linking_symbol_table(WasmObj *wasmobj, unsigned char *p) {
+  Vector *import_symbols[] = {
+    [SIK_SYMTAB_FUNCTION] = wasmobj->import.functions,
+    [SIK_SYMTAB_GLOBAL] = wasmobj->import.globals,
+    [SIK_SYMTAB_TABLE] = wasmobj->import.tables,
+  };
+
+  uint32_t count = read_uleb128(p, &p);
+  for (uint32_t i = 0; i < count; ++i) {
+    enum SymInfoKind kind = *p++;
+    uint32_t flags = read_uleb128(p, &p);
+
+    switch (kind) {
+    case SIK_SYMTAB_FUNCTION:
+    case SIK_SYMTAB_GLOBAL:
+    case SIK_SYMTAB_TABLE:
+      p = read_linking_symbol_general(wasmobj, p, kind, flags, import_symbols[kind]);
+      break;
+    case SIK_SYMTAB_DATA:
+      p = read_linking_symbol_data(wasmobj, p, flags);
+      break;
+    case SIK_SYMTAB_EVENT:
+      p = read_linking_symbol_event(wasmobj, p, flags);
+      break;
+
+    default:
+      error("symbol not handled: %d", kind);
+      break;
+    }
+  }
+}
+
+static inline void read_linking_segment_info(WasmObj *wasmobj, unsigned char *p) {
+  if (wasmobj->linking.symtab == NULL) {
+    error("segment info must be after symbol table");
+  }
+
+  Vector *symtab = wasmobj->linking.symtab;
+  uint32_t count = read_uleb128(p, &p);
+  uint32_t index = 0;
+  for (uint32_t i = 0; i < count; ++i) {
+    const Name *name = read_wasm_string(p, &p);
+    uint32_t p2align = read_uleb128(p, &p);
+    /*uint32_t flags =*/ read_uleb128(p, &p);  // bit0=WASM_SEGMENT_FLAG_STRINGS, bit1=WASM_SEGMENT_FLAG_TLS
+
+    // Search correspoinding symbol.
+    for (; index < (uint32_t)symtab->len; ++index) {
+      SymbolInfo *sym = symtab->data[index];
+      if (sym->kind == SIK_SYMTAB_DATA)
+        break;
+    }
+    if (index >= (uint32_t)symtab->len) {
+      error("no symbol for segment: %d, %.*s", i, NAMES(name));
+    }
+    SymbolInfo *sym = symtab->data[index];
+    sym->data.p2align = p2align;
+    ++index;
+  }
+}
+
+static inline void read_linking_init_funcs(WasmObj *wasmobj, unsigned char *p) {
+  Vector *init_funcs = new_vector();
+  uint32_t count = read_uleb128(p, &p);
+  for (uint32_t i = 0; i < count; ++i) {
+    /*uint32_t priority =*/ read_uleb128(p, &p);  // TODO: Sort by priority.
+    uint32_t index = read_uleb128(p, &p);
+    assert(index < (uint32_t)wasmobj->linking.symtab->len);
+    SymbolInfo *sym = wasmobj->linking.symtab->data[index];
+    vec_push(init_funcs, sym);
+  }
+  wasmobj->linking.init_funcs = init_funcs;
+}
+
 static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end) {
   uint32_t version = read_uleb128(p, &p);
 
   if (version != LINKING_VERSION) {
     error("unsupported linking version: %d\n", version);
   }
-
-  Vector *import_symbols[] = {
-    [SIK_SYMTAB_FUNCTION] = wasmobj->import.functions,
-    [SIK_SYMTAB_GLOBAL] = wasmobj->import.globals,
-    [SIK_SYMTAB_TABLE] = wasmobj->import.tables,
-  };
 
   while (p < end) {
     enum LinkingType linking_type = *p++;
@@ -284,145 +433,13 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
 
     switch (linking_type) {
     case LT_WASM_SYMBOL_TABLE:
-      {
-        Vector *func_types = wasmobj->func.types;
-        uint32_t count = read_uleb128(p, &p);
-        for (uint32_t i = 0; i < count; ++i) {
-          enum SymInfoKind kind = *p++;
-          uint32_t flags = read_uleb128(p, &p);
-
-          switch (kind) {
-          case SIK_SYMTAB_FUNCTION:
-          case SIK_SYMTAB_GLOBAL:
-          case SIK_SYMTAB_TABLE:
-            {
-              SymbolInfo *sym = NULL;
-
-              uint32_t index = read_uleb128(p, &p);
-              Vector *import = import_symbols[kind];
-              bool imported_symbol = import != NULL && index < (uint32_t)import->len;
-              bool explicit_name = flags & WASM_SYM_EXPLICIT_NAME;
-              sym = imported_symbol ? import->data[index] : calloc_or_die(sizeof(*sym));
-              if (!imported_symbol || explicit_name) {
-                const Name *name = read_wasm_string(p, &p);
-                if (!imported_symbol)
-                  sym->name = name;
-              }
-              sym->kind = kind;
-              sym->flags = flags;
-              sym->local_index = index;
-
-              if (kind == SIK_SYMTAB_FUNCTION) {
-                uint32_t func_type;
-                if (index < (uint32_t)import->len) {
-                  SymbolInfo *p = wasmobj->import.functions->data[index];
-                  if (p->kind != SIK_SYMTAB_FUNCTION)
-                    error("symbol is not function: %.*s", NAMES(sym->name));
-                  func_type = p->func.type_index;
-                } else {
-                  uint32_t i = index - wasmobj->import.functions->len;
-                  if (func_types == NULL || i >= (uint32_t)func_types->len)
-                    error("illegal function type index: %.*s", NAMES(sym->name));
-                  func_type = VOIDP2INT(func_types->data[i]);
-                }
-                sym->func.type_index = func_type;
-              }
-
-              vec_push(wasmobj->linking.symtab, sym);
-            }
-            break;
-          case SIK_SYMTAB_DATA:
-            {
-              const Name *symname = read_wasm_string(p, &p);
-              uint32_t index = 0;
-              uint32_t offset = 0;
-              uint32_t size = 0;
-              if (!(flags & WASM_SYM_UNDEFINED)) {
-                index = read_uleb128(p, &p);
-                offset = read_uleb128(p, &p);
-                size = read_uleb128(p, &p);
-              }
-
-              SymbolInfo *sym = calloc_or_die(sizeof(*sym));
-              sym->module_name = NULL;
-              sym->name = symname;
-              sym->kind = kind;
-              sym->flags = flags;
-              sym->local_index = index;
-              sym->data.offset = offset;
-              sym->data.size = size;
-              sym->data.address = 0;
-              vec_push(wasmobj->linking.symtab, sym);
-            }
-            break;
-          case SIK_SYMTAB_EVENT:
-            {
-              uint32_t index = read_uleb128(p, &p);
-              const Name *symname = read_wasm_string(p, &p);
-              if (index >= wasmobj->tag.count)
-                error("illegal tag index: %.*s", NAMES(symname));
-
-              SymbolInfo *sym = calloc_or_die(sizeof(*sym));
-              sym->module_name = NULL;
-              sym->name = symname;
-              sym->kind = kind;
-              sym->flags = flags;
-              sym->local_index = -1;  // Unused.
-              sym->tag.index = index;
-              vec_push(wasmobj->linking.symtab, sym);
-            }
-            break;
-
-          default:
-            error("symbol not handled: %d", kind);
-            break;
-          }
-        }
-      }
+      read_linking_symbol_table(wasmobj, p);
       break;
     case LT_WASM_SEGMENT_INFO:
-      {
-        if (wasmobj->linking.symtab == NULL) {
-          error("segment info must be after symbol table");
-        }
-
-        Vector *symtab = wasmobj->linking.symtab;
-        uint32_t count = read_uleb128(p, &p);
-        uint32_t index = 0;
-        for (uint32_t i = 0; i < count; ++i) {
-          const Name *name = read_wasm_string(p, &p);
-          uint32_t p2align = read_uleb128(p, &p);
-          /*uint32_t flags =*/ read_uleb128(p, &p);  // bit0=WASM_SEGMENT_FLAG_STRINGS, bit1=WASM_SEGMENT_FLAG_TLS
-
-          // Search correspoinding symbol.
-          for (; index < (uint32_t)symtab->len; ++index) {
-            SymbolInfo *sym = symtab->data[index];
-            if (sym->kind == SIK_SYMTAB_DATA)
-              break;
-          }
-          if (index >= (uint32_t)symtab->len) {
-            error("no symbol for segment: %d, %.*s", i, NAMES(name));
-          }
-          SymbolInfo *sym = symtab->data[index];
-          sym->data.p2align = p2align;
-          ++index;
-        }
-      }
+      read_linking_segment_info(wasmobj, p);
       break;
-
     case LT_WASM_INIT_FUNCS:
-      {
-        Vector *init_funcs = new_vector();
-        uint32_t count = read_uleb128(p, &p);
-        for (uint32_t i = 0; i < count; ++i) {
-          /*uint32_t priority =*/ read_uleb128(p, &p);  // TODO: Sort by priority.
-          uint32_t index = read_uleb128(p, &p);
-          assert(index < (uint32_t)wasmobj->linking.symtab->len);
-          SymbolInfo *sym = wasmobj->linking.symtab->data[index];
-          vec_push(init_funcs, sym);
-        }
-        wasmobj->linking.init_funcs = init_funcs;
-      }
+      read_linking_init_funcs(wasmobj, p);
       break;
 
     default:

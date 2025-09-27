@@ -191,7 +191,7 @@ bool table_delete(Table *table, const Name *key) {
   return true;
 }
 
-int table_iterate(Table *table, int iterator, const Name **pkey, void **pvalue) {
+int table_iterate(const Table *table, int iterator, const Name **pkey, void **pvalue) {
   int capacity = table->capacity;
   for (; iterator < capacity; ++iterator) {
     const TableEntry *entry = &table->entries[iterator];

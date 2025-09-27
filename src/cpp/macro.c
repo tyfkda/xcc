@@ -187,6 +187,130 @@ static void hsadd(HideSet *hs, Vector *ts) {
   }
 }
 
+static inline int subst_stringify(Vector *body, Table *param_table, Vector *args, int i, Vector *os) {
+  if (i + 1 < body->len) {
+    const Token *next = body->data[i + 1];
+    intptr_t j;
+    if (next->kind == TK_IDENT &&
+        param_table != NULL && table_try_get(param_table, next->ident, (void**)&j)) {
+      assert(j < args->len);
+      const Vector *arg = args->data[j];
+      const Token *str = stringize(arg);
+      vec_push(os, str);
+      ++i;
+      return i;
+    }
+  }
+  return -1;
+}
+
+static inline int subst_concat(Vector *body, Table *param_table, Vector *args, int i, Vector *os) {
+  if (os->len > 0 && i + 1 < body->len) {
+    const Token *next = body->data[i + 1];
+    if (next->kind == TK_IDENT) {
+      intptr_t j;
+      if (param_table != NULL && table_try_get(param_table, next->ident, (void**)&j)) {
+        assert(j < args->len);
+        const Vector *arg = args->data[j];
+        if (arg->len > 0)
+          glue(os, arg);
+        ++i;
+        return i;
+      }
+    }
+    glue1(os, next);
+    ++i;
+    return i;
+  }
+  return -1;
+}
+
+static inline int subst_ident(Vector *body, Table *param_table, Vector *args, Vector **expanded_args, int i, const Name *va_opt, Vector *os) {
+  const Token *tok = body->data[i];
+  if (body->len > i + 1 && ((Token*)body->data[i + 1])->kind == PPTK_CONCAT) {
+    intptr_t j;
+    if (param_table != NULL && table_try_get(param_table, tok->ident, (void**)&j)) {
+      assert(j < args->len);
+      const Vector *arg = args->data[j];
+      if (arg->len == 0) {  // only if actuals can be empty
+        intptr_t k;
+        if (body->len > i + 2 && ((Token*)body->data[i + 2])->kind == TK_IDENT &&
+            table_try_get(param_table, ((Token*)body->data[i + 2])->ident, (void**)&k)) {
+          assert(k < args->len);
+          const Vector *arg2 = args->data[k];
+          vec_concat(os, arg2);
+        }
+        i += 2;
+      } else {
+        vec_concat(os, arg);
+        // Handle `##` at next iteration.
+      }
+      return i;
+    }
+  }
+
+  if (param_table != NULL) {
+    intptr_t j;
+    if (table_try_get(param_table, tok->ident, (void**)&j)) {
+      assert(j < args->len);
+      Vector *expanded = expanded_args[j];
+      if (expanded == NULL) {
+        Vector *arg = args->data[j];
+        expanded = new_vector();
+        vec_concat(expanded, arg);
+        macro_expand(expanded);
+        expanded_args[j] = expanded;
+      }
+      vec_concat(os, expanded);
+      return i;
+    }
+  }
+
+  // Handle GNU extension: __VA_OPT__
+  if (va_opt != NULL && equal_name(tok->ident, va_opt) &&
+      i + 2 < body->len && ((Token*)body->data[i + 1])->kind == TK_LPAR) {
+    int j;
+    for (j = i + 2; j < body->len; ++j) {
+      if (((Token*)body->data[j])->kind == TK_RPAR)
+        break;
+    }
+    if (j < body->len) {
+      Vector *arg = args->data[args->len - 1];
+      if (arg->len > 0) {  // vaargs is not empty
+        // TODO: expand?
+        for (int k = i + 2; k < j; ++k) {
+          vec_push(os, body->data[k]);
+        }
+      }
+      i = j;
+      return i;
+    }
+  }
+  return -1;
+}
+
+static inline int subst_comma(Vector *body, Table *param_table, Vector *args, int i, int vaopt_params_len, Vector *os) {
+  // Handle GNU extension: , ## __VA_ARGS__
+  if (body->len > i + 2 && ((Token*)body->data[i + 1])->kind == PPTK_CONCAT &&
+      vaopt_params_len >= 0 &&
+      ((Token*)body->data[i + 2])->kind == TK_IDENT && param_table != NULL) {
+    const Token *next = body->data[i + 2];
+    intptr_t j;
+    if (table_try_get(param_table, next->ident, (void**)&j) && j == vaopt_params_len) {
+      const Vector *arg = args->data[j];
+      if (arg->len == 0) {
+        i += 2;  // Argument is empty, so omit `,` and `##`.
+      } else {
+        const Token *tok = body->data[i];
+        vec_push(os, tok);
+        ++i;  // Argument is not empty, so put `,` followed by the argument (omit `##`).
+      }
+      return i;
+    }
+  }
+  return -1;
+}
+
 static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs) {
   Vector *os = new_vector();
   Vector *body = macro->body;
@@ -208,125 +332,36 @@ static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs
 
   for (int i = 0; i < body->len; ++i) {
     const Token *tok = body->data[i];
+    int j = -1;
 
     switch (tok->kind) {
     case PPTK_STRINGIFY:
-      if (i + 1 < body->len) {
-        const Token *next = body->data[i + 1];
-        intptr_t j;
-        if (next->kind == TK_IDENT &&
-            param_table != NULL && table_try_get(param_table, next->ident, (void**)&j)) {
-          assert(j < args->len);
-          const Vector *arg = args->data[j];
-          const Token *str = stringize(arg);
-          vec_push(os, str);
-          ++i;
-          continue;
-        }
-      }
+      j = subst_stringify(body, param_table, args, i, os);
       break;
 
     case PPTK_CONCAT:
-      if (os->len > 0 && i + 1 < body->len) {
-        const Token *next = body->data[i + 1];
-        if (next->kind == TK_IDENT) {
-          intptr_t j;
-          if (param_table != NULL && table_try_get(param_table, next->ident, (void**)&j)) {
-            assert(j < args->len);
-            const Vector *arg = args->data[j];
-            if (arg->len > 0)
-              glue(os, arg);
-            ++i;
-            continue;
-          }
-        }
-        glue1(os, next);
-        ++i;
-        continue;
-      }
+      j = subst_concat(body, param_table, args, i, os);
       break;
 
     case TK_IDENT:
-      if (body->len > i + 1 && ((Token*)body->data[i + 1])->kind == PPTK_CONCAT) {
-        intptr_t j;
-        if (param_table != NULL && table_try_get(param_table, tok->ident, (void**)&j)) {
-          assert(j < args->len);
-          const Vector *arg = args->data[j];
-          if (arg->len == 0) {  // only if actuals can be empty
-            intptr_t k;
-            if (body->len > i + 2 && ((Token*)body->data[i + 2])->kind == TK_IDENT &&
-                table_try_get(param_table, ((Token*)body->data[i + 2])->ident, (void**)&k)) {
-              assert(k < args->len);
-              const Vector *arg2 = args->data[k];
-              vec_concat(os, arg2);
-            }
-            i += 2;
-          } else {
-            vec_concat(os, arg);
-            // Handle `##` at next iteration.
-          }
-          continue;
-        }
-      }
-
-      if (param_table != NULL) {
-        intptr_t j;
-        if (table_try_get(param_table, tok->ident, (void**)&j)) {
-          assert(j < args->len);
-          Vector *expanded = expanded_args[j];
-          if (expanded == NULL) {
-            Vector *arg = args->data[j];
-            expanded = new_vector();
-            vec_concat(expanded, arg);
-            macro_expand(expanded);
-            expanded_args[j] = expanded;
-          }
-          vec_concat(os, expanded);
-          continue;
-        }
-      }
-
-      // Handle GNU extension: __VA_OPT__
-      if (macro->vaargs_ident != NULL && equal_name(tok->ident, va_opt) &&
-          i + 2 < body->len && ((Token*)body->data[i + 1])->kind == TK_LPAR) {
-        int j;
-        for (j = i + 2; j < body->len; ++j) {
-          if (((Token*)body->data[j])->kind == TK_RPAR)
-            break;
-        }
-        if (j < body->len) {
-          Vector *arg = args->data[args->len - 1];
-          if (arg->len > 0) {  // vaargs is not empty
-            // TODO: expand?
-            for (int k = i + 2; k < j; ++k) {
-              vec_push(os, body->data[k]);
-            }
-          }
-          i = j;
-          continue;
-        }
+      {
+        const Name *opt = macro->vaargs_ident != NULL ? va_opt : NULL;
+        j = subst_ident(body, param_table, args, expanded_args, i, opt, os);
       }
       break;
 
     case TK_COMMA:
-      // Handle GNU extension: , ## __VA_ARGS__
-      if (body->len > i + 2 && ((Token*)body->data[i + 1])->kind == PPTK_CONCAT &&
-          macro->vaargs_ident != NULL &&
-          ((Token*)body->data[i + 2])->kind == TK_IDENT && param_table != NULL) {
-        const Token *next = body->data[i + 2];
-        intptr_t j;
-        if (table_try_get(param_table, next->ident, (void**)&j) && j == macro->params_len) {
-          const Vector *arg = args->data[j];
-          if (arg->len == 0) {
-            i += 2;  // Argument is empty, so omit `,` and `##`.
-            continue;
-          }
-          ++i;  // Argument is not empty, so put `,` followed by the argument (omit `##`).
-        }
+      {
+        int vaopt_params_len = macro->vaargs_ident != NULL ? macro->params_len : -1;
+        j = subst_comma(body, param_table, args, i, vaopt_params_len, os);
       }
       break;
 
     default: break;
+    }
+    if (j >= 0) {
+      i = j;
+      continue;
     }
 
     vec_push(os, tok);

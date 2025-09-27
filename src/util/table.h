@@ -39,4 +39,4 @@ void *table_get(Table *table, const Name *key);
 bool table_try_get(Table *table, const Name *key, void **output);
 bool table_put(Table *table, const Name *key, void *value);
 bool table_delete(Table *table, const Name *key);
-int table_iterate(Table *table, int iterator, const Name **name, void **value);  // -1 => end
+int table_iterate(const Table *table, int iterator, const Name **name, void **value);  // -1 => end

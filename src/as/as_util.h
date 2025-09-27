@@ -12,4 +12,4 @@ typedef struct {
 
 void strtab_init(Strtab *strtab);
 size_t strtab_add(Strtab *strtab, const Name *name);
-void *strtab_dump(Strtab *strtab);
+void *strtab_dump(const Strtab *strtab);

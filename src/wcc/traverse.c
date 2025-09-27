@@ -889,6 +889,119 @@ static int detect_compile_unit_flags(Vector *decls) {
   return flag;
 }
 
+static inline void assign_indirect_function_index(void) {
+  const Name *name;
+  FuncInfo *info;
+  uint32_t index = INDIRECT_FUNCTION_TABLE_START_INDEX;
+  for (int it = 0;
+        (it = table_iterate(&indirect_function_table, it, &name, (void**)&info)) != -1; )
+    info->indirect_index = index++;
+}
+
+static inline void assign_symbol_index(void) {
+  uint32_t symbol_index = 0;
+  const Name *name;
+  FuncInfo *info;
+  for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
+    if (info->flag == 0 && info->func == NULL)
+      continue;
+    if (is_function_omitted(info->varinfo))
+      continue;
+    ++symbol_index;
+  }
+
+  // Assign linking index to globals.
+  uint32_t global_index = 0;
+  uint32_t data_index = 0;
+  for (int k = 0; k < 3; ++k) {  // 0=unresolved, 1=resolved(data), 2=resolved(bss)
+    static const char *kTitle[] = {"import", "data", "bss"};
+    VERBOSE("### Globals(%s)\n", kTitle[k]);
+    GVarInfo *info;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+      const VarInfo *varinfo = info->varinfo;
+      assert(!(varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC));
+      assert(!((varinfo->storage & (VS_STATIC | VS_USED)) == VS_STATIC));
+      if ((k == 0 && !(info->flag & GVF_UNRESOLVED)) ||
+          (k != 0 && ((info->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
+        continue;
+      if (!is_global_datsec_var(varinfo, global_scope)) {
+        info->item_index = info->prim.index = global_index++;
+      } else if (!(varinfo->storage & VS_EXTERN)) {
+        info->item_index = data_index++;
+      } else {
+        info->item_index = (uint32_t)-1;
+      }
+      info->symbol_index = symbol_index++;
+      VERBOSE("%2d: %.*s (%d)\n", info->item_index, NAMES(varinfo->ident->ident),
+              info->symbol_index);
+    }
+  }
+
+  // Table
+  for (int i = 0, len = tables->len; i < len; ++i) {
+    TableInfo *ti = tables->data[i];
+    ti->symbol_index = symbol_index++;
+  }
+
+  // Tag
+  for (int i = 0, len = tags->len; i < len; ++i) {
+    TagInfo *ti = tags->data[i];
+    ti->symbol_index = symbol_index++;
+  }
+}
+
+static inline void assign_function_index(void) {
+  // Enumerate functions.
+  VERBOSES("### Functions\n");
+  const Name *name;
+  FuncInfo *info;
+  int32_t index = 0;
+  for (int k = 0; k < 2; ++k) {  // 0: import, 1: defined-and-referred
+    for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
+      if ((k == 0 && (info->func != NULL || info->flag == 0)) ||  // Put external function first.
+          (k == 1 && info->func == NULL))                         // Defined function later.
+        continue;
+      if (is_function_omitted(info->varinfo))
+        continue;
+      info->index = index++;
+      VERBOSE("%2d: %.*s%s\n", info->index, NAMES(name), k == 0 ? "  (import)" : "");
+    }
+  }
+  VERBOSES("\n");
+}
+
+static inline void assign_data_address(void) {
+  const uint32_t START_ADDRESS = 0;  // Physical address is assigned by linker, so start from 0 here.
+  uint32_t address = START_ADDRESS;
+
+  VERBOSE("### Memory  0x%x\n", address);
+  for (int k = 0; k < 2; ++k) {  // 0: data, 1: bss
+    if (k == 1)
+      VERBOSE("---- BSS  0x%x\n", address);
+    const Name *name;
+    GVarInfo *info;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
+      const VarInfo *varinfo = info->varinfo;
+      int storage = varinfo->storage;
+      if (varinfo->type->kind == TY_FUNC ||
+          (storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
+          (storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
+        continue;
+      if ((varinfo->global.init == NULL) == (k == 0) ||
+          !is_global_datsec_var(varinfo, global_scope))
+        continue;
+
+      // Mapped to memory
+      address = ALIGN(address, align_size(varinfo->type));
+      info->non_prim.address = address;
+      size_t size = type_size(varinfo->type);
+      address += size;
+      VERBOSE("%04x: %.*s  (size=0x%zx)\n", info->non_prim.address, NAMES(varinfo->ident->ident),
+              size);
+    }
+  }
+}
+
 void traverse_ast(Vector *decls) {
   compile_unit_flag = 0;
 
@@ -934,118 +1047,8 @@ void traverse_ast(Vector *decls) {
     }
   }
 
-  // Indirect functions.
-  {
-    const Name *name;
-    FuncInfo *info;
-    uint32_t index = INDIRECT_FUNCTION_TABLE_START_INDEX;
-    for (int it = 0;
-         (it = table_iterate(&indirect_function_table, it, &name, (void**)&info)) != -1; )
-      info->indirect_index = index++;
-  }
-
-  {
-    uint32_t symbol_index = 0;
-    const Name *name;
-    FuncInfo *info;
-    for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
-      if (info->flag == 0 && info->func == NULL)
-        continue;
-      if (is_function_omitted(info->varinfo))
-        continue;
-      ++symbol_index;
-    }
-
-    // Assign linking index to globals.
-    uint32_t global_index = 0;
-    uint32_t data_index = 0;
-    for (int k = 0; k < 3; ++k) {  // 0=unresolved, 1=resolved(data), 2=resolved(bss)
-      static const char *kTitle[] = {"import", "data", "bss"};
-      VERBOSE("### Globals(%s)\n", kTitle[k]);
-      GVarInfo *info;
-      for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-        const VarInfo *varinfo = info->varinfo;
-        assert(!(varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC));
-        assert(!((varinfo->storage & (VS_STATIC | VS_USED)) == VS_STATIC));
-        if ((k == 0 && !(info->flag & GVF_UNRESOLVED)) ||
-            (k != 0 && ((info->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
-          continue;
-        if (!is_global_datsec_var(varinfo, global_scope)) {
-          info->item_index = info->prim.index = global_index++;
-        } else if (!(varinfo->storage & VS_EXTERN)) {
-          info->item_index = data_index++;
-        } else {
-          info->item_index = (uint32_t)-1;
-        }
-        info->symbol_index = symbol_index++;
-        VERBOSE("%2d: %.*s (%d)\n", info->item_index, NAMES(varinfo->ident->ident),
-                info->symbol_index);
-      }
-    }
-
-    // Table
-    for (int i = 0, len = tables->len; i < len; ++i) {
-      TableInfo *ti = tables->data[i];
-      ti->symbol_index = symbol_index++;
-    }
-
-    // Tag
-    for (int i = 0, len = tags->len; i < len; ++i) {
-      TagInfo *ti = tags->data[i];
-      ti->symbol_index = symbol_index++;
-    }
-  }
-
-  {
-    // Enumerate functions.
-    VERBOSES("### Functions\n");
-    const Name *name;
-    FuncInfo *info;
-    int32_t index = 0;
-    for (int k = 0; k < 2; ++k) {  // 0: import, 1: defined-and-referred
-      for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&info)) != -1; ) {
-        if ((k == 0 && (info->func != NULL || info->flag == 0)) ||  // Put external function first.
-            (k == 1 && info->func == NULL))                         // Defined function later.
-          continue;
-        if (is_function_omitted(info->varinfo))
-          continue;
-        info->index = index++;
-        VERBOSE("%2d: %.*s%s\n", info->index, NAMES(name), k == 0 ? "  (import)" : "");
-      }
-    }
-    VERBOSES("\n");
-  }
-
-  {
-    // Enumerate global variables.
-    const uint32_t START_ADDRESS = 0;  // Physical address is assigned by linker, so start from 0 here.
-    uint32_t address = START_ADDRESS;
-
-    VERBOSE("### Memory  0x%x\n", address);
-    for (int k = 0; k < 2; ++k) {  // 0: data, 1: bss
-      if (k == 1)
-        VERBOSE("---- BSS  0x%x\n", address);
-      const Name *name;
-      GVarInfo *info;
-      for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-        const VarInfo *varinfo = info->varinfo;
-        int storage = varinfo->storage;
-        if (varinfo->type->kind == TY_FUNC ||
-            (storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
-            (storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
-          continue;
-        if ((varinfo->global.init == NULL) == (k == 0) ||
-            !is_global_datsec_var(varinfo, global_scope))
-          continue;
-
-        // Mapped to memory
-        address = ALIGN(address, align_size(varinfo->type));
-        info->non_prim.address = address;
-        size_t size = type_size(varinfo->type);
-        address += size;
-        VERBOSE("%04x: %.*s  (size=0x%zx)\n", info->non_prim.address, NAMES(varinfo->ident->ident),
-                size);
-      }
-    }
-  }
+  assign_indirect_function_index();
+  assign_symbol_index();
+  assign_function_index();
+  assign_data_address();
 }

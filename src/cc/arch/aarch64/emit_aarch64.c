@@ -82,7 +82,7 @@ static bool is_asm(Stmt *stmt) {
   return stmt->kind == ST_ASM;
 }
 
-static void move_params_to_assigned(Function *func) {
+static inline void move_params_to_assigned(Function *func) {
   extern const char **kRegSizeTable[];
   extern const int ArchRegParamMapping[];
   extern const char *kFReg32s[], *kFReg64s[];

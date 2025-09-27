@@ -69,7 +69,7 @@ static int put_vaarg_params(Function *func) {
 #endif
 }
 
-static void move_params_to_assigned(Function *func) {
+static inline void move_params_to_assigned(Function *func) {
   extern const char *kReg64s[];
   extern const int ArchRegParamMapping[];
   extern const char *kFReg64s[];
