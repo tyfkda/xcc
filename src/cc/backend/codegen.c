@@ -68,6 +68,7 @@ static VarInfo *prepare_retvar(Function *func) {
   vreg->reg_param_index = 0;
   varinfo->local.vreg = vreg;
   FuncBackend *fnbe = func->extra;
+  fnbe->retvarinfo = varinfo;
   fnbe->retval = vreg;
   return varinfo;
 }
@@ -143,10 +144,11 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
   int arg_count[2] = {0, 0};
   int total = 0;
 
-  VReg *retval = ((FuncBackend*)func->extra)->retval;
+  FuncBackend *fnbe = func->extra;
+  VReg *retval = fnbe->retval;
   if (retval != NULL) {
     RegParamInfo *p = &args[total++];
-    p->type = &tyVoidPtr;
+    p->varinfo = fnbe->retvarinfo;
     p->vreg = retval;
     p->index = 0;
     ++arg_count[GPREG];
@@ -158,14 +160,14 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
       const VarInfo *varinfo = params->data[i];
       const Type *type = varinfo->type;
       if (is_stack_param(type))
-        continue;
+          continue;
       bool is_flo = is_flonum(type);
       if (arg_count[is_flo] >= max_reg[is_flo])
         continue;
       RegParamInfo *p = &args[total++];
       VReg *vreg = varinfo->local.vreg;
       assert(vreg != NULL);
-      p->type = type;
+      p->varinfo = varinfo;
       p->vreg = vreg;
       p->index = arg_count[is_flo]++;
     }
@@ -862,6 +864,7 @@ bool gen_defun(Function *func) {
   fnbe->ra = NULL;
   fnbe->bbcon = NULL;
   fnbe->ret_bb = NULL;
+  fnbe->retvarinfo = NULL;
   fnbe->retval = NULL;
   fnbe->result_dst = NULL;
   fnbe->funcalls = NULL;
