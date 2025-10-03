@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "ast.h"
+#include "fe_misc.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"
@@ -164,8 +165,9 @@ size_t calc_funcall_work_size(Expr *expr) {
   size_t work_size = 0;
   for (int i = 0; i < param_count; ++i) {
     Expr *arg = args->data[i];
-    if (is_stack_param(arg->type))
-      work_size = ALIGN(work_size, align_size(arg->type)) + type_size(arg->type);
+    const Type *type = arg->type;
+    if (is_stack_param(type) && !is_small_struct(type))
+      work_size = ALIGN(work_size, align_size(type)) + type_size(type);
   }
 
   if (functype->func.vaargs) {
@@ -181,4 +183,15 @@ size_t calc_funcall_work_size(Expr *expr) {
     }
   }
   return ALIGN(work_size, 8);
+}
+
+const Type *get_small_struct_elem_type(const Type *type) {
+  for (;;) {
+    if (type->kind != TY_STRUCT)
+      return type;
+    const StructInfo *sinfo = type->struct_.info;
+    assert(sinfo != NULL);
+    assert(sinfo->member_count > 0);
+    type = sinfo->members[0].type;
+  }
 }

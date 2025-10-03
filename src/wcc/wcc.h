@@ -88,14 +88,15 @@ typedef struct {
 // Local variable information for WASM
 struct VReg {
   int32_t param_index;
-  union {
-    struct {  // Primitive(i32, i64, f32, f64)
-      uint32_t local_index;
-    } prim;
-    struct {  // Non-primitive
-      int32_t offset;  // for base pointer
-    } non_prim;
-  };
+  // prim and non_prim are exclusive, except
+  //   1. It is a parameter and reference taken.
+  //   2. It is a small struct parameter passed by value.
+  struct {  // Primitive(i32, i64, f32, f64)
+    uint32_t local_index;
+  } prim;
+  struct {  // Non-primitive
+    int32_t offset;  // for base pointer
+  } non_prim;
 };
 
 // traverse
@@ -217,5 +218,6 @@ unsigned char to_wtype(const Type *type);
 /// Whether this global variable put on data section.
 bool is_global_datsec_var(const VarInfo *varinfo, Scope *scope);
 size_t calc_funcall_work_size(Expr *expr);
+const Type *get_small_struct_elem_type(const Type *type);
 
 extern DataStorage *curcodeds;

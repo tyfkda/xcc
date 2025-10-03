@@ -230,13 +230,20 @@ typedef struct {
 } FuncallWork;
 
 static inline void gen_funarg(Expr *arg, int i, FuncallWork *work) {
-  size_t offset = work->offset;
   Expr *lspvar = work->lspvar;
-  if (is_stack_param(arg->type)) {
+  const Type *type = arg->type;
+  if (is_small_struct(type)) {
+    size_t size = type_size(type);
+    assert(IS_POWER_OF_2(size));
+    gen_expr(arg, true);
+    const Type *etype = get_small_struct_elem_type(type);
+    assert(is_prim_type(etype));
+    gen_load(etype);
+  } else if (is_stack_param(type)) {
     assert(lspvar != NULL);
-    size_t size = type_size(arg->type);
+    size_t size = type_size(type);
     if (size > 0) {
-      offset = ALIGN(offset, align_size(arg->type));
+      size_t offset = ALIGN(work->offset, align_size(type));
       // _memcpy(global.sp + sarg_offset, &arg, size);
       Expr *src = lspvar;
       if (offset != 0)
@@ -247,13 +254,13 @@ static inline void gen_funarg(Expr *arg, int i, FuncallWork *work) {
       ADD_CODE(OP_I32_CONST);
       ADD_LEB128(size);
       ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);  // src, dst
-      offset += size;
+      work->offset = offset + size;
     }
   } else if (i < work->param_count) {
     gen_expr(arg, true);
   } else {
     // *(global.sp + offset) = arg
-    offset = ALIGN(offset, align_size(arg->type));
+    size_t offset = ALIGN(work->offset, align_size(type));
     if (offset != 0) {
       gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, lspvar,
                             new_expr_fixlit(&tySize, NULL, offset)),
@@ -261,18 +268,12 @@ static inline void gen_funarg(Expr *arg, int i, FuncallWork *work) {
     } else {
       gen_expr(lspvar, true);
     }
-    const Type *t = arg->type;
-    assert(!(t->kind == TY_FIXNUM && t->fixnum.kind < FX_INT));
-    offset += type_size(t);
+    assert(!(type->kind == TY_FIXNUM && type->fixnum.kind < FX_INT));
+    work->offset = offset + type_size(type);
 
     gen_expr(arg, true);
-    gen_store(t);
+    gen_store(type);
   }
-
-  if (work->vaargs && i == work->param_count - 1)
-    work->vaarg_offset = offset;
-
-  work->offset = offset;
 }
 
 static inline void gen_funargs(Expr *expr) {
@@ -320,6 +321,9 @@ static inline void gen_funargs(Expr *expr) {
   work.param_count = param_count;
   work.vaargs = functype->func.vaargs;
   for (int i = 0; i < arg_count; ++i) {
+    if (work.vaargs && i == work.param_count)
+      work.vaarg_offset = work.offset;
+
     Expr *arg = args->data[i];
     gen_funarg(arg, i, &work);
   }

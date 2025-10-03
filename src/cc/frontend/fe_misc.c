@@ -452,11 +452,26 @@ static Expr *struct_arg_as_pointer(Expr *arg, Type *type) {
 #endif
 
 bool is_small_struct(const Type *type) {
+  if (type->kind != TY_STRUCT)
+    return false;
+  const StructInfo *sinfo = type->struct_.info;
+  assert(sinfo != NULL);
+  if (sinfo->is_flexible)
+    return false;
+
 #if XCC_TARGET_ARCH == XCC_ARCH_WASM
-  UNUSED(type);
-  return false;
+  if (sinfo->is_union) {
+    if (sinfo->member_count < 1)
+      return false;
+  } else {
+    // In WASM, only single-element struct is considered as small struct.
+    if (sinfo->member_count != 1)
+      return false;
+  }
+  const MemberInfo *minfo = &sinfo->members[0];
+  return is_prim_type(minfo->type) || is_small_struct(minfo->type);
 #else
-  return type->kind == TY_STRUCT && type_size(type) <= TARGET_POINTER_SIZE * 2;
+  return type_size(type) <= TARGET_POINTER_SIZE * 2;
 #endif
 }
 

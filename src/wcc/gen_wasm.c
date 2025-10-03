@@ -506,7 +506,7 @@ void gen_stmts(Vector *stmts, bool is_last) {
   }
 }
 
-static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
+static inline uint32_t allocate_local_variables(Function *func, DataStorage *data) {
   const Type *functype = func->type;
   const Type *rettype = functype->func.ret;
   unsigned int ret_param = rettype->kind != TY_VOID && !is_prim_type(rettype) ? 1 : 0;
@@ -521,34 +521,38 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
     Scope *scope = func->scopes->data[i];
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
+      const Type *type = varinfo->type;
+      int param_index = -1;
+      if (i == 0 && param_count > 0) {
+        int k = get_funparam_index(func, varinfo->ident->ident);
+        if (k >= 0) {
+          param_index = k;
+          if (is_small_struct(type) || !is_stack_param(type))
+            ++pparam_count;
+        }
+      }
+
       if (!is_local_storage(varinfo)) {
         // Static entity is allocated in global, not on stack.
         // Extern doesn't have its entity.
         // Enum members are replaced to constant value.
         continue;
       }
-      if (varinfo->type->kind == TY_FUNC) {
+      if (type->kind == TY_FUNC) {
         // Function declaration has no entity.
         continue;
       }
 
-      int param_index = -1;
-      if (i == 0 && param_count > 0) {
-        int k = get_funparam_index(func, varinfo->ident->ident);
-        if (k >= 0) {
-          param_index = k;
-          if (!is_stack_param(varinfo->type))
-            ++pparam_count;
-        }
-      }
-      if ((varinfo->storage & VS_REF_TAKEN) || (is_stack_param(varinfo->type) && param_index < 0)) {
-        size_t size = type_size(varinfo->type);
+      if ((varinfo->storage & VS_REF_TAKEN) ||
+          (param_index < 0 && !is_prim_type(type)) ||
+          (param_index >= 0 && is_small_struct(type))) {
+        size_t size = type_size(type);
         if (size < 1)
           size = 1;
-        frame_size = ALIGN(frame_size, align_size(varinfo->type)) + size;
-      } else if (!is_stack_param(varinfo->type)) {
+        frame_size = ALIGN(frame_size, align_size(type)) + size;
+      } else if (is_prim_type(type)) {
         if (param_index < 0) {
-          unsigned char wt = to_wtype(varinfo->type);
+          unsigned char wt = to_wtype(type);
           assert(WT_F64 <= wt && wt <= WT_I32);
           int index = WT_I32 - wt;
           local_counts[index] += 1;
@@ -606,30 +610,43 @@ static uint32_t allocate_local_variables(Function *func, DataStorage *data) {
           param_index = k;
       }
       vreg->param_index = ret_param + param_index;
-      bool stack_param = is_stack_param(varinfo->type);
-      if ((!stack_param && varinfo->storage & VS_REF_TAKEN) ||  // `&` taken wasm local var.
-          (stack_param && param_index < 0)) {                   // non-prim variable (not function parameter)
-        frame_offset = ALIGN(frame_offset, align_size(varinfo->type));
-        vreg->non_prim.offset = frame_offset - frame_size;
-        size_t size = type_size(varinfo->type);
-        if (size < 1)
-          size = 1;
-        frame_offset += size;
-      } else if (!stack_param) {  // Not `&` taken, wasm local var.
-        if (param_index < 0) {
-          unsigned char wt = to_wtype(varinfo->type);
-          int index = WT_I32 - wt;
-          vreg->prim.local_index = local_indices[index]++;
-        } else {
-          vreg->prim.local_index = param_no;
+      const Type *type = varinfo->type;
+      size_t size = type_size(type), align = align_size(type);
+      bool prim = is_prim_type(type);
+      if (param_index >= 0) {
+        bool small_struct = is_small_struct(type);
+        if (prim || small_struct) {
+          vreg->prim.local_index = param_no++;
+          if (small_struct || varinfo->storage & VS_REF_TAKEN) {
+            frame_offset = ALIGN(frame_offset, align);
+            vreg->non_prim.offset = frame_offset - frame_size;
+            if (size < 1)
+              size = 1;
+            frame_offset += size;
+          }
+        } else {  // Non primitive parameter, passed through stack.
+          sparam_offset = ALIGN(sparam_offset, align);
+          vreg->non_prim.offset = sparam_offset;
+          sparam_offset += size;
         }
-      } else {  // Non primitive parameter, passed through stack.
-        sparam_offset = ALIGN(sparam_offset, align_size(varinfo->type));
-        vreg->non_prim.offset = sparam_offset;
-        sparam_offset += type_size(varinfo->type);
+      } else {
+        if ((prim && varinfo->storage & VS_REF_TAKEN) ||  // `&` taken wasm local var.
+            !prim) {  // non-prim variable (not function parameter)
+          frame_offset = ALIGN(frame_offset, align);
+          vreg->non_prim.offset = frame_offset - frame_size;
+          if (size < 1)
+            size = 1;
+          frame_offset += size;
+        } else {  // Not `&` taken, wasm local var.
+          if (param_index < 0) {
+            unsigned char wt = to_wtype(type);
+            int index = WT_I32 - wt;
+            vreg->prim.local_index = local_indices[index]++;
+          } else {
+            vreg->prim.local_index = param_no;
+          }
+        }
       }
-      if (param_index >= 0 && !stack_param)
-        ++param_no;
     }
   }
 
@@ -671,7 +688,8 @@ static void gen_defun(Function *func) {
     int vaarg_param_index = 0;
     for (int i = 0; i < func->params->len; ++i) {
       const VarInfo *varinfo = func->params->data[i];
-      if (!is_stack_param(varinfo->type))
+      const Type *type = varinfo->type;
+      if (is_small_struct(type) || !is_stack_param(type))
         ++vaarg_param_index;
     }
 
@@ -712,23 +730,29 @@ static void gen_defun(Function *func) {
       gen_expr_stmt(result);
     }
   }
-  // Store ref-taken parameters to stack frame.
   if (func->params != NULL) {
     const Vector *params = func->params;
-    const Type *rettype = functype->func.ret;
-    int param_index = rettype->kind != TY_VOID && !is_prim_type(rettype) ? 1 : 0;
     for (int i = 0, param_count = params->len; i < param_count; ++i) {
       VarInfo *varinfo = params->data[i];
-      if (is_stack_param(varinfo->type))
+      const Type *type = varinfo->type;
+      if (is_small_struct(type)) {
+        // Store small struct passed by value to stack frame.
+        VReg *vreg = varinfo->local.vreg;
+        assert(vreg != NULL);
+        gen_bpofs(vreg->non_prim.offset);
+        ADD_CODE(OP_LOCAL_GET);
+        ADD_ULEB128(vreg->prim.local_index);
+        gen_store(get_small_struct_elem_type(type));
+      } else if (is_stack_param(type)) {
         continue;
-      if (varinfo->storage & VS_REF_TAKEN) {
+      } else if (varinfo->storage & VS_REF_TAKEN) {
+        // Store ref-taken parameters to stack frame.
         VReg *vreg = varinfo->local.vreg;
         gen_bpofs(vreg->non_prim.offset);
         ADD_CODE(OP_LOCAL_GET);
-        ADD_ULEB128(param_index);
-        gen_store(varinfo->type);
+        ADD_ULEB128(vreg->prim.local_index);
+        gen_store(type);
       }
-      ++param_index;
     }
   }
 
