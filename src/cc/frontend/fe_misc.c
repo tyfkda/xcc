@@ -451,6 +451,30 @@ static Expr *struct_arg_as_pointer(Expr *arg, Type *type) {
 }
 #endif
 
+bool is_small_struct(const Type *type) {
+  if (type->kind != TY_STRUCT)
+    return false;
+  const StructInfo *sinfo = type->struct_.info;
+  assert(sinfo != NULL);
+  if (sinfo->is_flexible)
+    return false;
+
+#if XCC_TARGET_ARCH == XCC_ARCH_WASM
+  if (sinfo->is_union) {
+    if (sinfo->member_count < 1)
+      return false;
+  } else {
+    // In WASM, only single-element struct is considered as small struct.
+    if (sinfo->member_count != 1)
+      return false;
+  }
+  const MemberInfo *minfo = &sinfo->members[0];
+  return is_prim_type(minfo->type) || is_small_struct(minfo->type);
+#else
+  return type_size(type) <= TARGET_POINTER_SIZE * 2;
+#endif
+}
+
 void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
   Type *functype = get_callee_type(func->type);
   if (functype == NULL)
@@ -487,7 +511,8 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
         if (type->struct_.info->is_flexible)
           parse_error(PE_NOFATAL, arg->token, "flexible array as an argument not allowed");
 #if STRUCT_ARG_AS_POINTER
-        arg = struct_arg_as_pointer(arg, type);
+        if (!is_small_struct(type))
+          arg = struct_arg_as_pointer(arg, type);
 #endif
       }
     } else if (vaargs && i >= paramc) {
@@ -502,6 +527,10 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
         break;
 #if STRUCT_ARG_AS_POINTER || VAARG_STRUCT_AS_POINTER
       case TY_STRUCT:
+#if STRUCT_ARG_AS_POINTER
+        if (is_small_struct(type))
+          break;
+#endif
         arg = struct_arg_as_pointer(arg, type);
         break;
 #endif

@@ -31,7 +31,7 @@ static void wasm_func_type(const Type *type, DataStorage *ds) {
   if (params != NULL) {
     for (int i = 0; i < params->len; ++i) {
       const Type *type = params->data[i];
-      if (!is_stack_param(type))
+      if (is_small_struct(type) || !is_stack_param(type))
         ++param_count;
     }
   }
@@ -45,6 +45,8 @@ static void wasm_func_type(const Type *type, DataStorage *ds) {
   if (params != NULL) {
     for (int i = 0; i < params->len; ++i) {
       const Type *type = params->data[i];
+      if (is_small_struct(type))
+        type = get_small_struct_elem_type(type);
       if (!is_stack_param(type))
         data_push(ds, to_wtype(type));
     }

@@ -85,6 +85,57 @@ static void move_params_to_assigned(Function *func) {
   for (int i = 0; i < param_count; ++i) {
     RegParamInfo *p = &params[i];
     VReg *vreg = p->vreg;
+    const Type *type = p->varinfo->type;
+    if (vreg == NULL) {
+      // Small struct passed by value: Store to the stack frame.
+      size_t size = type_size(type);
+      if (size <= 0)
+        continue;
+      FrameInfo *fi = p->varinfo->local.frameinfo;
+      int offset = fi->offset;
+      assert(offset < 0);
+      int index = p->index;
+      for (;;) {
+        size_t s;
+        for (int i = VRegSize8; i >= VRegSize1; --i) {
+          s = 1U << i;
+          if (s <= size)
+            break;
+        }
+
+        int pow = most_significant_bit(s);
+        const char *src = kReg64s[ArchRegParamMapping[index]];
+        const char *dst;
+        if (offset >= -2048) {
+          dst = IMMEDIATE_OFFSET(offset, FP);
+        } else {
+          LI(T0, IM(offset));
+          ADD(T0, T0, FP);
+          dst = IMMEDIATE_OFFSET0(T0);
+        }
+        // TODO: Check alignment?
+        switch (pow) {
+        case 0:  SB(src, dst); break;
+        case 1:  SH(src, dst); break;
+        case 2:  SW(src, dst); break;
+        case 3:  SD(src, dst); break;
+        default: assert(false); break;
+        }
+        size -= s;
+        offset += s;
+        if (size <= 0)
+          break;
+        if (s >= TARGET_POINTER_SIZE) {
+          ++index;
+        } else {
+          const char *opr2 = IM(s * TARGET_CHAR_BIT);
+          SRLI(src, src, opr2);
+        }
+      }
+
+      continue;
+    }
+
     if (vreg->flag & VRF_FLONUM) {
       const char *src = kFRegParam64s[p->index];
       if (vreg->flag & VRF_SPILLED) {
@@ -99,7 +150,6 @@ static void move_params_to_assigned(Function *func) {
         }
       }
     } else {
-      const Type *type = p->varinfo->type;
       size_t size = type_size(type);
       int pow = most_significant_bit(size);
       assert(IS_POWER_OF_2(size) && pow < 4);
