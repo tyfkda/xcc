@@ -138,6 +138,8 @@ typedef struct {
   // Call
   const Name *label;
   VReg **args;  // [total_arg_count]
+  size_t small_struct_result_size;
+  FrameInfo *small_struct_result_frameinfo;
   int total_arg_count;
   int reg_arg_count;
   int vaarg_start;

@@ -504,21 +504,29 @@ const ParseInstTable kParseInstTable[] = {
     &(ParseOpArray){MOV_RD, {R8 | R16 | R32 | R64, EXP}},
     &(ParseOpArray){MOV_SR, {SEG, R64}},
   } },
-  [R_MOVB] = { 2, (const ParseOpArray*[]){
+  [R_MOVB] = { 4, (const ParseOpArray*[]){
     &(ParseOpArray){MOVB_IMI, {IMM, IND}},
     &(ParseOpArray){MOVB_IMD, {IMM, EXP}},
+    &(ParseOpArray){MOV_IR, {IND, R8}},
+    &(ParseOpArray){MOV_RI, {R8, IND}},
   } },
-  [R_MOVW] = { 2, (const ParseOpArray*[]){
+  [R_MOVW] = { 4, (const ParseOpArray*[]){
     &(ParseOpArray){MOVW_IMI, {IMM, IND}},
     &(ParseOpArray){MOVW_IMD, {IMM, EXP}},
+    &(ParseOpArray){MOV_IR, {IND, R16}},
+    &(ParseOpArray){MOV_RI, {R16, IND}},
   } },
-  [R_MOVL] = { 2, (const ParseOpArray*[]){
+  [R_MOVL] = { 4, (const ParseOpArray*[]){
     &(ParseOpArray){MOVL_IMI, {IMM, IND}},
     &(ParseOpArray){MOVL_IMD, {IMM, EXP}},
+    &(ParseOpArray){MOV_IR, {IND, R32}},
+    &(ParseOpArray){MOV_RI, {R32, IND}},
   } },
-  [R_MOVQ] = { 2, (const ParseOpArray*[]){
+  [R_MOVQ] = { 4, (const ParseOpArray*[]){
     &(ParseOpArray){MOVQ_IMI, {IMM, IND}},
     &(ParseOpArray){MOVQ_IMD, {IMM, EXP}},
+    &(ParseOpArray){MOV_IR, {IND, R64}},
+    &(ParseOpArray){MOV_RI, {R64, IND}},
   } },
   [R_MOVSX] = { 6, (const ParseOpArray*[]){
     &(ParseOpArray){MOVSX, {R8, R16}},

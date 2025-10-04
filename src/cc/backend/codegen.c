@@ -355,11 +355,13 @@ static inline void gen_return(Stmt *stmt) {
     if (is_small_struct(type)) {
       assert(fnbe->result_dst == NULL);  // いったんインラインのことは考えない
       size_t size = type_size(type);
-      size_t count = (size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
-      for (size_t i = 0; i < count; ++i) {
-        size_t s = MIN(size - i * TARGET_POINTER_SIZE, TARGET_POINTER_SIZE);
-        VReg *v = new_ir_load(vreg, 0, most_significant_bit(s), 0, i * TARGET_POINTER_SIZE)->dst;
-        new_ir_result(v, 0, i);
+      for (size_t o = 0; o < size; o += TARGET_POINTER_SIZE) {
+        size_t s = MIN(size - o, TARGET_POINTER_SIZE);
+        int b = most_significant_bit(s);
+        if (s > (1U << b))
+          ++b;
+        VReg *v = new_ir_load(vreg, o, b, 0, 0)->dst;
+        new_ir_result(v, 0, o / TARGET_POINTER_SIZE);
       }
     } else if (is_prim_type(type)) {
       int flag = is_unsigned(type) ? IRF_UNSIGNED : 0;
@@ -802,7 +804,12 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
 
   bool require_stack_frame = false;
 
-  int arg_start = is_prim_type(func->type->func.ret) ? 0 : 1;
+#if EXTRA_RETURN_STRUCT_REGISTER
+  const int arg_start = 0;
+#else
+  const Type *rettype = func->type->func.ret;
+  const int arg_start = is_prim_type(rettype) || is_small_struct(rettype) ? 0 : 1;
+#endif
   int reg_index[2] = {arg_start, 0};  // [0]=gp-reg, [1]=fp-reg
 
   // Parameters.
