@@ -519,7 +519,7 @@ static inline void gen_funargs(Expr *expr, FuncallWork *work) {
   assert(functype != NULL);
 
   VarInfo *ret_varinfo = NULL;  // Return value is on the stack?
-  if (expr->type->kind == TY_STRUCT) {
+  if (expr->type->kind == TY_STRUCT && !is_small_struct(expr->type)) {
     const Token *token = alloc_dummy_ident();
     Type *type = expr->type;
     ret_varinfo = scope_add(curscope, token, type, 0);
@@ -588,11 +588,15 @@ static inline VReg *gen_funcall_sub(Expr *expr, FuncallWork *work) {
   callinfo->caller_saves = NULL;
 
   VReg *dst = NULL;
-  Type *type = expr->type;
-  if (ret_varinfo != NULL)
-    type = ptrof(type);
-  if (type->kind != TY_VOID)
-    dst = reg_alloc_spawn(curra, to_vsize(type), to_vflag(type));
+  {
+    Type *type = expr->type;
+    if (is_small_struct(type))
+      type = &tyVoidPtr;
+    else if (ret_varinfo != NULL)
+      type = ptrof(type);
+    if (type->kind != TY_VOID)
+      dst = reg_alloc_spawn(curra, to_vsize(type), to_vflag(type));
+  }
 
   const Name *funcname = NULL;
   VReg *freg = NULL;

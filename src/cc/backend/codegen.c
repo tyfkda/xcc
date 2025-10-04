@@ -56,7 +56,7 @@ static BB *push_break_bb(BB **save) {
   return bb;
 }
 
-static VarInfo *prepare_retvar(Function *func) {
+static inline VarInfo *prepare_retvar(Function *func) {
   // Insert vreg for return value pointer into top of the function scope.
   Type *rettype = func->type->func.ret;
   const Token *retval_token = alloc_dummy_ident();
@@ -121,7 +121,8 @@ static void alloc_variable_registers(Function *func) {
   int regcount[2] = {0, 0};
 
   // Handle if return value is on the stack.
-  if (func->type->func.ret->kind == TY_STRUCT) {
+  const Type *rettype = func->type->func.ret;
+  if (rettype->kind == TY_STRUCT && !is_small_struct(rettype)) {
     prepare_retvar(func);
 #if !EXTRA_RETURN_STRUCT_REGISTER
     ++regcount[GPREG];
@@ -349,19 +350,29 @@ static inline void gen_return(Stmt *stmt) {
   FuncBackend *fnbe = curfunc->extra;
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
+    const Type *type = val->type;
     VReg *vreg = gen_expr(val);
-    if (is_prim_type(val->type)) {
-      int flag = is_unsigned(val->type) ? IRF_UNSIGNED : 0;
+    if (is_small_struct(type)) {
+      assert(fnbe->result_dst == NULL);  // いったんインラインのことは考えない
+      size_t size = type_size(type);
+      size_t count = (size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+      for (size_t i = 0; i < count; ++i) {
+        size_t s = MIN(size - i * TARGET_POINTER_SIZE, TARGET_POINTER_SIZE);
+        VReg *v = new_ir_load(vreg, 0, most_significant_bit(s), 0, i * TARGET_POINTER_SIZE)->dst;
+        new_ir_result(v, 0, i);
+      }
+    } else if (is_prim_type(type)) {
+      int flag = is_unsigned(type) ? IRF_UNSIGNED : 0;
       if (fnbe->result_dst == NULL)
-        new_ir_result(vreg, flag);
+        new_ir_result(vreg, flag, 0);
       else
         new_ir_mov(fnbe->result_dst, vreg, flag);
-    } else if (val->type->kind != TY_VOID) {
+    } else if (type->kind != TY_VOID) {
       VReg *retval = fnbe->retval;
       if (retval != NULL) {
-        gen_memcpy(val->type, retval, vreg);
+        gen_memcpy(type, retval, vreg);
         if (fnbe->result_dst == NULL)
-          new_ir_result(retval, IRF_UNSIGNED);  // Pointer is unsigned.
+          new_ir_result(retval, IRF_UNSIGNED, 0);  // Pointer is unsigned.
         else
           new_ir_mov(fnbe->result_dst, retval, IRF_UNSIGNED);  // Pointer is unsigned.
       } else {
