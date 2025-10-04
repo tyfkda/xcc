@@ -267,33 +267,52 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
           vec_remove_at(actives, k--);
       }
 
-      // Update function parameter register occupation after setting it.
-      if (ir->kind == IR_PUSHARG) {
-        VReg *opr1 = ir->opr1;
-        if (opr1->flag & VRF_FLONUM
+      switch (ir->kind) {
+      default: break;
+      case IR_PUSHARG:
+        {
+          // Update function parameter register occupation after setting it.
+          VReg *opr1 = ir->opr1;
+          if (opr1->flag & VRF_FLONUM
 #if VAARG_FP_AS_GP
-            && !ir->pusharg.fp_as_gp
+              && !ir->pusharg.fp_as_gp
 #endif
-        ) {
-          int n = ir->pusharg.index;
-          // Assume same order on FP-register.
-          argset[FPREG] |= 1UL << n;
-        } else {
-          int n = settings->reg_param_mapping[ir->pusharg.index];
-          if (n >= 0)
-            argset[GPREG] |= 1UL << n;
+          ) {
+            int n = ir->pusharg.index;  // Assume same order on FP-register.
+            argset[FPREG] |= 1UL << n;
+          } else {
+            int n = settings->reg_param_mapping[ir->pusharg.index];
+            if (n >= 0)
+              argset[GPREG] |= 1UL << n;
+          }
         }
-      }
+        break;
 
-      // Call instruction breaks registers which contain in their live interval (start < nip < end).
-      if (ir->kind == IR_CALL) {
-        // Non-saved registers on calling convention.
-        unsigned long broken[2];
-        for (int k = 0; k < (int)ARRAY_SIZE(broken); ++k) {
-          broken[k] = (1UL << settings->regset[k].phys_temporary_count) - 1;
-          argset[k] = 0;
+      case IR_CALL:
+        // Call instruction breaks registers which contain in their live interval (start < nip < end).
+        {
+          // Non-saved registers on calling convention.
+          unsigned long broken[2];
+          for (int k = 0; k < (int)ARRAY_SIZE(broken); ++k) {
+            broken[k] = (1UL << settings->regset[k].phys_temporary_count) - 1;
+            argset[k] = 0;
+          }
+          occupy_regs(ra, actives, broken);
         }
-        occupy_regs(ra, actives, broken);
+        break;
+
+      case IR_RESULT:
+        if (ir->dst == NULL) {
+          if (ir->flag & IRF_UNSIGNED) {
+            int n = ir->pusharg.index;  // Assume same order on FP-register.
+            argset[FPREG] |= 1UL << n;
+          } else {
+            int n = settings->reg_return_mapping[ir->pusharg.index];
+            assert(n >= 0);
+            argset[GPREG] |= 1UL << n;
+          }
+        }
+        break;
       }
 
       // Activate registers after usage checked.

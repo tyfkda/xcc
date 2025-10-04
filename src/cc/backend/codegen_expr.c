@@ -374,21 +374,23 @@ typedef struct {
   VarInfo *ret_varinfo;
   VReg **arg_vregs;
   ssize_t offset;
+  int arg_start;
   int stack_arg_count;
   int arg_count;
   int reg_arg_count[2];  // [0]=gp-reg, [1]=fp-reg
+  bool ret_small_struct;
 
   // Register arguments.
   int regarg[2];  // [0]=gp-reg, [1]=fp-reg
 } FuncallWork;
 
-static inline ArgInfo *collect_funargs(const Type *functype, int arg_start, Vector *args, FuncallWork *work, ArgInfo *arg_infos) {
+static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, FuncallWork *work, ArgInfo *arg_infos) {
   ssize_t offset = 0;
   int stack_arg_count = 0;
   int reg_arg_count[2] = {0, 0};
   const int arg_count = args->len;
 
-  int reg_index[2] = {arg_start, 0};  // [0]=gp-reg, [1]=fp-reg
+  int reg_index[2] = {work->arg_start, 0};  // [0]=gp-reg, [1]=fp-reg
 
   // Check stack arguments.
   int vaarg_start = functype->func.vaargs && functype->func.params != NULL
@@ -457,12 +459,7 @@ static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *
     VReg *loaded = new_ir_load(vreg, i * TARGET_POINTER_SIZE, VRegSize8, VRF_PARAM, 0)->dst;
 
     int regarg = ++work->regarg[GPREG];
-#if EXTRA_RETURN_STRUCT_REGISTER
-    int arg_start = 0;
-#else
-    int arg_start = work->ret_varinfo != NULL ? 1 : 0;
-#endif
-    int index = work->reg_arg_count[GPREG] - regarg + arg_start;
+    int index = work->reg_arg_count[GPREG] - regarg + work->arg_start;
     assert(index < kArchSetting.max_reg_args[GPREG]);
     new_ir_pusharg(loaded, index);
   }
@@ -480,7 +477,7 @@ static inline VReg *gen_funarg(Expr *arg, ArgInfo *arg_info, FuncallWork *work) 
     int regarg = ++work->regarg[is_flo];
     int index = work->reg_arg_count[is_flo] - regarg;
 #if !EXTRA_RETURN_STRUCT_REGISTER
-    if (!is_flo && work->ret_varinfo != NULL)
+    if (!is_flo && work->ret_varinfo != NULL && !work->ret_small_struct)
       ++index;
 #endif
     assert(index < kArchSetting.max_reg_args[is_flo]);
@@ -510,8 +507,10 @@ static inline void gen_funargs(Expr *expr, FuncallWork *work) {
   work->ret_varinfo = NULL;
   work->arg_vregs = NULL;
   work->offset = 0;
+  work->arg_start = 0;
   work->stack_arg_count = 0;
   work->arg_count = 0;
+  work->ret_small_struct = is_small_struct(expr->type);
   work->reg_arg_count[GPREG] = work->reg_arg_count[FPREG] = 0;
   work->regarg[GPREG] = work->regarg[FPREG] = 0;
 
@@ -531,13 +530,11 @@ static inline void gen_funargs(Expr *expr, FuncallWork *work) {
   }
   work->ret_varinfo = ret_varinfo;
 
-#if EXTRA_RETURN_STRUCT_REGISTER
-  const int arg_start = 0;
-#else
-  const int arg_start = ret_varinfo != NULL ? 1 : 0;
+#if !EXTRA_RETURN_STRUCT_REGISTER
+  work->arg_start = ret_varinfo != NULL && !work->ret_small_struct ? 1 : 0;
 #endif
   ArgInfo *arg_infos = calloc_or_die(sizeof(*arg_infos) * expr->funcall.args->len);
-  collect_funargs(functype, arg_start, expr->funcall.args, work, arg_infos);
+  collect_funargs(functype, expr->funcall.args, work, arg_infos);
 
   const int arg_count = work->arg_count;
   int total_arg_count = arg_count + (ret_varinfo != NULL ? 1 : 0);
@@ -549,10 +546,10 @@ static inline void gen_funargs(Expr *expr, FuncallWork *work) {
   for (int i = arg_count; --i >= 0; ) {
     Expr *arg = args->data[i];
     VReg *vreg = gen_funarg(arg, &arg_infos[i], work);
-    arg_vregs[i + arg_start] = vreg;
+    arg_vregs[i + work->arg_start] = vreg;
   }
 
-  if (ret_varinfo != NULL) {
+  if (ret_varinfo != NULL && !work->ret_small_struct) {
     VReg *dst = new_ir_bofs(ret_varinfo->local.frameinfo)->dst;
 #if EXTRA_RETURN_STRUCT_REGISTER
     new_ir_pusharg(dst, kArchSetting.max_reg_args[GPREG]);
@@ -587,6 +584,11 @@ static inline VReg *gen_funcall_sub(Expr *expr, FuncallWork *work) {
   callinfo->arg_count = arg_count - stack_arg_count;
   callinfo->living_pregs = 0;
   callinfo->caller_saves = NULL;
+  if (work->ret_small_struct) {
+    assert(ret_varinfo != NULL && is_local_storage(ret_varinfo));
+    assert(ret_varinfo->local.frameinfo->size == type_size(expr->type));
+    callinfo->small_struct_result_frameinfo = ret_varinfo->local.frameinfo;
+  }
 
   VReg *dst = NULL;
   Type *type = expr->type;
@@ -624,12 +626,17 @@ static inline VReg *gen_funcall_sub(Expr *expr, FuncallWork *work) {
     fnbe->funcalls = funcalls = new_vector();
   vec_push(funcalls, expr);
 
-#if EXTRA_RETURN_STRUCT_REGISTER
   if (ret_varinfo != NULL) {
-    assert(total_arg_count > 0);
-    dst = work->arg_vregs[total_arg_count - 1];
-  }
+    if (work->ret_small_struct) {
+      dst = new_ir_bofs(ret_varinfo->local.frameinfo)->dst;
+    }
+#if EXTRA_RETURN_STRUCT_REGISTER
+    else {
+      assert(total_arg_count > 0);
+      dst = work->arg_vregs[total_arg_count - 1];
+    }
 #endif
+  }
 
   return dst;
 }
@@ -917,11 +924,18 @@ static VReg *gen_inlined(Expr *expr) {
   Type *rettype = expr->type;
   VReg *dst = NULL;
   if (rettype->kind != TY_VOID) {
-    if (!is_prim_type(rettype)) {
-      // Receive as its pointer.
-      rettype = ptrof(rettype);
+    if (is_small_struct(rettype)) {
+      const VarInfo *varinfo = expr->inlined.ret_varinfo;
+      assert(varinfo != NULL);
+      dst = new_ir_bofs(varinfo->local.frameinfo)->dst;
+    } else {
+      if (!is_prim_type(rettype)) {
+        // Receive as its pointer.
+        rettype = ptrof(rettype);
+      }
+      dst = add_new_vreg(rettype);
     }
-    fnbe->result_dst = dst = add_new_vreg(rettype);
+    fnbe->result_dst = dst;
   }
 
   gen_block(embedded);

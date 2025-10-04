@@ -378,7 +378,11 @@ static void gen_return(Stmt *stmt, bool is_last) {
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
     const Type *rettype = val->type;
-    if (is_prim_type(rettype) || rettype->kind == TY_VOID) {
+    if (is_small_struct(rettype)) {
+      gen_lval(val);
+      const Type *et = get_small_struct_elem_type(rettype);
+      gen_load(et);
+    } else if (is_prim_type(rettype) || rettype->kind == TY_VOID) {
       gen_expr(val, true);
     } else {
       FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
@@ -509,7 +513,7 @@ void gen_stmts(Vector *stmts, bool is_last) {
 static inline uint32_t allocate_local_variables(Function *func, DataStorage *data) {
   const Type *functype = func->type;
   const Type *rettype = functype->func.ret;
-  unsigned int ret_param = rettype->kind != TY_VOID && !is_prim_type(rettype) ? 1 : 0;
+  unsigned int ret_param = rettype->kind == TY_STRUCT && !is_small_struct(rettype) ? 1 : 0;
   unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
   unsigned int pparam_count = 0;  // Primitive parameter count
 

@@ -30,6 +30,7 @@ typedef struct LiveInterval {
 typedef struct RegAllocSettings {
   unsigned long (*detect_extra_occupied)(RegAlloc *ra, IR *ir);
   const int *reg_param_mapping;
+  const int *reg_return_mapping;
   struct {
     int phys_max;              // Max physical register count.
     int phys_temporary_count;  // Temporary register count (= start index for saved registers)

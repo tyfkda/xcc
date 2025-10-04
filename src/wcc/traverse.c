@@ -25,7 +25,9 @@ bool is_stack_param(const Type *type) {
 }
 
 static void wasm_func_type(const Type *type, DataStorage *ds) {
-  bool ret_param = type->func.ret->kind != TY_VOID && !is_prim_type(type->func.ret);
+  const Type *rettype = type->func.ret;
+  bool ret_small_struct = is_small_struct(rettype);
+  bool ret_param = rettype->kind == TY_STRUCT && !ret_small_struct;
   const Vector *params = type->func.params;
   int param_count = 0;
   if (params != NULL) {
@@ -54,14 +56,17 @@ static void wasm_func_type(const Type *type, DataStorage *ds) {
   if (type->func.vaargs)
     data_push(ds, to_wtype(&tyVoidPtr));  // vaarg pointer.
 
-  if (type->func.ret->kind == TY_VOID) {
+  if (rettype->kind == TY_VOID) {
     data_push(ds, 0);  // num results
   } else if (ret_param) {
     data_push(ds, 1);  // num results
     data_push(ds, to_wtype(&tyVoidPtr));
   } else {
     data_push(ds, 1);  // num results
-    data_push(ds, to_wtype(type->func.ret));
+    const Type *rt = rettype;
+    if (ret_small_struct)
+      rt = get_small_struct_elem_type(rettype);
+    data_push(ds, to_wtype(rt));
   }
 }
 
@@ -228,19 +233,17 @@ static void te_funcall(Expr **pexpr, bool needval) {
     parse_error(PE_NOFATAL, func->token, "Cannot call except function");
     return;
   }
-  if (functype->func.ret->kind != TY_VOID && !is_prim_type(functype->func.ret)) {
+  Type *rettype = functype->func.ret;
+  if (rettype->kind != TY_VOID && !is_prim_type(rettype)) {
     // Allocate local variable for return value.
     assert(curfunc != NULL);
     assert(curfunc->scopes != NULL);
     assert(curfunc->scopes->len > 0);
     VarInfo *varinfo = add_var_to_scope(curfunc->scopes->data[0], alloc_dummy_ident(),
-                                        functype->func.ret, 0, false);
-    FuncExtra *extra = curfunc->extra;
-    assert(extra != NULL);
-    if (extra->funcall_results == NULL)
-      extra->funcall_results = new_vector();
-    vec_push(extra->funcall_results, expr);
-    vec_push(extra->funcall_results, varinfo);
+                                        rettype, 0, false);
+    FuncallInfo *finfo = calloc_or_die(sizeof(*finfo));
+    finfo->varinfo = varinfo;
+    expr->funcall.info = finfo;
   }
 
   Vector *args = expr->funcall.args;

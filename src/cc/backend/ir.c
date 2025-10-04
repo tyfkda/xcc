@@ -328,10 +328,11 @@ IR *new_ir_call(IrCallInfo *info, VReg *dst, VReg *freg) {
   return ir;
 }
 
-void new_ir_result(VReg *vreg, int flag) {
+void new_ir_result(VReg *vreg, int flag, int index) {
   IR *ir = new_ir(IR_RESULT);
   ir->opr1 = vreg;
   ir->flag = flag;
+  ir->result.index = index;
 }
 
 void new_ir_subsp(VReg *value, VReg *dst) {

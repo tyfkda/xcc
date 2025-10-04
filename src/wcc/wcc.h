@@ -99,6 +99,10 @@ struct VReg {
   } non_prim;
 };
 
+typedef struct FuncallInfo {
+  VarInfo *varinfo;
+} FuncallInfo;
+
 // traverse
 void traverse_ast(Vector *decls);
 
@@ -115,6 +119,7 @@ void gen(Vector *decls);
 void gen_expr(Expr *expr, bool needval);
 void gen_expr_stmt(Expr *expr);
 void gen_lval(Expr *expr);
+void gen_load(const Type *type);
 void gen_store(const Type *type);
 void gen_set_to_var(Expr *var);
 void gen_cond(Expr *cond, bool tf, bool needval);
@@ -206,7 +211,6 @@ TableInfo *getsert_indirect_function_table(void);
 void write_wasm_header(FILE *ofp);
 
 typedef struct FuncExtra {
-  Vector *funcall_results;  // [0]=Expr*, [1]=VarInfo*
   DataStorage *code;
   Vector *reloc_code;  // <RelocInfo*>
   int setjmp_count;

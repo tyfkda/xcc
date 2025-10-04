@@ -80,7 +80,7 @@ Expr *strip_cast(Expr *expr) {
 }
 
 Expr *new_expr(enum ExprKind kind, Type *type, const Token *token) {
-  Expr *expr = malloc_or_die(sizeof(*expr));
+  Expr *expr = calloc_or_die(sizeof(*expr));
   expr->kind = kind;
   expr->type = type;
   expr->token = token;
@@ -163,6 +163,7 @@ Expr *new_expr_inlined(const Token *token, const Name *name, Type *rettype, Vect
   expr->inlined.funcname = name;
   expr->inlined.args = args;
   expr->inlined.embedded = embedded;
+  expr->inlined.ret_varinfo = NULL;
   return expr;
 }
 

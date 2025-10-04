@@ -32,6 +32,7 @@ static const char *kReg64s[PHYSICAL_REG_MAX] = {
   X10, X11, X12, X13, X14, X15};                          // Caller save
 
 #define GET_X0_INDEX()   0
+#define GET_X1_INDEX()   1
 #define GET_X8_INDEX()   8
 #define GET_X16_INDEX()  10
 
@@ -47,6 +48,7 @@ const int ArchRegParamMapping[] = {
   8,  // X8: This element is referred by indirect return value address.
 #endif
 };
+#define ArchRegReturnMapping  ArchRegParamMapping
 
 const char **kRegSizeTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
 static const char *kZeroRegTable[] = {WZR, WZR, WZR, XZR};
@@ -70,6 +72,7 @@ const char *kFReg64s[PHYSICAL_FREG_MAX] = {
 };
 
 #define GET_D0_INDEX()   0
+#define GET_D1_INDEX()   1
 
 #define CALLEE_SAVE_FREG_COUNT  ((int)ARRAY_SIZE(kCalleeSaveFRegs))
 static const int kCalleeSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
@@ -98,6 +101,7 @@ static unsigned long detect_extra_occupied(RegAlloc *ra, IR *ir) {
 const RegAllocSettings kArchRegAllocSettings = {
   .detect_extra_occupied = detect_extra_occupied,
   .reg_param_mapping = ArchRegParamMapping,
+  .reg_return_mapping = ArchRegReturnMapping,
   {
     {
       .phys_max = PHYSICAL_REG_MAX,
@@ -373,6 +377,16 @@ static void ei_sofs(IR *ir) {
   }
 }
 
+static const char *load_store_operand(const char *base, int64_t offset) {
+  if (is_im9(offset) || (offset >= 0 && offset <= 16380 && (offset & 0x3) == 0)) {
+    return IMMEDIATE_OFFSET(base, offset);
+  } else {
+    const char *tmp = kTmpRegTable[3];
+    mov_immediate(tmp, offset, true, false);
+    return REG_OFFSET(base, tmp, NULL);
+  }
+}
+
 static const char *load_store_dst(VReg *opr, int64_t offset, bool s) {
   const char *base;
   if (!s) {
@@ -383,13 +397,7 @@ static const char *load_store_dst(VReg *opr, int64_t offset, bool s) {
     base = FP;
     offset += opr->frame.offset;
   }
-  if (is_im9(offset)) {
-    return IMMEDIATE_OFFSET(base, offset);
-  } else {
-    const char *tmp = kTmpRegTable[3];
-    mov_immediate(tmp, offset, true, false);
-    return REG_OFFSET(base, tmp, NULL);
-  }
+  return load_store_operand(base, offset);
 }
 
 #define ei_load_s  ei_load
@@ -772,7 +780,13 @@ static void ei_mov(IR *ir) {
 }
 
 static void ei_result(IR *ir) {
-  int dstphys = (ir->opr1->flag & VRF_FLONUM) ? GET_D0_INDEX() : GET_X0_INDEX();
+  static const int kRegIndices[][2] = {
+    {GET_X0_INDEX(), GET_X1_INDEX()},
+    {GET_D0_INDEX(), GET_D1_INDEX()},
+  };
+  bool is_flo = ir->opr1->flag & VRF_FLONUM;
+  assert((size_t)ir->result.index < ARRAY_SIZE(kRegIndices[is_flo]));
+  int dstphys = kRegIndices[is_flo][ir->result.index];
   emit_mov(dstphys, ir->opr1, ir->flag & IRF_UNSIGNED);
 }
 
@@ -936,7 +950,39 @@ static void ei_call(IR *ir) {
   // Resore caller save registers.
   pop_caller_save_regs(ir->call->caller_saves, total);
 
-  if (ir->dst != NULL) {
+  const FrameInfo *fi = ir->call->small_struct_result_frameinfo;
+  if (fi != NULL) {
+    assert(fi->offset <= 0);
+    ssize_t offset = fi->offset;
+
+    size_t size = fi->size;
+    assert(size > 0 && size <= TARGET_POINTER_SIZE * 2);
+
+    static const int kResultRegs[] = {GET_X0_INDEX(), GET_X1_INDEX()};
+    int regidx = 0;
+    for (;;) {
+      int pow = most_significant_bit(MIN(size, TARGET_POINTER_SIZE));
+      const char *src = kRegSizeTable[pow][kResultRegs[regidx]];
+      const char *target = load_store_operand(FP, offset);
+      switch (pow) {
+      case 0:          STRB(src, target); break;
+      case 1:          STRH(src, target); break;
+      case 2: case 3:  STR(src, target); break;
+      default: assert(false); break;
+      }
+      size_t s = 1U << pow;
+      size -= s;
+      if (size <= 0)
+        break;
+      offset += s;
+      if (pow == 3) {
+        ++regidx;
+      } else {
+        const char *reg = kReg64s[kResultRegs[regidx]];
+        LSR(reg, reg, IM(s * TARGET_CHAR_BIT));
+      }
+    }
+  } else if (ir->dst != NULL) {
     if (ir->dst->flag & VRF_FLONUM) {
       if (ir->dst->phys != GET_D0_INDEX()) {
         const char *src, *dst;

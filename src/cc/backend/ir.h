@@ -138,6 +138,7 @@ typedef struct {
   // Call
   const Name *label;
   VReg **args;  // [total_arg_count]
+  FrameInfo *small_struct_result_frameinfo;
   int total_arg_count;
   int reg_arg_count;
   int vaarg_start;
@@ -191,6 +192,9 @@ typedef struct IR {
     } pusharg;
     IrCallInfo *call;
     struct {
+      int index;
+    } result;
+    struct {
       Vector *templates;  // [const char*, (intptr_t)register-index, ...]
     } asm_;
   };
@@ -222,7 +226,7 @@ void new_ir_cjmp(VReg *opr1, VReg *opr2, enum ConditionKind cond, BB *bb);  // C
 void new_ir_tjmp(VReg *val, BB **bbs, size_t len);
 IR *new_ir_pusharg(VReg *vreg, int index);
 IR *new_ir_call(IrCallInfo *info, VReg *dst, VReg *freg);
-void new_ir_result(VReg *vreg, int flag);
+void new_ir_result(VReg *vreg, int flag, int index);
 void new_ir_subsp(VReg *value, VReg *dst);
 IR *new_ir_cast(VReg *vreg, bool src_unsigned, enum VRegSize dstsize, int vflag);
 IR *new_ir_keep(VReg *dst, VReg *opr1, VReg *opr2);

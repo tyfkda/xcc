@@ -24,12 +24,14 @@ void add_code(const unsigned char *buf, size_t size) {
 extern int cur_depth;
 
 unsigned char get_func_ret_wtype(const Type *rettype) {
+  if (is_small_struct(rettype))
+    rettype = get_small_struct_elem_type(rettype);
   return rettype->kind == TY_VOID ? WT_VOID
          : is_prim_type(rettype)  ? to_wtype(rettype)
                                   : WT_I32;  // Pointer.
 }
 
-static void gen_load(const Type *type) {
+void gen_load(const Type *type) {
   switch (type->kind) {
   case TY_FIXNUM:
   case TY_PTR:
@@ -295,19 +297,12 @@ static inline void gen_funargs(Expr *expr) {
     lspvar = new_expr_variable(finfo->lspname, &tyVoidPtr, NULL, curfunc->scopes->data[0]);
   }
 
-  bool ret_param = functype->func.ret->kind != TY_VOID && !is_prim_type(functype->func.ret);
+  const Type *rettype = functype->func.ret;
+  bool ret_param = rettype->kind != TY_VOID && !is_prim_type(rettype) && !is_small_struct(rettype);
   if (ret_param) {
     assert(curfunc != NULL);
-    FuncExtra *extra = curfunc->extra;
-    assert(extra != NULL);
-    assert(extra->funcall_results != NULL);
-    VarInfo *varinfo = NULL;
-    for (int i = 0; i < extra->funcall_results->len; i += 2) {
-      if (extra->funcall_results->data[i] == expr) {
-        varinfo = extra->funcall_results->data[i + 1];
-        break;
-      }
-    }
+    assert(expr->funcall.info != NULL);
+    VarInfo *varinfo = expr->funcall.info->varinfo;
     assert(varinfo != NULL);
     // &ret_buf
     Expr *e = new_expr_variable(varinfo->ident->ident, varinfo->type, NULL,
@@ -360,13 +355,7 @@ static inline void gen_funcall_by_name(const Name *funcname) {
   ADD_VARUINT32(info->index);
 }
 
-static inline void gen_funcall_sub(Expr *expr) {
-  Expr *func = expr->funcall.func;
-  if (func->type->kind == TY_FUNC && func->kind == EX_VAR) {
-    gen_funcall_by_name(func->var.name);
-    return;
-  }
-
+static inline void gen_funcall_indirect(Expr *func) {
   gen_expr(func, true);
   ADD_CODE(OP_CALL_INDIRECT);
 
@@ -394,18 +383,43 @@ static inline void gen_funcall_sub(Expr *expr) {
   }
 }
 
-static void gen_funcall(Expr *expr) {
+static void gen_funcall(Expr *expr, bool needval) {
   Expr *func = expr->funcall.func;
-  if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
-    BuiltinFunctionProc *proc = table_get(&builtin_function_table, func->var.name);
-    if (proc != NULL) {
-      (*proc)(expr, BFP_GEN);
-      return;
-    }
+  Type *rettype = func->type->func.ret;
+  Expr *retvar = NULL;
+  if (is_small_struct(rettype)) {
+    assert(expr->funcall.info != NULL);
+    const VarInfo *ret_varinfo = expr->funcall.info->varinfo;
+    assert(ret_varinfo != NULL);
+    const Token *ident = ret_varinfo->ident;
+    Scope *scope;
+    VarInfo *vi = scope_find(curscope, ident->ident, &scope);
+    assert(scope != NULL && vi == ret_varinfo);
+    UNUSED(vi);
+    retvar = new_expr_variable(ident->ident, rettype, ident, scope);
+    gen_lval(retvar);
   }
 
-  gen_funargs(expr);
-  gen_funcall_sub(expr);
+  BuiltinFunctionProc *proc;
+  if (func->kind == EX_VAR && is_global_scope(func->var.scope) &&
+      (proc = table_get(&builtin_function_table, func->var.name)) != NULL) {
+    (*proc)(expr, BFP_GEN);
+  } else {
+    gen_funargs(expr);
+    if (func->type->kind == TY_FUNC && func->kind == EX_VAR)
+      gen_funcall_by_name(func->var.name);
+    else
+      gen_funcall_indirect(func);
+  }
+
+  if (retvar != NULL) {
+    gen_store(get_small_struct_elem_type(rettype));
+    if (needval)
+      gen_lval(retvar);
+  } else {
+    if (!needval && expr->type->kind != TY_VOID)
+      ADD_CODE(OP_DROP);
+  }
 }
 
 void gen_bpofs(int32_t offset) {
@@ -914,12 +928,6 @@ static void gen_member(Expr *expr, bool needval) {
   }
 }
 
-static void gen_funcall_expr(Expr *expr, bool needval) {
-  gen_funcall(expr);
-  if (!needval && expr->type->kind != TY_VOID)
-    ADD_CODE(OP_DROP);
-}
-
 static void gen_complit(Expr *expr, bool needval) {
   Expr *var = expr->complit.var;
   VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
@@ -959,6 +967,13 @@ static void gen_inlined(Expr *expr, bool needval) {
   cur_depth = 1;
 
   const Type *rettype = expr->type;
+  const VarInfo *ret_varinfo = expr->inlined.ret_varinfo;
+  if (ret_varinfo != NULL && needval) {
+    assert(is_small_struct(rettype));
+    VReg *vreg = ret_varinfo->local.vreg;
+    gen_bpofs(vreg->non_prim.offset);
+  }
+
   unsigned char wt = get_func_ret_wtype(rettype);
   ADD_CODE(OP_BLOCK, wt); {
     gen_stmt(embedded, true);
@@ -974,8 +989,16 @@ static void gen_inlined(Expr *expr, bool needval) {
     }
   } ADD_CODE(OP_END);
 
-  if (wt != WT_VOID && !needval)
-    ADD_CODE(OP_DROP);
+  if (ret_varinfo != NULL) {
+    if (needval) {
+      gen_store(get_small_struct_elem_type(rettype));
+      VReg *vreg = ret_varinfo->local.vreg;
+      gen_bpofs(vreg->non_prim.offset);
+    }
+  } else {
+    if (wt != WT_VOID && !needval)
+      ADD_CODE(OP_DROP);
+  }
 
   cur_depth = bak_depth;
   finfo->flag = bak_flag;
@@ -999,7 +1022,7 @@ void gen_expr(Expr *expr, bool needval) {
     [EX_PREINC] = gen_incdec, [EX_PREDEC] = gen_incdec,
     [EX_POSTINC] = gen_incdec, [EX_POSTDEC] = gen_incdec,
     [EX_REF] = gen_ref, [EX_DEREF] = gen_deref, [EX_CAST] = gen_cast, [EX_TERNARY] = gen_ternary,
-    [EX_MEMBER] = gen_member, [EX_FUNCALL] = gen_funcall_expr, [EX_INLINED] = gen_inlined,
+    [EX_MEMBER] = gen_member, [EX_FUNCALL] = gen_funcall, [EX_INLINED] = gen_inlined,
     [EX_COMPLIT] = gen_complit, [EX_BLOCK] = gen_block_expr,
   };
 
