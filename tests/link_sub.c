@@ -24,3 +24,11 @@ double many_fargs(double a, double b, double c, double d, double e, double f, do
   return h + i;
 }
 #endif
+
+//
+
+typedef struct { long x, y, z; } LargeStruct;
+
+LargeStruct pass_struct(LargeStruct v) {
+  return (LargeStruct){-v.x, ~v.y, !v.z};
+}

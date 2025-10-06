@@ -32,6 +32,7 @@ static const char *kReg64s[PHYSICAL_REG_MAX] = {
   X10, X11, X12, X13, X14, X15};                          // Caller save
 
 #define GET_X0_INDEX()   0
+#define GET_X8_INDEX()   8
 #define GET_X16_INDEX()  10
 
 #define CALLEE_SAVE_REG_COUNT  ((int)ARRAY_SIZE(kCalleeSaveRegs))
@@ -40,7 +41,12 @@ static const int kCalleeSaveRegs[] = {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21
 #define CALLER_SAVE_REG_COUNT  ((int)ARRAY_SIZE(kCallerSaveRegs))
 static const int kCallerSaveRegs[] = {22, 23, 24, 25, 26, 27};
 
-const int ArchRegParamMapping[] = {0, 1, 2, 3, 4, 5, 6, 7};
+const int ArchRegParamMapping[] = {
+  0, 1, 2, 3, 4, 5, 6, 7,
+#if EXTRA_RETURN_STRUCT_REGISTER
+  8,  // X8: This element is referred by indirect return value address.
+#endif
+};
 
 const char **kRegSizeTable[] = {kReg32s, kReg32s, kReg32s, kReg64s};
 static const char *kZeroRegTable[] = {WZR, WZR, WZR, XZR};
@@ -907,7 +913,12 @@ static void ei_pusharg(IR *ir) {
     }
   } else {
     // Assume parameter registers are arranged from index 0.
-    const char *dst = kRegSizeTable[pow][ir->pusharg.index];
+    int index = ir->pusharg.index;
+#if EXTRA_RETURN_STRUCT_REGISTER
+    if (index == kArchSetting.max_reg_args[GPREG])
+      index = GET_X8_INDEX();
+#endif
+    const char *dst = kRegSizeTable[pow][index];
     if (ir->opr1->flag & VRF_CONST)
       mov_immediate(dst, ir->opr1->fixnum, pow >= 3, ir->flag & IRF_UNSIGNED);
     else if (ir->pusharg.index != ir->opr1->phys)

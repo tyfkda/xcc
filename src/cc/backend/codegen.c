@@ -65,7 +65,11 @@ static VarInfo *prepare_retvar(Function *func) {
   VarInfo *varinfo = scope_add(top_scope, retval_token, retptrtype, 0);
   VReg *vreg = add_new_vreg(varinfo->type);
   vreg->flag |= VRF_PARAM;
+#if EXTRA_RETURN_STRUCT_REGISTER
+  vreg->reg_param_index = kArchSetting.max_reg_args[GPREG];
+#else
   vreg->reg_param_index = 0;
+#endif
   varinfo->local.vreg = vreg;
   FuncBackend *fnbe = func->extra;
   fnbe->retvarinfo = varinfo;
@@ -118,7 +122,9 @@ static void alloc_variable_registers(Function *func) {
   // Handle if return value is on the stack.
   if (func->type->func.ret->kind == TY_STRUCT) {
     prepare_retvar(func);
+#if !EXTRA_RETURN_STRUCT_REGISTER
     ++regcount[GPREG];
+#endif
   }
 
   // Count register parameters, or set flag.
@@ -145,16 +151,22 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
   int reg_index[2] = {0, 0};
   int total = 0;
 
-  FuncBackend *fnbe = func->extra;
-  VReg *retval = fnbe->retval;
-  if (retval != NULL) {
-    RegParamInfo *p = &args[total++];
-    p->varinfo = fnbe->retvarinfo;
-    p->vreg = retval;
-    p->index = 0;
-    ++arg_count[GPREG];
-    ++reg_index[GPREG];
-  }
+#define HANDLE_RETURN_STRUCT_REGISTER(idx) do { \
+    FuncBackend *fnbe = func->extra; \
+    VReg *retval = fnbe->retval; \
+    if (retval != NULL) { \
+      RegParamInfo *p = &args[total++]; \
+      p->varinfo = fnbe->retvarinfo; \
+      p->vreg = retval; \
+      p->index = idx; \
+      ++arg_count[GPREG]; \
+      ++reg_index[GPREG]; \
+    } \
+  } while (0)
+
+#if !EXTRA_RETURN_STRUCT_REGISTER
+  HANDLE_RETURN_STRUCT_REGISTER(0);
+#endif
 
   const Vector *params = func->params;
   if (params != NULL) {
@@ -180,6 +192,10 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
       arg_count[is_flo] += 1;
     }
   }
+
+#if EXTRA_RETURN_STRUCT_REGISTER
+  HANDLE_RETURN_STRUCT_REGISTER(kArchSetting.max_reg_args[GPREG]);
+#endif
   return arg_count[GPREG] + arg_count[FPREG];
 }
 

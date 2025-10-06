@@ -91,7 +91,7 @@ static void move_params_to_assigned(Function *func) {
 #define kFRegParam32s  kFReg32s
 #define kFRegParam64s  kFReg64s
 
-  RegParamInfo params[MAX_REG_ARGS + MAX_FREG_ARGS];
+  RegParamInfo params[MAX_REG_ARGS + MAX_FREG_ARGS + 1];
   const int max_reg_args[2] = {MAX_REG_ARGS, MAX_FREG_ARGS};
   int param_count = enumerate_register_params(func, max_reg_args, params);
   int reg_index[2] = {0, 0};

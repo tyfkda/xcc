@@ -57,12 +57,19 @@
 #define VAARG_ON_STACK  1
 #endif
 
+// For aarch64, the buffer for returning struct is passed with x8,
+// which is not a normal function parameter register.
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+#define EXTRA_RETURN_STRUCT_REGISTER  1
+#endif
+
 #if !defined(VAARG_FP_AS_GP) && XCC_TARGET_ARCH == XCC_ARCH_RISCV64
 // Pass floating-point arguments in general-purpose registers for variadic arguments.
 #define VAARG_FP_AS_GP  1
 #endif
 
-#if !defined(STRUCT_ARG_AS_POINTER) && XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+#if !defined(STRUCT_ARG_AS_POINTER) && \
+    (XCC_TARGET_ARCH == XCC_ARCH_AARCH64 || XCC_TARGET_ARCH == XCC_ARCH_RISCV64)
 // Put struct pointer instead of instance
 #define STRUCT_ARG_AS_POINTER  1
 #endif

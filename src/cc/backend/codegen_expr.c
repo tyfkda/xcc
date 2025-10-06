@@ -460,7 +460,11 @@ static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *
     VReg *loaded = new_ir_load(opr, VRegSize8, VRF_PARAM, 0)->dst;
 
     int regarg = ++work->regarg[GPREG];
+#if EXTRA_RETURN_STRUCT_REGISTER
+    int arg_start = 0;
+#else
     int arg_start = work->ret_varinfo != NULL ? 1 : 0;
+#endif
     int index = work->reg_arg_count[GPREG] - regarg + arg_start;
     assert(index < kArchSetting.max_reg_args[GPREG]);
     new_ir_pusharg(loaded, index);
@@ -478,8 +482,10 @@ static inline VReg *gen_funarg(Expr *arg, ArgInfo *arg_info, FuncallWork *work) 
     bool is_flo = (arg_info->flag & (ARGF_FLONUM | ARGF_FP_AS_GP)) == ARGF_FLONUM;
     int regarg = ++work->regarg[is_flo];
     int index = work->reg_arg_count[is_flo] - regarg;
+#if !EXTRA_RETURN_STRUCT_REGISTER
     if (!is_flo && work->ret_varinfo != NULL)
       ++index;
+#endif
     assert(index < kArchSetting.max_reg_args[is_flo]);
     IR *ir = new_ir_pusharg(vreg, index);
 #if !VAARG_FP_AS_GP
@@ -527,7 +533,11 @@ static inline void gen_funargs(Expr *expr, FuncallWork *work) {
   }
   work->ret_varinfo = ret_varinfo;
 
+#if EXTRA_RETURN_STRUCT_REGISTER
+  const int arg_start = 0;
+#else
   const int arg_start = ret_varinfo != NULL ? 1 : 0;
+#endif
   ArgInfo *arg_infos = calloc_or_die(sizeof(*arg_infos) * expr->funcall.args->len);
   collect_funargs(functype, arg_start, expr->funcall.args, work, arg_infos);
 
@@ -546,8 +556,13 @@ static inline void gen_funargs(Expr *expr, FuncallWork *work) {
 
   if (ret_varinfo != NULL) {
     VReg *dst = new_ir_bofs(ret_varinfo->local.frameinfo)->dst;
+#if EXTRA_RETURN_STRUCT_REGISTER
+    new_ir_pusharg(dst, kArchSetting.max_reg_args[GPREG]);
+    arg_vregs[total_arg_count - 1] = dst;
+#else
     new_ir_pusharg(dst, 0);
     arg_vregs[0] = dst;
+#endif
   }
 
   free(arg_infos);
@@ -610,6 +625,13 @@ static inline VReg *gen_funcall_sub(Expr *expr, FuncallWork *work) {
   if (funcalls == NULL)
     fnbe->funcalls = funcalls = new_vector();
   vec_push(funcalls, expr);
+
+#if EXTRA_RETURN_STRUCT_REGISTER
+  if (ret_varinfo != NULL) {
+    assert(total_arg_count > 0);
+    dst = work->arg_vregs[total_arg_count - 1];
+  }
+#endif
 
   return dst;
 }

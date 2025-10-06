@@ -79,6 +79,12 @@ typedef __gnuc_va_list va_list;
     ? (char*)(ap)->reg_save_area + ((ap)->fp_offset += __DBL_SIZE) - __DBL_SIZE \
     : __va_arg_mem(ap, sz, align))
 
+#ifdef __aarch64__
+# define __va_arg_struct(ap, ty)  ((char*)*(ty **)__va_arg_gp(ap, sizeof(ty *), _Alignof(ty *)))
+#else
+# define __va_arg_struct(ap, ty)  __va_arg_mem(ap, sizeof(ty), _Alignof(ty))
+#endif
+
 #ifndef __NO_FLONUM
 #define __va_arg_fp_case(ap, ty) \
   (__builtin_classify_type(ty) == __builtin_classify_type(double))
@@ -93,7 +99,7 @@ typedef __gnuc_va_list va_list;
     : (__builtin_classify_type(ty) == __builtin_classify_type(int) || \
        __builtin_classify_type(ty) == __builtin_classify_type(void*)) \
       ? __va_arg_gp(ap, sizeof(ty), _Alignof(ty)) \
-    : __va_arg_mem(ap, sizeof(ty), _Alignof(ty))))
+    : __va_arg_struct(ap, ty)))
 
 #define __builtin_va_copy(dest, src) ((dest)[0] = (src)[0])
 
