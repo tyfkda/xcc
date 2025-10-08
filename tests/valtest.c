@@ -10,10 +10,6 @@
 
 #include "./xtest.h"
 
-#ifndef __NO_FLONUM
-#include "math.h"
-#endif
-
 #if defined(__GNUC__)
 #pragma GCC diagnostic ignored "-Wimplicit-int"
 #endif
