@@ -353,7 +353,6 @@ static inline void gen_return(Stmt *stmt) {
     const Type *type = val->type;
     VReg *vreg = gen_expr(val);
     if (is_small_struct(type)) {
-      assert(fnbe->result_dst == NULL);  // いったんインラインのことは考えない
       size_t size = type_size(type);
       for (size_t o = 0; o < size; o += TARGET_POINTER_SIZE) {
         size_t s = MIN(size - o, TARGET_POINTER_SIZE);
@@ -361,7 +360,10 @@ static inline void gen_return(Stmt *stmt) {
         if (s > (1U << b))
           ++b;
         VReg *v = new_ir_load(vreg, o, b, 0, 0)->dst;
-        new_ir_result(v, 0, o / TARGET_POINTER_SIZE);
+        if (fnbe->result_dst == NULL)
+          new_ir_result(v, 0, o / TARGET_POINTER_SIZE);
+        else
+          new_ir_store(fnbe->result_dst, o, v, 0);
       }
     } else if (is_prim_type(type)) {
       int flag = is_unsigned(type) ? IRF_UNSIGNED : 0;

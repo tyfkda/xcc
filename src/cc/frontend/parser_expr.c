@@ -667,9 +667,16 @@ static Expr *funcall(Expr *func, Token *tok) {
   if (func->kind == EX_VAR && is_global_scope(func->var.scope)) {
     VarInfo *varinfo = scope_find(func->var.scope, func->var.name, NULL);
     assert(varinfo != NULL);
-    if (satisfy_inline_criteria(varinfo))
-      return new_expr_inlined(tok, varinfo->ident->ident, rettype, args,
-                              embed_inline_funcall(varinfo));
+    if (satisfy_inline_criteria(varinfo)) {
+      Expr *inlined = new_expr_inlined(tok, varinfo->ident->ident, rettype, args,
+                                       embed_inline_funcall(varinfo));
+      if (is_small_struct(rettype)) {
+        Expr *tmp = alloc_tmp_var(curscope, rettype);
+        inlined->inlined.ret_varinfo = scope_find(curscope, tmp->var.name, NULL);
+        mark_var_used(tmp);
+      }
+      return inlined;
+    }
     // Not inlined.
     if (varinfo->storage & VS_INLINE)
       varinfo->storage |= VS_EXTERN;  // To emit inline function.

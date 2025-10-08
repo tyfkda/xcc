@@ -926,11 +926,18 @@ static VReg *gen_inlined(Expr *expr) {
   Type *rettype = expr->type;
   VReg *dst = NULL;
   if (rettype->kind != TY_VOID) {
-    if (!is_prim_type(rettype)) {
-      // Receive as its pointer.
-      rettype = ptrof(rettype);
+    if (is_small_struct(rettype)) {
+      const VarInfo *varinfo = expr->inlined.ret_varinfo;
+      assert(varinfo != NULL);
+      dst = new_ir_bofs(varinfo->local.frameinfo)->dst;
+    } else {
+      if (!is_prim_type(rettype)) {
+        // Receive as its pointer.
+        rettype = ptrof(rettype);
+      }
+      dst = add_new_vreg(rettype);
     }
-    fnbe->result_dst = dst = add_new_vreg(rettype);
+    fnbe->result_dst = dst;
   }
 
   gen_block(embedded);
