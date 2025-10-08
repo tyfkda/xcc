@@ -248,7 +248,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   const int *MAX_REG_ARGS = kArchSetting.max_reg_args;
   VReg *ap = gen_expr(args->data[GPREG]);
   VReg *gp_offset = ap;
-  new_ir_store(gp_offset,
+  new_ir_store(gp_offset, 0,
                new_const_vreg(MIN(reg_count[GPREG], MAX_REG_ARGS[GPREG]) * TARGET_POINTER_SIZE,
                               to_vsize(&tyInt)),
                0);
@@ -256,7 +256,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   // ap->fp_offset = (MAX_REG_ARGS[FPREG] + reg_count[FPREG]) * TARGET_POINTER_SIZE
   VReg *fp_offset = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt), to_vsize(&tySize)),
                                ap->vsize, IRF_UNSIGNED);
-  new_ir_store(fp_offset,
+  new_ir_store(fp_offset, 0,
                new_const_vreg((MAX_REG_ARGS[GPREG] + MIN(reg_count[FPREG], MAX_REG_ARGS[FPREG])) * TARGET_POINTER_SIZE,
                               to_vsize(&tySize)),
                0);
@@ -276,7 +276,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
       VReg *addend = new_const_vreg(offset, vsize);
       p = new_ir_bop(IR_ADD, p, addend, vsize, IRF_UNSIGNED);
     }
-    new_ir_store(overflow_arg_area, p, 0);
+    new_ir_store(overflow_arg_area, 0, p, 0);
   }
 
   // ap->reg_save_area = -(MAX_REG_ARGS[GPREG] + MAX_REG_ARGS[FPREG]) * TARGET_POINTER_SIZE
@@ -289,7 +289,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     FrameInfo *fi = malloc_or_die(sizeof(*fi));
     fi->offset = -(MAX_REG_ARGS[GPREG] + MAX_REG_ARGS[FPREG]) * TARGET_POINTER_SIZE;
     VReg *p = new_ir_bofs(fi)->dst;
-    new_ir_store(reg_save_area, p, 0);
+    new_ir_store(reg_save_area, 0, p, 0);
   }
   return NULL;
 }

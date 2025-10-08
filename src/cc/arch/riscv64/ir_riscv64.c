@@ -242,23 +242,29 @@ static void ei_sofs(IR *ir) {
   }
 }
 
+static const char *load_store_dst(VReg *opr, int64_t offset, bool s) {
+  const char *base;
+  if (!s) {
+    assert(!(opr->flag & VRF_SPILLED));
+    base = kReg64s[opr->phys];
+  } else {
+    assert(opr->flag & VRF_SPILLED);
+    base = FP;
+    offset += opr->frame.offset;
+  }
+  if (is_im12(offset)) {
+    return IMMEDIATE_OFFSET(offset, base);
+  } else {
+    LI(kTmpReg, IM(offset));
+    ADD(kTmpReg, kTmpReg, base);
+    return IMMEDIATE_OFFSET0(kTmpReg);
+  }
+}
+
 #define ei_load_s  ei_load
 static void ei_load(IR *ir) {
   assert(!(ir->opr1->flag & VRF_CONST));
-  const char *src;
-  if (ir->kind == IR_LOAD) {
-    assert(!(ir->opr1->flag & VRF_SPILLED));
-    src = IMMEDIATE_OFFSET0(kReg64s[ir->opr1->phys]);
-  } else {
-    assert(ir->opr1->flag & VRF_SPILLED);
-    if (is_im12(ir->opr1->frame.offset)) {
-      src = IMMEDIATE_OFFSET(ir->opr1->frame.offset, FP);
-    } else {
-      LI(kTmpReg, IM(ir->opr1->frame.offset));
-      ADD(kTmpReg, kTmpReg, FP);
-      src = IMMEDIATE_OFFSET0(kTmpReg);
-    }
-  }
+  const char *src = load_store_dst(ir->opr1, ir->load.offset, ir->kind != IR_LOAD);
 
   const char *dst;
   if (ir->dst->flag & VRF_FLONUM) {
@@ -295,20 +301,7 @@ static void ei_load(IR *ir) {
 #define ei_store_s  ei_store
 static void ei_store(IR *ir) {
   assert(!(ir->opr2->flag & VRF_CONST));
-  const char *target;
-  if (ir->kind == IR_STORE) {
-    assert(!(ir->opr2->flag & VRF_SPILLED));
-    target = IMMEDIATE_OFFSET0(kReg64s[ir->opr2->phys]);
-  } else {
-    assert(ir->opr2->flag & VRF_SPILLED);
-    if (is_im12(ir->opr2->frame.offset)) {
-      target = IMMEDIATE_OFFSET(ir->opr2->frame.offset, FP);
-    } else {
-      LI(kTmpReg, IM(ir->opr2->frame.offset));
-      ADD(kTmpReg, kTmpReg, FP);
-      target = IMMEDIATE_OFFSET0(kTmpReg);
-    }
-  }
+  const char *target = load_store_dst(ir->opr2, ir->store.offset, ir->kind != IR_STORE);
   const char *src;
   if (ir->opr1->flag & VRF_FLONUM) {
     switch (ir->opr1->vsize) {

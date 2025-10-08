@@ -228,8 +228,8 @@ void gen_memcpy(const Type *type, VReg *dst, VReg *src) {
   size_t count = size >> elem_vsize;
   assert(count > 0);
   if (count == 1) {
-    VReg *tmp = new_ir_load(src, elem_vsize, to_vflag(type), 0)->dst;
-    new_ir_store(dst, tmp, 0);
+    VReg *tmp = new_ir_load(src, 0, elem_vsize, to_vflag(type), 0)->dst;
+    new_ir_store(dst, 0, tmp, 0);
   } else {
     VReg *srcp = add_new_vreg(&tyVoidPtr);
     new_ir_mov(srcp, src, IRF_UNSIGNED);
@@ -243,9 +243,9 @@ void gen_memcpy(const Type *type, VReg *dst, VReg *src) {
 
     BB *loop_bb = new_bb();
     set_curbb(loop_bb);
-    VReg *tmp = new_ir_load(srcp, elem_vsize, to_vflag(type), 0)->dst;
+    VReg *tmp = new_ir_load(srcp, 0, elem_vsize, to_vflag(type), 0)->dst;
     new_ir_mov(srcp, new_ir_bop(IR_ADD, srcp, vadd, srcp->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // srcp += elem_size
-    new_ir_store(dstp, tmp, 0);
+    new_ir_store(dstp, 0, tmp, 0);
     new_ir_mov(dstp, new_ir_bop(IR_ADD, dstp, vadd, dstp->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // dstp += elem_size
     new_ir_mov(vcount, new_ir_bop(IR_SUB, vcount, new_const_vreg(1, vsSize),
                                   vcount->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // vcount -= 1
@@ -263,7 +263,7 @@ static void gen_clear(const Type *type, VReg *dst) {
   assert(count > 0);
   VReg *vzero = new_const_vreg(0, elem_vtype);
   if (count == 1) {
-    new_ir_store(dst, vzero, 0);
+    new_ir_store(dst, 0, vzero, 0);
   } else {
     VReg *dstp = add_new_vreg(&tyVoidPtr);
     new_ir_mov(dstp, dst, IRF_UNSIGNED);
@@ -275,7 +275,7 @@ static void gen_clear(const Type *type, VReg *dst) {
 
     BB *loop_bb = new_bb();
     set_curbb(loop_bb);
-    new_ir_store(dstp, vzero, 0);
+    new_ir_store(dstp, 0, vzero, 0);
     new_ir_mov(dstp, new_ir_bop(IR_ADD, dstp, vadd, dstp->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // dstp += elem_size
     new_ir_mov(vcount, new_ir_bop(IR_SUB, vcount, new_const_vreg(1, vsSize),
                                   vcount->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // vcount -= 1
