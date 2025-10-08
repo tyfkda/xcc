@@ -232,9 +232,10 @@ VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize, int flag) {
   return ir->dst = reg_alloc_spawn(curra, vsize, opr->flag & VRF_MASK);
 }
 
-IR *new_ir_load(VReg *opr, enum VRegSize vsize, int vflag, int irflag) {
+IR *new_ir_load(VReg *opr, int64_t offset, enum VRegSize vsize, int vflag, int irflag) {
   IR *ir = new_ir(IR_LOAD);
   ir->opr1 = opr;
+  ir->load.offset = offset;
   ir->flag = irflag;
   ir->dst = reg_alloc_spawn(curra, vsize, vflag);
   return ir;
@@ -265,10 +266,11 @@ IR *new_ir_sofs(VReg *src) {
   return ir;
 }
 
-IR *new_ir_store(VReg *dst, VReg *src, int flag) {
+IR *new_ir_store(VReg *dst, int64_t offset, VReg *src, int flag) {
   IR *ir = new_ir(IR_STORE);
   ir->opr1 = src;
   ir->opr2 = dst;  // `dst` is used by indirect, so it is not actually `dst`.
+  ir->store.offset = offset;
   ir->flag = flag;
   return ir;
 }

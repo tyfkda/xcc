@@ -117,7 +117,7 @@ static void dump_ir(FILE *fp, IR *ir, RegAlloc *ra) {
   case IR_BOFS:   { int64_t offset = ir->bofs.frameinfo->offset + ir->bofs.offset; dump_vreg(fp, ir->dst, ra); fprintf(fp, " = &[rbp %c %" PRId64 "]\n", offset >= 0 ? '+' : '-', offset > 0 ? offset : -offset); } break;
   case IR_IOFS:   dump_vreg(fp, ir->dst, ra); fprintf(fp, " = &%.*s", NAMES(ir->iofs.label)); if (ir->iofs.offset != 0) { int64_t offset = ir->iofs.offset; fprintf(fp, " %c %" PRId64, offset >= 0 ? '+' : '-', offset > 0 ? offset : -offset); } fprintf(fp, "\n"); break;
   case IR_SOFS:   dump_vreg(fp, ir->dst, ra); fprintf(fp, " = &[rsp %c %" PRId64 "]\n", ir->opr1->fixnum >= 0 ? '+' : '-', ir->opr1->fixnum > 0 ? ir->opr1->fixnum : -ir->opr1->fixnum); break;
-  case IR_LOAD:   dump_vreg(fp, ir->dst, ra); fprintf(fp, " = ["); dump_vreg(fp, ir->opr1, ra); fprintf(fp, "]\n"); break;
+  case IR_LOAD:   dump_vreg(fp, ir->dst, ra); fprintf(fp, " = ["); dump_vreg(fp, ir->opr1, ra); if (ir->load.offset != 0) fprintf(fp, " %+" PRId64 "]\n", ir->load.offset); fprintf(fp, "]\n"); break;
   case IR_LOAD_S: dump_vreg(fp, ir->dst, ra); fprintf(fp, " = [v%d]\n", ir->opr1->virt); break;
   case IR_STORE:  fprintf(fp, "["); dump_vreg(fp, ir->opr2, ra); fprintf(fp, "] = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, "\n"); break;
   case IR_STORE_S:fprintf(fp, "[v%d] = ", ir->opr2->virt); dump_vreg(fp, ir->opr1, ra); fprintf(fp, "\n"); break;

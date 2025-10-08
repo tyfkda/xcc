@@ -373,23 +373,29 @@ static void ei_sofs(IR *ir) {
   }
 }
 
+static const char *load_store_dst(VReg *opr, int64_t offset, bool s) {
+  const char *base;
+  if (!s) {
+    assert(!(opr->flag & VRF_SPILLED));
+    base = kReg64s[opr->phys];
+  } else {
+    assert(opr->flag & VRF_SPILLED);
+    base = FP;
+    offset += opr->frame.offset;
+  }
+  if (is_im9(offset)) {
+    return IMMEDIATE_OFFSET(base, offset);
+  } else {
+    const char *tmp = kTmpRegTable[3];
+    mov_immediate(tmp, offset, true, false);
+    return REG_OFFSET(base, tmp, NULL);
+  }
+}
+
 #define ei_load_s  ei_load
 static void ei_load(IR *ir) {
   assert(!(ir->opr1->flag & VRF_CONST));
-  const char *src;
-  if (ir->kind == IR_LOAD) {
-    assert(!(ir->opr1->flag & VRF_SPILLED));
-    src = IMMEDIATE_OFFSET0(kReg64s[ir->opr1->phys]);
-  } else {
-    assert(ir->opr1->flag & VRF_SPILLED);
-    if (is_im9(ir->opr1->frame.offset)) {
-      src = IMMEDIATE_OFFSET(FP, ir->opr1->frame.offset);
-    } else {
-      const char *tmp = kTmpRegTable[3];
-      mov_immediate(tmp, ir->opr1->frame.offset, true, false);
-      src = REG_OFFSET(FP, tmp, NULL);
-    }
-  }
+  const char *src = load_store_dst(ir->opr1, ir->load.offset, ir->kind != IR_LOAD);
 
   const char *dst;
   if (ir->dst->flag & VRF_FLONUM) {
@@ -425,20 +431,7 @@ static void ei_load(IR *ir) {
 static void ei_store(IR *ir) {
   assert(!(ir->opr2->flag & VRF_CONST));
   int pow = ir->opr1->vsize;
-  const char *target;
-  if (ir->kind == IR_STORE) {
-    assert(!(ir->opr2->flag & VRF_SPILLED));
-    target = IMMEDIATE_OFFSET0(kReg64s[ir->opr2->phys]);
-  } else {
-    assert(ir->opr2->flag & VRF_SPILLED);
-    if (is_im9(ir->opr2->frame.offset)) {
-      target = IMMEDIATE_OFFSET(FP, ir->opr2->frame.offset);
-    } else {
-      const char *tmp = kTmpRegTable[3];
-      mov_immediate(tmp, ir->opr2->frame.offset, true, false);
-      target = REG_OFFSET(FP, tmp, NULL);
-    }
-  }
+  const char *target = load_store_dst(ir->opr2, ir->store.offset, ir->kind != IR_STORE);
   const char *src;
   if (ir->opr1->flag & VRF_FLONUM) {
     switch (ir->opr1->vsize) {

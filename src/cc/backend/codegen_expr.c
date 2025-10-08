@@ -305,7 +305,7 @@ static VReg *gen_variable(Expr *expr) {
 
       VReg *vreg = gen_lval(expr);
       int irflag = is_unsigned(expr->type) ? IRF_UNSIGNED : 0;
-      IR *ir = new_ir_load(vreg, to_vsize(expr->type),
+      IR *ir = new_ir_load(vreg, 0, to_vsize(expr->type),
                            to_vflag_with_storage(expr->type, varinfo->storage), irflag);
       return ir->dst;
     }
@@ -454,11 +454,7 @@ static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *
 
   // Assumed little endian.
   for (size_t i = n; i-- > 0; ) {
-    VReg *opr = vreg;
-    size_t offset = i * TARGET_POINTER_SIZE;
-    if (offset > 0)
-      opr = new_ir_bop(IR_ADD, vreg, new_const_vreg(offset, VRegSize8), VRegSize8, 0);
-    VReg *loaded = new_ir_load(opr, VRegSize8, VRF_PARAM, 0)->dst;
+    VReg *loaded = new_ir_load(vreg, i * TARGET_POINTER_SIZE, VRegSize8, VRF_PARAM, 0)->dst;
 
     int regarg = ++work->regarg[GPREG];
 #if EXTRA_RETURN_STRUCT_REGISTER
@@ -501,7 +497,7 @@ static inline VReg *gen_funarg(Expr *arg, ArgInfo *arg_info, FuncallWork *work) 
     VReg *dst = new_ir_sofs(new_const_vreg(ofs, offset_type))->dst;
     if (is_prim_type(arg->type)) {
       int flag = is_unsigned(arg->type) ? IRF_UNSIGNED : 0;
-      new_ir_store(dst, vreg, flag);
+      new_ir_store(dst, 0, vreg, flag);
     } else {
       gen_memcpy(arg->type, dst, vreg);
     }
@@ -702,7 +698,7 @@ static VReg *gen_deref(Expr *expr) {
   // array, struct and func values are handled as a pointer.
   if (is_prim_type(expr->type)) {
     int irflag = is_unsigned(expr->type) ? IRF_UNSIGNED : 0;
-    vreg = new_ir_load(vreg, to_vsize(expr->type), to_vflag(expr->type), irflag)->dst;
+    vreg = new_ir_load(vreg, 0, to_vsize(expr->type), to_vflag(expr->type), irflag)->dst;
   }
   return vreg;
 }
@@ -723,7 +719,7 @@ static VReg *gen_member(Expr *expr) {
   VReg *result = vreg;
   if (is_prim_type(expr->type)) {
     int irflag = is_unsigned(expr->type) ? IRF_UNSIGNED : 0;
-    result = new_ir_load(vreg, to_vsize(expr->type), to_vflag(expr->type), irflag)->dst;
+    result = new_ir_load(vreg, 0, to_vsize(expr->type), to_vflag(expr->type), irflag)->dst;
   }
   return result;
 }
@@ -763,7 +759,7 @@ static VReg *gen_assign_sub(Expr *lhs, Expr *rhs) {
   case TY_FLONUM:
     {
       int flag = is_unsigned(rhs->type) ? IRF_UNSIGNED : 0;
-      new_ir_store(dst, src, flag);
+      new_ir_store(dst, 0, src, flag);
     }
     break;
   case TY_STRUCT:
@@ -808,7 +804,7 @@ static VReg *gen_expr_incdec(Expr *expr) {
     }
   } else {
     lval = gen_lval(target);
-    val = new_ir_load(lval, vsize, to_vflag(expr->type), flag)->dst;
+    val = new_ir_load(lval, 0, vsize, to_vflag(expr->type), flag)->dst;
     if (IS_POST(expr))
       before = val;
   }
@@ -820,7 +816,7 @@ static VReg *gen_expr_incdec(Expr *expr) {
       new_const_vreg(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1, vsize);
   VReg *after = new_ir_bop(kOpAddSub[IS_DEC(expr)], val, addend, vsize, flag);
   if (varinfo != NULL)  new_ir_mov(varinfo->local.vreg, after, flag);
-  else                  new_ir_store(lval, after, flag);
+  else                  new_ir_store(lval, 0, after, flag);
   return before != NULL ? before : after;
 #undef IS_POST
 #undef IS_DEC

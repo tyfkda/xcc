@@ -259,21 +259,26 @@ static void ei_sofs(IR *ir) {
   LEA(OFFSET_INDIRECT(ir->opr1->fixnum, RSP, NULL, 1), kReg64s[ir->dst->phys]);
 }
 
+static const char *load_store_dst(VReg *opr, int64_t offset, bool s) {
+  const char *base;
+  if (opr->flag & VRF_CONST) {
+    assert(!s);
+    return fmt("0x%x", offset + opr->fixnum);
+  } else if (!s) {
+    assert(!(opr->flag & VRF_SPILLED));
+    base = kReg64s[opr->phys];
+  } else {
+    assert(!(opr->flag & VRF_CONST));
+    assert(opr->flag & VRF_SPILLED);
+    base = RBP;
+    offset += opr->frame.offset;
+  }
+  return OFFSET_INDIRECT(offset, base, NULL, 1);
+}
+
 #define ei_load_s  ei_load
 static void ei_load(IR *ir) {
-  const char *src;
-  if (ir->kind == IR_LOAD) {
-    if (ir->opr1->flag & VRF_CONST) {
-      src = fmt("0x%x", ir->opr1->fixnum);
-    } else {
-      assert(!(ir->opr1->flag & VRF_SPILLED));
-      src = INDIRECT(kReg64s[ir->opr1->phys], NULL, 1);
-    }
-  } else {
-    assert(!(ir->opr1->flag & VRF_CONST));
-    assert(ir->opr1->flag & VRF_SPILLED);
-    src = OFFSET_INDIRECT(ir->opr1->frame.offset, RBP, NULL, 1);
-  }
+  const char *src = load_store_dst(ir->opr1, ir->load.offset, ir->kind != IR_LOAD);
 
   if (ir->dst->flag & VRF_FLONUM) {
     switch (ir->dst->vsize) {
@@ -291,19 +296,7 @@ static void ei_load(IR *ir) {
 
 #define ei_store_s  ei_store
 static void ei_store(IR *ir) {
-  const char *target;
-  if (ir->kind == IR_STORE) {
-    if (ir->opr2->flag & VRF_CONST) {
-      target = fmt("0x%x", ir->opr2->fixnum);
-    } else {
-      assert(!(ir->opr2->flag & VRF_SPILLED));
-      target = INDIRECT(kReg64s[ir->opr2->phys], NULL, 1);
-    }
-  } else {
-    assert(!(ir->opr2->flag & VRF_CONST));
-    assert(ir->opr2->flag & VRF_SPILLED);
-    target = OFFSET_INDIRECT(ir->opr2->frame.offset, RBP, NULL, 1);
-  }
+  const char *target = load_store_dst(ir->opr2, ir->store.offset, ir->kind != IR_STORE);
 
   if (ir->opr1->flag & VRF_FLONUM) {
     switch (ir->opr1->vsize) {

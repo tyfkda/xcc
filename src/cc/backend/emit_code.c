@@ -332,7 +332,7 @@ int insert_const_fload(VReg **pvreg, Vector *irs, int i) {
   IR *iofs = new_ir_iofs(c->flonum.label, false);
   vec_insert(irs, i++, iofs);
 
-  IR *load = new_ir_load(iofs->dst, c->vsize, c->flag & VRF_MASK, 0);
+  IR *load = new_ir_load(iofs->dst, 0, c->vsize, c->flag & VRF_MASK, 0);
   vec_insert(irs, i++, load);
   *pvreg = load->dst;
   return i;
