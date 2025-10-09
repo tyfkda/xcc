@@ -85,13 +85,12 @@ static void move_params_to_assigned(Function *func) {
   for (int i = 0; i < param_count; ++i) {
     RegParamInfo *p = &params[i];
     VReg *vreg = p->vreg;
-    const Type *type = p->varinfo->type;
     if (vreg == NULL) {
       // Small struct passed by value: Store to the stack frame.
-      size_t size = type_size(type);
+      const FrameInfo *fi = p->frameinfo;
+      size_t size = fi->size;
       if (size <= 0)
         continue;
-      FrameInfo *fi = p->varinfo->local.frameinfo;
       int offset = fi->offset;
       assert(offset < 0);
       int index = p->index;
@@ -150,9 +149,8 @@ static void move_params_to_assigned(Function *func) {
         }
       }
     } else {
-      size_t size = type_size(type);
-      int pow = most_significant_bit(size);
-      assert(IS_POWER_OF_2(size) && pow < 4);
+      int pow = vreg->vsize;
+      assert(pow < 4);
       const char *src = kReg64s[ArchRegParamMapping[p->index]];
       if (vreg->flag & VRF_SPILLED) {
         int offset = vreg->frame.offset;
