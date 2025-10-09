@@ -100,7 +100,8 @@ static void alloc_variable_registers(Function *func) {
       }
 #endif
       if (!is_prim_type(type)) {
-        FrameInfo *fi = malloc_or_die(sizeof(*fi));
+        FrameInfo *fi = calloc_or_die(sizeof(*fi));
+        fi->size = type_size(type);
         fi->offset = 0;
         varinfo->local.frameinfo = fi;
         continue;
@@ -156,7 +157,8 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
     VReg *retval = fnbe->retval; \
     if (retval != NULL) { \
       RegParamInfo *p = &args[total++]; \
-      p->varinfo = fnbe->retvarinfo; \
+      assert(is_local_storage(fnbe->retvarinfo)); \
+      p->frameinfo = fnbe->retvarinfo->local.frameinfo; \
       p->vreg = retval; \
       p->index = idx; \
       ++arg_count[GPREG]; \
@@ -185,8 +187,9 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
         continue;
       reg_index[is_flo] += n;
 
+      assert(is_local_storage(varinfo));
       RegParamInfo *p = &args[total++];
-      p->varinfo = varinfo;
+      p->frameinfo = varinfo->local.frameinfo;
       p->vreg = varinfo->local.vreg;  // Might be NULL (small struct).
       p->index = regidx;
       arg_count[is_flo] += 1;
@@ -796,8 +799,10 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
     VarInfo *varinfo = func->params->data[i];
     assert(is_local_storage(varinfo));
     const Type *type = varinfo->type;
-    size_t size = type_size(type), align = align_size(type);
+    size_t align = align_size(type);
     bool is_flo = is_flonum(type);
+    FrameInfo *fi = varinfo->local.frameinfo;
+    size_t size = fi->size;  // type_size(type);
     if (is_small_struct(type)) {
       size_t n = (size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
       if (reg_index[is_flo] + (int)n <= kArchSetting.max_reg_args[is_flo]) {
@@ -805,7 +810,6 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
         reg_index[GPREG] += n;
 
         // Allocate stack frame.
-        FrameInfo *fi = varinfo->local.frameinfo;
         frame_size = ALIGN(frame_size + size, align);
         fi->offset = -(int)frame_size;
         continue;
@@ -819,7 +823,6 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
       size = align = TARGET_POINTER_SIZE;
     }
 
-    FrameInfo *fi = varinfo->local.frameinfo;
     fi->offset = param_offset = ALIGN(param_offset, align);
     param_offset += ALIGN(size, TARGET_POINTER_SIZE);
     require_stack_frame = true;
@@ -839,8 +842,6 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
       }
 
       assert(varinfo->local.vreg == NULL);
-      FrameInfo *fi = varinfo->local.frameinfo;
-      assert(fi != NULL);
 
       Type *type = varinfo->type;
       size_t size = type_size(type);
@@ -864,6 +865,8 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
       size_t align = align_size(type);
 
       frame_size = ALIGN(frame_size + size, align);
+      FrameInfo *fi = varinfo->local.frameinfo;
+      assert(fi != NULL);
       fi->offset = -(int)frame_size;
     }
   }
@@ -912,6 +915,7 @@ bool gen_defun(Function *func) {
   fnbe->result_dst = NULL;
   fnbe->funcalls = NULL;
   fnbe->frame_size = 0;
+  fnbe->vaarg_frame_info.size = -1;  // Dummy.
   fnbe->vaarg_frame_info.offset = 0;  // Calculated in later.
   fnbe->stack_work_size = 0;
   fnbe->stack_work_size_vreg = NULL;

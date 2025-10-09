@@ -48,7 +48,7 @@ void gen_clear_local_var(const VarInfo *varinfo);
 void gen_memcpy(const Type *type, VReg *dst, VReg *src);
 
 typedef struct {
-  const VarInfo *varinfo;
+  const FrameInfo *frameinfo;
   VReg *vreg;
   int index;
 } RegParamInfo;
