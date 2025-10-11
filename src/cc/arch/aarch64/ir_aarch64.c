@@ -377,6 +377,16 @@ static void ei_sofs(IR *ir) {
   }
 }
 
+static const char *load_store_operand(const char *base, int64_t offset) {
+  if (is_im9(offset) || (offset >= 0 && offset <= 16380 && (offset & 0x3) == 0)) {
+    return IMMEDIATE_OFFSET(base, offset);
+  } else {
+    const char *tmp = kTmpRegTable[3];
+    mov_immediate(tmp, offset, true, false);
+    return REG_OFFSET(base, tmp, NULL);
+  }
+}
+
 static const char *load_store_dst(VReg *opr, int64_t offset, bool s) {
   const char *base;
   if (!s) {
@@ -387,13 +397,7 @@ static const char *load_store_dst(VReg *opr, int64_t offset, bool s) {
     base = FP;
     offset += opr->frame.offset;
   }
-  if (is_im9(offset)) {
-    return IMMEDIATE_OFFSET(base, offset);
-  } else {
-    const char *tmp = kTmpRegTable[3];
-    mov_immediate(tmp, offset, true, false);
-    return REG_OFFSET(base, tmp, NULL);
-  }
+  return load_store_operand(base, offset);
 }
 
 #define ei_load_s  ei_load
@@ -959,7 +963,7 @@ static void ei_call(IR *ir) {
     for (;;) {
       int pow = most_significant_bit(MIN(size, TARGET_POINTER_SIZE));
       const char *src = kRegSizeTable[pow][kResultRegs[regidx]];
-      const char *target = IMMEDIATE_OFFSET(FP, offset);
+      const char *target = load_store_operand(FP, offset);
       switch (pow) {
       case 0:          STRB(src, target); break;
       case 1:          STRH(src, target); break;

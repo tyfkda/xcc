@@ -273,10 +273,15 @@ static unsigned char *asm_ldrstr(Inst *inst, Code *code) {
           s = 1;
         }
         if (opr2->indirect.prepost == 0) {
-          if (offset >= 0)
+          if (offset >= 0) {
+            if (offset > 16380)
+              return NULL;
             W_LDR_UIMM(b | sz, s, opr1->reg.no, offset >> (b + (inst->op == LDR ? sz : 0)), base);
-          else
+          } else {
+            if (offset < -256)
+              return NULL;
             W_LDUR(b | sz, s, opr1->reg.no, offset, base);
+          }
         } else {
           W_LDR(b | sz, s, opr1->reg.no, offset, base, prepost);
         }
@@ -286,10 +291,15 @@ static unsigned char *asm_ldrstr(Inst *inst, Code *code) {
       {
         uint32_t b = inst->op - STRB;
         if (opr2->indirect.prepost == 0) {
-          if (offset >= 0)
+          if (offset >= 0) {
+            if (offset > 16380)
+              return NULL;
             W_STR_UIMM(b | sz, opr1->reg.no, offset >> (b + (inst->op == STR ? sz : 0)), base);
-          else
+          } else {
+            if (offset < -256)
+              return NULL;
             W_STUR(b | sz, opr1->reg.no, offset, base);
+          }
         } else {
           W_STR(b | sz, opr1->reg.no, offset, base, prepost);
         }
