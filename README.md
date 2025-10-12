@@ -2,7 +2,7 @@ XCC
 ===
 
 [![Action Status](https://github.com/tyfkda/xcc/workflows/AllTests/badge.svg)](https://github.com/tyfkda/xcc)
-[![Open in Gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/tyfkda/xcc)
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/tyfkda/xcc?quickstart=1)
 
 C compiler running on Linux or MacOS.
 
