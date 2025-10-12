@@ -2,6 +2,7 @@
 #include "codegen.h"
 
 #include <assert.h>
+#include <limits.h>
 #include <stdlib.h>  // malloc
 #include <string.h>
 
@@ -390,6 +391,8 @@ static inline ArgInfo *collect_funargs(const Type *functype, int arg_start, Vect
   int reg_index[2] = {arg_start, 0};  // [0]=gp-reg, [1]=fp-reg
 
   // Check stack arguments.
+  int vaarg_start = functype->func.vaargs && functype->func.params != NULL
+      ? functype->func.params->len : INT_MAX;
   for (int i = 0; i < arg_count; ++i) {
     ArgInfo *p = &arg_infos[i];
     p->reg_index = -1;
@@ -400,9 +403,7 @@ static inline ArgInfo *collect_funargs(const Type *functype, int arg_start, Vect
     p->size = type_size(arg_type);
     if (is_flonum(arg_type))
       p->flag |= ARGF_FLONUM;
-    bool is_vaarg = functype->func.vaargs && functype->func.params != NULL &&
-                    i >= functype->func.params->len;
-    UNUSED(is_vaarg);
+    bool is_vaarg = i >= vaarg_start;
 #if VAARG_FP_AS_GP
     if (is_vaarg)
       p->flag |= ARGF_FP_AS_GP;
@@ -410,13 +411,9 @@ static inline ArgInfo *collect_funargs(const Type *functype, int arg_start, Vect
     bool is_flo = (p->flag & (ARGF_FLONUM | ARGF_FP_AS_GP)) == ARGF_FLONUM;
     bool stack_arg = is_stack_param(arg_type) ||
                      reg_index[is_flo] >= kArchSetting.max_reg_args[is_flo];
-#if VAARG_ON_STACK
-    if (is_vaarg)
-      stack_arg = true;
-#endif
 
     size_t regnum = 1;
-    if (arg_type->kind == TY_STRUCT && is_small_struct(arg_type)) {
+    if (arg_type->kind == TY_STRUCT && is_small_struct(arg_type) && !is_vaarg) {
       size_t n = (p->size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
       if (reg_index[GPREG] + (int)n <= kArchSetting.max_reg_args[GPREG]) {
         assert(!is_flo);
@@ -424,6 +421,10 @@ static inline ArgInfo *collect_funargs(const Type *functype, int arg_start, Vect
         regnum = n;
       }
     }
+#if VAARG_ON_STACK
+    if (is_vaarg)
+      stack_arg = true;
+#endif
 
     if (stack_arg) {
       offset = ALIGN(offset, align_size(arg_type));

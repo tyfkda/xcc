@@ -232,7 +232,8 @@ typedef struct {
 static inline void gen_funarg(Expr *arg, int i, FuncallWork *work) {
   Expr *lspvar = work->lspvar;
   const Type *type = arg->type;
-  if (is_small_struct(type)) {
+  bool vaarg = i >= work->param_count;
+  if (!vaarg && is_small_struct(type)) {
     size_t size = type_size(type);
     assert(IS_POWER_OF_2(size));
     gen_expr(arg, true);
@@ -256,7 +257,7 @@ static inline void gen_funarg(Expr *arg, int i, FuncallWork *work) {
       ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);  // src, dst
       work->offset = offset + size;
     }
-  } else if (i < work->param_count) {
+  } else if (!vaarg) {
     gen_expr(arg, true);
   } else {
     // *(global.sp + offset) = arg

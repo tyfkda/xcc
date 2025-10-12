@@ -527,10 +527,6 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
         break;
 #if STRUCT_ARG_AS_POINTER || VAARG_STRUCT_AS_POINTER
       case TY_STRUCT:
-#if STRUCT_ARG_AS_POINTER
-        if (is_small_struct(type))
-          break;
-#endif
         arg = struct_arg_as_pointer(arg, type);
         break;
 #endif
