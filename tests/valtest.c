@@ -11,7 +11,14 @@
 #include "./xtest.h"
 
 #if defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wbitfield-constant-conversion"
+#pragma GCC diagnostic ignored "-Wbitwise-op-parentheses"
+#pragma GCC diagnostic ignored "-Wdeprecated-non-prototype"
+#pragma GCC diagnostic ignored "-Wgnu-folding-constant"
 #pragma GCC diagnostic ignored "-Wimplicit-int"
+#pragma GCC diagnostic ignored "-Wshift-op-parentheses"
+#pragma GCC diagnostic ignored "-Wstring-plus-int"
+#pragma GCC diagnostic ignored "-Wunused-value"
 #endif
 
 #define EXPECT(title, expected, actual)  expecti64(title, expected, actual)
@@ -21,21 +28,14 @@ int g_init = (8 * 7 + 100 / 4 - 50 % 3) & 0x5a | 0x100;
 
 void *null = (void*)0;
 
-struct {int x; int *p;} g_struct = { 42, &g_zero };
-
 static int s_val = 456;
 
 extern int e_val;
 
 short protodecl(short);
 
-int foo(void) {
+int return_123(void) {
   return 123;
-}
-int (*foop)(void) = foo;
-
-int sq(int x) {
-  return x * x;
 }
 
 int sqsub(int x, int y) {
@@ -69,65 +69,10 @@ int ptr_from_array(int *p) {
   return *(p + 1);
 }
 
-int vaargs(int n, ...) {
-  int acc = 0;
-  va_list ap;
-  va_start(ap, n);
-  acc += va_arg(ap, int);
-  if (n >= 2) {
-    char v = va_arg(ap, int);  // char is promoted to int.
-    acc += v;
-  }
-  if (n >= 3)
-    acc += va_arg(ap, long);
-  va_end(ap);
-  return acc;
-}
-
-int vaargs_before_many(int a, int b, int c, int d, int e, int f, int g, int h, int i, ...) {
-  va_list ap;
-  va_start(ap, i);
-  int x = va_arg(ap, int);
-  va_end(ap);
-  return a + b + c + d + e + f + g + h + i + x;
-}
-
-typedef struct {long x, y, z;} VaargStruct;
-long vaargs_struct(int n, ...) {
-  va_list ap;
-  va_start(ap, n);
-  int a = 0;
-  for (int i = 0; i < n; ++i) {
-    VaargStruct s = va_arg(ap, VaargStruct);
-    int m = va_arg(ap, int);
-    a += (s.x * 100 + s.y * 10 + s.z) * m;
-  }
-  va_end(ap);
-  return a;
-}
-
-long struct_vaargs(VaargStruct s, int n, ...) {
-  va_list ap;
-  va_start(ap, n);
-  int a = s.x * 100 + s.y * 10 + s.z;
-  for (int i = 0; i < n; ++i) {
-    int m = va_arg(ap, int);
-    a += m;
-  }
-  va_end(ap);
-  return a;
-}
-
 int static_local(void) {
   static int x = 42;
   return ++x;
 }
-
-#if !defined(__wasm)
-int oldfuncptr(int (*f)(), int x) {
-  return f(f(x));
-}
-#endif
 
 _Bool bool_inc(_Bool x) { return x + 1; }
 
@@ -417,7 +362,7 @@ TEST(all) {
   EXPECT("t || f", 1, (x=1, y=0, x || y));
   EXPECT("f || f", 0, (x=0, y=0, x || y));
 
-  EXPECT("funcall", 23, foo() - 100);
+  EXPECT("funcall", 23, return_123() - 100);
   EXPECT("func var", 9, sqsub(5, 4));
   {
     int x = 0;
@@ -602,37 +547,9 @@ TEST(all) {
   }
   EXPECT("global cleared", 0, g_zero);
   EXPECT("global initializer", 330, g_init);
-  EXPECT("global struct initializer: int", 42, g_struct.x);
-  EXPECT("global struct initializer: ptr", (intptr_t)&g_zero, (intptr_t)g_struct.p);
   {
     g_work = 1;
     EXPECT("global access", 11, g_work + 10);
-  }
-  {
-    struct {char x; int y;} foo;
-    foo.x = 1;
-    foo.y = 2;
-    EXPECT("struct", 3, foo.x + foo.y);
-  }
-  {
-    struct {char x; int y;} foo, *p = &foo;
-    p->x = 1;
-    p->y = 2;
-    EXPECT("struct pointer", 3, foo.x + foo.y);
-  }
-  {
-    union {char x; int y;} foo;
-    EXPECT("union", 1, sizeof(foo) == sizeof(int) && (void*)&foo.x == (void*)&foo.y);
-  }
-  {
-    struct{
-      union{
-        int x;
-      };
-    } a;
-    a.x = 596;
-    EXPECT("anonymous", 596, a.x);
-    EXPECT("anonymous adr", (intptr_t)&a, (intptr_t)&a.x);
   }
   EXPECT("func pointer", 9, apply(&sub, 15, 6));
   EXPECT("func pointer w/o &", 9, apply(sub, 15, 6));
@@ -790,10 +707,6 @@ TEST(all) {
   }
   EXPECT("sizeof(struct)", 8, sizeof(struct {int a; char b;}));
   EXPECT("sizeof(empty struct)", 0, sizeof(struct {}));
-  {
-    struct {} a, b;
-    EXPECT("empty struct occupy", 1, &a != &b);
-  }
   EXPECT("sizeof(str) include nul", 12, sizeof("hello\0world"));
   EXPECT("sizeof(struct ptr)", sizeof(void*), sizeof(struct Undefined*));
   EXPECT("sizeof(func ptr)", sizeof(void*), sizeof(int (*)()));
@@ -824,30 +737,6 @@ TEST(all) {
 #endif
   }
   {
-    struct {int x; int y;} s = {3};
-    EXPECT("struct initializer", 3, s.x + s.y);
-  }
-  {
-    struct {int x; int y;} s = {3, 4,};
-    EXPECT("struct initializer with last comma", 7, s.x + s.y);
-  }
-  {
-    struct {int x; int y;} s = {.y = 9};
-    EXPECT("struct initializer with member", 9, s.x + s.y);
-  }
-  {
-    union {char x; int y;} u = {0x1234};
-    EXPECT("union initializer", 0x34, u.x);
-  }
-  {
-    union {int y; char x;} u = {0x5678};
-    EXPECT("union initializer2", 0x5678, u.y);
-  }
-  {
-    union {char x; int y;} u = {.y=0xabcd};
-    EXPECT("union initializer with member", 0xabcd, u.y);
-  }
-  {
     const int x = 123;
     EXPECT("const", 123, x);
   }
@@ -874,50 +763,6 @@ TEST(all) {
     EXPECT("volatile_only", 44, volatile_only);
     EXPECT("sizeof volatile_only", sizeof(int), sizeof(volatile_only));
   }
-  {
-    static const struct {
-      int x;
-    } sc_struct = {
-      55
-    };
-    EXPECT("sc_struct", 55, sc_struct.x);
-  }
-  {
-    static const struct {
-      int a;
-      struct {
-        int b;
-        struct {
-          int z;
-        } y;
-      } x;
-    } t = {
-      1, { 2, { 3 } }
-    };
-    static const int *p = &t.x.y.z;
-    EXPECT("&member initializer", 3, *p);
-  }
-  {
-    static const struct {
-      int a;
-      struct {
-        int b[2];
-      } x[2];
-    } t = {
-      11, { {{22, 23}}, {{33, 34}} }
-    };
-    static const int *p = t.x[1].b;
-    EXPECT("member[].member initializer", 33, *p);
-  }
-  {
-    struct S {
-      int a;
-      int b;
-    };
-    struct S x = {11, 22};
-    struct S a[] = {x};
-    EXPECT("struct initializer with variable", 33, a[0].a + a[0].b);
-  }
 
   {
     int desig[] = {[2] = 100, [1] 200};
@@ -936,20 +781,6 @@ TEST(all) {
   }
   EXPECT("?:", 2, 1 ? 2 : 3);
   EXPECT("comma", 3333, (11, 222, 3333));
-  EXPECT("vaargs 1", 1, vaargs(1, (int)1, (char)20, 300L));
-  EXPECT("vaargs 2", 21, vaargs(2, (int)1, (char)20, 300L));
-  EXPECT("vaargs 3", 321, vaargs(3, (int)1, (char)20, 300L));
-  {
-    char c = 'A';
-    EXPECT("vaargs char", 65, vaargs(1, c));
-  }
-  EXPECT("vaargs before many", 145, vaargs_before_many(1, 2, 3, 4, 5, 6, 7, 8, 9, 100));
-  {
-    VaargStruct s1 = {1, 2, 3};
-    VaargStruct s2 = {4, 5, 6};
-    EXPECT("vaargs struct", 456369, vaargs_struct(2, s1, 3, s2, 1000));
-    EXPECT("vaargs struct2", 123 + 55, struct_vaargs(s1, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
-  }
 
   EXPECT("static local var", 44, (static_local(), static_local()));
   EXPECT("null initializer", 0L, (long)null);
@@ -1030,6 +861,18 @@ int f53(void){return 53;}
 void mul2p(int *p) {*p *= 2;}
 const char *retstr(void){ return "foo"; }
 
+#if !defined(__wasm)
+int oldfuncptr(int (*f)(), int x) {
+  return f(f(x));
+}
+#endif
+
+int ofpsub(int x) {
+  return x * x;
+}
+
+int (*g_funcptr)(void) = f27;
+
 TEST(basic) {
   {
     int array[0];
@@ -1097,7 +940,8 @@ TEST(basic) {
 
   {
     typedef char T1, T2[29];
-    EXPECT("multi typedef", 29, sizeof(T2));
+    EXPECT("multi typedef 1", 1, sizeof(T1));
+    EXPECT("multi typedef 2", 29, sizeof(T2));
   }
 
   {
@@ -1117,15 +961,15 @@ TEST(basic) {
     int oldstylefunc();
     EXPECT("old-style func", 93, oldstylefunc(31));
 
-    EXPECT("old-func-ptr", 81, oldfuncptr(sq, 3));
+    EXPECT("old-func-ptr", 81, oldfuncptr(ofpsub, 3));
   }
 #endif
 
   {
-    EXPECT("global-func-var", 123, foop());
+    EXPECT("global-func-var", 27, g_funcptr());
 
-    static int (*f)(void) = foo;
-    EXPECT("static-func-var", 123, f());
+    static int (*f)(void) = f53;
+    EXPECT("static-func-var", 53, f());
   }
 
   {
@@ -1339,12 +1183,15 @@ int oldstylefunc(int x) {
 
 //
 
-typedef struct {int x, y;} FooStruct;
+int g_struct_target;
+struct {int x; int *p;} g_struct = { 42, &g_struct_target };
 
-int struct_arg(FooStruct foo, int k) { return foo.x * k + foo.y; }
-FooStruct return_struct(void) { FooStruct s = {.x = 12, .y = 34}; return s; }
+typedef struct {int x, y; long dummy1, dummy2;} StructArg;
 
-typedef struct {long x; long y;} LongStruct;
+int struct_arg(StructArg foo, int k) { return foo.x * k + foo.y; }
+StructArg return_struct(void) { StructArg s = {.x = 12, .y = 34}; return s; }
+
+typedef struct {long x; long y; long dummy1, dummy2;} LongStruct;
 LongStruct return_lstruct(void) { LongStruct s = {111, 222}; return s; }
 
 typedef struct { short x, y, z; } SVec3;
@@ -1366,9 +1213,65 @@ SVec3 modify_struct_param(SVec3 v) {
 }
 
 TEST(struct) {
-  FooStruct foo;
-  foo.x = 123;
-  EXPECT("typedef", 123, foo.x);
+  EXPECT("global struct initializer: int", 42, g_struct.x);
+  EXPECT("global struct initializer: ptr", (intptr_t)&g_struct_target, (intptr_t)g_struct.p);
+
+  {
+    struct {char x; int y;} foo;
+    foo.x = 1;
+    foo.y = 2;
+    EXPECT("struct", 3, foo.x + foo.y);
+  }
+  {
+    struct {char x; int y;} foo, *p = &foo;
+    p->x = 1;
+    p->y = 2;
+    EXPECT("struct pointer", 3, foo.x + foo.y);
+  }
+  {
+    union {char x; int y;} foo;
+    EXPECT("union", 1, sizeof(foo) == sizeof(int) && (void*)&foo.x == (void*)&foo.y);
+  }
+  {
+    struct{
+      union{
+        int x;
+      };
+    } a;
+    a.x = 596;
+    EXPECT("anonymous", 596, a.x);
+    EXPECT("anonymous adr", (intptr_t)&a, (intptr_t)&a.x);
+  }
+
+  {
+    struct {} a, b;
+    EXPECT("empty struct occupy", 1, &a != &b);
+  }
+
+  {
+    struct {int x; int y;} s = {3};
+    EXPECT("struct initializer", 3, s.x + s.y);
+  }
+  {
+    struct {int x; int y;} s = {3, 4,};
+    EXPECT("struct initializer with last comma", 7, s.x + s.y);
+  }
+  {
+    struct {int x; int y;} s = {.y = 9};
+    EXPECT("struct initializer with member", 9, s.x + s.y);
+  }
+  {
+    union {char x; int y;} u = {0x1234};
+    EXPECT("union initializer", 0x34, u.x);
+  }
+  {
+    union {int y; char x;} u = {0x5678};
+    EXPECT("union initializer2", 0x5678, u.y);
+  }
+  {
+    union {char x; int y;} u = {.y=0xabcd};
+    EXPECT("union initializer with member", 0xabcd, u.y);
+  }
 
   {
     typedef struct FILE FILE;
@@ -1461,10 +1364,10 @@ TEST(struct) {
   }
 
   {
-    FooStruct foo = {12, 34};
+    StructArg foo = {12, 34};
     EXPECT("struct args", 82, struct_arg(foo, 4));
 
-    const FooStruct bar = {56, 78};
+    const StructArg bar = {56, 78};
     EXPECT("implicit cast to non-const", 246, struct_arg(bar, 3));
   }
 
@@ -1493,7 +1396,7 @@ TEST(struct) {
   }
 
   {
-    FooStruct s = return_struct();
+    StructArg s = return_struct();
     EXPECT("return struct", 46, s.x + s.y);
 
     EXPECT("return struct member", 12, return_struct().x);
@@ -1832,6 +1735,7 @@ TEST(bitfield) {
 
 //
 
+typedef struct {int x, y;} InitStruct;
 char g_strarray[] = "StrArray";
 char *g_strptr = "StrPtr";
 char *g_strptrarray[] = {"StrPtrArray"};
@@ -1841,12 +1745,12 @@ char nums[] = "0123456789";
 char *g_ptr_ref1 = nums + 4;
 char *g_ptr_ref2 = &nums[2];
 int g_array[] = {10,20,30};
-FooStruct g_comp_deficit = (FooStruct){};
+InitStruct g_comp_deficit = (InitStruct){};
 int g_comp_array[] = (int[]){11, 22, 33, 0};
 int *g_comp_ptr = (int[]){45, 56, 67, 78, 0};
 union { int x; struct { char a; short b; } y; } g_union = {.y={.b=77}};
 struct {union {int x;};} g_anonymous = {.x = 99};
-FooStruct *g_comp_p = &(FooStruct){88};
+InitStruct *g_comp_p = &(InitStruct){88};
 
 TEST(initializer) {
   {
@@ -1876,7 +1780,7 @@ TEST(initializer) {
 
   EXPECT("global compound literal init (deficit)", 0, g_comp_deficit.x);
   {
-    FooStruct l_comp_deficit = (FooStruct){};
+    InitStruct l_comp_deficit = (InitStruct){};
     EXPECT("global compound literal init (deficit)", 0, l_comp_deficit.x);
   }
 
@@ -1941,6 +1845,51 @@ TEST(initializer) {
   EXPECT("anonymous union init", 99, g_anonymous.x);
 
   {
+    static const struct {
+      int x;
+    } sc_struct = {
+      55
+    };
+    EXPECT("sc_struct", 55, sc_struct.x);
+  }
+  {
+    static const struct {
+      int a;
+      struct {
+        int b;
+        struct {
+          int z;
+        } y;
+      } x;
+    } t = {
+      1, { 2, { 3 } }
+    };
+    static const int *p = &t.x.y.z;
+    EXPECT("&member initializer", 3, *p);
+  }
+  {
+    static const struct {
+      int a;
+      struct {
+        int b[2];
+      } x[2];
+    } t = {
+      11, { {{22, 23}}, {{33, 34}} }
+    };
+    static const int *p = t.x[1].b;
+    EXPECT("member[].member initializer", 33, *p);
+  }
+  {
+    struct S {
+      int a;
+      int b;
+    };
+    struct S x = {11, 22};
+    struct S a[] = {x};
+    EXPECT("struct initializer with variable", 33, a[0].a + a[0].b);
+  }
+
+  {
     int *foo = (int[]){1, 2, 3};
     EXPECT("compound literal:array", 2, foo[1]);
   }
@@ -1972,7 +1921,7 @@ TEST(initializer) {
 
 void empty_function(void){}
 int more_params(int a, int b, int c, int d, int e, int f, char g, long h, short i, unsigned char j) { return a + b + c + d + e + f + g + h + i + j; }
-typedef struct {int x; int y;} MoreParamsReturnsStruct;
+typedef struct {int x; int y; long dummy1, dummy2;} MoreParamsReturnsStruct;
 MoreParamsReturnsStruct more_params_returns_struct(int a, int b, int c, int d, int e, int f, char g, long h, short i, unsigned char j) { return (MoreParamsReturnsStruct){a + b + c + d + e + f + g + h + i + j}; }
 int array_arg_wo_size(int arg[]) { return arg[1]; }
 long long long_immediate(unsigned long long x) { return x / 11; }
@@ -1989,30 +1938,24 @@ static inline bool inline_odd(int x)  { return x == 0 ? false : inline_even(x - 
 static inline bool inline_even(int x)  { return x == 0 ? true : inline_odd(x - 1); }
 static inline MoreParamsReturnsStruct inline_returns_struct(int x, int y) { return (MoreParamsReturnsStruct){-x, ~y}; }
 
+typedef struct {short x;} SmallStruct;
+SmallStruct small_struct_param_and_result(int a, SmallStruct s1, int b, SmallStruct s2) {
+  return (SmallStruct){a * s1.x + b * s2.x};
+}
+static inline SmallStruct inline_small_struct_param_and_result(int a, SmallStruct s1, int b, SmallStruct s2) {
+  return (SmallStruct){a * s1.x + b * s2.x};
+}
+
 int mul2(int x) {return x * 2;}
 int div2(int x) {return x / 2;}
 int (*func_ptr_array[])(int) = {mul2, div2};
 
+int sub2(int x, int y) {return x - y;}
+int square(int x) {return x * x;}
+
 typedef unsigned char u8;
 u8 const_typedefed(const u8 x);
 u8 const_typedefed(const unsigned char x) { return x - 1;}
-
-int vaarg_and_array(int n, ...) {
-  int a[14 * 2];
-  for (int i = 0; i < 14 * 2; ++i)
-    a[i] = 100 + i;
-  va_list ap;
-  va_start(ap, n);
-  int sum = 0;
-  for (int i = 0; i < n; ++i)
-    sum += va_arg(ap, int);
-  va_end(ap);
-  return sum;
-}
-
-int (*fnptr(int (*fn)(int n, ...)))(int, ...) {
-  return fn;
-}
 
 int use_alloca(int index) {
   int *a = alloca(10 * sizeof(*a));
@@ -2064,7 +2007,7 @@ TEST(function) {
       acc += func_ptr_array[i](12);
     EXPECT("func-ptr-array", 30, acc);
 
-    int (*funcs[])(int) = {div2, sq, mul2};
+    int (*funcs[])(int) = {div2, square, mul2};
     int value = 18;
     for (int i = 0; i < 3; ++i)
       value = funcs[i](value);
@@ -2072,7 +2015,7 @@ TEST(function) {
   }
   {
     int w = 0, x = 2, y = 5;
-    int z = sub(++x, y += 10);
+    int z = sub2(++x, y += 10);
     EXPECT("modify arg", 6, x + y + z + w);
   }
 
@@ -2119,9 +2062,13 @@ TEST(function) {
     EXPECT("inline return struct 1", -1234, r.x);
     EXPECT("inline return struct 2", ~5678, r.y);
   }
-
-  EXPECT("stdarg", 55, vaarg_and_array(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
-  EXPECT("vaarg fnptr", 15, fnptr(vaarg_and_array)(5, 1, 2, 3, 4, 5));
+  {
+    static SmallStruct s1 = {87}, s2 = {12};
+    SmallStruct r1 = small_struct_param_and_result(100, s1, 2, s2);
+    EXPECT("small struct", 8724, r1.x);
+    SmallStruct r2 = inline_small_struct_param_and_result(1000, s2, 3, s1);
+    EXPECT("inline small struct", 12261, r2.x);
+  }
 
   {
     int x = 77;
@@ -2144,6 +2091,94 @@ TEST(function) {
 
 long extern_in_func;
 int extern_array_wo_size[] = {11, 22, 33};
+
+//
+
+int vaargs(int n, ...) {
+  int acc = 0;
+  va_list ap;
+  va_start(ap, n);
+  acc += va_arg(ap, int);
+  if (n >= 2) {
+    char v = va_arg(ap, int);  // char is promoted to int.
+    acc += v;
+  }
+  if (n >= 3)
+    acc += va_arg(ap, long);
+  va_end(ap);
+  return acc;
+}
+
+int vaargs_before_many(int a, int b, int c, int d, int e, int f, int g, int h, int i, ...) {
+  va_list ap;
+  va_start(ap, i);
+  int x = va_arg(ap, int);
+  va_end(ap);
+  return a + b + c + d + e + f + g + h + i + x;
+}
+
+typedef struct {long x, y, z;} VaargStruct;
+long vaargs_struct(int n, ...) {
+  va_list ap;
+  va_start(ap, n);
+  int a = 0;
+  for (int i = 0; i < n; ++i) {
+    VaargStruct s = va_arg(ap, VaargStruct);
+    int m = va_arg(ap, int);
+    a += (s.x * 100 + s.y * 10 + s.z) * m;
+  }
+  va_end(ap);
+  return a;
+}
+
+long struct_vaargs(VaargStruct s, int n, ...) {
+  va_list ap;
+  va_start(ap, n);
+  int a = s.x * 100 + s.y * 10 + s.z;
+  for (int i = 0; i < n; ++i) {
+    int m = va_arg(ap, int);
+    a += m;
+  }
+  va_end(ap);
+  return a;
+}
+
+int vaarg_and_array(int n, ...) {
+  int a[14 * 2];
+  for (int i = 0; i < 14 * 2; ++i)
+    a[i] = 100 + i;
+  va_list ap;
+  va_start(ap, n);
+  int sum = 0;
+  for (int i = 0; i < n; ++i)
+    sum += va_arg(ap, int);
+  va_end(ap);
+  return sum;
+}
+
+int (*fnptr(int (*fn)(int n, ...)))(int, ...) {
+  return fn;
+}
+
+TEST(vaarg) {
+  EXPECT("vaargs 1", 1, vaargs(1, (int)1, (char)20, 300L));
+  EXPECT("vaargs 2", 21, vaargs(2, (int)1, (char)20, 300L));
+  EXPECT("vaargs 3", 321, vaargs(3, (int)1, (char)20, 300L));
+  {
+    char c = 'A';
+    EXPECT("vaargs char", 65, vaargs(1, c));
+  }
+  EXPECT("vaargs before many", 145, vaargs_before_many(1, 2, 3, 4, 5, 6, 7, 8, 9, 100));
+  {
+    VaargStruct s1 = {1, 2, 3};
+    VaargStruct s2 = {4, 5, 6};
+    EXPECT("vaargs struct", 456369, vaargs_struct(2, s1, 3, s2, 1000));
+    EXPECT("vaargs struct2", 123 + 55, struct_vaargs(s1, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
+  }
+
+  EXPECT("stdarg", 55, vaarg_and_array(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
+  EXPECT("vaarg fnptr", 15, fnptr(vaarg_and_array)(5, 1, 2, 3, 4, 5));
+}
 
 //
 
@@ -2227,6 +2262,8 @@ TEST(vla) {
 
 //
 
+int func_for_auto(void) {return 432;}
+
 TEST(extension) {
   {
 #define GENERIC_FUNC(x) _Generic((x), int: 1, long: 2, uint64_t: 3, char*: 10, const char*: 11, void*: 12, default: 99)
@@ -2264,8 +2301,8 @@ TEST(extension) {
     EXPECT("auto type size", sizeof(int), sizeof(x));
     EXPECT("auto type", 7, x);
 
-    __auto_type f = &foo;  // int (*f)(void)
-    EXPECT("auto type fnptr", 123, f());
+    __auto_type f = &func_for_auto;  // int (*f)(void)
+    EXPECT("auto type fnptr", 432, f());
   }
 }
 
