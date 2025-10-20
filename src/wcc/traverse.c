@@ -577,8 +577,6 @@ static void traverse_varinfo(VarInfo *varinfo) {
         info->flag |= GVF_UNRESOLVED;
     }
   }
-  if (!(varinfo->storage & (VS_EXTERN | VS_STATIC | VS_ENUM_MEMBER)))
-    traverse_initializer(varinfo->local.init);
 }
 
 static void traverse_scope(Scope *scope) {
