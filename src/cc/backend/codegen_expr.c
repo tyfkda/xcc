@@ -72,7 +72,7 @@ static struct CompareExpr gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
   enum ConditionKind cond = kind + (COND_EQ - EX_EQ);
 
   int flag = 0;
-  if ((is_fixnum(lhs->type->kind) && lhs->type->fixnum.is_unsigned) ||
+  if ((is_fixnum(lhs->type) && lhs->type->fixnum.is_unsigned) ||
        lhs->type->kind == TY_PTR) {
     // unsigned
     flag = COND_UNSIGNED;

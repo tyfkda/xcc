@@ -466,7 +466,7 @@ static ssize_t parse_array_size(Expr **pvla) {
     }
     // Fallthrough
   default:
-    if (is_fixnum(expr->type->kind)) {
+    if (is_fixnum(expr->type)) {
       *pvla = expr;
       mark_var_used(expr);
       length = LEN_VLA;

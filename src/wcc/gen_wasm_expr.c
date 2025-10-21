@@ -36,7 +36,7 @@ void gen_load(const Type *type) {
   case TY_FIXNUM:
   case TY_PTR:
     {
-      bool u = !is_fixnum(type->kind) || type->fixnum.is_unsigned;
+      bool u = !is_fixnum(type) || type->fixnum.is_unsigned;
       switch (type_size(type)) {
       case 1:  ADD_CODE(u ? OP_I32_LOAD8_U : OP_I32_LOAD8_S, 0, 0); break;
       case 2:  ADD_CODE(u ? OP_I32_LOAD16_U : OP_I32_LOAD16_S, 1, 0); break;
@@ -81,7 +81,7 @@ void gen_store(const Type *type) {
 static void gen_arith(enum ExprKind kind, const Type *type) {
   assert(is_number(type) || ptr_or_array(type));
   int index = 0;
-  bool is_unsigned = is_fixnum(type->kind) && type->fixnum.is_unsigned;
+  bool is_unsigned = is_fixnum(type) && type->fixnum.is_unsigned;
   if (is_flonum(type)) {
     assert(kind < EX_MOD);
     index = type->flonum.kind >= FL_DOUBLE ? 3 : 2;
@@ -164,7 +164,7 @@ static void gen_cast_to(const Type *dst, Type *src) {
         };
         int d = type_size(dst);
         int index = (d > I32_SIZE ? 2 : 0) + (src->flonum.kind >= FL_DOUBLE ? 1 : 0);
-        bool du = !is_fixnum(dst->kind) || dst->fixnum.is_unsigned;
+        bool du = !is_fixnum(dst) || dst->fixnum.is_unsigned;
         ADD_CODE(OpTable[du][index]);
       }
       return;
@@ -181,7 +181,7 @@ static void gen_cast_to(const Type *dst, Type *src) {
         };
         int s = type_size(src);
         int index = (dst->flonum.kind >= FL_DOUBLE ? 2 : 0) + (s > I32_SIZE ? 1 : 0);
-        bool su = !is_fixnum(src->kind) || src->fixnum.is_unsigned;
+        bool su = !is_fixnum(src) || src->fixnum.is_unsigned;
         ADD_CODE(OpTable[su][index]);
       }
       return;

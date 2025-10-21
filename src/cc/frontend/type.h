@@ -130,7 +130,7 @@ void set_fixnum_size(enum FixnumKind kind, size_t size, int align);
 size_t type_size(const Type *type);
 size_t align_size(const Type *type);
 
-static inline bool is_fixnum(enum TypeKind kind)  { return kind == TY_FIXNUM; }
+static inline bool is_fixnum(const Type *type)  { return type->kind == TY_FIXNUM; }
 static inline bool is_flonum(const Type *type)  {
 #ifndef __NO_FLONUM
   return type->kind == TY_FLONUM;

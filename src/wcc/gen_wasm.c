@@ -25,7 +25,7 @@ static void gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs, bool need
   assert(is_prim_type(lhs->type) || !needval);
 
   gen_expr(lhs, needval);
-  if (needval && is_const(rhs) && is_fixnum(rhs->type->kind) && rhs->fixnum == 0 && kind == EX_EQ) {
+  if (needval && is_const(rhs) && is_fixnum(rhs->type) && rhs->fixnum == 0 && kind == EX_EQ) {
     ADD_CODE(type_size(lhs->type) <= I32_SIZE ? OP_I32_EQZ : OP_I64_EQZ);
     return;
   }
@@ -37,7 +37,7 @@ static void gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs, bool need
   if (is_flonum(lhs->type)) {
     index = lhs->type->flonum.kind >= FL_DOUBLE ? 5 : 4;
   } else {
-    index = (!is_fixnum(lhs->type->kind) || lhs->type->fixnum.is_unsigned ? 2 : 0) +
+    index = (!is_fixnum(lhs->type) || lhs->type->fixnum.is_unsigned ? 2 : 0) +
             (type_size(lhs->type) > I32_SIZE ? 1 : 0);
   }
 
@@ -187,7 +187,7 @@ static void gen_switch(Stmt *stmt) {
   }
   // Must be simple expression, because this is evaluated multiple times.
   assert(is_const(value) || value->kind == EX_VAR);
-  assert(is_fixnum(value->type->kind));
+  assert(is_fixnum(value->type));
 
   int default_index = block_count;
   Fixnum min = INTPTR_MAX;

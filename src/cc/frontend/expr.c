@@ -133,7 +133,7 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
   // On x64, cannot cast from double to uint64_t directly.
   size_t dst_size = type_size(type);
   if (is_flonum(sub->type) &&
-      is_fixnum(type->kind) && type->fixnum.is_unsigned && dst_size >= 8) {
+      is_fixnum(type) && type->fixnum.is_unsigned && dst_size >= 8) {
     // Transform from (uint64_t)flonum
     //   to: (flonum <= INT64_MAX) ? (int64_t)flonum
     //                             : ((int64_t)(flonum - (INT64_MAX + 1UL)) ^ (1L << 63))
@@ -520,7 +520,7 @@ Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rh
   } while (0);
 
   if ((kind == EX_DIV || kind == EX_MOD) && is_const(rhs) &&
-      is_fixnum(rhs->type->kind) && rhs->fixnum == 0) {
+      is_fixnum(rhs->type) && rhs->fixnum == 0) {
     parse_error(PE_WARNING, rhs->token, "Divide by 0");
   }
 
@@ -528,9 +528,9 @@ Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rh
 }
 
 Expr *new_expr_int_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
-  if (!is_fixnum(lhs->type->kind))
+  if (!is_fixnum(lhs->type))
     parse_error(PE_FATAL, lhs->token, "int type expected");
-  if (!is_fixnum(rhs->type->kind))
+  if (!is_fixnum(rhs->type))
     parse_error(PE_FATAL, rhs->token, "int type expected");
   return new_expr_num_bop(kind, tok, lhs, rhs);
 }
@@ -602,7 +602,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
     cast_numbers(&lhs, &rhs, true);
     type = lhs->type;
   } else if (ptr_or_array(ltype)) {
-    if (is_fixnum(rtype->kind)) {
+    if (is_fixnum(rtype)) {
       type = ltype;
       if (ltype->kind == TY_ARRAY)
         type = array_to_ptr(ltype);
@@ -641,7 +641,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
           new_expr_fixlit(&tySSize, tok, type_size(ltype->pa.ptrof)));
     }
   } else if (ptr_or_array(rtype)) {
-    if (kind == EX_ADD && is_fixnum(ltype->kind)) {
+    if (kind == EX_ADD && is_fixnum(ltype)) {
       type = rhs->type;
       if (type->kind == TY_ARRAY)
         type = array_to_ptr(type);
@@ -818,7 +818,7 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
   {
     Type *lt = lhs->type, *rt = rhs->type;
     if (is_number(lt) && is_number(rt)) {
-      if (is_fixnum(lt->kind) && is_fixnum(rt->kind)) {
+      if (is_fixnum(lt) && is_fixnum(rt)) {
         if (lt->fixnum.kind < FX_INT)
           lhs = promote_to_int(lhs);
         if (rt->fixnum.kind < FX_INT)
@@ -1093,7 +1093,7 @@ static Expr *calc_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
     {
       Type *ltype = lhs->type;
       Type *rtype = rhs->type;
-      if (!is_fixnum(ltype->kind) || !is_fixnum(rtype->kind))
+      if (!is_fixnum(ltype) || !is_fixnum(rtype))
         parse_error(PE_FATAL, tok, "Cannot use `%.*s' except numbers.",
                     (int)(tok->end - tok->begin), tok->begin);
       return new_expr_bop(kind, ltype, tok, lhs, rhs);

@@ -366,7 +366,7 @@ static Expr *unary(Token *tok) {
         return expr;
       }
 
-      if (is_fixnum(type->kind)) {
+      if (is_fixnum(type)) {
         expr = promote_to_int(expr);
         type = expr->type;
       }
@@ -378,7 +378,7 @@ static Expr *unary(Token *tok) {
             return expr;
           }
 #endif
-          assert(is_fixnum(type->kind));
+          assert(is_fixnum(type));
           expr->fixnum = wrap_value(-expr->fixnum, type_size(type), type->fixnum.is_unsigned);
           expr->type = type;
         }
@@ -396,7 +396,7 @@ static Expr *unary(Token *tok) {
     }
     return make_not_expr(tok, expr);
   case TK_TILDA:
-    if (!is_fixnum(expr->type->kind)) {
+    if (!is_fixnum(expr->type)) {
       parse_error(PE_NOFATAL, tok, "Cannot apply `~' except integer");
       return new_expr_fixlit(&tyInt, expr->token, 0);
     }
@@ -453,8 +453,8 @@ static Expr *binary(Expr *lhs, Token *tok) {
   case TK_MUL: case TK_DIV: case TK_MOD:
     return new_expr_num_bop(kind + (EX_MUL - TK_MUL), tok, lhs, rhs);
   case TK_LSHIFT: case TK_RSHIFT:
-    if (!is_fixnum(lhs->type->kind) ||
-        !is_fixnum(rhs->type->kind))
+    if (!is_fixnum(lhs->type) ||
+        !is_fixnum(rhs->type))
       parse_error(PE_NOFATAL, tok, "Cannot use `%.*s' except numbers.", (int)(tok->end - tok->begin), tok->begin);
 
     lhs = promote_to_int(lhs);
@@ -500,7 +500,7 @@ static Expr *ternary(Expr *expr, Token *tok) {
     parse_error(PE_NOFATAL, tok, "lhs and rhs must be same type");
     type = tval->type;  // Dummy to continue.
   } else {
-    if (is_fixnum(type->kind) && type->fixnum.kind < FX_INT)
+    if (is_fixnum(type) && type->fixnum.kind < FX_INT)
       type = &tyInt;
     if (type->kind != TY_VOID) {
       tval = make_cast(type, tval->token, tval, false);
@@ -585,7 +585,7 @@ static Expr *array_index(Expr *expr, Token *token) {
     expr = index;
     index = tmp;
   }
-  if (!is_fixnum(index->type->kind)) {
+  if (!is_fixnum(index->type)) {
     parse_error(PE_NOFATAL, index->token, "int required for `['");
   } else {
     expr = new_expr_addsub(EX_ADD, token, expr, index);
@@ -829,7 +829,7 @@ Expr *parse_const_fixnum(void) {
   Expr *expr = parse_precedence(PREC_LOGIOR);
   if (expr == NULL)
     return NULL;  // Error is already reported.
-  if (is_const(expr) && is_fixnum(expr->type->kind))
+  if (is_const(expr) && is_fixnum(expr->type))
     return expr;
   parse_error(PE_NOFATAL, expr->token, "constant integer expected");
   return new_expr_fixlit(&tyInt, expr->token, 1);

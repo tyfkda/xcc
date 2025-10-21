@@ -233,11 +233,11 @@ size_t align_size(const Type *type) {
 }
 
 bool is_number(const Type *type) {
-  return is_flonum(type) || is_fixnum(type->kind);
+  return is_flonum(type) || is_fixnum(type);
 }
 
 bool is_unsigned(const Type *type) {
-  return (is_fixnum(type->kind) && type->fixnum.is_unsigned) || type->kind == TY_PTR;
+  return (is_fixnum(type) && type->fixnum.is_unsigned) || type->kind == TY_PTR;
 }
 
 bool is_char_type(const Type *type, /*enum FixnumKind*/int str_kind) {

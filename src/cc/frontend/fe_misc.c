@@ -606,8 +606,8 @@ Type *choose_ternary_result_type(Expr *tval, Expr *fval) {
     } else if (is_flonum(ftype)) {
       return ftype;
     }
-    assert(is_fixnum(ttype->kind));
-    assert(is_fixnum(ftype->kind));
+    assert(is_fixnum(ttype));
+    assert(is_fixnum(ftype));
     if (ttype->fixnum.kind >= FX_ENUM)
       ttype = &tyInt;
     if (ftype->fixnum.kind >= FX_ENUM)
