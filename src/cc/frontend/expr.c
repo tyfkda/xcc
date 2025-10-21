@@ -217,10 +217,14 @@ static Expr *reduce_refer_deref_add(Expr *expr, Type *subtype, Expr *lhs, Fixnum
                           new_expr_fixlit(sub->type, sub->token, sub->fixnum + rhs));
   } else if (lhs->kind == EX_ADD && lhs->bop.rhs->kind == EX_FIXNUM) {
     // *(((lhs->lhs) + (lhs->rhs)) + rhs) => *(lhs->lhs + (lhs->rhs + rhs))
-    return new_expr_unary(EX_DEREF, expr->type, expr->token,
-                          new_expr_bop(EX_ADD, subtype, lhs->token, lhs->bop.lhs,
-                                       new_expr_fixlit(lhs->bop.rhs->type, lhs->bop.rhs->token,
-                                                       lhs->bop.rhs->fixnum + rhs)));
+    Expr *p = lhs->bop.lhs;
+    Fixnum offset = lhs->bop.rhs->fixnum + rhs;
+    if (offset == 0)
+      p = make_cast(subtype, lhs->token, p, true);
+    else
+      p = new_expr_bop(EX_ADD, subtype, lhs->token, p,
+                       new_expr_fixlit(lhs->bop.rhs->type, lhs->bop.rhs->token, offset));
+    return new_expr_unary(EX_DEREF, expr->type, expr->token, p);
   }
   return NULL;
 }
@@ -246,17 +250,24 @@ Expr *reduce_refer(Expr *expr) {
 
       // Transform member access to pointer dereference, only if target is referenceable.
       // target->field => *(target + offset(field))
-      Type *type = target->type;
       switch (target->kind) {
       case EX_VAR:
       case EX_DEREF:
-        if (type->kind == TY_STRUCT) {
-          // target.field => (&target)->field
-          target = new_expr_unary(EX_REF, ptrof(type), target->token, target);
+        {
+          Type *type = target->type;
+          if (type->kind == TY_STRUCT) {
+            // target.field => (&target)->field
+            target = new_expr_unary(EX_REF, ptrof(type), target->token, target);
+          }
+          Expr *p;
+          Type *ptype = ptrof(minfo->type);
+          if (minfo->offset == 0)
+            p = make_cast(ptype, expr->token, target, true);
+          else
+            p = new_expr_bop(EX_ADD, ptype, expr->token, target,
+                             new_expr_fixlit(&tySize, expr->token, minfo->offset));
+          return new_expr_unary(EX_DEREF, minfo->type, expr->token, p);
         }
-        return new_expr_unary(EX_DEREF, minfo->type, expr->token,
-                              new_expr_bop(EX_ADD, ptrof(minfo->type), expr->token, target,
-                                           new_expr_fixlit(&tySize, expr->token, minfo->offset)));
       default:
         // ex. funcall().x cannot be taken its reference, so keep the expression.
         break;
@@ -643,15 +654,21 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
   if (type == NULL) {
     parse_error(PE_NOFATAL, tok, "Cannot apply `%.*s'", (int)(tok->end - tok->begin), tok->begin);
     type = ltype;  // Dummy
-  } else if (ptr_or_array(ltype) && is_const(lhs) && is_const(rhs)) {
-    assert(lhs->kind == EX_FIXNUM);
-    if (kind == EX_ADD) {
-      lhs->fixnum += rhs->fixnum;
-    } else {
-      assert(kind == EX_SUB);
-      lhs->fixnum -= rhs->fixnum;
+  } else if (ptr_or_array(ltype)) {
+    if (is_const(rhs)) {
+      if (is_const(lhs)) {
+        assert(lhs->kind == EX_FIXNUM);
+        if (kind == EX_ADD) {
+          lhs->fixnum += rhs->fixnum;
+        } else {
+          assert(kind == EX_SUB);
+          lhs->fixnum -= rhs->fixnum;
+        }
+        return lhs;
+      } else if (rhs->fixnum == 0) {
+        return lhs;
+      }
     }
-    return lhs;
   }
   return new_expr_bop(kind, type, tok, lhs, rhs);
 }
