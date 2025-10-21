@@ -30,7 +30,7 @@
     "commander": "~13.1.0",
     "sass": "~1.86.3",
     "ts-node": "~10.9.2",
-    "vite": "~6.3.1"
+    "vite": "~6.4.1"
   },
   "dependencies": {
     "@wasmer/wasi": "~0.12.0",
