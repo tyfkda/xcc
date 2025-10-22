@@ -26,9 +26,7 @@ extern int cur_depth;
 unsigned char get_func_ret_wtype(const Type *rettype) {
   if (is_small_struct(rettype))
     rettype = get_small_struct_elem_type(rettype);
-  return rettype->kind == TY_VOID ? WT_VOID
-         : is_prim_type(rettype)  ? to_wtype(rettype)
-                                  : WT_I32;  // Pointer.
+  return is_prim_type(rettype)  ? to_wtype(rettype) : WT_VOID;
 }
 
 void gen_load(const Type *type) {
@@ -279,6 +277,27 @@ static inline void gen_funarg(Expr *arg, int i, FuncallWork *work) {
   }
 }
 
+static inline Expr *gen_fun_ret_buf(Expr *expr) {
+  assert(expr->kind == EX_FUNCALL);
+  assert(expr->funcall.fcinfo != NULL);
+  const VarInfo *ret_varinfo = expr->funcall.fcinfo->varinfo;
+  assert(ret_varinfo != NULL);
+  const Token *ident = ret_varinfo->ident;
+
+  assert(curscope != NULL);
+  Scope *scope;
+  VarInfo *vi = scope_find(curscope, ident->ident, &scope);
+  assert(scope != NULL && vi == ret_varinfo);
+  UNUSED(vi);
+
+  Expr *func = expr->funcall.func;
+  Type *functype = get_callee_type(func->type);
+  Type *rettype = functype->func.ret;
+  Expr *retvar = new_expr_variable(ident->ident, rettype, ident, scope);
+  gen_lval(retvar);
+  return retvar;
+}
+
 static inline void gen_funargs(Expr *expr) {
   Expr *func = expr->funcall.func;
   Vector *args = expr->funcall.args;
@@ -299,16 +318,8 @@ static inline void gen_funargs(Expr *expr) {
 
   const Type *rettype = functype->func.ret;
   bool ret_param = rettype->kind != TY_VOID && !is_prim_type(rettype) && !is_small_struct(rettype);
-  if (ret_param) {
-    assert(curfunc != NULL);
-    assert(expr->funcall.fcinfo != NULL);
-    VarInfo *varinfo = expr->funcall.fcinfo->varinfo;
-    assert(varinfo != NULL);
-    // &ret_buf
-    Expr *e = new_expr_variable(varinfo->ident->ident, varinfo->type, NULL,
-                                curfunc->scopes->data[0]);
-    gen_lval(e);
-  }
+  if (ret_param)
+    gen_fun_ret_buf(expr);
 
   FuncallWork work;
   work.lspvar = lspvar;
@@ -385,20 +396,11 @@ static inline void gen_funcall_indirect(Expr *func) {
 
 static void gen_funcall(Expr *expr, bool needval) {
   Expr *func = expr->funcall.func;
-  Type *rettype = func->type->func.ret;
+  Type *functype = get_callee_type(func->type);
+  Type *rettype = functype->func.ret;
   Expr *retvar = NULL;
-  if (is_small_struct(rettype)) {
-    assert(expr->funcall.fcinfo != NULL);
-    const VarInfo *ret_varinfo = expr->funcall.fcinfo->varinfo;
-    assert(ret_varinfo != NULL);
-    const Token *ident = ret_varinfo->ident;
-    Scope *scope;
-    VarInfo *vi = scope_find(curscope, ident->ident, &scope);
-    assert(scope != NULL && vi == ret_varinfo);
-    UNUSED(vi);
-    retvar = new_expr_variable(ident->ident, rettype, ident, scope);
-    gen_lval(retvar);
-  }
+  if (is_small_struct(rettype))
+    retvar = gen_fun_ret_buf(expr);
 
   BuiltinFunctionProc *proc;
   if (func->kind == EX_VAR && is_global_scope(func->var.scope) &&
@@ -416,9 +418,15 @@ static void gen_funcall(Expr *expr, bool needval) {
     gen_store(get_small_struct_elem_type(rettype));
     if (needval)
       gen_lval(retvar);
-  } else {
-    if (!needval && expr->type->kind != TY_VOID)
-      ADD_CODE(OP_DROP);
+  } else if (rettype->kind != TY_VOID) {
+    if (is_prim_type(rettype)) {
+      if (!needval)
+        ADD_CODE(OP_DROP);
+    } else {
+      assert(rettype->kind == TY_STRUCT);
+      if (needval)
+        gen_fun_ret_buf(expr);
+    }
   }
 }
 
@@ -967,14 +975,7 @@ static void gen_inlined(Expr *expr, bool needval) {
   cur_depth = 1;
 
   const Type *rettype = expr->type;
-  const VarInfo *ret_varinfo = expr->inlined.ret_varinfo;
-  if (ret_varinfo != NULL && needval) {
-    assert(is_small_struct(rettype));
-    VReg *vreg = ret_varinfo->local.vreg;
-    gen_bpofs(vreg->non_prim.offset);
-  }
-
-  unsigned char wt = get_func_ret_wtype(rettype);
+  unsigned char wt = rettype->kind == TY_STRUCT ? WT_I32 /*Pointer*/ : get_func_ret_wtype(rettype);
   ADD_CODE(OP_BLOCK, wt); {
     gen_stmt(embedded, true);
 
@@ -989,16 +990,8 @@ static void gen_inlined(Expr *expr, bool needval) {
     }
   } ADD_CODE(OP_END);
 
-  if (ret_varinfo != NULL) {
-    if (needval) {
-      gen_store(get_small_struct_elem_type(rettype));
-      VReg *vreg = ret_varinfo->local.vreg;
-      gen_bpofs(vreg->non_prim.offset);
-    }
-  } else {
-    if (wt != WT_VOID && !needval)
-      ADD_CODE(OP_DROP);
-  }
+  if (wt != WT_VOID && !needval)
+    ADD_CODE(OP_DROP);
 
   cur_depth = bak_depth;
   finfo->flag = bak_flag;

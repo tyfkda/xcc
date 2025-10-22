@@ -56,11 +56,8 @@ static void wasm_func_type(const Type *type, DataStorage *ds) {
   if (type->func.vaargs)
     data_push(ds, to_wtype(&tyVoidPtr));  // vaarg pointer.
 
-  if (rettype->kind == TY_VOID) {
+  if (rettype->kind == TY_VOID || ret_param) {
     data_push(ds, 0);  // num results
-  } else if (ret_param) {
-    data_push(ds, 1);  // num results
-    data_push(ds, to_wtype(&tyVoidPtr));
   } else {
     data_push(ds, 1);  // num results
     const Type *rt = rettype;

@@ -378,28 +378,25 @@ static void gen_return(Stmt *stmt, bool is_last) {
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
     const Type *rettype = val->type;
-    if (is_small_struct(rettype)) {
-      gen_lval(val);
-      const Type *et = get_small_struct_elem_type(rettype);
-      gen_load(et);
-    } else if (is_prim_type(rettype) || rettype->kind == TY_VOID) {
+    if (is_prim_type(rettype) || rettype->kind == TY_VOID) {
       gen_expr(val, true);
     } else {
+      assert(rettype->kind == TY_STRUCT);
       FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
       assert(finfo != NULL);
-      if (!(finfo->flag & FF_INLINING)) {
-        // Local #0 is the pointer for result.
-        ADD_CODE(OP_LOCAL_GET, 0);
-        gen_expr(val, true);
+      if (finfo->flag & FF_INLINING) {
+        gen_lval(val);  // Put a pointer to the top of stack.
+      } else if (is_small_struct(rettype)) {
+        gen_lval(val);
+        const Type *et = get_small_struct_elem_type(rettype);
+        gen_load(et);
+      } else {
+        ADD_CODE(OP_LOCAL_GET, 0);  // Local #0 is the pointer for result.
+        gen_lval(val);
         ADD_CODE(OP_I32_CONST);
         ADD_LEB128(type_size(rettype));
         ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);
-        // Result.
-        ADD_CODE(OP_LOCAL_GET, 0);
-      } else {
-        // Inlining a function which returns struct:
-        // Put value pointer on top of the stack.
-        gen_expr(val, true);
+        // Struct result is stored, and not return the value.
       }
     }
   }
