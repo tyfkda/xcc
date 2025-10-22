@@ -27,9 +27,9 @@ Vector *init_funcs;
 int compile_unit_flag;
 
 uint32_t get_indirect_function_index(const Name *name) {
-  FuncInfo *info = table_get(&indirect_function_table, name);
-  assert(info != NULL && info->indirect_index > 0);
-  return info->indirect_index;
+  FuncInfo *finfo = table_get(&indirect_function_table, name);
+  assert(finfo != NULL && finfo->indirect_index > 0);
+  return finfo->indirect_index;
 }
 
 GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo) {

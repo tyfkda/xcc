@@ -301,8 +301,8 @@ static inline void gen_funargs(Expr *expr) {
   bool ret_param = rettype->kind != TY_VOID && !is_prim_type(rettype) && !is_small_struct(rettype);
   if (ret_param) {
     assert(curfunc != NULL);
-    assert(expr->funcall.info != NULL);
-    VarInfo *varinfo = expr->funcall.info->varinfo;
+    assert(expr->funcall.fcinfo != NULL);
+    VarInfo *varinfo = expr->funcall.fcinfo->varinfo;
     assert(varinfo != NULL);
     // &ret_buf
     Expr *e = new_expr_variable(varinfo->ident->ident, varinfo->type, NULL,
@@ -340,8 +340,8 @@ static inline void gen_funargs(Expr *expr) {
 }
 
 static inline void gen_funcall_by_name(const Name *funcname) {
-  FuncInfo *info = table_get(&func_info_table, funcname);
-  assert(info != NULL);
+  FuncInfo *finfo = table_get(&func_info_table, funcname);
+  assert(finfo != NULL);
   ADD_CODE(OP_CALL);
 
   FuncExtra *extra = curfunc->extra;
@@ -350,9 +350,9 @@ static inline void gen_funcall_by_name(const Name *funcname) {
   ri->type = R_WASM_FUNCTION_INDEX_LEB;
   ri->offset = code->len;
   ri->addend = 0;
-  ri->index = info->index;
+  ri->index = finfo->index;
   vec_push(extra->reloc_code, ri);
-  ADD_VARUINT32(info->index);
+  ADD_VARUINT32(finfo->index);
 }
 
 static inline void gen_funcall_indirect(Expr *func) {
@@ -388,8 +388,8 @@ static void gen_funcall(Expr *expr, bool needval) {
   Type *rettype = func->type->func.ret;
   Expr *retvar = NULL;
   if (is_small_struct(rettype)) {
-    assert(expr->funcall.info != NULL);
-    const VarInfo *ret_varinfo = expr->funcall.info->varinfo;
+    assert(expr->funcall.fcinfo != NULL);
+    const VarInfo *ret_varinfo = expr->funcall.fcinfo->varinfo;
     assert(ret_varinfo != NULL);
     const Token *ident = ret_varinfo->ident;
     Scope *scope;
@@ -466,17 +466,17 @@ static void gen_ref_sub(Expr *expr) {
       if (is_global_scope(scope) || !is_local_storage(varinfo)) {
         if (varinfo->type->kind == TY_FUNC) {
           ADD_CODE(OP_I32_CONST);
-          FuncInfo *info = table_get(&indirect_function_table, expr->var.name);
-          assert(info != NULL && info->indirect_index > 0);
+          FuncInfo *finfo = table_get(&indirect_function_table, expr->var.name);
+          assert(finfo != NULL && finfo->indirect_index > 0);
           FuncExtra *extra = curfunc->extra;
           DataStorage *code = extra->code;
           RelocInfo *ri = calloc_or_die(sizeof(*ri));
           ri->type = R_WASM_TABLE_INDEX_SLEB;
           ri->offset = code->len;
-          ri->index = info->index;  // Assume that symtab index is same as function index.
+          ri->index = finfo->index;  // Assume that symtab index is same as function index.
           vec_push(extra->reloc_code, ri);
 
-          ADD_VARINT32(info->indirect_index);
+          ADD_VARINT32(finfo->indirect_index);
         } else {
           GVarInfo *info = get_gvar_info(expr);
           assert(info != NULL);

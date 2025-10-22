@@ -153,7 +153,7 @@ Expr *new_expr_funcall(const Token *token, const Type *functype, Expr *func, Vec
   Expr *expr = new_expr(EX_FUNCALL, functype->func.ret, token);
   expr->funcall.func = func;
   expr->funcall.args = args;
-  expr->funcall.info = NULL;
+  expr->funcall.fcinfo = NULL;
   return expr;
 }
 

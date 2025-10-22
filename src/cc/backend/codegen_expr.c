@@ -614,10 +614,10 @@ static inline VReg *gen_funcall_sub(Expr *expr, FuncallWork *work) {
                 work->arg_vregs, vaarg_start);
   IR *call = new_ir_call(callinfo, dst, freg);
 
-  FuncallInfo *funcall_info = calloc_or_die(sizeof(*funcall_info));
-  funcall_info->call = call;
-  assert(expr->funcall.info == NULL);
-  expr->funcall.info = funcall_info;
+  FuncallInfo *fcinfo = calloc_or_die(sizeof(*fcinfo));
+  fcinfo->call = call;
+  assert(expr->funcall.fcinfo == NULL);
+  expr->funcall.fcinfo = fcinfo;
 
   FuncBackend *fnbe = curfunc->extra;
   assert(fnbe != NULL);
