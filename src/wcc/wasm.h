@@ -186,8 +186,8 @@ typedef struct {
 #define OP_I64_EXTEND32_S (0xc4)
 #define OP_0xFC           (0xfc)
 
-#define OPFC_MEMORY_COPY  (0x0a)
-#define OPFC_MEMORY_FILL  (0x0b)
+#define OPFC_MEMORY_COPY  (0x0a)      // dst, src, size
+#define OPFC_MEMORY_FILL  (0x0b)      // dst, value, size
 
 // Types
 #define WT_VOID           (0x40)

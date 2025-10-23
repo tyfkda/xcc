@@ -393,7 +393,7 @@ static void gen_return(Stmt *stmt, bool is_last) {
         gen_expr(val, true);
         ADD_CODE(OP_I32_CONST);
         ADD_LEB128(type_size(rettype));
-        ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);  // src, dst
+        ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);
         // Result.
         ADD_CODE(OP_LOCAL_GET, 0);
       } else {

@@ -247,22 +247,22 @@ static inline void gen_funarg(Expr *arg, int i, FuncallWork *work) {
     size_t size = type_size(type);
     if (size > 0) {
       size_t offset = ALIGN(work->offset, align_size(type));
-      // _memcpy(global.sp + sarg_offset, &arg, size);
-      Expr *src = lspvar;
+      // _memcpy(local.sp + sarg_offset, &arg, size);
+      Expr *dst = lspvar;
       if (offset != 0)
-        src = new_expr_bop(EX_ADD, &tySize, NULL, lspvar, new_expr_fixlit(&tySize, NULL, offset));
-      gen_expr(src, true);
+        dst = new_expr_bop(EX_ADD, &tySize, NULL, lspvar, new_expr_fixlit(&tySize, NULL, offset));
+      gen_expr(dst, true);
       gen_expr(arg, true);
 
       ADD_CODE(OP_I32_CONST);
       ADD_LEB128(size);
-      ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);  // src, dst
+      ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);
       work->offset = offset + size;
     }
   } else if (!vaarg) {
     gen_expr(arg, true);
   } else {
-    // *(global.sp + offset) = arg
+    // *(local.sp + offset) = arg
     size_t offset = ALIGN(work->offset, align_size(type));
     if (offset != 0) {
       gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, lspvar,
@@ -846,7 +846,7 @@ static void gen_assign_sub(Expr *lhs, Expr *rhs) {
         gen_expr(rhs, true);
         ADD_CODE(OP_I32_CONST);
         ADD_LEB128(size);
-        ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);  // src, dst
+        ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);
       }
     }
     break;
