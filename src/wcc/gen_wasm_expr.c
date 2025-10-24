@@ -224,16 +224,33 @@ static void gen_ternary(Expr *expr, bool needval) {
 typedef struct {
   Expr *lspvar;
   size_t offset;
-  size_t vaarg_offset;
-  int param_count;
   bool vaargs;
 } FuncallWork;
 
-static inline void gen_funarg(Expr *arg, int i, FuncallWork *work) {
+static void gen_struct_funarg(Expr *arg, FuncallWork *work) {
   Expr *lspvar = work->lspvar;
   const Type *type = arg->type;
-  bool vaarg = i >= work->param_count;
-  if (!vaarg && is_small_struct(type)) {
+  assert(lspvar != NULL);
+  size_t size = type_size(type);
+  if (size > 0) {
+    // _memcpy(local.sp + offset, &arg, size);
+    Expr *dst = lspvar;
+    size_t offset = ALIGN(work->offset, align_size(type));
+    if (offset != 0)
+      dst = new_expr_bop(EX_ADD, &tySize, NULL, lspvar, new_expr_fixlit(&tySize, NULL, offset));
+    gen_expr(dst, true);
+    gen_expr(arg, true);
+
+    ADD_CODE(OP_I32_CONST);
+    ADD_LEB128(size);
+    ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);
+    work->offset = offset + size;
+  }
+}
+
+static inline void gen_funarg_param(Expr *arg, FuncallWork *work) {
+  const Type *type = arg->type;
+  if (is_small_struct(type)) {
     size_t size = type_size(type);
     assert(IS_POWER_OF_2(size));
     gen_expr(arg, true);
@@ -241,34 +258,24 @@ static inline void gen_funarg(Expr *arg, int i, FuncallWork *work) {
     assert(is_prim_type(etype));
     gen_load(etype);
   } else if (is_stack_param(type)) {
-    assert(lspvar != NULL);
-    size_t size = type_size(type);
-    if (size > 0) {
-      size_t offset = ALIGN(work->offset, align_size(type));
-      // _memcpy(local.sp + sarg_offset, &arg, size);
-      Expr *dst = lspvar;
-      if (offset != 0)
-        dst = new_expr_bop(EX_ADD, &tySize, NULL, lspvar, new_expr_fixlit(&tySize, NULL, offset));
-      gen_expr(dst, true);
-      gen_expr(arg, true);
-
-      ADD_CODE(OP_I32_CONST);
-      ADD_LEB128(size);
-      ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);
-      work->offset = offset + size;
-    }
-  } else if (!vaarg) {
-    gen_expr(arg, true);
+    gen_struct_funarg(arg, work);
   } else {
+    gen_expr(arg, true);
+  }
+}
+
+static inline void gen_funarg_vaarg(Expr *arg, FuncallWork *work) {
+  const Type *type = arg->type;
+  if (is_stack_param(type) && !is_small_struct(type)) {
+    gen_struct_funarg(arg, work);
+  } else {
+    Expr *lspvar = work->lspvar;
     // *(local.sp + offset) = arg
+    Expr *dst = lspvar;
     size_t offset = ALIGN(work->offset, align_size(type));
-    if (offset != 0) {
-      gen_expr(new_expr_bop(EX_ADD, &tySize, NULL, lspvar,
-                            new_expr_fixlit(&tySize, NULL, offset)),
-               true);
-    } else {
-      gen_expr(lspvar, true);
-    }
+    if (offset != 0)
+      dst = new_expr_bop(EX_ADD, &tySize, NULL, lspvar, new_expr_fixlit(&tySize, NULL, offset));
+    gen_expr(dst, true);
     assert(!(type->kind == TY_FIXNUM && type->fixnum.kind < FX_INT));
     work->offset = offset + type_size(type);
 
@@ -307,13 +314,16 @@ static inline void gen_funargs(Expr *expr) {
   assert(functype != NULL);
   int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
 
-  size_t work_size = calc_funcall_work_size(expr);
+  FuncallWork work;
+  work.lspvar = NULL;
+  work.offset = 0;
+  work.vaargs = functype->func.vaargs;
 
-  Expr *lspvar = NULL;
+  size_t work_size = calc_funcall_work_size(expr);
   if (work_size > 0) {
     FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
     assert(finfo != NULL && finfo->lspname != NULL);
-    lspvar = new_expr_variable(finfo->lspname, &tyVoidPtr, NULL, curfunc->scopes->data[0]);
+    work.lspvar = new_expr_variable(finfo->lspname, &tyVoidPtr, NULL, curfunc->scopes->data[0]);
   }
 
   const Type *rettype = functype->func.ret;
@@ -321,27 +331,25 @@ static inline void gen_funargs(Expr *expr) {
   if (ret_param)
     gen_fun_ret_buf(expr);
 
-  FuncallWork work;
-  work.lspvar = lspvar;
-  work.offset = 0;
-  work.vaarg_offset = 0;
-  work.param_count = param_count;
-  work.vaargs = functype->func.vaargs;
+  size_t vaarg_top_offset = 0;
   for (int i = 0; i < arg_count; ++i) {
-    if (work.vaargs && i == work.param_count)
-      work.vaarg_offset = work.offset;
+    if (work.vaargs && i == param_count)
+      vaarg_top_offset = work.offset;
 
     Expr *arg = args->data[i];
-    gen_funarg(arg, i, &work);
+    if (i < param_count)
+      gen_funarg_param(arg, &work);
+    else
+      gen_funarg_vaarg(arg, &work);
   }
 
   if (functype->func.vaargs) {
     // Top of vaargs.
     if (arg_count > param_count) {
-      gen_expr(lspvar, true);
-      if (work.vaarg_offset != 0) {
+      gen_expr(work.lspvar, true);
+      if (vaarg_top_offset != 0) {
         ADD_CODE(OP_I32_CONST);
-        ADD_LEB128(work.vaarg_offset);
+        ADD_LEB128(vaarg_top_offset);
         ADD_CODE(OP_I32_ADD);
       }
     } else {
