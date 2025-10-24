@@ -224,41 +224,42 @@ static void gen_ternary(Expr *expr, bool needval) {
 typedef struct {
   Expr *lspvar;
   size_t offset;
+  size_t indirect_offset;
   bool vaargs;
 } FuncallWork;
 
-static void gen_struct_funarg(Expr *arg, FuncallWork *work) {
+static Expr *gen_struct_funarg(Expr *arg, FuncallWork *work, size_t offset) {
   Expr *lspvar = work->lspvar;
   const Type *type = arg->type;
   assert(lspvar != NULL);
+  Expr *dst = lspvar;
   size_t size = type_size(type);
   if (size > 0) {
     // _memcpy(local.sp + offset, &arg, size);
-    Expr *dst = lspvar;
-    size_t offset = ALIGN(work->offset, align_size(type));
     if (offset != 0)
-      dst = new_expr_bop(EX_ADD, &tySize, NULL, lspvar, new_expr_fixlit(&tySize, NULL, offset));
+      dst = new_expr_bop(EX_ADD, &tyVoidPtr, NULL, lspvar, new_expr_fixlit(&tySize, NULL, offset));
     gen_expr(dst, true);
     gen_expr(arg, true);
 
     ADD_CODE(OP_I32_CONST);
     ADD_LEB128(size);
     ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);
-    work->offset = offset + size;
   }
+  return dst;
 }
 
 static inline void gen_funarg_param(Expr *arg, FuncallWork *work) {
   const Type *type = arg->type;
   if (is_small_struct(type)) {
-    size_t size = type_size(type);
-    assert(IS_POWER_OF_2(size));
+    assert(IS_POWER_OF_2(type_size(type)));
     gen_expr(arg, true);
     const Type *etype = get_small_struct_elem_type(type);
     assert(is_prim_type(etype));
     gen_load(etype);
   } else if (is_stack_param(type)) {
-    gen_struct_funarg(arg, work);
+    size_t offset = ALIGN(work->offset, align_size(type));
+    work->offset = offset + type_size(type);
+    gen_struct_funarg(arg, work, offset);
   } else {
     gen_expr(arg, true);
   }
@@ -266,22 +267,30 @@ static inline void gen_funarg_param(Expr *arg, FuncallWork *work) {
 
 static inline void gen_funarg_vaarg(Expr *arg, FuncallWork *work) {
   const Type *type = arg->type;
-  if (is_stack_param(type) && !is_small_struct(type)) {
-    gen_struct_funarg(arg, work);
-  } else {
-    Expr *lspvar = work->lspvar;
-    // *(local.sp + offset) = arg
-    Expr *dst = lspvar;
-    size_t offset = ALIGN(work->offset, align_size(type));
-    if (offset != 0)
-      dst = new_expr_bop(EX_ADD, &tySize, NULL, lspvar, new_expr_fixlit(&tySize, NULL, offset));
-    gen_expr(dst, true);
-    assert(!(type->kind == TY_FIXNUM && type->fixnum.kind < FX_INT));
-    work->offset = offset + type_size(type);
+  if (is_stack_param(type)) {
+    size_t size = type_size(type);
+    size_t indirect_offset = (work->indirect_offset - size) & -align_size(type);
+    work->indirect_offset = indirect_offset;
+    Expr *indirect = gen_struct_funarg(arg, work, indirect_offset);
 
-    gen_expr(arg, true);
-    gen_store(type);
+    // Store indirect-offset to vaarg.
+    arg = indirect;
+    type = indirect->type;
+    assert(type->kind == TY_PTR);
   }
+
+  Expr *lspvar = work->lspvar;
+  // *(local.sp + offset) = arg
+  Expr *dst = lspvar;
+  size_t offset = ALIGN(work->offset, align_size(type));
+  if (offset != 0)
+    dst = new_expr_bop(EX_ADD, &tySize, NULL, lspvar, new_expr_fixlit(&tySize, NULL, offset));
+  gen_expr(dst, true);
+  assert(!(type->kind == TY_FIXNUM && type->fixnum.kind < FX_INT));
+  work->offset = offset + type_size(type);
+
+  gen_expr(arg, true);
+  gen_store(type);
 }
 
 static inline Expr *gen_fun_ret_buf(Expr *expr) {
@@ -325,6 +334,7 @@ static inline void gen_funargs(Expr *expr) {
     assert(finfo != NULL && finfo->lspname != NULL);
     work.lspvar = new_expr_variable(finfo->lspname, &tyVoidPtr, NULL, curfunc->scopes->data[0]);
   }
+  work.indirect_offset = work_size;
 
   const Type *rettype = functype->func.ret;
   bool ret_param = rettype->kind != TY_VOID && !is_prim_type(rettype) && !is_small_struct(rettype);

@@ -270,6 +270,9 @@ static Expr *proc_builtin_va_arg(const Token *ident) {
   mark_var_used(ap);
 
   // (ap = ALIGN((size_t)ap, _Alignof(type)) + sizeof(type), *(type*)((size_t)ap - sizeof(type)))
+  bool indirect = is_stack_param(type);
+  if (indirect)
+    type = ptrof(type);
   const Token *tok = ap->token;
   size_t size = type_size(type);
   Expr *size_lit = new_expr_fixlit(&tySize, tok, size);
@@ -289,7 +292,10 @@ static Expr *proc_builtin_va_arg(const Token *ident) {
       make_cast(ptrof(type), tok,
                 new_expr_bop(EX_SUB, cap->type, tok, cap, size_lit),
                 true));
-  return new_expr_bop(EX_COMMA, type, ident, add, deref);
+  Expr *expr = new_expr_bop(EX_COMMA, type, ident, add, deref);
+  if (indirect)
+    expr = new_expr_deref(tok, expr);
+  return expr;
 }
 
 static Expr *proc_builtin_va_copy(const Token *ident) {
