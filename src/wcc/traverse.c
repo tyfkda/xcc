@@ -716,8 +716,8 @@ static void traverse_defun(Function *func) {
     assert(tyvalist != NULL);
 
     const Name *name = alloc_name(VA_ARGS_NAME, NULL, false);
-    scope_add(func->scopes->data[0],
-              alloc_ident(name, NULL, name->chars, name->chars + name->bytes), tyvalist, 0);
+    const Token *ident = alloc_ident(name, NULL, name->chars, name->chars + name->bytes);
+    scope_add(func->scopes->data[0], ident, tyvalist, VS_PARAM);
   }
 
   register_func_info(func->ident->ident, func, NULL, 0);

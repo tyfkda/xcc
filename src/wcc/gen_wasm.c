@@ -511,6 +511,7 @@ static inline uint32_t calc_frame_size(
     Function *func, unsigned int local_counts[4], FuncInfo *finfo) {
   const Type *functype = func->type;
   unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
+  const Name *va_args_name = functype->func.vaargs ? alloc_name(VA_ARGS_NAME, NULL, false) : NULL;
   uint32_t frame_size = 0;
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
@@ -518,10 +519,14 @@ static inline uint32_t calc_frame_size(
       VarInfo *varinfo = scope->vars->data[j];
       const Type *type = varinfo->type;
       int param_index = -1;
-      if (i == 0 && param_count > 0) {
-        int k = get_funparam_index(func, varinfo->ident->ident);
-        if (k >= 0)
-          param_index = k;
+      if (i == 0 && varinfo->storage & VS_PARAM) {
+        if (va_args_name != NULL && equal_name(varinfo->ident->ident, va_args_name)) {
+          param_index = param_count;
+        } else if (param_count > 0) {
+          int k = get_funparam_index(func, varinfo->ident->ident);
+          if (k >= 0)
+            param_index = k;
+        }
       }
 
       if (!is_local_storage(varinfo)) {
@@ -569,9 +574,8 @@ static inline void assign_variable_index_or_offsets(
     Function *func, unsigned int ret_param, size_t frame_size, unsigned int local_indices[4]) {
   const Type *functype = func->type;
   unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
-
+  const Name *va_args_name = functype->func.vaargs ? alloc_name(VA_ARGS_NAME, NULL, false) : NULL;
   uint32_t frame_offset = 0;
-  unsigned int param_no = ret_param;
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     for (int j = 0; j < scope->vars->len; ++j) {
@@ -582,18 +586,22 @@ static inline void assign_variable_index_or_offsets(
       VReg *vreg = calloc_or_die(sizeof(*vreg));
       varinfo->local.vreg = vreg;
       int param_index = -1;
-      if (i == 0 && param_count > 0) {
-        int k = get_funparam_index(func, varinfo->ident->ident);
-        if (k >= 0)
-          param_index = k;
+      if (i == 0 && varinfo->storage & VS_PARAM) {
+        if (va_args_name != NULL && equal_name(varinfo->ident->ident, va_args_name)) {
+          param_index = param_count;
+        } else if (param_count > 0) {
+          int k = get_funparam_index(func, varinfo->ident->ident);
+          if (k >= 0)
+            param_index = k;
+        }
       }
       vreg->param_index = ret_param + param_index;
       const Type *type = varinfo->type;
       size_t size = type_size(type), align = align_size(type);
       bool prim = is_prim_type(type);
       if (param_index >= 0) {
+        vreg->prim.local_index = vreg->param_index;
         bool small_struct = is_small_struct(type);
-        vreg->prim.local_index = param_no++;
         if (small_struct || varinfo->storage & VS_REF_TAKEN) {
           frame_offset = ALIGN(frame_offset, align);
           vreg->non_prim.offset = frame_offset - frame_size;
@@ -696,25 +704,6 @@ static inline void setup_base_pointer(
 }
 
 static inline void move_params_to_stack_frame(Function *func) {
-  const Type *functype = func->type;
-  if (functype->func.vaargs) {
-    const Name *va_args = alloc_name(VA_ARGS_NAME, NULL, false);
-    const VarInfo *varinfo = scope_find(func->scopes->data[0], va_args, NULL);
-    assert(varinfo != NULL);
-    VReg *vreg = varinfo->local.vreg;
-    assert(vreg != NULL);
-
-    int vaarg_param_index = func->params->len;
-    const Type *rettype = functype->func.ret;
-    if (rettype->kind == TY_STRUCT && !is_small_struct(rettype))
-      vaarg_param_index += 1;
-
-    ADD_CODE(OP_LOCAL_GET);
-    ADD_ULEB128(vaarg_param_index);
-    ADD_CODE(OP_LOCAL_SET);
-    ADD_ULEB128(vreg->prim.local_index);
-  }
-
   if (func->params != NULL) {
     const Vector *params = func->params;
     for (int i = 0, param_count = params->len; i < param_count; ++i) {
