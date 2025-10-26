@@ -508,10 +508,9 @@ void gen_stmts(Vector *stmts, bool is_last) {
 }
 
 static inline uint32_t calc_frame_size(
-    Function *func, unsigned int local_counts[4], FuncInfo *finfo, unsigned int *out_pparam_count) {
+    Function *func, unsigned int local_counts[4], FuncInfo *finfo) {
   const Type *functype = func->type;
   unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
-  unsigned int pparam_count = 0;  // Primitive parameter count
   uint32_t frame_size = 0;
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
@@ -521,10 +520,8 @@ static inline uint32_t calc_frame_size(
       int param_index = -1;
       if (i == 0 && param_count > 0) {
         int k = get_funparam_index(func, varinfo->ident->ident);
-        if (k >= 0) {
+        if (k >= 0)
           param_index = k;
-          ++pparam_count;
-        }
       }
 
       if (!is_local_storage(varinfo)) {
@@ -555,8 +552,7 @@ static inline uint32_t calc_frame_size(
       }
     }
   }
-  assert(param_count == pparam_count);
-  if (frame_size > 0 || param_count != pparam_count || (finfo->flag & FF_STACK_MODIFIED)) {
+  if (frame_size > 0 || (finfo->flag & FF_STACK_MODIFIED)) {
     frame_size = ALIGN(frame_size, STACK_ALIGN);
 
     // Allocate a variable for base pointer in function top scope.
@@ -566,7 +562,6 @@ static inline uint32_t calc_frame_size(
     scope_add(func->scopes->data[0], bpident, &tySize, 0);
     local_counts[WT_I32 - WT_I32] += 1;
   }
-  *out_pparam_count = pparam_count;
   return frame_size;
 }
 
@@ -635,8 +630,7 @@ static inline uint32_t allocate_local_variables(Function *func, DataStorage *dat
   FuncInfo *finfo = table_get(&func_info_table, func->ident->ident);
   assert(finfo != NULL);
 
-  unsigned int pparam_count;  // Primitive parameter count
-  size_t frame_size = calc_frame_size(func, local_counts, finfo, &pparam_count);
+  size_t frame_size = calc_frame_size(func, local_counts, finfo);
 
   unsigned int local_index_count = 0;
   for (int i = 0; i < 4; ++i) {
@@ -645,6 +639,7 @@ static inline uint32_t allocate_local_variables(Function *func, DataStorage *dat
   }
   data_uleb128(data, -1, local_index_count);
   int variadic = func->type->func.vaargs;
+  unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
   unsigned int local_indices[4];
   for (int i = 0; i < 4; ++i) {
     unsigned int count = local_counts[i];
@@ -652,7 +647,7 @@ static inline uint32_t allocate_local_variables(Function *func, DataStorage *dat
       data_uleb128(data, -1, count);
       data_push(data, WT_I32 - i);
     }
-    local_indices[i] = i == 0 ? ret_param + variadic + pparam_count
+    local_indices[i] = i == 0 ? ret_param + variadic + param_count
                               : local_indices[i - 1] + local_counts[i - 1];
   }
 
