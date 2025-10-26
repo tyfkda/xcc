@@ -670,11 +670,6 @@ static Expr *funcall(Expr *func, Token *tok) {
     if (satisfy_inline_criteria(varinfo)) {
       Expr *inlined = new_expr_inlined(tok, varinfo->ident->ident, rettype, args,
                                        embed_inline_funcall(varinfo));
-      if (is_small_struct(rettype)) {
-        Expr *tmp = alloc_tmp_var(curscope, rettype);
-        inlined->inlined.ret_varinfo = scope_find(curscope, tmp->var.name, NULL);
-        mark_var_used(tmp);
-      }
       return inlined;
     }
     // Not inlined.

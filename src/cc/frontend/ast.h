@@ -286,8 +286,6 @@ typedef struct Expr {
       const Name *funcname;
       Vector *args;  // <Expr*>
       struct Stmt *embedded;  // Must be block statement.
-      // codegen
-      const VarInfo *ret_varinfo;  // Used only if returns small struct.
     } inlined;
     struct {
       struct Expr *var;

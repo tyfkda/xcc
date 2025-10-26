@@ -163,7 +163,6 @@ Expr *new_expr_inlined(const Token *token, const Name *name, Type *rettype, Vect
   expr->inlined.funcname = name;
   expr->inlined.args = args;
   expr->inlined.embedded = embedded;
-  expr->inlined.ret_varinfo = NULL;
   return expr;
 }
 
