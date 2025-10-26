@@ -95,9 +95,8 @@ static void alloc_variable_registers(Function *func) {
       varinfo->local.frameinfo = NULL;
       Type *type = varinfo->type;
 #if STRUCT_ARG_AS_POINTER
-      if (varinfo->storage & VS_PARAM && type->kind == TY_STRUCT && !is_small_struct(type)) {
-        varinfo->type = type = ptrof(type);  // Caution! Overwrite type as its pointer.
-      }
+      if (varinfo->storage & VS_PARAM && type->kind == TY_STRUCT && !is_small_struct(type))
+        type = &tyVoidPtr;
 #endif
       if (!is_prim_type(type)) {
         FrameInfo *fi = calloc_or_die(sizeof(*fi));
@@ -178,9 +177,13 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
       const Type *type = varinfo->type;
       size_t n = 1;
       if (is_stack_param(type)) {
+#if STRUCT_ARG_AS_POINTER
+        type = &tyVoidPtr;
+#else
         if (type->kind != TY_STRUCT || !is_small_struct(type))
           continue;
         n = (type_size(type) + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+#endif
       }
       bool is_flo = is_flonum(type);
       int regidx = reg_index[is_flo];
@@ -696,7 +699,12 @@ void prepare_register_allocation(Function *func) {
         continue;
       }
 
+#if STRUCT_ARG_AS_POINTER
+      assert(is_prim_type(varinfo->type) ||
+             (varinfo->type->kind == TY_STRUCT && varinfo->storage & VS_PARAM));
+#else
       assert(is_prim_type(varinfo->type));
+#endif
       if (vreg->flag & (VRF_FORCEMEMORY | VRF_STACK_PARAM)) {
         spill_vreg(vreg);
         require_stack_frame = true;
@@ -828,7 +836,11 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
         fi->offset = -(int)frame_size;
         continue;
       }
-    } else if (!is_stack_param(type)) {
+    } else if (!is_stack_param(type)
+#if STRUCT_ARG_AS_POINTER
+               || (varinfo->storage & VS_PARAM)
+#endif
+    ) {
       assert(varinfo->local.vreg != NULL);
       if (!(varinfo->local.vreg->flag & VRF_STACK_PARAM)) {
         reg_index[is_flo] += 1;

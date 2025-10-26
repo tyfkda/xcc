@@ -249,24 +249,6 @@ Expr *reduce_refer(Expr *expr) {
       Type *type = target->type;
       switch (target->kind) {
       case EX_VAR:
-#if STRUCT_ARG_AS_POINTER
-        if (type->kind == TY_STRUCT) {
-          VarInfo *varinfo = scope_find(target->var.scope, target->var.name, NULL);
-          assert(varinfo != NULL);
-          if (varinfo->storage & VS_PARAM && !is_small_struct(type)) {  // The parameter is passed by reference.
-            if (varinfo->type->kind == TY_PTR) {
-              assert(varinfo->type->pa.ptrof == type);
-              target->type = type = varinfo->type;
-            } else {
-              // The type in scope is modified in `gen` phase,
-              // so it might be remained as `struct`.
-              assert(same_type(type, varinfo->type));
-              target->type = type = ptrof(type);
-            }
-          }
-        }
-#endif
-        // Fallthrough
       case EX_DEREF:
         if (type->kind == TY_STRUCT) {
           // target.field => (&target)->field

@@ -18,12 +18,7 @@
 #include "var.h"
 
 bool is_stack_param(const Type *type) {
-#if STRUCT_ARG_AS_POINTER
-  UNUSED(type);
-  return false;
-#else
   return type->kind == TY_STRUCT;
-#endif
 }
 
 enum VRegSize to_vsize(const Type *type) {
@@ -240,7 +235,7 @@ static VReg *gen_ref_sub(Expr *expr) {
 #if STRUCT_ARG_AS_POINTER
           if (varinfo->storage & VS_PARAM && expr->type->kind == TY_STRUCT &&
               !is_small_struct(expr->type)) {
-            assert(varinfo->type->kind == TY_PTR);  // Already transformed from struct to pointer.
+            assert(varinfo->type->kind == TY_STRUCT);
             assert(varinfo->local.vreg != NULL);
             return varinfo->local.vreg;
           }
@@ -368,6 +363,9 @@ typedef struct {
   ssize_t size;
   int reg_index;
   int flag;
+#if STRUCT_ARG_AS_POINTER
+  ssize_t indirect_offset;
+#endif
 } ArgInfo;
 
 typedef struct {
@@ -376,7 +374,6 @@ typedef struct {
   ssize_t offset;
   int arg_start;
   int stack_arg_count;
-  int arg_count;
   int reg_arg_count[2];  // [0]=gp-reg, [1]=fp-reg
   bool ret_small_struct;
 
@@ -402,6 +399,11 @@ static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, Funca
     Expr *arg = args->data[i];
     const Type *arg_type = arg->type;
     assert(arg_type->kind != TY_ARRAY);
+#if STRUCT_ARG_AS_POINTER
+    p->indirect_offset = -1;
+    if (is_stack_param(arg_type) && !is_small_struct(arg_type))
+      arg_type = ptrof(arg->type);
+#endif
     p->size = type_size(arg_type);
     if (is_flonum(arg_type))
       p->flag |= ARGF_FLONUM;
@@ -440,14 +442,52 @@ static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, Funca
     }
   }
 
+#if STRUCT_ARG_AS_POINTER
+  for (int i = 0; i < arg_count; ++i) {
+    Expr *arg = args->data[i];
+    const Type *arg_type = arg->type;
+    if (!(is_stack_param(arg_type) && !is_small_struct(arg_type)))
+      continue;
+    ArgInfo *p = &arg_infos[i];
+    p->indirect_offset = offset = ALIGN(offset, align_size(arg_type));
+    offset += type_size(arg_type);
+  }
+#endif
   work->offset = offset;
   work->stack_arg_count = stack_arg_count;
-  work->arg_count = arg_count;
   assert(sizeof(work->reg_arg_count) == sizeof(reg_arg_count));
   memcpy(work->reg_arg_count, reg_arg_count, sizeof(work->reg_arg_count));
 
   return arg_infos;
 }
+
+#if STRUCT_ARG_AS_POINTER
+static inline VReg *gen_funarg_struct_pointer(Expr *arg, const ArgInfo *arg_info, FuncallWork *work) {
+  const Type *type = arg->type;
+  assert(is_stack_param(type));
+  VReg *vreg = gen_expr(arg);
+  VReg *dst = new_ir_sofs(new_const_vreg(arg_info->indirect_offset, VRegSize8))->dst;
+  gen_memcpy(type, dst, vreg);
+
+  if (arg_info->offset < 0) {
+    int regarg = ++work->regarg[GPREG];
+    int index = work->reg_arg_count[GPREG] - regarg;
+#if !EXTRA_RETURN_STRUCT_REGISTER
+    if (work->ret_varinfo != NULL && !work->ret_small_struct)
+      ++index;
+#endif
+    assert(0 <= index && index < kArchSetting.max_reg_args[GPREG]);
+    new_ir_pusharg(dst, index);
+  } else {
+    ssize_t offset = arg_info->offset;
+    VReg *dst2 = new_ir_sofs(new_const_vreg(offset, VRegSize8))->dst;
+    new_ir_store(dst2, 0, dst, IRF_UNSIGNED);
+    vreg = NULL;
+  }
+
+  return dst;
+}
+#endif
 
 static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *work) {
   assert(TARGET_POINTER_SIZE == (1 << VRegSize8));
@@ -467,11 +507,18 @@ static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *
   return NULL;
 }
 
-static inline VReg *gen_funarg(Expr *arg, ArgInfo *arg_info, FuncallWork *work) {
+static inline VReg *gen_funarg(Expr *arg, const ArgInfo *arg_info, FuncallWork *work) {
+#if STRUCT_ARG_AS_POINTER
+  if (arg_info->indirect_offset >= 0)
+    return gen_funarg_struct_pointer(arg, arg_info, work);
+#endif
+
   VReg *vreg = gen_expr(arg);
   if (arg_info->offset < 0) {
-    if (arg->type->kind == TY_STRUCT)
+    if (arg->type->kind == TY_STRUCT) {
+      assert(is_small_struct(arg->type));
       return gen_funarg_small_struct(arg, vreg, work);
+    }
 
     bool is_flo = (arg_info->flag & (ARGF_FLONUM | ARGF_FP_AS_GP)) == ARGF_FLONUM;
     int regarg = ++work->regarg[is_flo];
@@ -508,7 +555,6 @@ static inline void gen_funargs(Expr *expr, FuncallWork *work) {
   work->offset = 0;
   work->arg_start = 0;
   work->stack_arg_count = 0;
-  work->arg_count = 0;
   work->ret_small_struct = is_small_struct(expr->type);
   work->reg_arg_count[GPREG] = work->reg_arg_count[FPREG] = 0;
   work->regarg[GPREG] = work->regarg[FPREG] = 0;
@@ -532,17 +578,18 @@ static inline void gen_funargs(Expr *expr, FuncallWork *work) {
 #if !EXTRA_RETURN_STRUCT_REGISTER
   work->arg_start = ret_varinfo != NULL && !work->ret_small_struct ? 1 : 0;
 #endif
-  ArgInfo *arg_infos = calloc_or_die(sizeof(*arg_infos) * expr->funcall.args->len);
+  ArgInfo *arg_infos = ALLOCA(sizeof(*arg_infos) * expr->funcall.args->len);
+  memset(arg_infos, 0x00, sizeof(*arg_infos) * expr->funcall.args->len);
   collect_funargs(functype, expr->funcall.args, work, arg_infos);
 
-  const int arg_count = work->arg_count;
+  Vector *args = expr->funcall.args;
+  const int arg_count = args->len;
   int total_arg_count = arg_count + (ret_varinfo != NULL ? 1 : 0);
   VReg **arg_vregs = total_arg_count == 0 ? NULL
                                           : calloc_or_die(total_arg_count * sizeof(*arg_vregs));
   work->arg_vregs = arg_vregs;
 
-  Vector *args = expr->funcall.args;
-  for (int i = arg_count; --i >= 0; ) {
+  for (int i = args->len; --i >= 0; ) {
     Expr *arg = args->data[i];
     VReg *vreg = gen_funarg(arg, &arg_infos[i], work);
     arg_vregs[i + work->arg_start] = vreg;
@@ -558,15 +605,11 @@ static inline void gen_funargs(Expr *expr, FuncallWork *work) {
     arg_vregs[0] = dst;
 #endif
   }
-
-  free(arg_infos);
 }
 
 static inline VReg *gen_funcall_sub(Expr *expr, FuncallWork *work) {
   Expr *func = expr->funcall.func;
   const VarInfo *ret_varinfo = work->ret_varinfo;
-  const int stack_arg_count = work->stack_arg_count;
-  const int arg_count = work->arg_count;
 
   bool label_call = false;
   bool global = false;
@@ -578,9 +621,10 @@ static inline VReg *gen_funcall_sub(Expr *expr, FuncallWork *work) {
       global = !(varinfo->storage & VS_STATIC);
   }
 
+  int arg_count = expr->funcall.args->len;
   IrCallInfo *callinfo = calloc_or_die(sizeof(*callinfo));
   callinfo->stack_args_size = work->offset;
-  callinfo->arg_count = arg_count - stack_arg_count;
+  callinfo->arg_count = arg_count - work->stack_arg_count;
   callinfo->living_pregs = 0;
   callinfo->caller_saves = NULL;
   if (work->ret_small_struct) {
