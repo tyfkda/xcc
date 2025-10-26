@@ -259,7 +259,9 @@ static inline void gen_funarg_param(Expr *arg, FuncallWork *work) {
   } else if (is_stack_param(type)) {
     size_t offset = ALIGN(work->offset, align_size(type));
     work->offset = offset + type_size(type);
-    gen_struct_funarg(arg, work, offset);
+    Expr *ptr = gen_struct_funarg(arg, work, offset);
+    assert(ptr->type->kind == TY_PTR);
+    gen_expr(ptr, true);
   } else {
     gen_expr(arg, true);
   }
@@ -520,6 +522,13 @@ static void gen_ref_sub(Expr *expr) {
         }
       } else {
         VReg *vreg = varinfo->local.vreg;
+        if (varinfo->storage & VS_PARAM &&
+            is_stack_param(expr->type) && !is_small_struct(expr->type)) {
+          // struct parameter is passed by pointer.
+          ADD_CODE(OP_LOCAL_GET);
+          ADD_ULEB128(vreg->prim.local_index);
+          break;
+        }
         gen_bpofs(vreg->non_prim.offset);
       }
     }

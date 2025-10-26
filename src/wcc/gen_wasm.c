@@ -523,8 +523,7 @@ static inline uint32_t calc_frame_size(
         int k = get_funparam_index(func, varinfo->ident->ident);
         if (k >= 0) {
           param_index = k;
-          if (is_small_struct(type) || !is_stack_param(type))
-            ++pparam_count;
+          ++pparam_count;
         }
       }
 
@@ -556,6 +555,7 @@ static inline uint32_t calc_frame_size(
       }
     }
   }
+  assert(param_count == pparam_count);
   if (frame_size > 0 || param_count != pparam_count || (finfo->flag & FF_STACK_MODIFIED)) {
     frame_size = ALIGN(frame_size, STACK_ALIGN);
 
@@ -577,7 +577,6 @@ static inline void assign_variable_index_or_offsets(
 
   uint32_t frame_offset = 0;
   unsigned int param_no = ret_param;
-  uint32_t sparam_offset = 0;
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     for (int j = 0; j < scope->vars->len; ++j) {
@@ -599,19 +598,13 @@ static inline void assign_variable_index_or_offsets(
       bool prim = is_prim_type(type);
       if (param_index >= 0) {
         bool small_struct = is_small_struct(type);
-        if (prim || small_struct) {
-          vreg->prim.local_index = param_no++;
-          if (small_struct || varinfo->storage & VS_REF_TAKEN) {
-            frame_offset = ALIGN(frame_offset, align);
-            vreg->non_prim.offset = frame_offset - frame_size;
-            if (size < 1)
-              size = 1;
-            frame_offset += size;
-          }
-        } else {  // Non primitive parameter, passed through stack.
-          sparam_offset = ALIGN(sparam_offset, align);
-          vreg->non_prim.offset = sparam_offset;
-          sparam_offset += size;
+        vreg->prim.local_index = param_no++;
+        if (small_struct || varinfo->storage & VS_REF_TAKEN) {
+          frame_offset = ALIGN(frame_offset, align);
+          vreg->non_prim.offset = frame_offset - frame_size;
+          if (size < 1)
+            size = 1;
+          frame_offset += size;
         }
       } else {
         if ((prim && varinfo->storage & VS_REF_TAKEN) ||  // `&` taken wasm local var.
@@ -622,13 +615,9 @@ static inline void assign_variable_index_or_offsets(
             size = 1;
           frame_offset += size;
         } else {  // Not `&` taken, wasm local var.
-          if (param_index < 0) {
-            unsigned char wt = to_wtype(type);
-            int index = WT_I32 - wt;
-            vreg->prim.local_index = local_indices[index]++;
-          } else {
-            vreg->prim.local_index = param_no;
-          }
+          unsigned char wt = to_wtype(type);
+          int index = WT_I32 - wt;
+          vreg->prim.local_index = local_indices[index]++;
         }
       }
     }
@@ -720,13 +709,10 @@ static inline void move_params_to_stack_frame(Function *func) {
     VReg *vreg = varinfo->local.vreg;
     assert(vreg != NULL);
 
-    int vaarg_param_index = 0;
-    for (int i = 0; i < func->params->len; ++i) {
-      const VarInfo *varinfo = func->params->data[i];
-      const Type *type = varinfo->type;
-      if (is_small_struct(type) || !is_stack_param(type))
-        ++vaarg_param_index;
-    }
+    int vaarg_param_index = func->params->len;
+    const Type *rettype = functype->func.ret;
+    if (rettype->kind == TY_STRUCT && !is_small_struct(rettype))
+      vaarg_param_index += 1;
 
     ADD_CODE(OP_LOCAL_GET);
     ADD_ULEB128(vaarg_param_index);
