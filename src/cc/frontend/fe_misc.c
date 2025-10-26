@@ -436,7 +436,7 @@ void not_bitfield_member(Expr *expr) {
 }
 #endif
 
-#if STRUCT_ARG_AS_POINTER || VAARG_STRUCT_AS_POINTER
+#if STRUCT_ARG_AS_POINTER
 // Convert to struct pointer using compound literal: &(type){arg}
 static Expr *struct_arg_as_pointer(Expr *arg, Type *type) {
   const Token *tok = arg->token;
@@ -525,7 +525,7 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
         if (type->flonum.kind < FL_DOUBLE)  // Promote variadic argument.
           arg = make_cast(&tyDouble, arg->token, arg, false);
         break;
-#if STRUCT_ARG_AS_POINTER || VAARG_STRUCT_AS_POINTER
+#if STRUCT_ARG_AS_POINTER
       case TY_STRUCT:
         arg = struct_arg_as_pointer(arg, type);
         break;
