@@ -159,8 +159,10 @@ test-std-valtest:
 WCC:=../wcc
 WCC_TESTS:=valtest dvaltest fvaltest
 
+EMCC:=emcc
+
 .PHONY: test-wcc
-test-wcc:	test-wcc-sh $(foreach D, $(WCC_TESTS), $(addprefix test-wcc-,$(D))) test-wcc-examples
+test-wcc:	test-wcc-sh $(foreach D, $(WCC_TESTS), $(addprefix test-wcc-,$(D))) test-wcc-linktest test-wcc-examples
 	@echo 'All tests PASS!'
 
 .PHONY: test-wcc-sh
@@ -170,6 +172,16 @@ test-wcc-sh:
 	@XCC="$(WCC)" RE_SKIP='\/\/-WCC' \
 		AOUT="$(AWASM)" RUN_AOUT="../tool/runwasi $(AWASM)" \
 		./test.sh
+
+.PHONY:	test-wcc-linktest
+test-wcc-linktest: #linktest.wasm # $(XCC)
+	@if which $(EMCC) > /dev/null; then \
+		$(MAKE) linktest.wasm && \
+		echo '## Link test' && \
+		../tool/runwasi linktest.wasm; \
+	else \
+		echo '## Link test: skip'; \
+	fi
 
 .PHONY: test-wcc-examples
 test-wcc-examples:
@@ -193,3 +205,7 @@ $(1).wasm:	$$($(1)_WCCSRCS) # $(WCC)
 	$(WCC) -o $$@ -Wall -Werror $$^
 endef
 $(foreach D, $(WCC_TESTS), $(eval $(call DEFINE_WCCTEST_TARGET,$(D))))
+
+linktest.wasm: link_main.c link_sub.c
+	$(WCC) -c -fcommon -olink_main.o -Wall -Werror link_main.c
+	emcc -o $@ link_sub.c link_main.o

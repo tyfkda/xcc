@@ -378,28 +378,25 @@ static void gen_return(Stmt *stmt, bool is_last) {
   if (stmt->return_.val != NULL) {
     Expr *val = stmt->return_.val;
     const Type *rettype = val->type;
-    if (is_small_struct(rettype)) {
-      gen_lval(val);
-      const Type *et = get_small_struct_elem_type(rettype);
-      gen_load(et);
-    } else if (is_prim_type(rettype) || rettype->kind == TY_VOID) {
+    if (is_prim_type(rettype) || rettype->kind == TY_VOID) {
       gen_expr(val, true);
     } else {
+      assert(rettype->kind == TY_STRUCT);
       FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
       assert(finfo != NULL);
-      if (!(finfo->flag & FF_INLINING)) {
-        // Local #0 is the pointer for result.
-        ADD_CODE(OP_LOCAL_GET, 0);
-        gen_expr(val, true);
+      if (finfo->flag & FF_INLINING) {
+        gen_lval(val);  // Put a pointer to the top of stack.
+      } else if (is_small_struct(rettype)) {
+        gen_lval(val);
+        const Type *et = get_small_struct_elem_type(rettype);
+        gen_load(et);
+      } else {
+        ADD_CODE(OP_LOCAL_GET, 0);  // Local #0 is the pointer for result.
+        gen_lval(val);
         ADD_CODE(OP_I32_CONST);
         ADD_LEB128(type_size(rettype));
         ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);
-        // Result.
-        ADD_CODE(OP_LOCAL_GET, 0);
-      } else {
-        // Inlining a function which returns struct:
-        // Put value pointer on top of the stack.
-        gen_expr(val, true);
+        // Struct result is stored, and not return the value.
       }
     }
   }
@@ -511,10 +508,9 @@ void gen_stmts(Vector *stmts, bool is_last) {
 }
 
 static inline uint32_t calc_frame_size(
-    Function *func, unsigned int local_counts[4], FuncInfo *finfo, unsigned int *out_pparam_count) {
+    Function *func, unsigned int local_counts[4], FuncInfo *finfo) {
   const Type *functype = func->type;
   unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
-  unsigned int pparam_count = 0;  // Primitive parameter count
   uint32_t frame_size = 0;
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
@@ -524,11 +520,8 @@ static inline uint32_t calc_frame_size(
       int param_index = -1;
       if (i == 0 && param_count > 0) {
         int k = get_funparam_index(func, varinfo->ident->ident);
-        if (k >= 0) {
+        if (k >= 0)
           param_index = k;
-          if (is_small_struct(type) || !is_stack_param(type))
-            ++pparam_count;
-        }
       }
 
       if (!is_local_storage(varinfo)) {
@@ -559,7 +552,7 @@ static inline uint32_t calc_frame_size(
       }
     }
   }
-  if (frame_size > 0 || param_count != pparam_count || (finfo->flag & FF_STACK_MODIFIED)) {
+  if (frame_size > 0 || (finfo->flag & FF_STACK_MODIFIED)) {
     frame_size = ALIGN(frame_size, STACK_ALIGN);
 
     // Allocate a variable for base pointer in function top scope.
@@ -569,7 +562,6 @@ static inline uint32_t calc_frame_size(
     scope_add(func->scopes->data[0], bpident, &tySize, 0);
     local_counts[WT_I32 - WT_I32] += 1;
   }
-  *out_pparam_count = pparam_count;
   return frame_size;
 }
 
@@ -580,7 +572,6 @@ static inline void assign_variable_index_or_offsets(
 
   uint32_t frame_offset = 0;
   unsigned int param_no = ret_param;
-  uint32_t sparam_offset = 0;
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     for (int j = 0; j < scope->vars->len; ++j) {
@@ -602,19 +593,13 @@ static inline void assign_variable_index_or_offsets(
       bool prim = is_prim_type(type);
       if (param_index >= 0) {
         bool small_struct = is_small_struct(type);
-        if (prim || small_struct) {
-          vreg->prim.local_index = param_no++;
-          if (small_struct || varinfo->storage & VS_REF_TAKEN) {
-            frame_offset = ALIGN(frame_offset, align);
-            vreg->non_prim.offset = frame_offset - frame_size;
-            if (size < 1)
-              size = 1;
-            frame_offset += size;
-          }
-        } else {  // Non primitive parameter, passed through stack.
-          sparam_offset = ALIGN(sparam_offset, align);
-          vreg->non_prim.offset = sparam_offset;
-          sparam_offset += size;
+        vreg->prim.local_index = param_no++;
+        if (small_struct || varinfo->storage & VS_REF_TAKEN) {
+          frame_offset = ALIGN(frame_offset, align);
+          vreg->non_prim.offset = frame_offset - frame_size;
+          if (size < 1)
+            size = 1;
+          frame_offset += size;
         }
       } else {
         if ((prim && varinfo->storage & VS_REF_TAKEN) ||  // `&` taken wasm local var.
@@ -625,13 +610,9 @@ static inline void assign_variable_index_or_offsets(
             size = 1;
           frame_offset += size;
         } else {  // Not `&` taken, wasm local var.
-          if (param_index < 0) {
-            unsigned char wt = to_wtype(type);
-            int index = WT_I32 - wt;
-            vreg->prim.local_index = local_indices[index]++;
-          } else {
-            vreg->prim.local_index = param_no;
-          }
+          unsigned char wt = to_wtype(type);
+          int index = WT_I32 - wt;
+          vreg->prim.local_index = local_indices[index]++;
         }
       }
     }
@@ -649,8 +630,7 @@ static inline uint32_t allocate_local_variables(Function *func, DataStorage *dat
   FuncInfo *finfo = table_get(&func_info_table, func->ident->ident);
   assert(finfo != NULL);
 
-  unsigned int pparam_count;  // Primitive parameter count
-  size_t frame_size = calc_frame_size(func, local_counts, finfo, &pparam_count);
+  size_t frame_size = calc_frame_size(func, local_counts, finfo);
 
   unsigned int local_index_count = 0;
   for (int i = 0; i < 4; ++i) {
@@ -659,6 +639,7 @@ static inline uint32_t allocate_local_variables(Function *func, DataStorage *dat
   }
   data_uleb128(data, -1, local_index_count);
   int variadic = func->type->func.vaargs;
+  unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
   unsigned int local_indices[4];
   for (int i = 0; i < 4; ++i) {
     unsigned int count = local_counts[i];
@@ -666,7 +647,7 @@ static inline uint32_t allocate_local_variables(Function *func, DataStorage *dat
       data_uleb128(data, -1, count);
       data_push(data, WT_I32 - i);
     }
-    local_indices[i] = i == 0 ? ret_param + variadic + pparam_count
+    local_indices[i] = i == 0 ? ret_param + variadic + param_count
                               : local_indices[i - 1] + local_counts[i - 1];
   }
 
@@ -723,13 +704,10 @@ static inline void move_params_to_stack_frame(Function *func) {
     VReg *vreg = varinfo->local.vreg;
     assert(vreg != NULL);
 
-    int vaarg_param_index = 0;
-    for (int i = 0; i < func->params->len; ++i) {
-      const VarInfo *varinfo = func->params->data[i];
-      const Type *type = varinfo->type;
-      if (is_small_struct(type) || !is_stack_param(type))
-        ++vaarg_param_index;
-    }
+    int vaarg_param_index = func->params->len;
+    const Type *rettype = functype->func.ret;
+    if (rettype->kind == TY_STRUCT && !is_small_struct(rettype))
+      vaarg_param_index += 1;
 
     ADD_CODE(OP_LOCAL_GET);
     ADD_ULEB128(vaarg_param_index);
