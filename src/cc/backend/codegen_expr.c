@@ -462,12 +462,16 @@ static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, Funca
 }
 
 #if STRUCT_ARG_AS_POINTER
-static inline VReg *gen_funarg_struct_pointer(Expr *arg, const ArgInfo *arg_info, FuncallWork *work) {
+static inline VReg *gen_funarg_struct_pointer(
+    Expr *arg, const ArgInfo *arg_info, bool prepare_struct, FuncallWork *work) {
   const Type *type = arg->type;
   assert(is_stack_param(type));
-  VReg *vreg = gen_expr(arg);
   VReg *dst = new_ir_sofs(new_const_vreg(arg_info->indirect_offset, VRegSize8))->dst;
-  gen_memcpy(type, dst, vreg);
+  if (prepare_struct) {
+    VReg *vreg = gen_expr(arg);
+    gen_memcpy(type, dst, vreg);
+    return vreg;
+  }
 
   if (arg_info->offset < 0) {
     int regarg = ++work->regarg[GPREG];
@@ -482,9 +486,8 @@ static inline VReg *gen_funarg_struct_pointer(Expr *arg, const ArgInfo *arg_info
     ssize_t offset = arg_info->offset;
     VReg *dst2 = new_ir_sofs(new_const_vreg(offset, VRegSize8))->dst;
     new_ir_store(dst2, 0, dst, IRF_UNSIGNED);
-    vreg = NULL;
+    dst = NULL;
   }
-
   return dst;
 }
 #endif
@@ -503,50 +506,60 @@ static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *
     assert(index < kArchSetting.max_reg_args[GPREG]);
     new_ir_pusharg(loaded, index);
   }
-
   return NULL;
 }
 
-static inline VReg *gen_funarg(Expr *arg, const ArgInfo *arg_info, FuncallWork *work) {
+static inline VReg *gen_funarg_stack(Expr *arg, const ArgInfo *arg_info) {
+  VReg *vreg = gen_expr(arg);
+  ssize_t offset = arg_info->offset;
+  VReg *dst = new_ir_sofs(new_const_vreg(offset, VRegSize8))->dst;
+  const Type *type = arg->type;
+  if (is_prim_type(type)) {
+    int flag = is_unsigned(type) ? IRF_UNSIGNED : 0;
+    new_ir_store(dst, 0, vreg, flag);
+  } else {
+    gen_memcpy(type, dst, vreg);
+  }
+  return dst;
+}
+
+static inline VReg *gen_funarg_reg(Expr *arg, const ArgInfo *arg_info, FuncallWork *work) {
+  VReg *vreg = gen_expr(arg);
+  if (arg->type->kind == TY_STRUCT) {
+    assert(is_small_struct(arg->type));
+    return gen_funarg_small_struct(arg, vreg, work);
+  }
+
+  bool is_flo = (arg_info->flag & (ARGF_FLONUM | ARGF_FP_AS_GP)) == ARGF_FLONUM;
+  int regarg = ++work->regarg[is_flo];
+  int index = work->reg_arg_count[is_flo] - regarg;
+#if !EXTRA_RETURN_STRUCT_REGISTER
+  if (!is_flo && work->ret_varinfo != NULL && !work->ret_small_struct)
+    ++index;
+#endif
+  assert(index < kArchSetting.max_reg_args[is_flo]);
+  IR *ir = new_ir_pusharg(vreg, index);
+#if !VAARG_FP_AS_GP
+  UNUSED(ir);
+#else
+  if (!is_flo && (arg_info->flag & ARGF_FP_AS_GP))
+    ir->pusharg.fp_as_gp = true;
+#endif
+  return vreg;
+}
+
+static inline VReg *gen_funarg(
+    Expr *arg, const ArgInfo *arg_info, bool prepare_struct, FuncallWork *work) {
 #if STRUCT_ARG_AS_POINTER
   if (arg_info->indirect_offset >= 0)
-    return gen_funarg_struct_pointer(arg, arg_info, work);
+    return gen_funarg_struct_pointer(arg, arg_info, prepare_struct, work);
 #endif
 
-  VReg *vreg = gen_expr(arg);
-  if (arg_info->offset < 0) {
-    if (arg->type->kind == TY_STRUCT) {
-      assert(is_small_struct(arg->type));
-      return gen_funarg_small_struct(arg, vreg, work);
-    }
-
-    bool is_flo = (arg_info->flag & (ARGF_FLONUM | ARGF_FP_AS_GP)) == ARGF_FLONUM;
-    int regarg = ++work->regarg[is_flo];
-    int index = work->reg_arg_count[is_flo] - regarg;
-#if !EXTRA_RETURN_STRUCT_REGISTER
-    if (!is_flo && work->ret_varinfo != NULL && !work->ret_small_struct)
-      ++index;
-#endif
-    assert(index < kArchSetting.max_reg_args[is_flo]);
-    IR *ir = new_ir_pusharg(vreg, index);
-#if !VAARG_FP_AS_GP
-    UNUSED(ir);
-#else
-    if (!is_flo && (arg_info->flag & ARGF_FP_AS_GP))
-      ir->pusharg.fp_as_gp = true;
-#endif
-  } else {
-    ssize_t offset = arg_info->offset;
-    VReg *dst = new_ir_sofs(new_const_vreg(offset, VRegSize8))->dst;
-    if (is_prim_type(arg->type)) {
-      int flag = is_unsigned(arg->type) ? IRF_UNSIGNED : 0;
-      new_ir_store(dst, 0, vreg, flag);
-    } else {
-      gen_memcpy(arg->type, dst, vreg);
-    }
-    vreg = NULL;
+  if ((arg_info->offset >= 0) == prepare_struct) {
+    return prepare_struct ? gen_funarg_stack(arg, arg_info)
+                          : gen_funarg_reg(arg, arg_info, work);
   }
-  return vreg;
+  return NULL;
 }
 
 static inline void gen_funargs(Expr *expr, FuncallWork *work) {
@@ -557,7 +570,6 @@ static inline void gen_funargs(Expr *expr, FuncallWork *work) {
   work->stack_arg_count = 0;
   work->ret_small_struct = is_small_struct(expr->type);
   work->reg_arg_count[GPREG] = work->reg_arg_count[FPREG] = 0;
-  work->regarg[GPREG] = work->regarg[FPREG] = 0;
 
   Expr *func = expr->funcall.func;
   const Type *functype = get_callee_type(func->type);
@@ -589,10 +601,14 @@ static inline void gen_funargs(Expr *expr, FuncallWork *work) {
                                           : calloc_or_die(total_arg_count * sizeof(*arg_vregs));
   work->arg_vregs = arg_vregs;
 
-  for (int i = args->len; --i >= 0; ) {
-    Expr *arg = args->data[i];
-    VReg *vreg = gen_funarg(arg, &arg_infos[i], work);
-    arg_vregs[i + work->arg_start] = vreg;
+  for (int i = 0; i < 2; ++i) {  // Put struct argument onto stack frame first, then handle rest.
+    bool prepare_struct = i == 0;
+    work->regarg[GPREG] = work->regarg[FPREG] = 0;
+    for (int j = args->len; --j >= 0; ) {
+      Expr *arg = args->data[j];
+      VReg *vreg = gen_funarg(arg, &arg_infos[j], prepare_struct, work);
+      arg_vregs[j + work->arg_start] = vreg;
+    }
   }
 
   if (ret_varinfo != NULL && !work->ret_small_struct) {
