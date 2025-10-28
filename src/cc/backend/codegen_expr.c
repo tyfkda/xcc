@@ -489,9 +489,8 @@ static inline VReg *gen_funarg(Expr *arg, ArgInfo *arg_info, FuncallWork *work) 
       ir->pusharg.fp_as_gp = true;
 #endif
   } else {
-    enum VRegSize offset_type = 2;  //{.size = 4, .align = 4};  // TODO:
-    ssize_t ofs = arg_info->offset;
-    VReg *dst = new_ir_sofs(new_const_vreg(ofs, offset_type))->dst;
+    ssize_t offset = arg_info->offset;
+    VReg *dst = new_ir_sofs(new_const_vreg(offset, VRegSize8))->dst;
     if (is_prim_type(arg->type)) {
       int flag = is_unsigned(arg->type) ? IRF_UNSIGNED : 0;
       new_ir_store(dst, 0, vreg, flag);

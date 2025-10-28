@@ -235,13 +235,13 @@ static void ei_iofs(IR *ir) {
 static void ei_sofs(IR *ir) {
   assert(ir->opr1->flag & VRF_CONST);
   const char *dst = kReg64s[ir->dst->phys];
-  int64_t ofs = ir->opr1->fixnum;
-  if (ofs == 0) {
+  int64_t offset = ir->opr1->fixnum;
+  if (offset == 0) {
     MV(dst, SP);
-  } else if (is_im12(ofs)) {
-    ADDI(dst, SP, IM(ofs));
+  } else if (is_im12(offset)) {
+    ADDI(dst, SP, IM(offset));
   } else {
-    LI(dst, IM(ofs));
+    LI(dst, IM(offset));
     ADD(dst, dst, SP);
   }
 }

@@ -218,7 +218,7 @@ IR *new_ir_load(VReg *opr, int64_t offset, enum VRegSize vsize, int vflag, int i
 IR *new_ir_mov(VReg *dst, VReg *src, int flag);
 IR *new_ir_bofs(FrameInfo *fi);
 IR *new_ir_iofs(const Name *label, bool global);
-IR *new_ir_sofs(VReg *src);
+IR *new_ir_sofs(VReg *offset);
 IR *new_ir_store(VReg *dst, int64_t offset, VReg *src, int flag);
 IR *new_ir_cond(VReg *opr1, VReg *opr2, enum ConditionKind cond);
 IR *new_ir_jmp(BB *bb);  // Non-conditional jump

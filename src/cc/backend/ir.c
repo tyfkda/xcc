@@ -259,9 +259,9 @@ IR *new_ir_iofs(const Name *label, bool global) {
   return ir;
 }
 
-IR *new_ir_sofs(VReg *src) {
+IR *new_ir_sofs(VReg *offset) {
   IR *ir = new_ir(IR_SOFS);
-  ir->opr1 = src;
+  ir->opr1 = offset;
   ir->dst = reg_alloc_spawn(curra, vtVoidPtr, 0);
   return ir;
 }

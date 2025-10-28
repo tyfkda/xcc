@@ -366,13 +366,13 @@ static void ei_iofs(IR *ir) {
 static void ei_sofs(IR *ir) {
   assert(ir->opr1->flag & VRF_CONST);
   const char *dst = kReg64s[ir->dst->phys];
-  int ofs = ir->opr1->fixnum;
-  if (ofs == 0) {
+  int64_t offset = ir->opr1->fixnum;
+  if (offset == 0) {
     MOV(dst, SP);
-  } else if (is_im13_addsubimm(ofs)) {
-    ADD(dst, SP, IM(ofs));
+  } else if (is_im13_addsubimm(offset)) {
+    ADD(dst, SP, IM(offset));
   } else {
-    mov_immediate(dst, ofs, true, false);
+    mov_immediate(dst, offset, true, false);
     ADD(dst, dst, SP);
   }
 }
