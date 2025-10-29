@@ -296,7 +296,6 @@ static inline void gen_asm(Stmt *stmt) {
     const AsmArg *arg = stmt->asm_.outputs->data[0];
     assert(arg->expr->kind == EX_VAR);
     output = gen_expr(arg->expr);
-    vec_push(registers, output);
   }
   if (stmt->asm_.inputs != NULL) {
     for (int i = 0; i < stmt->asm_.inputs->len; ++i) {

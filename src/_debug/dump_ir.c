@@ -169,6 +169,10 @@ static void dump_ir(FILE *fp, IR *ir, RegAlloc *ra) {
     break;
   case IR_ASM:
     {
+      if (ir->dst != NULL) {
+        dump_vreg(fp, ir->dst, ra);
+        fprintf(fp, " = ");
+      }
       fprintf(fp, "[\n");
       Vector *templates = ir->asm_.templates;
       for (int i = 0; i < templates->len; i += 2) {
