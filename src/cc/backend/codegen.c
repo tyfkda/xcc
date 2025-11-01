@@ -152,17 +152,22 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
   int reg_index[2] = {0, 0};
   int total = 0;
 
+#define IS_INLINING(fnbe)  ((fnbe)->inline_result_dst != NULL)
+
 #define HANDLE_RETURN_STRUCT_REGISTER(idx) do { \
-    FuncBackend *fnbe = func->extra; \
-    VReg *retval = fnbe->retval; \
-    if (retval != NULL) { \
-      RegParamInfo *p = &args[total++]; \
-      assert(is_local_storage(fnbe->retvarinfo)); \
-      p->frameinfo = fnbe->retvarinfo->local.frameinfo; \
-      p->vreg = retval; \
-      p->index = idx; \
-      ++arg_count[GPREG]; \
-      ++reg_index[GPREG]; \
+    const Type *rettype = func->type->func.ret; \
+    if (rettype->kind == TY_STRUCT && !is_small_struct(rettype)) { \
+      FuncBackend *fnbe = func->extra; \
+      if (!IS_INLINING(fnbe)) { \
+        RegParamInfo *p = &args[total++]; \
+        assert(is_local_storage(fnbe->retvarinfo)); \
+        p->frameinfo = fnbe->retvarinfo->local.frameinfo; \
+        assert(fnbe->retval != NULL); \
+        p->vreg = fnbe->retval; \
+        p->index = idx; \
+        ++arg_count[GPREG]; \
+        ++reg_index[GPREG]; \
+      } \
     } \
   } while (0)
 
@@ -354,7 +359,7 @@ static inline void gen_return(Stmt *stmt) {
     Expr *val = stmt->return_.val;
     const Type *type = val->type;
     VReg *vreg = gen_expr(val);
-    VReg *result_dst = fnbe->result_dst;
+    VReg *result_dst = fnbe->inline_result_dst;
     if (result_dst == NULL) {  // Not inlining.
       if (is_small_struct(type)) {
         size_t size = type_size(type);
@@ -937,7 +942,7 @@ bool gen_defun(Function *func) {
   fnbe->ret_bb = NULL;
   fnbe->retvarinfo = NULL;
   fnbe->retval = NULL;
-  fnbe->result_dst = NULL;
+  fnbe->inline_result_dst = NULL;
   fnbe->funcalls = NULL;
   fnbe->frame_size = 0;
   fnbe->vaarg_frame_info.size = -1;  // Dummy.

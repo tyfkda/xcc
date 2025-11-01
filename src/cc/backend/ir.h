@@ -281,7 +281,7 @@ typedef struct FuncBackend {
   BB *ret_bb;
   VarInfo *retvarinfo;
   VReg *retval;
-  VReg *result_dst;
+  VReg *inline_result_dst;
   Vector *funcalls;
   size_t frame_size;
   FrameInfo vaarg_frame_info;  // Used for va_start.
