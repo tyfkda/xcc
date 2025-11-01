@@ -987,10 +987,8 @@ static VReg *gen_inlined(Expr *expr) {
   BB *inline_end_bb = new_bb();
   FuncBackend *fnbe = curfunc->extra;
   BB *bak_retbb = fnbe->ret_bb;
-  VReg *bak_retval = fnbe->retval;
-  VReg *bak_result_dst = fnbe->result_dst;
+  VReg *bak_result_dst = fnbe->inline_result_dst;
   fnbe->ret_bb = inline_end_bb;
-  fnbe->retval = NULL;
 
   Type *rettype = expr->type;
   VReg *dst = NULL;
@@ -1000,13 +998,12 @@ static VReg *gen_inlined(Expr *expr) {
       rettype = ptrof(rettype);
     }
     dst = add_new_vreg(rettype);
-    fnbe->result_dst = dst;
+    fnbe->inline_result_dst = dst;
   }
 
   gen_block(embedded);
 
-  fnbe->result_dst = bak_result_dst;
-  fnbe->retval = bak_retval;
+  fnbe->inline_result_dst = bak_result_dst;
   fnbe->ret_bb = bak_retbb;
 
   set_curbb(inline_end_bb);

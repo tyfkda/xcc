@@ -59,8 +59,9 @@ static BB *push_break_bb(BB **save) {
 
 static inline VarInfo *prepare_retvar(Function *func) {
   // Insert vreg for return value pointer into top of the function scope.
+  static const char RETBUFPTR[] = ".._RETBUFPTR";
   Type *rettype = func->type->func.ret;
-  const Token *retval_token = alloc_dummy_ident();
+  const Token *retval_token = alloc_token(TK_IDENT, 0, RETBUFPTR, NULL);
   Type *retptrtype = ptrof(rettype);
   Scope *top_scope = func->scopes->data[0];
   VarInfo *varinfo = scope_add(top_scope, retval_token, retptrtype, 0);
@@ -73,8 +74,7 @@ static inline VarInfo *prepare_retvar(Function *func) {
 #endif
   varinfo->local.vreg = vreg;
   FuncBackend *fnbe = func->extra;
-  fnbe->retvarinfo = varinfo;
-  fnbe->retval = vreg;
+  fnbe->struct_retvar = varinfo;
   return varinfo;
 }
 
@@ -161,23 +161,28 @@ static void alloc_variable_registers(Function *func) {
 }
 
 int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo *args) {
+#define IS_INLINING(fnbe)  ((fnbe)->inline_result_dst != NULL)
+
+#define HANDLE_RETURN_STRUCT_REGISTER(idx) do { \
+    const Type *rettype = func->type->func.ret; \
+    if (rettype->kind == TY_STRUCT && !is_small_struct(rettype)) { \
+      FuncBackend *fnbe = func->extra; \
+      if (!IS_INLINING(fnbe)) { \
+        RegParamInfo *p = &args[total++]; \
+        VarInfo *vi = fnbe->struct_retvar; \
+        assert(vi != NULL && is_local_storage(vi)); \
+        p->vreg = vi->local.vreg; \
+        assert(p->vreg != NULL); \
+        p->index = idx; \
+        ++arg_count[GPREG]; \
+        ++reg_index[GPREG]; \
+      } \
+    } \
+  } while (0)
+
   int arg_count[2] = {0, 0};
   int reg_index[2] = {0, 0};
   int total = 0;
-
-#define HANDLE_RETURN_STRUCT_REGISTER(idx) do { \
-    FuncBackend *fnbe = func->extra; \
-    VReg *retval = fnbe->retval; \
-    if (retval != NULL) { \
-      RegParamInfo *p = &args[total++]; \
-      assert(is_local_storage(fnbe->retvarinfo)); \
-      p->frameinfo = fnbe->retvarinfo->local.frameinfo; \
-      p->vreg = retval; \
-      p->index = idx; \
-      ++arg_count[GPREG]; \
-      ++reg_index[GPREG]; \
-    } \
-  } while (0)
 
 #if !EXTRA_RETURN_STRUCT_REGISTER
   HANDLE_RETURN_STRUCT_REGISTER(0);
@@ -399,7 +404,7 @@ static inline void gen_return(Stmt *stmt) {
     Expr *val = stmt->return_.val;
     const Type *type = val->type;
     VReg *vreg = gen_expr(val);
-    VReg *result_dst = fnbe->result_dst;
+    VReg *result_dst = fnbe->inline_result_dst;
     if (result_dst == NULL) {  // Not inlining.
       if (is_small_struct(type)) {
         gen_return_small_struct(type, vreg);
@@ -407,7 +412,8 @@ static inline void gen_return(Stmt *stmt) {
         int flag = is_unsigned(type) ? IRF_UNSIGNED : 0;
         new_ir_result(vreg, flag, 0);
       } else if (type->kind != TY_VOID) {
-        VReg *retval = fnbe->retval;
+        assert(fnbe->struct_retvar != NULL && is_local_storage(fnbe->struct_retvar));
+        VReg *retval = fnbe->struct_retvar->local.vreg;
         assert(retval != NULL);
         gen_memcpy(type, retval, vreg);
         new_ir_result(retval, IRF_UNSIGNED, 0);  // Pointer is unsigned.
@@ -972,9 +978,8 @@ bool gen_defun(Function *func) {
   fnbe->ra = NULL;
   fnbe->bbcon = NULL;
   fnbe->ret_bb = NULL;
-  fnbe->retvarinfo = NULL;
-  fnbe->retval = NULL;
-  fnbe->result_dst = NULL;
+  fnbe->struct_retvar = NULL;
+  fnbe->inline_result_dst = NULL;
   fnbe->funcalls = NULL;
   fnbe->frame_size = 0;
   fnbe->vaarg_frame_info.size = -1;  // Dummy.
