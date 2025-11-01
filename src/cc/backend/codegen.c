@@ -58,8 +58,9 @@ static BB *push_break_bb(BB **save) {
 
 static inline VarInfo *prepare_retvar(Function *func) {
   // Insert vreg for return value pointer into top of the function scope.
+  static const char RETBUFPTR[] = ".._RETBUFPTR";
   Type *rettype = func->type->func.ret;
-  const Token *retval_token = alloc_dummy_ident();
+  const Token *retval_token = alloc_token(TK_IDENT, 0, RETBUFPTR, NULL);
   Type *retptrtype = ptrof(rettype);
   Scope *top_scope = func->scopes->data[0];
   VarInfo *varinfo = scope_add(top_scope, retval_token, retptrtype, 0);
@@ -73,7 +74,6 @@ static inline VarInfo *prepare_retvar(Function *func) {
   varinfo->local.vreg = vreg;
   FuncBackend *fnbe = func->extra;
   fnbe->retvarinfo = varinfo;
-  fnbe->retval = vreg;
   return varinfo;
 }
 
@@ -160,10 +160,10 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
       FuncBackend *fnbe = func->extra; \
       if (!IS_INLINING(fnbe)) { \
         RegParamInfo *p = &args[total++]; \
-        assert(is_local_storage(fnbe->retvarinfo)); \
-        p->frameinfo = fnbe->retvarinfo->local.frameinfo; \
-        assert(fnbe->retval != NULL); \
-        p->vreg = fnbe->retval; \
+        VarInfo *vi = fnbe->retvarinfo; \
+        assert(vi != NULL && is_local_storage(vi)); \
+        p->vreg = vi->local.vreg; \
+        assert(p->vreg != NULL); \
         p->index = idx; \
         ++arg_count[GPREG]; \
         ++reg_index[GPREG]; \
@@ -375,7 +375,8 @@ static inline void gen_return(Stmt *stmt) {
         int flag = is_unsigned(type) ? IRF_UNSIGNED : 0;
         new_ir_result(vreg, flag, 0);
       } else if (type->kind != TY_VOID) {
-        VReg *retval = fnbe->retval;
+        assert(fnbe->retvarinfo != NULL && is_local_storage(fnbe->retvarinfo));
+        VReg *retval = fnbe->retvarinfo->local.vreg;
         assert(retval != NULL);
         gen_memcpy(type, retval, vreg);
         new_ir_result(retval, IRF_UNSIGNED, 0);  // Pointer is unsigned.
@@ -941,7 +942,6 @@ bool gen_defun(Function *func) {
   fnbe->bbcon = NULL;
   fnbe->ret_bb = NULL;
   fnbe->retvarinfo = NULL;
-  fnbe->retval = NULL;
   fnbe->inline_result_dst = NULL;
   fnbe->funcalls = NULL;
   fnbe->frame_size = 0;

@@ -279,8 +279,8 @@ typedef struct FuncBackend {
   RegAlloc *ra;
   BBContainer *bbcon;
   BB *ret_bb;
-  VarInfo *retvarinfo;
-  VReg *retval;
+  VarInfo *retvarinfo;  // If the function result is a non-small struct,
+                        // then the buffer is passed as a parameter by caller.
   VReg *inline_result_dst;
   Vector *funcalls;
   size_t frame_size;
