@@ -1028,7 +1028,7 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
   case ST_BLOCK:
     {
       Scope *bak_original_scope = original_scope;
-      Scope *scope = curscope;
+      Scope *scope = NULL;
       if (stmt->block.scope != NULL) {
         original_scope = stmt->block.scope;
         Vector *vars = NULL;
