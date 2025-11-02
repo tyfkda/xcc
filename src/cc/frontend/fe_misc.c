@@ -858,7 +858,7 @@ bool satisfy_inline_criteria(const VarInfo *varinfo) {
     if (func != NULL) {
       // Self-recursion or mutual recursion are prevented,
       // because some inline function must not be defined at funcall point.
-      return func->body_block != NULL && func->label_table == NULL && func->gotos == NULL;
+      return func->body_block != NULL && func->label_table == NULL;
     }
   }
   return false;
@@ -1171,7 +1171,6 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
     {
       Stmt *follow = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->label.stmt);
       Stmt *dup = new_stmt_label(stmt->token, follow);
-      dup->label.used = stmt->label.used;
       return dup;
     }
   case ST_VARDECL:

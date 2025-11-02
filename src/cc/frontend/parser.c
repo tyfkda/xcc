@@ -28,49 +28,44 @@ Token *consume(enum TokenKind kind, const char *error) {
   return tok;
 }
 
-static inline void add_func_label(const Token *tok, Stmt *label) {
+static inline void add_func_goto_label(const Token *token, Stmt *goto_, Stmt *label) {
   assert(curfunc != NULL);
   Table *table = curfunc->label_table;
-  if (table == NULL) {
+  if (table == NULL)
     curfunc->label_table = table = alloc_table();
+  GotoLabel *goto_label = table_get(table, token->ident);
+  if (goto_label == NULL) {
+    goto_label = calloc_or_die(sizeof(*goto_label));
+    goto_label->label_stmt = NULL;
+    goto_label->gotos = new_vector();
+    table_put(table, token->ident, goto_label);
+  } else {
+    if (label != NULL && goto_label->label_stmt != NULL) {
+      parse_error(PE_NOFATAL, token, "Label `%.*s' already defined", NAMES(token->ident));
+      return;
+    }
   }
-  if (!table_put(table, tok->ident, label))
-    parse_error(PE_NOFATAL, tok, "Label `%.*s' already defined", NAMES(tok->ident));
-}
-
-static inline void add_func_goto(Stmt *stmt) {
-  assert(curfunc != NULL);
-  if (curfunc->gotos == NULL)
-    curfunc->gotos = new_vector();
-  vec_push(curfunc->gotos, stmt);
+  if (label != NULL)
+    goto_label->label_stmt = label;
+  if (goto_ != NULL)
+    vec_push(goto_label->gotos, goto_);
 }
 
 static inline void check_goto_labels(Function *func) {
   Table *label_table = func->label_table;
+  if (label_table == NULL)
+    return;
 
-  // Check whether goto label exist.
-  Vector *gotos = func->gotos;
-  if (gotos != NULL) {
-    for (int i = 0; i < gotos->len; ++i) {
-      Stmt *stmt = gotos->data[i];
-      Stmt *label;
-      if (label_table != NULL &&
-          (label = table_get(label_table, stmt->goto_.label->ident)) != NULL) {
-        label->label.used = true;
-      } else {
-        const Name *name = stmt->goto_.label->ident;
-        parse_error(PE_NOFATAL, stmt->goto_.label, "`%.*s' not found", NAMES(name));
-      }
-    }
-  }
-
-  // Check label is used.
-  if (label_table != NULL) {
-    const Name *name;
-    Stmt *label;
-    for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&label)) != -1; ) {
-      if (!label->label.used)
-        parse_error(PE_WARNING, label->token, "`%.*s' not used", NAMES(name));
+  // Check whether goto label exist and used.
+  const Name *name;
+  GotoLabel *goto_label;
+  for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&goto_label)) != -1; ) {
+    if (goto_label->label_stmt == NULL) {
+      assert(goto_label->gotos->len > 0);
+      Stmt *stmt = goto_label->gotos->data[0];
+      parse_error(PE_NOFATAL, stmt->goto_.label, "`%.*s' not found", NAMES(name));
+    } else if (goto_label->gotos->len == 0) {
+      parse_error(PE_WARNING, goto_label->label_stmt->token, "`%.*s' not used", NAMES(name));
     }
   }
 }
@@ -529,7 +524,7 @@ static inline Stmt *parse_goto(const Token *tok) {
 
   Stmt *stmt = new_stmt_goto(tok, label);
   if (label != NULL)
-    add_func_goto(stmt);
+    add_func_goto_label(label, stmt, NULL);
   return stmt;
 }
 
@@ -540,7 +535,7 @@ static Stmt *parse_label(const Token *tok) {
     next = new_stmt(ST_EMPTY, tok);  // Dummy
   }
   Stmt *stmt = new_stmt_label(tok, next);
-  add_func_label(tok, stmt);
+  add_func_goto_label(tok, NULL, stmt);
   return stmt;
 }
 

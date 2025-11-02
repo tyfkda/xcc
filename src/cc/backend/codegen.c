@@ -625,9 +625,9 @@ static void gen_continue(void) {
 
 static inline void gen_goto(Stmt *stmt) {
   assert(curfunc->label_table != NULL);
-  Stmt *label = table_get(curfunc->label_table, stmt->goto_.label->ident);
-  assert(label != NULL);
-  new_ir_jmp(label->label.bb);
+  GotoLabel *goto_label = table_get(curfunc->label_table, stmt->goto_.label->ident);
+  assert(goto_label != NULL);
+  new_ir_jmp(goto_label->label_stmt->label.bb);
   set_curbb(new_bb());
 }
 
@@ -953,9 +953,9 @@ bool gen_defun(Function *func) {
   if (func->label_table != NULL) {
     Table *label_table = func->label_table;
     const Name *name;
-    Stmt *label;
-    for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&label)) != -1; ) {
-      label->label.bb = new_bb();
+    GotoLabel *goto_label;
+    for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&goto_label)) != -1; ) {
+      goto_label->label_stmt->label.bb = new_bb();
     }
   }
 

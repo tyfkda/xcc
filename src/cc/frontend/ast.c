@@ -295,7 +295,6 @@ Stmt *new_stmt_goto(const Token *tok, const Token *label) {
 Stmt *new_stmt_label(const Token *label, Stmt *follow) {
   Stmt *stmt = new_stmt(ST_LABEL, label);
   stmt->label.stmt = follow;
-  stmt->label.used = false;
   stmt->label.bb = NULL;
   return stmt;
 }
@@ -354,7 +353,6 @@ Function *new_func(Type *type, const Token *ident, const Vector *params, Table *
   func->scopes = NULL;
   func->body_block = NULL;
   func->label_table = NULL;
-  func->gotos = NULL;
   func->extra = NULL;
   func->attributes = attributes;
   func->flag = flag;

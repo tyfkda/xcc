@@ -452,7 +452,6 @@ typedef struct Stmt {
     } goto_;
     struct {
       struct Stmt *stmt;
-      bool used;
       //
       BB *bb;
     } label;
@@ -491,8 +490,7 @@ typedef struct Function {
   Vector *static_vars;  // Static variable entities: <VarInfo*>
   Vector *scopes;  // NULL => prototype definition.
   Stmt *body_block;  // NULL => Prototype definition.
-  Table *label_table;  // <const Name*, Stmt*>
-  Vector *gotos;  // <Stmt*>
+  Table *label_table;  // <const Name*, GotoLabel*>
   void *extra;
   Table *attributes;  // <Vector<Token*>>
   int flag;
@@ -502,6 +500,11 @@ typedef struct Function {
 
 Function *new_func(Type *type, const Token *ident, const Vector *params, Table *attributes,
                    int flag);
+
+typedef struct GotoLabel {
+  Stmt *label_stmt;
+  Vector *gotos;
+} GotoLabel;
 
 // Declaration
 
