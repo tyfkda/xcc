@@ -12,6 +12,7 @@
 #include "be_aux.h"
 #include "cc_misc.h"  // is_function_omitted
 #include "fe_misc.h"  // curfunc, curscope
+#include "initializer.h"
 #include "ir.h"
 #include "optimize.h"
 #include "regalloc.h"

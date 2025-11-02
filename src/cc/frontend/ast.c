@@ -198,13 +198,6 @@ Expr *new_expr_block(Stmt *block) {
 
 // ================================================
 
-Initializer *new_initializer(enum InitializerKind kind, const Token *token) {
-  Initializer *init = calloc_or_die(sizeof(*init));
-  init->kind = kind;
-  init->token = token;
-  return init;
-}
-
 VarDecl *new_vardecl(VarInfo *varinfo) {
   VarDecl *decl = calloc_or_die(sizeof(*decl));
   decl->varinfo = varinfo;

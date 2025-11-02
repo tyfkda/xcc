@@ -323,34 +323,6 @@ bool is_const_falsy(Expr *expr);
 bool is_zero(Expr *expr);
 Expr *strip_cast(Expr *expr);
 
-// Initializer
-
-enum InitializerKind {
-  IK_SINGLE,  // 123
-  IK_MULTI,   // {...}
-  IK_DOT,     // .x
-  IK_BRKT,    // [n]
-};
-
-struct Initializer {
-  enum InitializerKind kind;
-  const Token *token;
-  union {
-    Expr *single;
-    Vector *multi;  // <Initializer*>
-    struct {
-      const Name *name;
-      struct Initializer *value;
-    } dot;
-    struct {
-      size_t index;
-      struct Initializer *value;
-    } bracket;
-  };
-};
-
-Initializer *new_initializer(enum InitializerKind kind, const Token *token);
-
 // Statement
 
 enum StmtKind {

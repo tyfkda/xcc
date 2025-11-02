@@ -12,6 +12,13 @@
 #include "util.h"
 #include "var.h"
 
+Initializer *new_initializer(enum InitializerKind kind, const Token *token) {
+  Initializer *init = calloc_or_die(sizeof(*init));
+  init->kind = kind;
+  init->token = token;
+  return init;
+}
+
 Type *fix_array_size(Type *type, Initializer *init, const Token *token) {
   assert(init != NULL);
   assert(type->kind == TY_ARRAY);

@@ -9,6 +9,7 @@
 #include "cc_misc.h"  // is_function_omitted
 #include "expr.h"
 #include "fe_misc.h"  // curscope
+#include "initializer.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"

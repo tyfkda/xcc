@@ -5,6 +5,7 @@
 
 #include "ast.h"
 #include "fe_misc.h"
+#include "initializer.h"
 #include "lexer.h"
 #include "parser.h"
 #include "table.h"

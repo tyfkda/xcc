@@ -7,6 +7,7 @@
 
 #include "ast.h"
 #include "fe_misc.h"
+#include "initializer.h"
 #include "lexer.h"
 #include "table.h"
 #include "type.h"
@@ -460,7 +461,7 @@ static ssize_t parse_array_size(Expr **pvla) {
         case TY_FIXNUM:
           {
             Initializer *init = is_global_scope(expr->var.scope) ? varinfo->global.init
-                                                                  : varinfo->local.init;
+                                                                 : varinfo->local.init;
             assert(init != NULL);
             assert(init->kind == IK_SINGLE);
             switch (init->single->kind) {

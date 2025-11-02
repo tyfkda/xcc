@@ -11,6 +11,7 @@
 #include "be_aux.h"
 #include "cc_misc.h"
 #include "fe_misc.h"
+#include "initializer.h"
 #include "ir.h"
 #include "regalloc.h"
 #include "table.h"

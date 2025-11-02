@@ -6,6 +6,7 @@
 
 #include "ast.h"
 #include "fe_misc.h"
+#include "initializer.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"

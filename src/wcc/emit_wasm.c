@@ -8,6 +8,7 @@
 #include "ast.h"
 #include "cc_misc.h"
 #include "fe_misc.h"
+#include "initializer.h"
 #include "table.h"
 #include "type.h"
 #include "util.h"
