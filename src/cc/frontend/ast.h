@@ -409,7 +409,7 @@ typedef struct Stmt {
     struct {
       Scope *scope;
       Vector *stmts;
-      const Token *rbrace;
+      const Token *rbrace;  // NULL: implicit block.
     } block;
     struct {
       Expr *cond;
@@ -465,7 +465,7 @@ typedef struct Stmt {
 
 Stmt *new_stmt(enum StmtKind kind, const Token *token);
 Stmt *new_stmt_expr(Expr *e);
-Stmt *new_stmt_block(const Token *token, Vector *stmts, Scope *scope, const Token *rbrace);
+Stmt *new_stmt_block(const Token *token, Scope *scope);
 Stmt *new_stmt_if(const Token *token, Expr *cond, Stmt *tblock, Stmt *fblock);
 Stmt *new_stmt_switch(const Token *token, Expr *value);
 Stmt *new_stmt_case(const Token *token, Stmt *swtch, Expr *value);

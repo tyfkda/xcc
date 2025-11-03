@@ -226,11 +226,11 @@ Stmt *new_stmt_expr(Expr *e) {
   return stmt;
 }
 
-Stmt *new_stmt_block(const Token *token, Vector *stmts, Scope *scope, const Token *rbrace) {
+Stmt *new_stmt_block(const Token *token, Scope *scope) {
   Stmt *stmt = new_stmt(ST_BLOCK, token);
   stmt->block.scope = scope;
-  stmt->block.stmts = stmts;
-  stmt->block.rbrace = rbrace;
+  stmt->block.stmts = new_vector();
+  stmt->block.rbrace = NULL;
   return stmt;
 }
 

@@ -1054,21 +1054,22 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
         targetscope = stmt->block.scope;
       }
       assert(stmt->block.stmts != NULL);
-      Vector *stmts = new_vector();
+      Stmt *dup_block = new_stmt_block(stmt->token, scope);
+      dup_block->block.rbrace = stmt->block.rbrace;
+      Vector *stmts = dup_block->block.stmts;
       for (int i = 0, len = stmt->block.stmts->len; i < len; ++i) {
         Stmt *st = stmt->block.stmts->data[i];
         if (st == NULL)
           continue;
-        Stmt *dup = duplicate_inline_function_stmt(targetfunc, targetscope, st);
-        vec_push(stmts, dup);
+        Stmt *dup_stmt = duplicate_inline_function_stmt(targetfunc, targetscope, st);
+        vec_push(stmts, dup_stmt);
       }
 
       if (stmt->block.scope != NULL)
         exit_scope();
-      Stmt *dup = new_stmt_block(stmt->token, stmts, scope, stmt->block.rbrace);
-      dup->reach = stmt->reach;
+      dup_block->reach = stmt->reach;
       original_scope = bak_original_scope;
-      return dup;
+      return dup_block;
     }
     break;
   case ST_IF:
