@@ -402,8 +402,9 @@ typedef struct {
 
 typedef struct Stmt {
   enum StmtKind kind;
-  const Token *token;
   int reach;
+  struct Stmt *parent;
+  const Token *token;
   union {
     Expr *expr;
     struct {

@@ -333,7 +333,11 @@ static Stmt *parse_if(const Token *tok) {
   if (match(TK_ELSE)) {
     fblock = parse_stmt();
   }
-  return new_stmt_if(tok, make_cond(cond), tblock, fblock);
+  Stmt *stmt = new_stmt_if(tok, make_cond(cond), tblock, fblock);
+  tblock->parent = stmt;
+  if (fblock != NULL)
+    fblock->parent = stmt;
+  return stmt;
 }
 
 static Stmt *parse_switch(const Token *tok) {
@@ -347,7 +351,9 @@ static Stmt *parse_switch(const Token *tok) {
   SAVE_LOOP_SCOPE(save, stmt, NULL);
   loop_scope.swtch = stmt;
 
-  stmt->switch_.body = parse_stmt();
+  Stmt *body = parse_stmt();
+  body->parent = stmt;
+  stmt->switch_.body = body;
 
   RESTORE_LOOP_SCOPE(save);
 
@@ -401,6 +407,7 @@ static Stmt *parse_case(const Token *tok) {
     parse_error(PE_NOFATAL, tok, "statement expected");
     next = new_stmt(ST_EMPTY, tok);  // Dummy
   }
+  next->parent = stmt;
   stmt->case_.stmt = next;
 
   return stmt;
@@ -416,7 +423,9 @@ static Stmt *parse_while(const Token *tok) {
 
   SAVE_LOOP_SCOPE(save, stmt, stmt);
 
-  stmt->while_.body = parse_stmt();
+  Stmt *body = parse_stmt();
+  body->parent = stmt;
+  stmt->while_.body = body;
 
   RESTORE_LOOP_SCOPE(save);
 
@@ -428,7 +437,9 @@ static Stmt *parse_do_while(const Token *tok) {
 
   SAVE_LOOP_SCOPE(save, stmt, stmt);
 
-  stmt->while_.body = parse_stmt();
+  Stmt *body = parse_stmt();
+  body->parent = stmt;
+  stmt->while_.body = body;
 
   RESTORE_LOOP_SCOPE(save);
 
@@ -465,6 +476,7 @@ static Stmt *parse_for(const Token *tok) {
         for (int i = 0, len = decls->len; i < len; ++i) {
           VarDecl *vardecl = decls->data[i];
           Stmt *decl = new_stmt_vardecl(vardecl);
+          decl->parent = block;
           vec_push(stmts, decl);
         }
       }
@@ -491,12 +503,15 @@ static Stmt *parse_for(const Token *tok) {
 
   SAVE_LOOP_SCOPE(save, stmt, stmt);
 
-  stmt->for_.body = parse_stmt();
+  Stmt *body = parse_stmt();
+  body->parent = stmt;
+  stmt->for_.body = body;
 
   RESTORE_LOOP_SCOPE(save);
 
   if (scope != NULL) {
     assert(block != NULL);
+    stmt->parent = block;
     vec_push(block->block.stmts, stmt);
     stmt = block;
     exit_scope();
@@ -534,6 +549,7 @@ static Stmt *parse_label(const Token *tok) {
     next = new_stmt(ST_EMPTY, tok);  // Dummy
   }
   Stmt *stmt = new_stmt_label(tok, next);
+  next->parent = stmt;
   add_func_goto_label(tok, NULL, stmt);
   return stmt;
 }
@@ -661,7 +677,7 @@ static Stmt *parse_asm(const Token *tok) {
   return new_stmt_asm(tok, templates, outputs, inputs, flag);
 }
 
-static const Token *parse_stmts(Vector *stmts) {
+static const Token *parse_stmts(Stmt *parent, Vector *stmts) {
   for (;;) {
     parsing_stmt = true;
     if (parse_vardecl(stmts))
@@ -675,6 +691,7 @@ static const Token *parse_stmts(Vector *stmts) {
       }
       parse_error(PE_FATAL, NULL, "`}' expected");
     }
+    stmt->parent = parent;
     vec_push(stmts, stmt);
   }
 }
@@ -683,7 +700,7 @@ Stmt *parse_block(const Token *tok, Scope *scope) {
   if (scope == NULL)
     scope = enter_scope(curfunc);
   Stmt *stmt = new_stmt_block(tok, scope);
-  stmt->block.rbrace = parse_stmts(stmt->block.stmts);
+  stmt->block.rbrace = parse_stmts(stmt, stmt->block.stmts);
   exit_scope();
   return stmt;
 }

@@ -215,6 +215,7 @@ VarDecl *new_vardecl(VarInfo *varinfo) {
 Stmt *new_stmt(enum StmtKind kind, const Token *token) {
   Stmt *stmt = malloc_or_die(sizeof(Stmt));
   stmt->kind = kind;
+  stmt->parent = NULL;
   stmt->token = token;
   stmt->reach = 0;
   return stmt;
