@@ -1018,34 +1018,6 @@ TEST(basic) {
     EXPECT("nulchr contained string", 0, memcmp(expected, nulchr_contained, sizeof(nulchr_contained)));
   }
 
-#if !defined(__wasm)
-  {
-#define SUPPRESS_LABEL(label)  do { if (false) goto label; } while (0)
-    int x = 1;
-    SUPPRESS_LABEL(dummy1);
-    goto label;
-dummy1:
-    x = 2;
-label:
-    EXPECT("goto", 1, x);
-
-j3:
-    goto j1;
-dummy2:
-    goto j2;
-j2:
-    goto dummy2;
-j1:;
-    SUPPRESS_LABEL(j3);
-
-    typedef int TTT;
-    goto TTT;
-TTT:;
-    TTT ttt = 369;
-    EXPECT("typedef and label", 369, ttt);
-  }
-#endif
-
   {
     int x;
     x = 0;
@@ -1179,6 +1151,57 @@ TTT:;
 
 int oldstylefunc(int x) {
   return x * 3;
+}
+
+//
+
+TEST(goto) {
+#define SUPPRESS_LABEL(label)  do { if (false) goto label; } while (0)
+
+  {
+    int x = 1;
+    SUPPRESS_LABEL(dummy1);
+    goto label;
+dummy1:
+    x = 2;
+label:
+    EXPECT("simple goto", 1, x);
+  }
+
+  {
+    int acc = 0;
+    for (int i = 1; i <= 5; ++i) {
+      for (int j = 1; j <= 5; ++j) {
+        if (i == 2 && j == 3)
+          goto exit_nested_loop;
+        acc += i * j;
+      }
+    }
+    acc = -acc;  // Should not reach here.
+exit_nested_loop:
+    EXPECT("exit-from-nested-loop goto", 1 * (1 + 2 + 3 + 4 + 5) + 2 * (1 + 2), acc);
+  }
+
+#if !defined(__wasm)
+  {  // No infinite loop.
+j3:
+    goto j1;
+dummy2:
+    goto j2;
+j2:
+    goto dummy2;
+j1:;
+    SUPPRESS_LABEL(j3);
+  }
+#endif
+
+  {
+    typedef int TTT;
+    goto TTT;
+TTT:;
+    TTT ttt = 369;
+    EXPECT("typedef and label", 369, ttt);
+  }
 }
 
 //

@@ -715,6 +715,9 @@ static void check_reachability_stmt(Stmt *stmt) {
     }
     break;
   case ST_BLOCK:
+#if XCC_TARGET_ARCH == XCC_ARCH_WASM
+  case ST_BLOCK_FOR_LABEL:
+#endif
     stmt->reach = check_reachability_stmts(stmt->block.stmts);
     break;
   case ST_LABEL:
@@ -1195,6 +1198,11 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
     break;
   case ST_EMPTY: case ST_GOTO:
     return stmt;
+#if XCC_TARGET_ARCH == XCC_ARCH_WASM
+  case ST_BLOCK_FOR_LABEL:
+    assert(false);  // Inlining function which contains label or goto is prevented.
+    break;
+#endif
   }
   return NULL;
 }

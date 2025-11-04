@@ -22,6 +22,43 @@ function test_basic() {
   end_test_suite
 }
 
+function test_goto() {
+  compile_error 'goto no-label' 'int main(){ goto label; }'
+  compile_error 'goto dup-label' 'int main(){ label: goto label; label:; }'
+  compile_error 'label without next statement' 'int main(){ goto label; label: }'
+  compile_error 'unused label' 'int main(){ label:; }'
+
+  # wcc only supports exiting-from-inner goto.
+  compile_error 'jump to above is prohibited on wcc' 'int main(void){
+#ifndef __wasm
+# error this fails on wasm, but passes on native
+#endif
+  int acc = 0, i = 0;
+above:
+  for (i = 1; i <= 10; ++i ) {
+    if (i == 5) { i = 10; goto above; }
+    acc += i; }
+  return acc;
+}'
+
+  compile_error 'jump to non-ancestor is prohibited on wcc' 'int main(void){
+#ifndef __wasm
+# error this fails on wasm, but passes on native
+#endif
+  int acc = 0, i = 0;
+  for (i = 1; i <= 10; ++i ) {
+    if (i == 5) { goto non_ancestor; }
+    acc += i;
+  }
+  {
+non_ancestor:
+    acc += 100;
+  }
+  return acc;
+}'
+
+}
+
 function test_struct() {
   begin_test_suite "Struct"
 
@@ -156,11 +193,6 @@ function test_error() {
   compile_error 'extern only' 'extern int x; int main(){ x = 123; }'
   compile_error 'for-var scoped' 'int main(){ for (int i = 0; i < 5; ++i) ; return i; }'
   compile_error 'use void' 'void func(){} int main(){ int a = (int)func(); (void)a; }'
-
-  compile_error 'goto no-label' 'int main(){ goto label; }  //-WCC'
-  compile_error 'goto dup-label' 'int main(){ label: goto label; label:; }  //-WCC'
-  compile_error 'label without next statement' 'int main(){ label: }'
-  compile_error 'unused label' 'int main(){ label:; }'
 
   # Reachability check.
   compile_error 'unreachable after return' 'int main(){ int x=0; return x; x=1; }'

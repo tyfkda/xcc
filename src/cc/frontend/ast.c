@@ -206,14 +206,14 @@ Initializer *new_initializer(enum InitializerKind kind, const Token *token) {
 }
 
 VarDecl *new_vardecl(VarInfo *varinfo) {
-  VarDecl *decl = malloc_or_die(sizeof(*decl));
+  VarDecl *decl = calloc_or_die(sizeof(*decl));
   decl->varinfo = varinfo;
   decl->init_stmt = NULL;
   return decl;
 }
 
 Stmt *new_stmt(enum StmtKind kind, const Token *token) {
-  Stmt *stmt = malloc_or_die(sizeof(Stmt));
+  Stmt *stmt = calloc_or_die(sizeof(Stmt));
   stmt->kind = kind;
   stmt->parent = NULL;
   stmt->token = token;

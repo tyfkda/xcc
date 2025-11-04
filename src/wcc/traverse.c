@@ -589,6 +589,73 @@ static void traverse_vardecl(VarDecl *decl) {
   traverse_stmt(decl->init_stmt);
 }
 
+static inline Stmt *is_ancestor(Stmt *ancestor, Stmt *stmt) {
+  for (; stmt != NULL; ) {
+    Stmt *parent = stmt->parent;
+    if (parent == ancestor)
+      return stmt;
+    stmt = parent;
+  }
+  return NULL;
+}
+
+static inline bool is_just_after(Stmt *label, Stmt *block) {
+  Stmt *parent = label->parent;
+  assert(parent == block->parent);
+  assert(parent->kind == ST_BLOCK || parent->kind == ST_BLOCK_FOR_LABEL);
+  assert(offsetof(Stmt, block_for_label.stmts) == offsetof(Stmt, block.stmts));
+  Vector *stmts = parent->block.stmts;  // `stmts` must be same place for both block kinds.
+
+  // block_for_label must be placed at the top of stmts.
+  return stmts->data[0] == block &&
+         stmts->len > 1 && stmts->data[1] == label;
+}
+
+static void traverse_goto(Stmt *stmt) {
+  GotoLabel *goto_label = table_get(curfunc->label_table, stmt->goto_.label->ident);
+  assert(goto_label != NULL);
+  Stmt *label = goto_label->label_stmt;
+  assert(label != NULL);
+
+  Stmt *block = is_ancestor(label->parent, stmt);
+  if (block == NULL || !is_just_after(label, block)) {
+    parse_error(PE_NOFATAL, stmt->token, "only escape goto supported");
+  }
+}
+
+static int enclose_stmts_for_label(const Name *label, Stmt *parent, Vector *stmts, int at) {
+  // Before:
+  //     statments...;
+  //   label: stmt;
+  // After:
+  //     {  // <-- Enclose statements for label.
+  //       statments...;
+  //     }
+  //   label: stmt;
+
+  if (at == 0)
+    return 0;
+
+  Stmt *block = new_stmt(ST_BLOCK_FOR_LABEL, NULL);
+  block->parent = parent;
+  Vector *enclosed = new_vector();
+  for (int i = 0; i < at; ++i) {
+    Stmt *stmt = stmts->data[i];
+    stmt->parent = block;  // Replace parent.
+    vec_push(enclosed, stmt);
+  }
+
+  block->block_for_label.label = label;
+  block->block_for_label.stmts = enclosed;
+
+  // Shrink and replace with new block.
+  for (int i = 1; i < at; ++i)
+    vec_remove_at(stmts, 0);
+  stmts->data[0] = block;
+  assert(((Stmt*)stmts->data[1])->kind == ST_LABEL);  // Ensure statements before label are enclosed.
+  return 1;
+}
+
 static void traverse_stmt(Stmt *stmt) {
   if (stmt == NULL)
     return;
@@ -599,6 +666,7 @@ static void traverse_stmt(Stmt *stmt) {
     traverse_expr(&stmt->return_.val, true);
     break;
   case ST_BLOCK:
+  case ST_BLOCK_FOR_LABEL:
     {
       Scope *bak = NULL;
       if (stmt->block.scope != NULL) {
@@ -619,19 +687,28 @@ static void traverse_stmt(Stmt *stmt) {
   case ST_FOR:  traverse_for(stmt); break;
   case ST_BREAK:  break;
   case ST_CONTINUE:  break;
-  case ST_GOTO:
-    parse_error(PE_FATAL, stmt->token, "cannot use goto");
-    break;
-  case ST_LABEL:  traverse_stmt(stmt->label.stmt); break;
+  case ST_GOTO:  break;  // goto is handled after all labels are processed.
+  case ST_LABEL:  assert(false); break;
   case ST_VARDECL:  traverse_vardecl(stmt->vardecl); break;
   case ST_ASM:  break;
   }
+}
+
+static inline int traverse_label(Stmt *stmt, Vector *stmts, int i) {
+  i = enclose_stmts_for_label(stmt->token->ident, stmt->parent, stmts, i);
+  traverse_stmt(stmt->label.stmt);
+  return i;
 }
 
 static void traverse_stmts(Vector *stmts) {
   assert(stmts != NULL);
   for (int i = 0, len = stmts->len; i < len; ++i) {
     Stmt *stmt = stmts->data[i];
+    if (stmt->kind == ST_LABEL) {
+      i = traverse_label(stmt, stmts, i);
+      len = stmts->len;
+      continue;
+    }
     traverse_stmt(stmt);
   }
 }
@@ -675,6 +752,22 @@ static void modify_func_name(Function *func) {
   // Clear `main` function.
   assert(org_varinfo->global.func == func);
   org_varinfo->global.func = NULL;
+}
+
+static void traverse_gotos(Function *func) {
+  Table *label_table = func->label_table;
+  if (label_table == NULL)
+    return;
+
+  const Name *name;
+  GotoLabel *goto_label;
+  for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&goto_label)) != -1; ) {
+    Vector *gotos = goto_label->gotos;
+    for (int i = 0; i < gotos->len; ++i) {
+      Stmt *stmt = gotos->data[i];
+      traverse_goto(stmt);
+    }
+  }
 }
 
 static void traverse_defun(Function *func) {
@@ -723,6 +816,7 @@ static void traverse_defun(Function *func) {
   register_func_info(func->ident->ident, func, NULL, 0);
   curfunc = func;
   traverse_stmt(func->body_block);
+  traverse_gotos(func);
   curfunc = NULL;
 
   // Static variables are traversed through global variables.

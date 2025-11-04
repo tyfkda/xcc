@@ -138,6 +138,7 @@ static bool traverse_ast_stmt(Stmt **pstmt, LexicalStack *parent, TraverseAstPar
   switch (stmt->kind) {
   case ST_EXPR:  return traverse_ast_expr(&stmt->expr, &lstack, param);
   case ST_BLOCK:
+  case ST_BLOCK_FOR_LABEL:
     {
       if (stmt->block.scope != NULL)
         curscope = stmt->block.scope;
