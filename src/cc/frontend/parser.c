@@ -333,7 +333,11 @@ static Stmt *parse_if(const Token *tok) {
   if (match(TK_ELSE)) {
     fblock = parse_stmt();
   }
-  return new_stmt_if(tok, make_cond(cond), tblock, fblock);
+  Stmt *stmt = new_stmt_if(tok, make_cond(cond), tblock, fblock);
+  tblock->parent = stmt;
+  if (fblock != NULL)
+    fblock->parent = stmt;
+  return stmt;
 }
 
 static Stmt *parse_switch(const Token *tok) {
@@ -347,7 +351,9 @@ static Stmt *parse_switch(const Token *tok) {
   SAVE_LOOP_SCOPE(save, stmt, NULL);
   loop_scope.swtch = stmt;
 
-  stmt->switch_.body = parse_stmt();
+  Stmt *body = parse_stmt();
+  body->parent = stmt;
+  stmt->switch_.body = body;
 
   RESTORE_LOOP_SCOPE(save);
 
@@ -401,6 +407,7 @@ static Stmt *parse_case(const Token *tok) {
     parse_error(PE_NOFATAL, tok, "statement expected");
     next = new_stmt(ST_EMPTY, tok);  // Dummy
   }
+  next->parent = stmt;
   stmt->case_.stmt = next;
 
   return stmt;
@@ -416,7 +423,9 @@ static Stmt *parse_while(const Token *tok) {
 
   SAVE_LOOP_SCOPE(save, stmt, stmt);
 
-  stmt->while_.body = parse_stmt();
+  Stmt *body = parse_stmt();
+  body->parent = stmt;
+  stmt->while_.body = body;
 
   RESTORE_LOOP_SCOPE(save);
 
@@ -428,7 +437,9 @@ static Stmt *parse_do_while(const Token *tok) {
 
   SAVE_LOOP_SCOPE(save, stmt, stmt);
 
-  stmt->while_.body = parse_stmt();
+  Stmt *body = parse_stmt();
+  body->parent = stmt;
+  stmt->while_.body = body;
 
   RESTORE_LOOP_SCOPE(save);
 
@@ -445,8 +456,8 @@ static Stmt *parse_do_while(const Token *tok) {
 static Stmt *parse_for(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *pre = NULL;
-  Vector *decls = NULL;
   Scope *scope = NULL;
+  Stmt *block = NULL;  // Implicit block is created if variable declaration exists.
   if (!match(TK_SEMICOL)) {
     Type *rawType = NULL;
     int storage;
@@ -456,7 +467,19 @@ static Stmt *parse_for(const Token *tok) {
       if (ident == NULL)
         parse_error(PE_FATAL, NULL, "ident expected");
       scope = enter_scope(curfunc);
-      decls = parse_vardecl_cont(rawType, type, storage, ident);
+      block = new_stmt_block(tok, scope);
+
+      Vector *decls = parse_vardecl_cont(rawType, type, storage, ident);
+      if (decls != NULL) {
+        Vector *stmts = block->block.stmts;
+        construct_initializing_stmts(decls);
+        for (int i = 0, len = decls->len; i < len; ++i) {
+          VarDecl *vardecl = decls->data[i];
+          Stmt *decl = new_stmt_vardecl(vardecl);
+          decl->parent = block;
+          vec_push(stmts, decl);
+        }
+      }
     } else {
       pre = parse_expr();
     }
@@ -480,29 +503,20 @@ static Stmt *parse_for(const Token *tok) {
 
   SAVE_LOOP_SCOPE(save, stmt, stmt);
 
-  stmt->for_.body = parse_stmt();
+  Stmt *body = parse_stmt();
+  body->parent = stmt;
+  stmt->for_.body = body;
 
   RESTORE_LOOP_SCOPE(save);
 
-  if (scope == NULL) {
-    assert(decls == NULL);
-    return stmt;
+  if (scope != NULL) {
+    assert(block != NULL);
+    stmt->parent = block;
+    vec_push(block->block.stmts, stmt);
+    stmt = block;
+    exit_scope();
   }
-
-  Vector *stmts = new_vector();
-  if (decls != NULL) {
-    construct_initializing_stmts(decls);
-    for (int i = 0, len = decls->len; i < len; ++i) {
-      VarDecl *vardecl = decls->data[i];
-      Stmt *stmt = new_stmt_vardecl(vardecl);
-      vec_push(stmts, stmt);
-    }
-  }
-
-  exit_scope();
-
-  vec_push(stmts, stmt);
-  return new_stmt_block(tok, stmts, scope, NULL);
+  return stmt;
 }
 
 static inline Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
@@ -535,6 +549,7 @@ static Stmt *parse_label(const Token *tok) {
     next = new_stmt(ST_EMPTY, tok);  // Dummy
   }
   Stmt *stmt = new_stmt_label(tok, next);
+  next->parent = stmt;
   add_func_goto_label(tok, NULL, stmt);
   return stmt;
 }
@@ -662,8 +677,7 @@ static Stmt *parse_asm(const Token *tok) {
   return new_stmt_asm(tok, templates, outputs, inputs, flag);
 }
 
-static Vector *parse_stmts(const Token **prbrace) {
-  Vector *stmts = new_vector();
+static const Token *parse_stmts(Stmt *parent, Vector *stmts) {
   for (;;) {
     parsing_stmt = true;
     if (parse_vardecl(stmts))
@@ -673,12 +687,11 @@ static Vector *parse_stmts(const Token **prbrace) {
     if (stmt == NULL) {
       Token *tok;
       if ((tok = match(TK_RBRACE)) != NULL) {
-        if (prbrace != NULL)
-          *prbrace = tok;
-        return stmts;
+        return tok;
       }
       parse_error(PE_FATAL, NULL, "`}' expected");
     }
+    stmt->parent = parent;
     vec_push(stmts, stmt);
   }
 }
@@ -686,9 +699,8 @@ static Vector *parse_stmts(const Token **prbrace) {
 Stmt *parse_block(const Token *tok, Scope *scope) {
   if (scope == NULL)
     scope = enter_scope(curfunc);
-  const Token *rbrace;
-  Vector *stmts = parse_stmts(&rbrace);
-  Stmt *stmt = new_stmt_block(tok, stmts, scope, rbrace);
+  Stmt *stmt = new_stmt_block(tok, scope);
+  stmt->block.rbrace = parse_stmts(stmt, stmt->block.stmts);
   exit_scope();
   return stmt;
 }
@@ -1105,7 +1117,8 @@ static Function *generate_dtor_caller_func(Vector *dtors) {
   scope->vars = top_vars;
 
   // Construct function body: call destructors.
-  Vector *stmts = new_vector();
+  Stmt *block = func->body_block = new_stmt_block(NULL, scope);
+  Vector *stmts = block->block.stmts;
   for (int i = 0; i < dtors->len; ++i) {
     Function *dtor = dtors->data[i];
     const Token *token = NULL;
@@ -1114,8 +1127,6 @@ static Function *generate_dtor_caller_func(Vector *dtors) {
     Expr *call = new_expr_funcall(token, dtor->type, func, args);
     vec_push(stmts, new_stmt_expr(call));
   }
-
-  func->body_block = new_stmt_block(NULL, stmts, scope, NULL);
 
   exit_scope();
   curfunc = NULL;
@@ -1175,7 +1186,8 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
   Scope *scope = enter_scope(func);
   scope->vars = top_vars;
 
-  Vector *stmts = new_vector();
+  Stmt *block = func->body_block = new_stmt_block(NULL, scope);
+  Vector *stmts = block->block.stmts;
   const Token *token = NULL;
   Vector *args = new_vector();
   vec_push(args, make_refer(token, new_expr_variable(dtor_caller_func->ident->ident,
@@ -1190,8 +1202,6 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
       new_expr_variable(cxa_atexit_name, cxa_atexit_functype, token, global_scope),
       args);
   vec_push(stmts, new_stmt_expr(funcall));
-
-  func->body_block = new_stmt_block(NULL, stmts, scope, NULL);
 
   exit_scope();
   curfunc = NULL;

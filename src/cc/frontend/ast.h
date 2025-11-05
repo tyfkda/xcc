@@ -370,6 +370,9 @@ enum StmtKind {
   ST_LABEL,
   ST_VARDECL,
   ST_ASM,
+#if XCC_TARGET_ARCH == XCC_ARCH_WASM
+  ST_BLOCK_FOR_LABEL,
+#endif
 };
 
 typedef struct VarDecl {
@@ -402,14 +405,15 @@ typedef struct {
 
 typedef struct Stmt {
   enum StmtKind kind;
-  const Token *token;
   int reach;
+  struct Stmt *parent;
+  const Token *token;
   union {
     Expr *expr;
     struct {
-      Scope *scope;
       Vector *stmts;
-      const Token *rbrace;
+      Scope *scope;
+      const Token *rbrace;  // NULL: implicit block.
     } block;
     struct {
       Expr *cond;
@@ -460,12 +464,18 @@ typedef struct Stmt {
     } return_;
     VarDecl *vardecl;
     Asm asm_;
+#if XCC_TARGET_ARCH == XCC_ARCH_WASM
+    struct {
+      Vector *stmts;
+      const Name *label;
+    } block_for_label;
+#endif
   };
 } Stmt;
 
 Stmt *new_stmt(enum StmtKind kind, const Token *token);
 Stmt *new_stmt_expr(Expr *e);
-Stmt *new_stmt_block(const Token *token, Vector *stmts, Scope *scope, const Token *rbrace);
+Stmt *new_stmt_block(const Token *token, Scope *scope);
 Stmt *new_stmt_if(const Token *token, Expr *cond, Stmt *tblock, Stmt *fblock);
 Stmt *new_stmt_switch(const Token *token, Expr *value);
 Stmt *new_stmt_case(const Token *token, Stmt *swtch, Expr *value);
@@ -504,6 +514,11 @@ Function *new_func(Type *type, const Token *ident, const Vector *params, Table *
 typedef struct GotoLabel {
   Stmt *label_stmt;
   Vector *gotos;
+
+#if XCC_TARGET_ARCH == XCC_ARCH_WASM
+  // gen_wasm
+  int depth;
+#endif
 } GotoLabel;
 
 // Declaration

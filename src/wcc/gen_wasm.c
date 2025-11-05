@@ -363,7 +363,6 @@ static void gen_continue(void) {
 }
 
 static void gen_block(Stmt *stmt, bool is_last) {
-  assert(stmt->kind == ST_BLOCK);
   // AST may moved, so code generation traversal may differ from lexical scope chain.
   Scope *bak_curscope = curscope;
   if (stmt->block.scope != NULL)
@@ -473,6 +472,32 @@ static void gen_asm(Stmt *stmt) {
   }
 }
 
+static void gen_block_for_label(Stmt *stmt, bool is_last) {
+  // No scope. Create WASM block for goto.
+  // No update of curbreak_depth/curcontinue_depth to preserve break/continue targets.
+  assert(curfunc != NULL);
+  assert(curfunc->label_table != NULL);
+  GotoLabel *goto_label = table_get(curfunc->label_table, stmt->block_for_label.label);
+  assert(goto_label != NULL);
+  goto_label->depth = cur_depth;
+
+  ++cur_depth;
+  ADD_CODE(OP_BLOCK, WT_VOID);
+  gen_stmts(stmt->block_for_label.stmts, is_last);
+  ADD_CODE(OP_END);
+  --cur_depth;
+}
+
+static void gen_goto(Stmt *stmt) {
+  assert(curfunc != NULL);
+  assert(curfunc->label_table != NULL);
+  GotoLabel *goto_label = table_get(curfunc->label_table, stmt->goto_.label->ident);
+  assert(goto_label != NULL);
+  assert(cur_depth > goto_label->depth);
+  ADD_CODE(OP_BR);
+  ADD_ULEB128(cur_depth - goto_label->depth - 1);
+}
+
 void gen_stmt(Stmt *stmt, bool is_last) {
   if (stmt == NULL)
     return;
@@ -493,7 +518,8 @@ void gen_stmt(Stmt *stmt, bool is_last) {
   case ST_LABEL: gen_stmt(stmt->label.stmt, is_last); break;
   case ST_VARDECL:  gen_vardecl(stmt->vardecl); break;
   case ST_ASM:  gen_asm(stmt); break;
-  case ST_GOTO: assert(false); break;
+  case ST_BLOCK_FOR_LABEL: gen_block_for_label(stmt, is_last); break;
+  case ST_GOTO: gen_goto(stmt); break;
   }
 }
 

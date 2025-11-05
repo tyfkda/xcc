@@ -127,6 +127,6 @@ Hello, world!
 
 You can also use WASM/WASI runtime (Wasmtime, Wasmer, etc.), too.
 
-#### Missing features
+#### Limitation
 
-  * `goto` statement
+  * `goto`: Can jump ancestor and latter line only.

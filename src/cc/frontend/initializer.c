@@ -131,7 +131,8 @@ static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
   Fixnum zero = 0;
   Expr *zeroexpr = new_expr_fixlit(&tySize, NULL, zero);
 
-  Vector *stmts = new_vector();
+  Stmt *block = new_stmt_block(NULL, NULL);
+  Vector *stmts = block->block.stmts;
   vec_push(stmts, new_stmt_expr(new_expr_bop(EX_ASSIGN, charptr_type, NULL, dstexpr, dst)));
   vec_push(stmts, new_stmt_expr(new_expr_bop(EX_ASSIGN, charptr_type, NULL, srcexpr, src)));
   vec_push(stmts, new_stmt_for(
@@ -145,7 +146,7 @@ static Stmt *build_memcpy(Expr *dst, Expr *src, size_t size) {
                                       new_expr_unary(EX_POSTINC, dstexpr->type, NULL, dstexpr)),
                        new_expr_unary(EX_DEREF, &tyChar, NULL,
                                       new_expr_unary(EX_POSTINC, srcexpr->type, NULL, srcexpr))))));
-  return new_stmt_block(NULL, stmts, NULL, NULL);
+  return block;
 }
 
 static Stmt *init_char_array_by_string(Expr *dst, Initializer *src, const Token *token) {
@@ -891,8 +892,9 @@ void construct_initializing_stmts(Vector *decls) {
     Expr *var = new_expr_variable(varinfo->ident->ident, varinfo->type, NULL, curscope);
     assert(!is_global_scope(curscope));
     if (varinfo->local.init != NULL) {
-      Vector *inits = assign_initial_value(var, varinfo->local.init, NULL);
-      decl->init_stmt = new_stmt_block(NULL, inits, NULL, NULL);
+      Stmt *block = new_stmt_block(NULL, NULL);
+      assign_initial_value(var, varinfo->local.init, block->block.stmts);
+      decl->init_stmt = block;
       // varinfo->local.init = NULL;
     }
   }

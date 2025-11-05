@@ -138,6 +138,7 @@ static bool traverse_ast_stmt(Stmt **pstmt, LexicalStack *parent, TraverseAstPar
   switch (stmt->kind) {
   case ST_EXPR:  return traverse_ast_expr(&stmt->expr, &lstack, param);
   case ST_BLOCK:
+  case ST_BLOCK_FOR_LABEL:
     {
       if (stmt->block.scope != NULL)
         curscope = stmt->block.scope;
@@ -214,9 +215,9 @@ static bool modify_if_setjmp(LexicalStack *lp, Expr *jmpbuf_env, Expr *var) {
   }
 
   Token *token = NULL;
-  Vector *try_stmts = new_vector();
-  vec_push(try_stmts, ifstmt);
-  Expr *try_block_expr = new_expr_block(new_stmt_block(token, try_stmts, NULL, token));
+  Stmt *try_block_stmt = new_stmt_block(token, NULL);
+  Expr *try_block_expr = new_expr_block(try_block_stmt);
+  vec_push(try_block_stmt->block.stmts, ifstmt);
 
   Vector *params = new_vector();
   vec_push(params, var->type);
@@ -232,7 +233,8 @@ static bool modify_if_setjmp(LexicalStack *lp, Expr *jmpbuf_env, Expr *var) {
                                          functype, token, global_scope);
   Expr *try_catch_longjmp = new_expr_funcall(token, functype, try_catch_fn, args);
 
-  Vector *stmts = new_vector();
+  Stmt *modified = new_stmt_block(token, NULL);
+  Vector *stmts = modified->block.stmts;
   if (env_to_tmp != NULL)
     vec_push(stmts, env_to_tmp);
   vec_push(stmts, new_stmt_expr(new_expr_bop(EX_ASSIGN, &tyVoid, token,
@@ -241,7 +243,6 @@ static bool modify_if_setjmp(LexicalStack *lp, Expr *jmpbuf_env, Expr *var) {
   vec_push(stmts, new_stmt_expr(new_expr_bop(EX_ASSIGN, &tyVoid, token, var,
                                              new_expr_fixlit(var->type, token, 0))));
   vec_push(stmts, new_stmt_expr(try_catch_longjmp));
-  Stmt *modified = new_stmt_block(token, stmts, NULL, token);
   *lp->parent->pstmt = modified;
   return true;
 }
