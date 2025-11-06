@@ -15,7 +15,7 @@ endif
 
 UNAME:=$(shell uname)
 ifneq ("$(UNAME)", "Darwin")
-  CFLAGS+=-no-pie
+  CFLAGS+=-fno-pie
 endif
 
 ifneq ("$(HOST_CC_PREFIX)", "")

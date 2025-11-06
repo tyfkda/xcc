@@ -941,8 +941,6 @@ static Vector *parse_options(int argc, char *argv[], Options *opts) {
     OPT_HELP = 128,
     OPT_VERSION,
     OPT_OUTMAP,
-
-    OPT_NO_PIE,
   };
 
   static const struct option kOptions[] = {
@@ -955,7 +953,6 @@ static Vector *parse_options(int argc, char *argv[], Options *opts) {
     {"v", no_argument, OPT_VERSION},
     {"-version", no_argument, OPT_VERSION},
 
-    {"no-pie", no_argument, OPT_NO_PIE},
     {NULL},
   };
 
@@ -1002,9 +999,6 @@ static Vector *parse_options(int argc, char *argv[], Options *opts) {
       break;
     case OPT_OUTMAP:
       opts->outmapfn = optarg;
-      break;
-    case OPT_NO_PIE:
-      // Silently ignored.
       break;
     case '?':
       fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);

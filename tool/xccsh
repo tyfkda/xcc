@@ -12,7 +12,7 @@ else
 fi
 
 xcc_opt="\
-    -fuse-ld=cc -no-pie \
+    -fuse-ld=cc -fno-pie \
     -isystem /usr/include \
     -isystem /usr/local/include \
     -isystem $SYS_INCLUDE_DIR \

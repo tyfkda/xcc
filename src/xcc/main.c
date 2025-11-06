@@ -304,7 +304,6 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     OPT_STD,
     OPT_PEDANTIC,
     OPT_MMD,
-    OPT_NO_PIE,
 
     OPT_SSA,
   };
@@ -344,7 +343,6 @@ static void parse_options(int argc, char *argv[], Options *opts) {
     {"std", optional_argument, OPT_STD},
     {"pedantic", no_argument, OPT_PEDANTIC},
     {"MMD", no_argument, OPT_MMD},
-    {"no-pie", no_argument, OPT_NO_PIE},
 
     // Feature flag.
     {"-apply-ssa", no_argument, OPT_SSA},
@@ -474,9 +472,6 @@ static void parse_options(int argc, char *argv[], Options *opts) {
         fprintf(stderr, "Warning: unknown option: %s\n", argv[optind - 1]);
         vec_push(opts->linker_options, argv[optind - 1]);
       }
-      break;
-    case OPT_NO_PIE:
-      vec_push(opts->ld_cmd, argv[optind - 1]);
       break;
 
     case 'f':
