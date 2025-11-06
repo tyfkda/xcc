@@ -297,23 +297,23 @@ static void handle_include(const char *p, Stream *stream, bool is_next) {
     set_source_string(p, stream->filename, stream->lineno);
     Token *ident = match(TK_IDENT);
     assert(ident != NULL);
-    if (can_expand_ident(ident->ident)) {
-      Vector *tokens = new_vector();
-      vec_push(tokens, ident);
-      macro_expand(tokens);
-      StringBuffer sb;
-      sb_init(&sb);
-      for (int i = 0; i < tokens->len; ++i) {
-        const Token *tok = tokens->data[i];
-        sb_append(&sb, tok->begin, tok->end);
-      }
-
-      char *expanded = sb_to_string(&sb);
-      set_source_string(expanded, NULL, -1);
-      p = expanded;
-
-      // TODO: Recursive back.
+    if (!can_expand_ident(ident->ident))
+      break;
+    Vector *tokens = new_vector();
+    vec_push(tokens, ident);
+    macro_expand(tokens);
+    StringBuffer sb;
+    sb_init(&sb);
+    for (int i = 0; i < tokens->len; ++i) {
+      const Token *tok = tokens->data[i];
+      sb_append(&sb, tok->begin, tok->end);
     }
+
+    char *expanded = sb_to_string(&sb);
+    set_source_string(expanded, NULL, -1);
+    p = expanded;
+
+    // TODO: Recursive back.
   }
 
   switch (*p++) {
