@@ -490,6 +490,14 @@ static Vector *parse_macro_body(const char *p, Stream *stream) {
   return tokens;
 }
 
+static void do_define_macro(const Name *name, Macro *macro) {
+  static const char kDefined[] = "defined";
+  if (equal_name(name, alloc_name(kDefined, NULL, false)))
+    error("overwrite `defined' is prohibited");
+
+  macro_add(name, macro);
+}
+
 static void handle_define(const char *p, Stream *stream) {
   const char *begin = p;
   const char *end = read_ident(p);
@@ -529,7 +537,7 @@ static void handle_define(const char *p, Stream *stream) {
   }
 
   Vector *tokens = parse_macro_body(p, stream);
-  macro_add(name, new_macro(params, vaargs_ident, tokens));
+  do_define_macro(name, new_macro(params, vaargs_ident, tokens));
 }
 
 static void handle_undef(const char **pp) {
@@ -858,8 +866,9 @@ void preprocess(FILE *fp, const char *filename) {
 
 void define_macro(const char *arg) {
   char *p = strchr(arg, '=');
+
   Macro *macro = new_macro(NULL, NULL, parse_macro_body(p != NULL ? p + 1 : "1", NULL));
-  macro_add(alloc_name(arg, p, true), macro);
+  do_define_macro(alloc_name(arg, p, true), macro);
 }
 
 void undef_macro(const char *begin, const char *end) {

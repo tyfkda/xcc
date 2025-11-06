@@ -172,6 +172,7 @@ function test_error() {
   pp_error 'more params' '#define FOO(x, y) x+y\nFOO(1, 2, 3)'
   pp_error 'Block comment not closed' 'AAA /* BBB'
   pp_error 'Double quote not closed' 'CCC " DDD'
+  pp_error '"defined" prohibited' '#define defined foobar'
   pp_error '#include UNDEF' '#include UNDEF'
 
   end_test_suite
