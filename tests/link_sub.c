@@ -27,8 +27,15 @@ double many_fargs(double a, double b, double c, double d, double e, double f, do
 
 //
 
+typedef struct { short w; } SmallStruct;
 typedef struct { long x, y, z; } LargeStruct;
 
 LargeStruct pass_struct(LargeStruct v) {
   return (LargeStruct){-v.x, ~v.y, !v.z};
+}
+
+long pass_struct_small_large(int n, SmallStruct s, LargeStruct l) {
+  long acc;
+  acc = s.w * 1000 + l.x * 100 + l.y * 10 + l.z;
+  return acc;
 }
