@@ -80,7 +80,9 @@ typedef __gnuc_va_list va_list;
     : __va_arg_mem(ap, sz, align))
 
 #ifdef __aarch64__
-# define __va_arg_struct(ap, ty)  ((char*)*(ty **)__va_arg_gp(ap, sizeof(ty *), _Alignof(ty *)))
+# define __va_arg_struct(ap, ty)  (sizeof(ty) <= 16 \
+    ? __va_arg_gp(ap, sizeof(ty *), _Alignof(ty *)) \
+    : ((char*)*(ty **)__va_arg_gp(ap, sizeof(ty *), _Alignof(ty *))))
 #else
 # define __va_arg_struct(ap, ty)  __va_arg_mem(ap, sizeof(ty), _Alignof(ty))
 #endif

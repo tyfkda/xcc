@@ -148,7 +148,10 @@ print_type_test:	$(TYPE_SRCS)
 
 link_test: link_main.c link_sub.c
 	$(XCC) -c -fcommon -olink_main.o -Wall -Werror link_main.c
-	$(CC) -fno-pie -fcommon -o $@ link_sub.c link_main.o
+	# `--static` is not supported on macOS
+	$(CC) -fno-pie -fcommon \
+	  $(shell if [ `uname` = 'Darwin' ]; then echo ''; else echo '--static'; fi) \
+	  -o $@ link_sub.c link_main.o
 
 .PHONY: test-std-valtest
 test-std-valtest:

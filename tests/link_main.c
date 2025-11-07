@@ -32,14 +32,24 @@ TEST(all) {
 
 //
 
+typedef struct { short w; } SmallStruct;
 typedef struct { long x, y, z; } LargeStruct;
 
 extern LargeStruct pass_struct(LargeStruct v);
+extern long pass_struct_small_large(int n, SmallStruct s, LargeStruct l);
 
 TEST(struct) {
-  LargeStruct v = {111, 222, 333};
-  LargeStruct v2 = pass_struct(v);
-  EXPECT_TRUE(v2.x == -111 && v2.y == ~222 && v2.z == !333);
+  {
+    static LargeStruct v = {111, 222, 333};
+    LargeStruct v2 = pass_struct(v);
+    EXPECT_TRUE(v2.x == -111 && v2.y == ~222 && v2.z == !333);
+  }
+
+  {
+    static SmallStruct s1 = {1};
+    static LargeStruct l1 = {2, 3, 4};
+    expecti64("pass struct small large vaargs", 1234, pass_struct_small_large(2, s1, l1));
+  }
 }
 
 //
