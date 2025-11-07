@@ -236,7 +236,14 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   for (int i = 0; i < params->len; ++i) {
     VarInfo *info = params->data[i];
     const Type *t = info->type;
-    if (is_stack_param(t)) {
+#if STRUCT_ARG_AS_POINTER
+    if (t->kind == TY_STRUCT && !is_small_struct(t))
+      t = &tyVoidPtr;
+#endif
+    if (is_small_struct(t)) {
+      size_t n = (type_size(t) + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+      reg_count[GPREG] += n;
+    } else if (is_stack_param(t)) {
       mem_offset += ALIGN(type_size(t), 8);
     } else {
       bool is_flo = is_flonum(t);

@@ -37,9 +37,11 @@ typedef struct { long x, y, z; } LargeStruct;
 extern LargeStruct pass_struct(LargeStruct v);
 
 TEST(struct) {
-  LargeStruct v = {111, 222, 333};
-  LargeStruct v2 = pass_struct(v);
-  EXPECT_TRUE(v2.x == -111 && v2.y == ~222 && v2.z == !333);
+  {
+    static LargeStruct v = {111, 222, 333};
+    LargeStruct v2 = pass_struct(v);
+    EXPECT_TRUE(v2.x == -111 && v2.y == ~222 && v2.z == !333);
+  }
 }
 
 //
