@@ -33,9 +33,9 @@ function test_goto() {
 #ifndef __wasm
 # error this fails on wasm, but passes on native
 #endif
-  int acc = 0, i = 0;
+  int acc = 0, i = 1;
 above:
-  for (i = 1; i <= 10; ++i ) {
+  for (; i <= 10; ++i ) {
     if (i == 5) { i = 10; goto above; }
     acc += i; }
   return acc;
