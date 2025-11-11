@@ -150,12 +150,7 @@ static inline void construct_rela_element(
       assert(symidx >= 0);
 
       // assert(u->add == 0);
-      rela->r_address = u->offset;
-      rela->r_symbolnum = symidx;
-      rela->r_pcrel = 1;
-      rela->r_length = 2;
-      rela->r_extern = 1;
-      rela->r_type = X86_64_RELOC_BRANCH;
+      SET_RELOCATION_INFO(rela, u->offset, symidx, 1, 2, 1, X86_64_RELOC_BRANCH);
     }
     break;
   case UNRES_X64_GOT_LOAD:
@@ -164,12 +159,7 @@ static inline void construct_rela_element(
       assert(symidx >= 0);
 
       // assert(u->add == 0);
-      rela->r_address = u->offset;
-      rela->r_symbolnum = symidx;
-      rela->r_pcrel = 1;
-      rela->r_length = 2;
-      rela->r_extern = 1;
-      rela->r_type = X86_64_RELOC_GOT_LOAD;
+      SET_RELOCATION_INFO(rela, u->offset, symidx, 1, 2, 1, X86_64_RELOC_GOT_LOAD);
     }
     break;
   }
