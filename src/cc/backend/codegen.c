@@ -189,13 +189,15 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
       const Type *type = varinfo->type;
       size_t n = 1;
       if (is_stack_param(type)) {
+        if (is_small_struct(type)) {
+          n = (type_size(type) + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+        } else {
 #if STRUCT_ARG_AS_POINTER
-        type = &tyVoidPtr;
+          type = &tyVoidPtr;
 #else
-        if (type->kind != TY_STRUCT || !is_small_struct(type))
           continue;
-        n = (type_size(type) + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
 #endif
+        }
       }
       bool is_flo = is_flonum(type);
       int regidx = reg_index[is_flo];

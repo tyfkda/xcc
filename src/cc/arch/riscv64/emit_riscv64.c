@@ -56,8 +56,13 @@ static int put_vaarg_params(Function *func) {
   int ngp = 0;
   for (int i = 0; i < param_count; ++i) {
     VReg *vreg = params[i].vreg;
-    if (!(vreg->flag & VRF_FLONUM))
-      ++ngp;
+    if (vreg == NULL) {
+      // Small struct? (TODO: Check)
+      ngp += (params[i].frameinfo->size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+    } else {
+      if (!(vreg->flag & VRF_FLONUM))
+        ++ngp;
+    }
   }
   int n = MAX_REG_ARGS - ngp;
   if (n > 0) {

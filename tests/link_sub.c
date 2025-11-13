@@ -1,5 +1,7 @@
 // Compiled on gcc
 
+#include <stdarg.h>
+
 int array[] = {0, 111, 222, 333, 444, 555, 666, 777};
 int *ptr = array;
 
@@ -37,5 +39,19 @@ LargeStruct pass_struct(LargeStruct v) {
 long pass_struct_small_large(int n, SmallStruct s, LargeStruct l) {
   long acc;
   acc = s.w * 1000 + l.x * 100 + l.y * 10 + l.z;
+  return acc;
+}
+
+long pass_struct_small_large_vaargs(int n, SmallStruct s, LargeStruct l, ...) {
+  va_list ap;
+  va_start(ap, l);
+  long acc;
+  acc = s.w * 1000 + l.x * 100 + l.y * 10 + l.z;
+  for (int i = 0; i < n; ++i) {
+    if ((i & 1) == 0)
+      acc = acc * 10 + va_arg(ap, SmallStruct).w;
+    else
+      acc = acc * 10 + va_arg(ap, LargeStruct).y;
+  }
   return acc;
 }

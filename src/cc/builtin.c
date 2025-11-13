@@ -1,6 +1,6 @@
 #include "../config.h"
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -155,11 +155,18 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     return NULL;
   }
 
+#if !STRUCT_ARG_AS_POINTER
+#error Assumes struct value is passed as its pointer.
+#endif
   int gn = 0;
   for (int i = 0; i < params->len; ++i) {
     VarInfo *info = params->data[i];
     const Type *t = info->type;
-    if (t->kind != TY_STRUCT) {
+    if (t->kind == TY_STRUCT) {
+      // Small struct:   allow single member only, so it passed by 1 argument.
+      // Large struct:   passed as pointer, so it passed by 1 argument.
+      gn += is_small_struct(t) ? (type_size(t) + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE : 1;
+    } else {
       if (!is_flonum(t))
         ++gn;
     }
@@ -182,8 +189,13 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     int ngp = 0;
     for (int i = 0; i < param_count; ++i) {
       VReg *vreg = params[i].vreg;
-      if (!(vreg->flag & VRF_FLONUM))
-        ++ngp;
+      if (vreg == NULL) {
+        // Small struct? (TODO: Check)
+        ngp += (params[i].frameinfo->size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+      } else {
+        if (!(vreg->flag & VRF_FLONUM))
+          ++ngp;
+      }
     }
     int n = MAX_REG_ARGS - ngp;
     if (n > 0) {

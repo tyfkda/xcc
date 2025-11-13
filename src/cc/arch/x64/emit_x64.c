@@ -126,7 +126,7 @@ static inline void move_params_to_assigned(Function *func) {
         }
       }
 
-      size_t n = (size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+      size_t n = (fi->size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
       reg_index[GPREG] += n;
       continue;
     }

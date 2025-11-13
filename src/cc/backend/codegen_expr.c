@@ -408,6 +408,7 @@ static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, Funca
     if (is_flonum(arg_type))
       p->flag |= ARGF_FLONUM;
     bool is_vaarg = i >= vaarg_start;
+    UNUSED(is_vaarg);
 #if VAARG_FP_AS_GP
     if (is_vaarg)
       p->flag |= ARGF_FP_AS_GP;
@@ -425,7 +426,7 @@ static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, Funca
                      reg_index[is_flo] >= kArchSetting.max_reg_args[is_flo];
 
     size_t regnum = 1;
-    if (arg_type->kind == TY_STRUCT && is_small_struct(arg_type) && !is_vaarg) {
+    if (arg_type->kind == TY_STRUCT && is_small_struct(arg_type)) {
       size_t n = (p->size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
       if (reg_index[GPREG] + (int)n <= kArchSetting.max_reg_args[GPREG]) {
         assert(!is_flo);

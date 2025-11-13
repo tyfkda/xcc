@@ -37,6 +37,7 @@ typedef struct { long x, y, z; } LargeStruct;
 
 extern LargeStruct pass_struct(LargeStruct v);
 extern long pass_struct_small_large(int n, SmallStruct s, LargeStruct l);
+extern long pass_struct_small_large_vaargs(int n, SmallStruct s, LargeStruct l, ...);
 
 TEST(struct) {
   {
@@ -49,6 +50,10 @@ TEST(struct) {
     static SmallStruct s1 = {1};
     static LargeStruct l1 = {2, 3, 4};
     expecti64("pass struct small large vaargs", 1234, pass_struct_small_large(2, s1, l1));
+
+    static SmallStruct s2 = {5};
+    static LargeStruct l2 = {6, 7, 8};
+    expecti64("pass struct small large vaargs", 123457, pass_struct_small_large_vaargs(2, s1, l1, s2, l2));
   }
 }
 

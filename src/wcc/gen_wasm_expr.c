@@ -269,7 +269,13 @@ static inline void gen_funarg_param(Expr *arg, FuncallWork *work) {
 
 static inline void gen_funarg_vaarg(Expr *arg, FuncallWork *work) {
   const Type *type = arg->type;
-  if (is_stack_param(type)) {
+  const Type *small_etype = NULL;
+  if (is_small_struct(type)) {
+    small_etype = get_small_struct_elem_type(type);
+    type = small_etype;
+    if (is_fixnum(type) && type->fixnum.kind < FX_INT)
+      type = get_fixnum_type(FX_INT, type->fixnum.is_unsigned, type->qualifier);
+  } else if (is_stack_param(type)) {
     size_t size = type_size(type);
     size_t indirect_offset = (work->indirect_offset - size) & -align_size(type);
     work->indirect_offset = indirect_offset;
@@ -292,6 +298,8 @@ static inline void gen_funarg_vaarg(Expr *arg, FuncallWork *work) {
   work->offset = offset + type_size(type);
 
   gen_expr(arg, true);
+  if (small_etype != NULL)
+    gen_load(small_etype);
   gen_store(type);
 }
 

@@ -270,9 +270,18 @@ static Expr *proc_builtin_va_arg(const Token *ident) {
   mark_var_used(ap);
 
   // (ap = ALIGN((size_t)ap, _Alignof(type)) + sizeof(type), *(type*)((size_t)ap - sizeof(type)))
-  bool indirect = is_stack_param(type);
-  if (indirect)
-    type = ptrof(type);
+  const Type *small_etype = NULL;
+  bool indirect = false;
+  if (is_small_struct(type)) {
+    small_etype = get_small_struct_elem_type(type);
+    type = (Type*)small_etype;
+    if (is_fixnum(type) && type->fixnum.kind < FX_INT)
+      type = get_fixnum_type(FX_INT, type->fixnum.is_unsigned, type->qualifier);
+  } else {
+    indirect = is_stack_param(type);
+    if (indirect)
+      type = ptrof(type);
+  }
   const Token *tok = ap->token;
   size_t size = type_size(type);
   Expr *size_lit = new_expr_fixlit(&tySize, tok, size);
