@@ -718,7 +718,7 @@ static void check_reachability_stmt(Stmt *stmt) {
 #if XCC_TARGET_ARCH == XCC_ARCH_WASM
   case ST_BLOCK_FOR_LABEL:
 #endif
-    stmt->reach = check_reachability_stmts(stmt->block.stmts);
+    stmt->reach = check_reachability_stmts(stmt->block.stmts);  // Assume block_for_label.stmts is same place.
     break;
   case ST_LABEL:
     check_reachability_stmt(stmt->label.stmt);

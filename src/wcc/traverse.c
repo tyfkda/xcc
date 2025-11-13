@@ -604,7 +604,7 @@ static inline bool is_just_after(Stmt *label, Stmt *block) {
   assert(parent == block->parent);
   assert(parent->kind == ST_BLOCK || parent->kind == ST_BLOCK_FOR_LABEL);
   assert(offsetof(Stmt, block_for_label.stmts) == offsetof(Stmt, block.stmts));
-  Vector *stmts = parent->block.stmts;  // `stmts` must be same place for both block kinds.
+  Vector *stmts = parent->block.stmts;  // Assume block_for_label.stmts is same place.
 
   // block_for_label must be placed at the top of stmts.
   return stmts->data[0] == block &&
@@ -669,12 +669,12 @@ static void traverse_stmt(Stmt *stmt) {
   case ST_BLOCK_FOR_LABEL:
     {
       Scope *bak = NULL;
-      if (stmt->block.scope != NULL) {
+      if (stmt->kind == ST_BLOCK && stmt->block.scope != NULL) {
         bak = curscope;
         curscope = stmt->block.scope;
         traverse_scope(curscope);
       }
-      traverse_stmts(stmt->block.stmts);
+      traverse_stmts(stmt->block.stmts);  // Assume block_for_label.stmts is same place.
       if (bak != NULL)
         curscope = bak;
     }

@@ -140,11 +140,14 @@ static bool traverse_ast_stmt(Stmt **pstmt, LexicalStack *parent, TraverseAstPar
   case ST_BLOCK:
   case ST_BLOCK_FOR_LABEL:
     {
-      if (stmt->block.scope != NULL)
+      Scope *bak = NULL;
+      if (stmt->kind == ST_BLOCK && stmt->block.scope != NULL) {
+        bak = curscope;
         curscope = stmt->block.scope;
-      bool result = traverse_ast_stmts(stmt->block.stmts, &lstack, param);
-      if (stmt->block.scope != NULL)
-        curscope = curscope->parent;
+      }
+      bool result = traverse_ast_stmts(stmt->block.stmts, &lstack, param);  // Assume block_for_label.stmts is same place.
+      if (bak != NULL)
+        curscope = bak;
       return result;
     }
   case ST_IF:
