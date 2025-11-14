@@ -61,6 +61,25 @@ static Expr *proc_builtin_nan(const Token *ident) {
 }
 #endif
 
+static VReg *gen_builtin_va_arg_fp_case(Expr *expr) {
+  assert(expr->kind == EX_FUNCALL);
+  Vector *args = expr->funcall.args;
+  assert(args->len == 1);
+  assert(curfunc != NULL);
+
+  Expr *val = strip_cast(args->data[0]);
+  const Type *ptype = val->type;
+  assert(ptype->kind == TY_PTR);
+  const Type *type = ptype->pa.ptrof;
+
+  bool flo = false;
+  if (is_flonum(type)) {
+    flo = true;
+    curfunc->flag |= FUNCF_VAARG_FP;  // Set floating-point type is used.
+  }
+  return new_const_vreg(flo, to_vsize(&tyBool));
+}
+
 #if VAARG_ON_STACK
 static VReg *gen_builtin_va_start(Expr *expr) {
   assert(expr->kind == EX_FUNCALL);
@@ -576,6 +595,14 @@ void install_builtins(Vector *decls) {
     // vec_push(params, &tyVoidPtr);
     Type *type = new_func_type(rettype, params, true);  // To accept any types, pretend the function as variadic.
     add_builtin_function("__builtin_va_start", type, &p_va_start, true);
+  }
+  {
+    static BuiltinFunctionProc p_va_arg_fp_case = &gen_builtin_va_arg_fp_case;
+    Type *rettype = &tyBool;
+    Vector *params = new_vector();
+    // vec_push(params, &tyVoidPtr);
+    Type *type = new_func_type(rettype, params, true);  // To accept any types, pretend the function as variadic.
+    add_builtin_function("__va_arg_fp_case", type, &p_va_arg_fp_case, true);
   }
   {
     static BuiltinFunctionProc p_alloca = &gen_alloca;

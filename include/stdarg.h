@@ -26,7 +26,7 @@ typedef void **va_list;
   *(ty *) \
     ((__builtin_classify_type(ty) == __builtin_classify_type(struct{}) \
       ? __va_arg_struct(ap, ty) \
-      : ((ap)++)  /* Assume little endian */ )))
+      : (__va_arg_fp_case((ty*)0), (ap)++)  /* Assume little endian */ )))
 
 # define __va_arg_struct(ap, ty) \
     (sizeof(ty) <= 16 ? ({va_list __p=(ap); ap += (sizeof(ty) + 7) / 8; __p;}) \
@@ -97,16 +97,9 @@ typedef __gnuc_va_list va_list;
 
 #endif
 
-#ifndef __NO_FLONUM
-#define __va_arg_fp_case(ap, ty) \
-  (__builtin_classify_type(ty) == __builtin_classify_type(double))
-#else
-#define __va_arg_fp_case(ap, ty)  0
-#endif
-
 #define __builtin_va_arg(ap, ty) ( \
   *(ty *) \
-    (__va_arg_fp_case(ap, ty) \
+    (__va_arg_fp_case((ty*)0) \
       ? __va_arg_fp(ap, sizeof(ty), _Alignof(ty)) \
     : (__builtin_classify_type(ty) == __builtin_classify_type(int) || \
        __builtin_classify_type(ty) == __builtin_classify_type(void*)) \

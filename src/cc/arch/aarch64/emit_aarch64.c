@@ -201,12 +201,14 @@ static inline void move_params_to_assigned(Function *func) {
         STR(kRegSizeTable[3][ArchRegParamMapping[i]], IMMEDIATE_OFFSET(FP, offset));
     }
 #ifndef __NO_FLONUM
-    for (int i = reg_index[FPREG]; i < MAX_FREG_ARGS; i += 2) {
-      int offset = (i - MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
-      if (i + 1 < MAX_FREG_ARGS)
-        STP(kFRegParam64s[i], kFRegParam64s[i + 1], IMMEDIATE_OFFSET(FP, offset));
-      else
-        STR(kFRegParam64s[i], IMMEDIATE_OFFSET(FP, offset));
+    if (func->flag & FUNCF_VAARG_FP) {
+      for (int i = reg_index[FPREG]; i < MAX_FREG_ARGS; i += 2) {
+        int offset = (i - MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
+        if (i + 1 < MAX_FREG_ARGS)
+          STP(kFRegParam64s[i], kFRegParam64s[i + 1], IMMEDIATE_OFFSET(FP, offset));
+        else
+          STR(kFRegParam64s[i], IMMEDIATE_OFFSET(FP, offset));
+      }
     }
 #endif
   }
