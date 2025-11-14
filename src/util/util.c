@@ -12,6 +12,13 @@
 #include "../version.h"
 #include "table.h"
 
+#if defined(__riscv) && !defined(__XCC)
+// RISC-V toolchain doesn't have `getline`, but `__getline`.
+static inline ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
+  return __getline(lineptr, n, stream);
+}
+#endif
+
 int isalnum_(int c) {
   return isalnum(c) || c == '_';
 }

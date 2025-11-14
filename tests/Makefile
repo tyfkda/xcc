@@ -10,6 +10,7 @@ CC1_BE_DIR:=$(CC1_DIR)/backend
 CFLAGS:=-ansi -std=c11 -Wall -Wextra -Werror \
 	-Wold-style-definition -Wno-missing-field-initializers -Wno-typedef-redefinition \
 	-Wno-empty-body
+CFLAGS+=-Wno-char-subscripts  # for RISC-V, suppress error on isXXXX(char)
 CFLAGS+=-I$(CC1_FE_DIR) -I$(UTIL_DIR)
 CFLAGS+=-D_POSIX_C_SOURCE=200809L  # for getline
 
@@ -46,27 +47,27 @@ clean:
 .PHONY: test-initializer
 test-initializer:	initializer_test
 	@echo '## Initializer'
-	@./initializer_test
+	@$(RUN_EXE) ./initializer_test
 
 .PHONY: test-table
 test-table:	table_test
 	@echo '## NameTable'
-	@./table_test
+	@$(RUN_EXE) ./table_test
 
 .PHONY: test-util
 test-util:	util_test
 	@echo '## Util'
-	@./util_test
+	@$(RUN_EXE) ./util_test
 
 .PHONY: test-parser
 test-parser:	parser_test
 	@echo '## Parser'
-	@./parser_test
+	@$(RUN_EXE) ./parser_test
 
 .PHONY: test-print-type
 test-print-type:	print_type_test
 	@echo '## Print type'
-	@./print_type_test
+	@$(RUN_EXE) ./print_type_test
 
 .PHONY: test-val
 test-val:	valtest
