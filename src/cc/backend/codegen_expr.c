@@ -502,19 +502,22 @@ static inline VReg *gen_funarg_struct_pointer(
 #endif
 
 static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *work) {
-  assert(TARGET_POINTER_SIZE == (1 << VRegSize8));
+  const enum VRegSize kMaxVSize = VRegSize8;  // TODO: Max
+  const size_t kMaxSize = 1U << kMaxVSize;
   size_t size = type_size(arg->type);
-  size_t n = (size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+  int n = (size + (kMaxSize - 1)) / kMaxSize;
 
   // Assumed little endian.
-  for (size_t i = n; i-- > 0; ) {
-    VReg *loaded = new_ir_load(vreg, i * TARGET_POINTER_SIZE, VRegSize8, VRF_PARAM, 0)->dst;
-
-    int regarg = ++work->regarg[GPREG];
-    int index = work->reg_arg_count[GPREG] - regarg + work->arg_start;
-    assert(index < kArchSetting.max_reg_args[GPREG]);
-    new_ir_pusharg(loaded, index);
+  int index = work->reg_arg_count[GPREG] - (work->regarg[GPREG] + n) + work->arg_start;
+  assert(index + (int)n <= kArchSetting.max_reg_args[GPREG]);
+  for (int i = 0; i < n; ++i) {
+    enum VRegSize vsize = size >= kMaxSize ? kMaxVSize :
+        (enum VRegSize)(most_significant_bit(size) + (IS_POWER_OF_2(size) ? 0 : 1));
+    size -= (size_t)1 << vsize;
+    VReg *loaded = new_ir_load(vreg, i * kMaxSize, vsize, VRF_PARAM, 0)->dst;
+    new_ir_pusharg(loaded, index + i);
   }
+  work->regarg[GPREG] += n;
   return NULL;
 }
 

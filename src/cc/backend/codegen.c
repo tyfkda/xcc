@@ -374,6 +374,22 @@ VReg *gen_block(Stmt *stmt) {
   return result;
 }
 
+static inline void gen_return_small_struct(const Type *type, VReg *vreg) {
+  const enum VRegSize kMaxVSize = VRegSize8;  // TODO: Max
+  const size_t kMaxSize = 1U << kMaxVSize;
+  size_t size = type_size(type);
+  int n = (size + (kMaxSize - 1)) / kMaxSize;
+
+  // Assumed little endian.
+  for (int i = 0; i < n; ++i) {
+    enum VRegSize vsize = size >= kMaxSize ? kMaxVSize :
+        (enum VRegSize)(most_significant_bit(size) + (IS_POWER_OF_2(size) ? 0 : 1));
+    size -= (size_t)1 << vsize;
+    VReg *loaded = new_ir_load(vreg, i * kMaxSize, vsize, 0, 0)->dst;
+    new_ir_result(loaded, 0, i);
+  }
+}
+
 static inline void gen_return(Stmt *stmt) {
   assert(curfunc != NULL);
   BB *bb = new_bb();
@@ -385,15 +401,7 @@ static inline void gen_return(Stmt *stmt) {
     VReg *result_dst = fnbe->result_dst;
     if (result_dst == NULL) {  // Not inlining.
       if (is_small_struct(type)) {
-        size_t size = type_size(type);
-        for (size_t o = 0; o < size; o += TARGET_POINTER_SIZE) {
-          size_t s = MIN(size - o, TARGET_POINTER_SIZE);
-          int b = most_significant_bit(s);
-          if (s > (1U << b))
-            ++b;
-          VReg *v = new_ir_load(vreg, o, b, 0, 0)->dst;
-          new_ir_result(v, 0, o / TARGET_POINTER_SIZE);
-        }
+        gen_return_small_struct(type, vreg);
       } else if (is_prim_type(type)) {
         int flag = is_unsigned(type) ? IRF_UNSIGNED : 0;
         new_ir_result(vreg, flag, 0);
