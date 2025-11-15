@@ -413,6 +413,14 @@ static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, Funca
       p->flag |= ARGF_FP_AS_GP;
 #endif
     bool is_flo = (p->flag & (ARGF_FLONUM | ARGF_FP_AS_GP)) == ARGF_FLONUM;
+#if USE_GP_FOR_OVERFLOW_FP
+    if (is_flo && reg_index[is_flo] >= kArchSetting.max_reg_args[is_flo]) {
+      if (reg_index[GPREG] < kArchSetting.max_reg_args[GPREG]) {
+        is_flo = false;
+        p->flag |= ARGF_FP_AS_GP;
+      }
+    }
+#endif
     bool stack_arg = is_stack_param(arg_type) ||
                      reg_index[is_flo] >= kArchSetting.max_reg_args[is_flo];
 

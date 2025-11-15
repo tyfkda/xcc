@@ -36,6 +36,7 @@ enum VRegSize {
 #define VRF_UNUSED       (1 << 7)  // Unused
 #define VRF_VOLATILE     (1 << 8)  // Volatile
 #define VRF_VOLATILEREG  (1 << 9)  // Volatile, but register
+#define VRF_FP_GP_PARAM  (1 << 10) // FP, but passed by GP register
 
 #define VRF_MASK         (VRF_FLONUM)
 #define VRF_FORCEMEMORY  (VRF_REF | VRF_SPILLED | VRF_VOLATILE)

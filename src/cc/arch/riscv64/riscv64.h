@@ -210,6 +210,8 @@
 
 #define FMV_X_W(o1, o2)       EMIT_ASM("fmv.x.w", o1, o2)    // int <- float(hex)
 #define FMV_X_D(o1, o2)       EMIT_ASM("fmv.x.d", o1, o2)    // int <- double(hex)
+#define FMV_W_X(o1, o2)       EMIT_ASM("fmv.w.x", o1, o2)    // float(hex) <- int
+#define FMV_D_X(o1, o2)       EMIT_ASM("fmv.d.x", o1, o2)    // double(hex) <- int
 
 #define FEQ_D(o1, o2, o3)     EMIT_ASM("feq.d", o1, o2, o3)
 #define FEQ_S(o1, o2, o3)     EMIT_ASM("feq.s", o1, o2, o3)

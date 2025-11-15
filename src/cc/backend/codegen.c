@@ -138,10 +138,22 @@ static void alloc_variable_registers(Function *func) {
         vreg->flag |= VRF_PARAM;
         bool is_flo = (vreg->flag & VRF_FLONUM) != 0;
         int *p = &regcount[is_flo];
-        if (*p < kArchSetting.max_reg_args[is_flo])
+#if USE_GP_FOR_OVERFLOW_FP
+        int extra_flag = 0;
+        if (is_flo && *p >= kArchSetting.max_reg_args[is_flo]) {
+          is_flo = false;
+          p = &regcount[GPREG];
+          extra_flag = VRF_FP_GP_PARAM;
+        }
+#endif
+        if (*p < kArchSetting.max_reg_args[is_flo]) {
           vreg->reg_param_index = (*p)++;
-        else
+#if USE_GP_FOR_OVERFLOW_FP
+          vreg->flag |= extra_flag;
+#endif
+        } else {
           vreg->flag |= VRF_STACK_PARAM;
+        }
       }
     }
   }
@@ -187,8 +199,21 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
       }
       bool is_flo = is_flonum(type);
       int regidx = reg_index[is_flo];
-      if (regidx + (int)n > max_reg[is_flo])
+      int flag = 0;
+      if (regidx + (int)n > max_reg[is_flo]) {
+#if defined(USE_GP_FOR_OVERFLOW_FP)
+        if (!is_flo)
+          continue;
+        is_flo = false;
+        regidx = reg_index[GPREG];
+        flag = REGPARAM_FP_AS_GP;
+        assert(n == 1);
+        if (regidx >= max_reg[GPREG])
+          continue;
+#else
         continue;
+#endif
+      }
       reg_index[is_flo] += n;
 
       assert(is_local_storage(varinfo));
@@ -196,6 +221,7 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
       p->frameinfo = varinfo->local.frameinfo;
       p->vreg = varinfo->local.vreg;  // Might be NULL (small struct).
       p->index = regidx;
+      p->flag = flag;
       arg_count[is_flo] += 1;
     }
   }

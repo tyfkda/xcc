@@ -359,7 +359,7 @@ static void linear_scan_register_allocation(RegAlloc *ra, LiveInterval **sorted_
     int regno = -1;
     int ip = vreg->reg_param_index;
     unsigned long occupied = prsp->using_bits | li->occupied_reg_bit;
-    if (ip >= 0) {
+    if (ip >= 0 && !(vreg->flag & VRF_FP_GP_PARAM)) {
       if (is_flo) {
         // Assume floating-pointer parameter registers are same order,
         // and no mapping required.

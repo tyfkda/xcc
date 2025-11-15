@@ -571,6 +571,8 @@ static unsigned char *asm_fi(Inst *inst, Code *code) {
   int rd = inst->opr[0].freg;
   int rs = inst->opr[1].reg.no;
   switch (inst->op) {
+  case FMV_D_X:   W_FMV_D_X(rd, rs); break;
+  case FMV_W_X:   W_FMV_W_X(rd, rs); break;
   case FCVT_D_W:  W_FCVT_D_W(rd, rs); break;
   case FCVT_D_WU: W_FCVT_D_WU(rd, rs); break;
   case FCVT_D_L:  W_FCVT_D_L(rd, rs); break;
@@ -657,6 +659,7 @@ static const AsmInstFunc table[] = {
   [FMV_D] = asm_2fr, [FNEG_D] = asm_2fr,
   [FMV_S] = asm_2fr, [FNEG_S] = asm_2fr,
   [FMV_X_D] = asm_if, [FMV_X_W] = asm_if,
+  [FMV_D_X] = asm_fi, [FMV_W_X] = asm_fi,
   [FEQ_D] = asm_fcmp, [FLT_D] = asm_fcmp, [FLE_D] = asm_fcmp,
   [FEQ_S] = asm_fcmp, [FLT_S] = asm_fcmp, [FLE_S] = asm_fcmp,
   [FLD] = asm_fld, [FLW] = asm_fld, [FSD] = asm_fsd, [FSW] = asm_fsd,

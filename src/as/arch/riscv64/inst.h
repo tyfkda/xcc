@@ -53,6 +53,7 @@ enum Opcode {
   FMV_D, FNEG_D,
   FMV_S, FNEG_S,
   FMV_X_D, FMV_X_W,
+  FMV_D_X, FMV_W_X,
   FEQ_D, FLT_D, FLE_D,
   FEQ_S, FLT_S, FLE_S,
   FLD, FLW, FSD, FSW,

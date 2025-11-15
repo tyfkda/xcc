@@ -68,6 +68,11 @@
 #define VAARG_FP_AS_GP  1
 #endif
 
+#if !defined(USE_GP_FOR_OVERFLOW_FP) && XCC_TARGET_ARCH == XCC_ARCH_RISCV64
+// Pass floating-point arguments in general-purpose registers if FP registers are fully-used.
+#define USE_GP_FOR_OVERFLOW_FP  1
+#endif
+
 #if !defined(STRUCT_ARG_AS_POINTER) && XCC_TARGET_ARCH != XCC_ARCH_X64
 // Put struct pointer instead of instance
 #define STRUCT_ARG_AS_POINTER  1

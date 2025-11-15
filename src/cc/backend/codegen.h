@@ -47,10 +47,13 @@ void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc
 void gen_clear_local_var(const VarInfo *varinfo);
 void gen_memcpy(const Type *type, VReg *dst, VReg *src);
 
+#define REGPARAM_FP_AS_GP  (1 << 0)
+
 typedef struct {
   const FrameInfo *frameinfo;
   VReg *vreg;
   int index;
+  int flag;
 } RegParamInfo;
 
 int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo *args);

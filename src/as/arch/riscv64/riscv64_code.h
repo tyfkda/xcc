@@ -130,6 +130,8 @@
 
 #define W_FMV_X_D(rd, rs)         MAKE_CODE32(inst, code, RTYPE(0x71, 0, rs, 0x00, rd, 0x53))
 #define W_FMV_X_W(rd, rs)         MAKE_CODE32(inst, code, RTYPE(0x70, 0, rs, 0x00, rd, 0x53))
+#define W_FMV_D_X(rd, rs)         MAKE_CODE32(inst, code, RTYPE(0x79, 0, rs, 0x00, rd, 0x53))
+#define W_FMV_W_X(rd, rs)         MAKE_CODE32(inst, code, RTYPE(0x78, 0, rs, 0x00, rd, 0x53))
 
 // Compressed instructions
 #define C_MV(rd, rs)              MAKE_CODE16(inst, code, 0x8002 | ((rd) << 7) | ((rs) << 2))

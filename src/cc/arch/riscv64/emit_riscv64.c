@@ -36,6 +36,9 @@ char *immediate_offset(int offset, const char *reg) {
 
 static const char *kRegParam64s[] = {A0, A1, A2, A3, A4, A5, A6, A7};
 
+#define SZ_FLOAT   VRegSize4
+#define SZ_DOUBLE  VRegSize8
+
 static bool is_asm(Stmt *stmt) {
   return stmt->kind == ST_ASM;
 }
@@ -136,15 +139,40 @@ static inline void move_params_to_assigned(Function *func) {
     }
 
     if (vreg->flag & VRF_FLONUM) {
+      if (p->flag & REGPARAM_FP_AS_GP) {
+        const char *gp = kReg64s[p->index];  // Source GP register.
+        if (vreg->flag & VRF_SPILLED) {
+          int offset = vreg->frame.offset;
+          assert(offset != 0);
+          switch (vreg->vsize) {
+          case SZ_FLOAT:   SW(gp, IMMEDIATE_OFFSET(offset, FP)); break;
+          case SZ_DOUBLE:  SD(gp, IMMEDIATE_OFFSET(offset, FP)); break;
+          default: assert(false); break;
+          }
+        } else {
+          const char *dst = kFReg64s[vreg->phys];
+          switch (vreg->vsize) {
+          case SZ_FLOAT:   FMV_W_X(dst, gp); break;
+          case SZ_DOUBLE:  FMV_D_X(dst, gp); break;
+          default: assert(false); break;
+          }
+        }
+        continue;
+      }
+
       const char *src = kFRegParam64s[p->index];
       if (vreg->flag & VRF_SPILLED) {
         int offset = vreg->frame.offset;
         assert(offset != 0);
-        assert(offset != 0);
-        FSD(src, IMMEDIATE_OFFSET(offset, FP));
+        switch (vreg->vsize) {
+        case SZ_FLOAT:   FSW(src, IMMEDIATE_OFFSET(offset, FP)); break;
+        case SZ_DOUBLE:  FSD(src, IMMEDIATE_OFFSET(offset, FP)); break;
+        default: assert(false); break;
+        }
       } else {
         if (p->index != vreg->phys) {
           const char *dst = kFReg64s[vreg->phys];
+          // `fmv` for single-precision instruction does not exist?
           FMV_D(dst, src);
         }
       }
