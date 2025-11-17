@@ -190,7 +190,7 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
       size_t n = 1;
       if (is_stack_param(type)) {
         if (is_small_struct(type)) {
-          n = (type_size(type) + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+          n = (type_size(type) + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
         } else {
 #if STRUCT_ARG_AS_POINTER
           type = &tyVoidPtr;
@@ -861,7 +861,7 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
     FrameInfo *fi = varinfo->local.frameinfo;
     size_t size = fi->size;  // type_size(type);
     if (is_small_struct(type)) {
-      size_t n = (size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+      size_t n = (size + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
       if (reg_index[is_flo] + (int)n <= kArchSetting.max_reg_args[is_flo]) {
         // Small struct, passed by register.
         reg_index[GPREG] += n;

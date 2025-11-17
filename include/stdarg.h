@@ -25,8 +25,12 @@ typedef void **va_list;
 #define __builtin_va_arg(ap, ty) ( \
   *(ty *) \
     ((__builtin_classify_type(ty) == __builtin_classify_type(struct{}) \
-      ? (*((ap)++)) /* struct: pointer */ \
+      ? __va_arg_struct(ap, ty) \
       : ((ap)++)  /* Assume little endian */ )))
+
+# define __va_arg_struct(ap, ty) \
+    (sizeof(ty) <= 16 ? ({va_list __p=(ap); ap += (sizeof(ty) + 7) / 8; __p;}) \
+                      : (*((ap)++)))
 
 #else  // not (__APPLE__ and __aarch64__) nor __riscv
 
@@ -84,7 +88,13 @@ typedef __gnuc_va_list va_list;
     ? __va_arg_gp(ap, sizeof(ty *), _Alignof(ty *)) \
     : ((char*)*(ty **)__va_arg_gp(ap, sizeof(ty *), _Alignof(ty *))))
 #else
-# define __va_arg_struct(ap, ty)  __va_arg_mem(ap, sizeof(ty), _Alignof(ty))
+# define __va_arg_struct(ap, ty)
+# define __va_arg_struct(ap, ty)  ( \
+    sizeof(ty) <= 16 && (ap)->gp_offset + sizeof(ty) <= __GP_OFFSET_MAX \
+        ? ({ void *__p=(ap)->reg_save_area + (ap)->gp_offset; \
+             (ap)->gp_offset += (sizeof(ty) + (__WORD_SIZE - 1)) & -__WORD_SIZE; __p; }) \
+        : __va_arg_mem(ap, sizeof(ty), _Alignof(ty)) )
+
 #endif
 
 #ifndef __NO_FLONUM

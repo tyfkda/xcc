@@ -101,23 +101,35 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     return NULL;
   }
 
-  int offset = 0;
+  size_t offset = 0;
   int reg_count[2] = {0, 0};  // [0]=gp-reg, [1]=fp-reg
   for (int i = 0; i < params->len; ++i) {
     VarInfo *info = params->data[i];
-    const Type *t = info->type;
-    int size = 0, align = 0;
-    if (t->kind == TY_STRUCT) {
-      size = type_size(t);
-      align = align_size(t);
+    Type *t = info->type;
+    int n = 0;
+    if (is_small_struct(t)) {
+      size_t s = type_size(t);
+      n = (s + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
+    } else if (is_stack_param(t)) {
+#if STRUCT_ARG_AS_POINTER
+      assert(t->kind == TY_STRUCT);
+      t = ptrof(t);
+      n = 1;
+#endif
     } else {
-      bool is_flo = is_flonum(t);
-      if (reg_count[is_flo] >= kArchSetting.max_reg_args[is_flo])
-        size = align = TARGET_POINTER_SIZE;
-      ++reg_count[is_flo];
+      assert(is_prim_type(t));
+      n = 1;
     }
-    if (size > 0)
-      offset = ALIGN(offset, align) + size;
+
+    if (n > 0) {
+      bool is_flo = is_flonum(t);
+      if (reg_count[is_flo] + n <= kArchSetting.max_reg_args[is_flo]) {
+        reg_count[is_flo] += n;
+        continue;
+      }
+    }
+    size_t size = type_size(t);
+    offset = ALIGN(offset, TARGET_POINTER_SIZE) + size;
   }
 
   FuncBackend *fnbe = curfunc->extra;
@@ -125,7 +137,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   VReg *p = new_ir_bofs(fi)->dst;
   if (offset > 0) {
     enum VRegSize vsize = to_vsize(&tyVoidPtr);
-    p = new_ir_bop(IR_ADD, p, new_const_vreg(offset, vsize), vsize, IRF_UNSIGNED);
+    p = new_ir_bop(IR_ADD, p, new_const_vreg(ALIGN(offset, TARGET_POINTER_SIZE), vsize), vsize, IRF_UNSIGNED);
   }
   new_ir_mov(varinfo->local.vreg, p, IRF_UNSIGNED);
   return NULL;
@@ -165,7 +177,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     if (t->kind == TY_STRUCT) {
       // Small struct:   allow single member only, so it passed by 1 argument.
       // Large struct:   passed as pointer, so it passed by 1 argument.
-      gn += is_small_struct(t) ? (type_size(t) + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE : 1;
+      gn += is_small_struct(t) ? (type_size(t) + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE : 1;
     } else {
       if (!is_flonum(t))
         ++gn;
@@ -191,7 +203,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
       VReg *vreg = params[i].vreg;
       if (vreg == NULL) {
         // Small struct? (TODO: Check)
-        ngp += (params[i].frameinfo->size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+        ngp += (params[i].frameinfo->size + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
       } else {
         if (!(vreg->flag & VRF_FLONUM))
           ++ngp;
@@ -210,7 +222,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   VReg *p = new_ir_bofs(fi)->dst;
   if (offset > 0) {
     enum VRegSize vsize = to_vsize(&tyVoidPtr);
-    p = new_ir_bop(IR_ADD, p, new_const_vreg(offset, vsize), vsize, IRF_UNSIGNED);
+    p = new_ir_bop(IR_ADD, p, new_const_vreg(ALIGN(offset, TARGET_POINTER_SIZE), vsize), vsize, IRF_UNSIGNED);
   }
 
   // (void)(ap = fp + <vaarg saved offset>)
@@ -244,23 +256,34 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   }
 
   int reg_count[2] = {0, 0};  // [0]=gp-reg, [1]=fp-reg
-  size_t mem_offset = 0;
+  size_t offset = 0;
   for (int i = 0; i < params->len; ++i) {
     VarInfo *info = params->data[i];
-    const Type *t = info->type;
-#if STRUCT_ARG_AS_POINTER
-    if (t->kind == TY_STRUCT && !is_small_struct(t))
-      t = &tyVoidPtr;
-#endif
+    Type *t = info->type;
+    int n = 0;
     if (is_small_struct(t)) {
-      size_t n = (type_size(t) + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
-      reg_count[GPREG] += n;
+      size_t s = type_size(t);
+      n = (s + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
     } else if (is_stack_param(t)) {
-      mem_offset += ALIGN(type_size(t), 8);
+#if STRUCT_ARG_AS_POINTER
+      assert(t->kind == TY_STRUCT);
+      t = ptrof(t);
+      n = 1;
+#endif
     } else {
-      bool is_flo = is_flonum(t);
-      ++reg_count[is_flo];
+      assert(is_prim_type(t));
+      n = 1;
     }
+
+    if (n > 0) {
+      bool is_flo = is_flonum(t);
+      if (reg_count[is_flo] + n <= kArchSetting.max_reg_args[is_flo]) {
+        reg_count[is_flo] += n;
+        continue;
+      }
+    }
+    size_t size = type_size(t);
+    offset = ALIGN(offset, TARGET_POINTER_SIZE) + size;
   }
 
   // ap->gp_offset = reg_count[GPREG] * TARGET_POINTER_SIZE
@@ -289,10 +312,11 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     FuncBackend *fnbe = curfunc->extra;
     FrameInfo *fi = &fnbe->vaarg_frame_info;
     VReg *p = new_ir_bofs(fi)->dst;
-    int gs = MAX(reg_count[GPREG] - MAX_REG_ARGS[GPREG], 0), fs = MAX(reg_count[FPREG] - MAX_REG_ARGS[FPREG], 0);
-    size_t offset = (gs + fs) * TARGET_POINTER_SIZE + mem_offset;
-    if (offset > 0) {
-      VReg *addend = new_const_vreg(offset, vsize);
+    int gs = MAX(reg_count[GPREG] - MAX_REG_ARGS[GPREG], 0);
+    int fs = MAX(reg_count[FPREG] - MAX_REG_ARGS[FPREG], 0);
+    size_t ofs = ALIGN((gs + fs) * TARGET_POINTER_SIZE + offset, TARGET_POINTER_SIZE);
+    if (ofs > 0) {
+      VReg *addend = new_const_vreg(ofs, vsize);
       p = new_ir_bop(IR_ADD, p, addend, vsize, IRF_UNSIGNED);
     }
     new_ir_store(overflow_arg_area, 0, p, 0);

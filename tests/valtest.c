@@ -2141,6 +2141,8 @@ int vaargs_before_many(int a, int b, int c, int d, int e, int f, int g, int h, i
 }
 
 typedef struct {long x, y, z;} VaargStruct;
+typedef struct {short w;} VaargSmallStruct;
+
 long vaargs_struct(int n, ...) {
   va_list ap;
   va_start(ap, n);
@@ -2183,6 +2185,23 @@ int (*fnptr(int (*fn)(int n, ...)))(int, ...) {
   return fn;
 }
 
+long pass_struct_small_large_vaargs(int n, VaargSmallStruct s, VaargStruct l, ...) {
+  va_list ap;
+  va_start(ap, l);
+  long acc;
+  acc = s.w * 1000 + l.x * 100 + l.y * 10 + l.z;
+  for (int i = 0; i < n; ++i) {
+    if ((i & 1) == 0) {
+      VaargSmallStruct ss = va_arg(ap, VaargSmallStruct);
+      acc = acc * 10 + ss.w;
+    } else {
+      VaargStruct ls = va_arg(ap, VaargStruct);
+      acc = acc * 10 + ls.y;
+    }
+  }
+  return acc;
+}
+
 TEST(vaarg) {
   EXPECT("vaargs 1", 1, vaargs(1, (int)1, (char)20, 300L));
   EXPECT("vaargs 2", 21, vaargs(2, (int)1, (char)20, 300L));
@@ -2201,6 +2220,15 @@ TEST(vaarg) {
 
   EXPECT("stdarg", 55, vaarg_and_array(10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
   EXPECT("vaarg fnptr", 15, fnptr(vaarg_and_array)(5, 1, 2, 3, 4, 5));
+
+  {
+    static VaargSmallStruct s1 = {1};
+    static VaargStruct l1 = {2, 3, 4};
+
+    static VaargSmallStruct s2 = {5};
+    static VaargStruct l2 = {6, 7, 8};
+    EXPECT("vaarg small/large struct", 123457, pass_struct_small_large_vaargs(2, s1, l1, s2, l2));
+  }
 }
 
 //

@@ -58,7 +58,7 @@ static int put_vaarg_params(Function *func) {
     VReg *vreg = params[i].vreg;
     if (vreg == NULL) {
       // Small struct? (TODO: Check)
-      ngp += (params[i].frameinfo->size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+      ngp += (params[i].frameinfo->size + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
     } else {
       if (!(vreg->flag & VRF_FLONUM))
         ++ngp;

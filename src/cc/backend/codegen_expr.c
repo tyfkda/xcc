@@ -427,7 +427,7 @@ static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, Funca
 
     size_t regnum = 1;
     if (arg_type->kind == TY_STRUCT && is_small_struct(arg_type)) {
-      size_t n = (p->size + TARGET_POINTER_SIZE - 1) / TARGET_POINTER_SIZE;
+      size_t n = (p->size + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
       if (reg_index[GPREG] + (int)n <= kArchSetting.max_reg_args[GPREG]) {
         assert(!is_flo);
         stack_arg = false;
