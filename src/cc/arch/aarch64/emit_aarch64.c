@@ -192,14 +192,21 @@ static inline void move_params_to_assigned(Function *func) {
   bool vaargs = func->type->func.vaargs;
 #endif
   if (vaargs) {
-    for (int i = reg_index[GPREG]; i < MAX_REG_ARGS; ++i) {
+    for (int i = reg_index[GPREG]; i < MAX_REG_ARGS; i += 2) {
       int offset = (i - MAX_REG_ARGS - MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
-      STR(kRegSizeTable[3][ArchRegParamMapping[i]], IMMEDIATE_OFFSET(FP, offset));
+      if (i + 1 < MAX_REG_ARGS)
+        STP(kRegSizeTable[3][ArchRegParamMapping[i]],
+            kRegSizeTable[3][ArchRegParamMapping[i + 1]], IMMEDIATE_OFFSET(FP, offset));
+      else
+        STR(kRegSizeTable[3][ArchRegParamMapping[i]], IMMEDIATE_OFFSET(FP, offset));
     }
 #ifndef __NO_FLONUM
-    for (int i = reg_index[FPREG]; i < MAX_FREG_ARGS; ++i) {
+    for (int i = reg_index[FPREG]; i < MAX_FREG_ARGS; i += 2) {
       int offset = (i - MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
-      STR(kFRegParam64s[i], IMMEDIATE_OFFSET(FP, offset));
+      if (i + 1 < MAX_FREG_ARGS)
+        STP(kFRegParam64s[i], kFRegParam64s[i + 1], IMMEDIATE_OFFSET(FP, offset));
+      else
+        STR(kFRegParam64s[i], IMMEDIATE_OFFSET(FP, offset));
     }
 #endif
   }
