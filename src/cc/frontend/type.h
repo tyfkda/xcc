@@ -12,6 +12,15 @@ typedef struct Expr Expr;
 typedef struct Name Name;
 typedef struct Vector Vector;
 
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
+enum StrKind;
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+
 // Fixnum
 
 enum FixnumKind {
@@ -155,7 +164,7 @@ static inline bool is_flonum(const Type *type)  {
 static inline bool is_bool(const Type *type)  { return type->kind == TY_FIXNUM && type->fixnum.kind == FX_BOOL; }
 bool is_number(const Type *type);
 bool is_unsigned(const Type *type);
-bool is_char_type(const Type *type, /*enum StrKind*/int str_kind);
+bool is_char_type(const Type *type, enum StrKind str_kind);
 bool is_void_ptr(const Type *type);
 bool is_prim_type(const Type *type);
 static inline bool ptr_or_array(const Type *type)  { return type->kind == TY_PTR || type->kind == TY_ARRAY; }

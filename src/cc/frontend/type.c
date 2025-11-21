@@ -242,7 +242,7 @@ bool is_unsigned(const Type *type) {
   return (is_fixnum(type) && type->fixnum.is_unsigned) || type->kind == TY_PTR;
 }
 
-bool is_char_type(const Type *type, /*enum FixnumKind*/int str_kind) {
+bool is_char_type(const Type *type, enum StrKind str_kind) {
   switch ((enum StrKind)str_kind) {
   case STR_CHAR:
     return type->kind == TY_FIXNUM && type->fixnum.kind == FX_CHAR;

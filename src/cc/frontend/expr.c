@@ -3,6 +3,7 @@
 
 #include <assert.h>
 
+#include "ast.h"
 #include "fe_misc.h"
 #include "initializer.h"
 #include "type.h"

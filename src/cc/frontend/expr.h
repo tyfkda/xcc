@@ -1,6 +1,23 @@
 #pragma once
 
-#include "ast.h"
+#include <stdbool.h>
+#include <stddef.h>  // size_t
+#include <sys/types.h>  // ssize_t
+
+typedef struct Expr Expr;
+typedef struct MemberInfo MemberInfo;
+typedef struct Token Token;
+typedef struct Type Type;
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
+enum ExprKind;
+enum StrKind;
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 Expr *string_expr(const Token *token, char *str, ssize_t len, enum StrKind kind);
 Expr *calc_type_size(const Type *type);
