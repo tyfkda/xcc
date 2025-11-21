@@ -375,6 +375,7 @@ Type *parse_raw_type(int *pstorage) {
     } else if (tc.double_num > 0) {
       type = (tc.long_num > 0 ? &tyLDouble : &tyDouble);
     } else {
+      extern const enum FixnumKind kLongKinds[];  // Defined in fe_misc.
       enum FixnumKind fk = (tc.char_num > 0)  ? FX_CHAR
                          : (tc.short_num > 0) ? FX_SHORT
                                               : kLongKinds[tc.long_num];

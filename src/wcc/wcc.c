@@ -16,6 +16,7 @@
 #include "parser.h"
 #include "preprocessor.h"
 #include "table.h"
+#include "type.h"
 #include "util.h"
 #include "var.h"
 #include "wasm_linker.h"

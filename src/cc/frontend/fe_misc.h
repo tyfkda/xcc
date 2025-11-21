@@ -2,8 +2,6 @@
 
 #include <stdbool.h>
 
-#include "type.h"  // FixnumKind
-
 typedef struct Expr Expr;
 typedef struct Function Function;
 typedef struct MemberInfo MemberInfo;
@@ -67,8 +65,6 @@ typedef struct {
   int char_num, short_num, int_num, long_num;
   int float_num, double_num;
 } TypeCombination;
-
-extern const enum FixnumKind kLongKinds[];
 
 void check_type_combination(const TypeCombination *tc, const Token *tok);
 bool no_type_combination(const TypeCombination *tc, int storage_mask, int qualifier_mask);
