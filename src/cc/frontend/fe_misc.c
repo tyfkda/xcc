@@ -315,8 +315,6 @@ const MemberInfo *search_from_anonymous(const Type *type, const Name *name, cons
 static void mark_var_used_sub(Expr *expr, bool for_func) {
   VarInfo *gvarinfo = NULL;
 
-  ensure_type_info(expr->type, expr->token, curscope, true);
-
   switch (expr->kind) {
   case EX_VAR:
     {
