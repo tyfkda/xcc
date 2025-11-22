@@ -50,7 +50,7 @@ static Expr *proc_builtin_nan(const Token *ident) {
     }
     significand = strtoull(p, NULL, base);
   } else {
-    parse_error(PE_NOFATAL, fmt->token, "String literal expected");
+    parse_error(PE_NOFATAL, fmt->token, "string literal expected");
   }
 
   const uint64_t MASK = (1UL << 52) - 1UL;
@@ -70,7 +70,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
 
   Expr *ap = args->data[0];
   if (ap->kind != EX_VAR || ap->type->kind != TY_PTR) {
-    parse_error(PE_NOFATAL, ap->token, "Must be local variable");
+    parse_error(PE_NOFATAL, ap->token, "must be local variable");
     return NULL;
   }
 
@@ -78,7 +78,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   const VarInfo *varinfo = scope_find(ap->var.scope, ap->var.name, &scope);
   assert(varinfo != NULL);
   if (is_global_scope(scope) || !is_local_storage(varinfo)) {
-    parse_error(PE_NOFATAL, ap->token, "Must be local variable");
+    parse_error(PE_NOFATAL, ap->token, "must be local variable");
     return NULL;
   }
 
@@ -97,7 +97,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     is_last = equal_name(var->var.name, varinfo->ident->ident);
   }
   if (!is_last) {
-    parse_error(PE_NOFATAL, var->token, "Must be last function argument");
+    parse_error(PE_NOFATAL, var->token, "must be last function argument");
     return NULL;
   }
 
@@ -163,7 +163,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     is_last = equal_name(var->var.name, varinfo->ident->ident);
   }
   if (!is_last) {
-    parse_error(PE_NOFATAL, var->token, "Must be last function argument");
+    parse_error(PE_NOFATAL, var->token, "must be last function argument");
     return NULL;
   }
 
@@ -251,7 +251,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     is_last = equal_name(var->var.name, varinfo->ident->ident);
   }
   if (!is_last) {
-    parse_error(PE_NOFATAL, var->token, "Must be last function argument");
+    parse_error(PE_NOFATAL, var->token, "must be last function argument");
     return NULL;
   }
 

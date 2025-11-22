@@ -323,7 +323,7 @@ static bool mafscb_find_setjmp(LexicalStack *lstack, TraverseAstParam *param) {
           }
         }
       }
-      parse_error(PE_NOFATAL, expr->funcall.func->token, "Unhandled `setjmp' usage");
+      parse_error(PE_NOFATAL, expr->funcall.func->token, "unhandled `setjmp' usage");
     }
   }
   return false;

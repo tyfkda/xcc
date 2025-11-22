@@ -211,7 +211,7 @@ static const char *get_label_end(ParseInfo *info) {
     for (;;) {
       char c = *p;
       if (c == '\0') {
-        parse_error(info, "String not closed");
+        parse_error(info, "string not closed");
         break;
       }
 
@@ -229,7 +229,7 @@ static const char *get_label_end(ParseInfo *info) {
       int uc = *++q;
       if (ucc > 0) {
         if (!isutf8follow(uc)) {
-          parse_error(info, "Illegal byte sequence");
+          parse_error(info, "illegal byte sequence");
           return NULL;
         }
         --ucc;
@@ -243,7 +243,7 @@ static const char *get_label_end(ParseInfo *info) {
     p = (const char*)q;
   }
   if (p <= start)
-    parse_error(info, "Empty label");
+    parse_error(info, "empty label");
   return p;
 }
 
@@ -334,7 +334,7 @@ static Token *read_flonum(ParseInfo *info, int base) {
         break;
     }
     if (q >= next) {
-      parse_error(info, "Hex float literal must have exponent part");
+      parse_error(info, "hex float literal must have exponent part");
     }
   }
 
@@ -728,7 +728,7 @@ static char unescape_char(ParseInfo *info) {
   case 'v':  return '\v';
 
   default:
-    parse_error(info, "Illegal escape");
+    parse_error(info, "illegal escape");
     // Fallthrough
   case '\'': case '"': case '\\':
     return c;
@@ -1104,13 +1104,13 @@ bool parse_line(Line *line, ParseInfo *info) {
   if (*r == ':') {
     const Name *label = unquote_label(p, q);
     if (label == NULL)
-      return parse_error(info, "Illegal label");
+      return parse_error(info, "illegal label");
     line->label = label;
     info->p = p = skip_whitespaces(r + 1);
   } else if (*p == '.') {
     enum DirectiveType dir = find_directive(p + 1, q - p - 1);
     if (dir == NODIRECTIVE) {
-      parse_error(info, "Unknown directive");
+      parse_error(info, "unknown directive");
       return false;
     }
     line->dir = dir;

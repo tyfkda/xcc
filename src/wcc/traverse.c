@@ -227,7 +227,7 @@ static void te_funcall(Expr **pexpr, bool needval) {
   Expr *func = expr->funcall.func;
   Type *functype = get_callee_type(func->type);
   if (functype == NULL) {
-    parse_error(PE_NOFATAL, func->token, "Cannot call except function");
+    parse_error(PE_NOFATAL, func->token, "cannot call except function");
     return;
   }
   Type *rettype = functype->func.ret;
@@ -865,7 +865,7 @@ static void add_builtins(int flag) {
                                alloc_ident(name, NULL, name->chars, name->chars + name->bytes));
     } else {
       if (!same_type(varinfo->type, &tyVoidPtr))
-        parse_error(PE_NOFATAL, NULL, "Illegal type: %.*s", NAMES(name));
+        parse_error(PE_NOFATAL, NULL, "illegal type: %.*s", NAMES(name));
     }
     GVarInfo *info = get_gvar_info_from_name(name);
     if (info == NULL)

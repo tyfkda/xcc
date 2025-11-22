@@ -31,7 +31,7 @@ Type *fix_array_size(Type *type, Initializer *init, const Token *token) {
         type = single->type;
       } else {
         if (single->type->pa.length != arr_len)
-          parse_error(PE_NOFATAL, token, "Array length different");
+          parse_error(PE_NOFATAL, token, "array length different");
       }
       return type;
     default: break;
@@ -68,7 +68,7 @@ Type *fix_array_size(Type *type, Initializer *init, const Token *token) {
     assert(!is_str || init->single->kind == EX_STR);
     ssize_t init_len = is_str ? (ssize_t)init->single->str.len : (ssize_t)init->multi->len;
     if (init_len > arr_len && (!is_str || init_len - 1 > arr_len))  // Allow non-nul string.
-      parse_error(PE_NOFATAL, token, "Initializer more than array size");
+      parse_error(PE_NOFATAL, token, "initializer more than array size");
     return type;
   }
 }
@@ -162,7 +162,7 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src, const Token 
     dst->type->pa.length = dstlen = len;
   } else {
     if (dstlen < len - 1)
-      parse_error(PE_FATAL, token, "Buffer is shorter than string: %d for \"%s\"", (int)dstlen,
+      parse_error(PE_FATAL, token, "buffer is shorter than string: %d for \"%s\"", (int)dstlen,
                   str->str.buf);
   }
 
@@ -321,7 +321,7 @@ static Initializer *find_next_indices(InitFlattener *flattener, Initializer *ele
     // Overflow elements: Move upward and continue.
     if (indices->len <= 1) {
       // No more elements to store.
-      parse_error(PE_NOFATAL, elem_init->token, "Excess elements in array initializer");
+      parse_error(PE_NOFATAL, elem_init->token, "excess elements in array initializer");
       return NULL;
     }
     vec_pop(indices);
@@ -339,7 +339,7 @@ static Initializer *find_desig_indices(InitFlattener *flattener, Initializer *in
     switch (init->kind) {
     case IK_BRKT:
       if (type->kind != TY_ARRAY) {
-        parse_error(PE_NOFATAL, init->token, "Illegal bracket designator");
+        parse_error(PE_NOFATAL, init->token, "illegal bracket designator");
         return NULL;
       } else {
         index = init->bracket.index;
@@ -349,7 +349,7 @@ static Initializer *find_desig_indices(InitFlattener *flattener, Initializer *in
       break;
     case IK_DOT:
       if (type->kind != TY_STRUCT) {
-        parse_error(PE_NOFATAL, init->token, "Illegal dotted designator");
+        parse_error(PE_NOFATAL, init->token, "illegal dotted designator");
         return NULL;
       } else {
         StructInfo *sinfo = type->struct_.info;
@@ -418,7 +418,7 @@ static void store_to_current_position(InitFlattener *flattener, Initializer *ini
     if (d >= depth - 1) {
       Initializer **pp = (Initializer**)&target->multi->data[index];
       if (*pp != NULL)
-        parse_error(PE_WARNING, init->token, "Initializer overlapped");
+        parse_error(PE_WARNING, init->token, "initializer overlapped");
       *pp = init;
       return;
     }
@@ -431,7 +431,7 @@ static void store_to_current_position(InitFlattener *flattener, Initializer *ini
       target->multi->data[index] = elem_init;
     }
     if (elem_init->kind != IK_MULTI) {
-      parse_error(PE_WARNING, init->token, "Initializer overlapped");
+      parse_error(PE_WARNING, init->token, "initializer overlapped");
       elem_init = reserve_init_for_multi(elem_type, init->token);
       target->multi->data[index] = elem_init;
     }
@@ -521,7 +521,7 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
       if (init->kind == IK_SINGLE) {
         Expr *e = init->single;
         if (!same_type_without_qualifier(type, e->type, true))
-          parse_error(PE_NOFATAL, init->token, "Incompatible type");
+          parse_error(PE_NOFATAL, init->token, "incompatible type");
         if (e->kind == EX_COMPLIT)
           flatten_initializer_single(e);
       }
@@ -556,7 +556,7 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
         break;
       }
       if (init->multi->len != 1 || ((Initializer*)init->multi->data[0])->kind != IK_SINGLE) {
-        parse_error(PE_NOFATAL, init->token, "Requires scaler");
+        parse_error(PE_NOFATAL, init->token, "requires scaler");
         break;
       }
       init = init->multi->data[0];
@@ -566,7 +566,7 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
       flatten_initializer_single(init->single);
       break;
     default:
-      parse_error(PE_NOFATAL, init->token, "Error initializer");
+      parse_error(PE_NOFATAL, init->token, "error initializer");
       // TODO: Modify init
       break;
     }
@@ -599,7 +599,7 @@ static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
 
       if (!is_global_scope(scope) && !(varinfo->storage & VS_STATIC) &&
           get_callee_type(value->type) == NULL) {
-        parse_error(PE_NOFATAL, value->token, "Allowed global reference only");
+        parse_error(PE_NOFATAL, value->token, "allowed global reference only");
         return NULL;
       }
       *isconst = value->type->kind == TY_ARRAY || value->type->kind == TY_FUNC ||
@@ -631,7 +631,7 @@ static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
   case EX_MEMBER:
     value->member.target = check_global_initializer_fixnum(value->member.target, isconst);
     if (value->token->kind != TK_DOT) {
-      parse_error(PE_NOFATAL, value->token, "Allowed global reference only");
+      parse_error(PE_NOFATAL, value->token, "allowed global reference only");
       return NULL;
     }
     *isconst = value->type->kind == TY_ARRAY;
@@ -661,7 +661,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       case EX_FLONUM:
         return init;
       default:
-        parse_error(PE_NOFATAL, init->single->token, "Constant expression expected");
+        parse_error(PE_NOFATAL, init->single->token, "constant expression expected");
         break;
       }
     }
@@ -675,7 +675,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       Expr *value = check_global_initializer_fixnum(init->single, &isconst);
       init->single = make_cast(type, init->single->token, value, false);
       if (!isconst) {
-        parse_error(PE_NOFATAL, init->single->token, "Initializer must be constant");
+        parse_error(PE_NOFATAL, init->single->token, "initializer must be constant");
       }
     }
     break;
@@ -703,7 +703,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
         if (e->kind == EX_STR && is_char_type(type->pa.ptrof, e->str.kind)) {
           assert(type->pa.length > 0);
           if ((ssize_t)e->str.len - 1 > type->pa.length) {  // Allow non-nul string.
-            parse_error(PE_NOFATAL, init->single->token, "Array size shorter than initializer");
+            parse_error(PE_NOFATAL, init->single->token, "array size shorter than initializer");
           }
           break;
         }
@@ -711,7 +711,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       // Fallthrough
     case IK_DOT:
     default:
-      parse_error(PE_NOFATAL, init->token, "Array initializer requires `{'");
+      parse_error(PE_NOFATAL, init->token, "array initializer requires `{'");
       break;
     }
     break;
@@ -720,7 +720,7 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
       if (init->kind == IK_SINGLE && init->single->kind == EX_COMPLIT)
         init = init->single->complit.original_init;
       if (init->kind != IK_MULTI) {
-        parse_error(PE_NOFATAL, init->token, "Struct initializer requires `{'");
+        parse_error(PE_NOFATAL, init->token, "struct initializer requires `{'");
         return NULL;
       }
       const StructInfo *sinfo = type->struct_.info;
@@ -753,7 +753,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       {
         ssize_t arr_len = expr->type->pa.length;
         if (arr_len > 0 && init->multi->len > arr_len)
-          parse_error(PE_FATAL, init->token, "Initializer more than array size");
+          parse_error(PE_FATAL, init->token, "initializer more than array size");
 
         assert(!is_global_scope(curscope));
         Type *ptr_type = array_to_ptr(expr->type);
@@ -795,7 +795,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
         Expr *single = init->single;
         if (!same_type_without_qualifier(expr->type, single->type, true)) {
           // Error should be raised before here.
-          // parse_error(PE_NOFATAL, init->token, "Different type initializer");
+          // parse_error(PE_NOFATAL, init->token, "different type initializer");
         } else {
           vec_push(inits, build_memcpy(expr, single, type_size(expr->type)));
         }
@@ -803,7 +803,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       }
       // Fallthrough
     default:
-      parse_error(PE_NOFATAL, init->token, "Array initializer requires `{'");
+      parse_error(PE_NOFATAL, init->token, "array initializer requires `{'");
       break;
     }
     break;
@@ -817,7 +817,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
         }
       }
       if (init->kind != IK_MULTI) {
-        parse_error(PE_NOFATAL, init->token, "Struct initializer requires `{'");
+        parse_error(PE_NOFATAL, init->token, "struct initializer requires `{'");
         break;
       }
 
@@ -849,7 +849,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
         int n = sinfo->member_count;
         int m = init->multi->len;
         if (n <= 0 && m > 0)
-          parse_error(PE_FATAL, init->token, "Initializer for empty union");
+          parse_error(PE_FATAL, init->token, "initializer for empty union");
 
         int count = 0;
         Token *tok = alloc_token(TK_DOT, NULL, ".", NULL);
@@ -858,7 +858,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
           if (init_elem == NULL)
             continue;
           if (count > 0) {
-            parse_error(PE_FATAL, init_elem->token, "More than one initializer for union");
+            parse_error(PE_FATAL, init_elem->token, "more than one initializer for union");
             break;
           }
 
@@ -919,17 +919,17 @@ Initializer *check_vardecl(Type **ptype, const Token *ident, int storage, Initia
                && type->pa.vla == NULL
 #endif
               ) {
-      parse_error(PE_WARNING, ident, "Array size undetermined, assume as one");
+      parse_error(PE_WARNING, ident, "array size undetermined, assume as one");
       type->pa.length = 1;
     }
 #ifndef __NO_VLA
   } else if (type->kind == TY_PTR && type->pa.vla != NULL) {
     if (is_global_scope(curscope) || (storage & VS_STATIC)) {
-      parse_error(PE_NOFATAL, ident, "Variable length array cannot use in global scope");
+      parse_error(PE_NOFATAL, ident, "variable length array cannot use in global scope");
       init = NULL;
     } else {
       if (init != NULL)
-        parse_error(PE_NOFATAL, ident, "Variable length array with initializer");
+        parse_error(PE_NOFATAL, ident, "variable length array with initializer");
 
       Expr *assign_sizevar = NULL;
       Expr *size_var;

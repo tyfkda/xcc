@@ -104,7 +104,7 @@ bool not_void(const Type *type, const Token *token) {
 
 void not_const(const Type *type, const Token *token) {
   if (type->qualifier & TQ_CONST)
-    parse_error(PE_NOFATAL, token, "Cannot modify `const'");
+    parse_error(PE_NOFATAL, token, "cannot modify `const'");
 }
 
 const enum FixnumKind kLongKinds[] = {
@@ -125,7 +125,7 @@ void check_type_combination(const TypeCombination *tc, const Token *tok) {
          tc->unsigned_num <= 0 && tc->signed_num <= 0)
       )
   ) {
-    parse_error(PE_NOFATAL, tok, "Illegal type combination");
+    parse_error(PE_NOFATAL, tok, "illegal type combination");
   }
 }
 
@@ -229,7 +229,7 @@ bool ensure_type_info(Type *type, const Token *token, Scope *scope, bool raise_e
       Scope *scope2;
       EnumInfo *einfo = find_enum(scope, type->fixnum.enum_.tagname, &scope2);
       if (einfo == NULL && (raise_error || scope2 == NULL)) {
-        parse_error(raise_error ? PE_NOFATAL : PE_WARNING, token, "Imcomplete enum: `%.*s'",
+        parse_error(raise_error ? PE_NOFATAL : PE_WARNING, token, "incomplete enum: `%.*s'",
                     NAMES(type->fixnum.enum_.tagname));
         return false;
       }
@@ -241,7 +241,7 @@ bool ensure_type_info(Type *type, const Token *token, Scope *scope, bool raise_e
       if (type->struct_.info == NULL) {
         StructInfo *sinfo = find_struct(scope, type->struct_.name, NULL);
         if (sinfo == NULL) {
-          parse_error(raise_error ? PE_NOFATAL : PE_WARNING, token, "Imcomplete struct: `%.*s'",
+          parse_error(raise_error ? PE_NOFATAL : PE_WARNING, token, "incomplete struct: `%.*s'",
                       NAMES(type->struct_.name));
           return false;
         }
@@ -420,10 +420,10 @@ void propagate_var_used(void) {
   for (int it = 0; (it = table_iterate(&unused, it, &name, (void**)&varinfo)) != -1; ) {
     if (varinfo->type->kind == TY_FUNC) {
       if (cc_flags.warn.unused_function)
-        parse_error(PE_WARNING, varinfo->ident, "Unused function: `%.*s'", NAMES(name));
+        parse_error(PE_WARNING, varinfo->ident, "unused function: `%.*s'", NAMES(name));
     } else {
       if (cc_flags.warn.unused_variable)
-        parse_error(PE_WARNING, varinfo->ident, "Unused variable: `%.*s'", NAMES(name));
+        parse_error(PE_WARNING, varinfo->ident, "unused variable: `%.*s'", NAMES(name));
     }
   }
 }
@@ -677,7 +677,7 @@ void check_unused_variables(Function *func) {
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
       if (!(varinfo->storage & (VS_USED | VS_ENUM_MEMBER | VS_EXTERN)) && varinfo->ident != NULL) {
-        parse_error(PE_WARNING, varinfo->ident, "Unused variable `%.*s'",
+        parse_error(PE_WARNING, varinfo->ident, "unused variable `%.*s'",
                     NAMES(varinfo->ident->ident));
       }
     }

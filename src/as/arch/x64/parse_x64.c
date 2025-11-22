@@ -245,7 +245,7 @@ static unsigned int parse_direct_register(ParseInfo *info, Operand *operand) {
     size = REG64;
     no = reg - RAX;
   } else {
-    parse_error(info, "Illegal register");
+    parse_error(info, "illegal register");
     return false;
   }
 
@@ -305,7 +305,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, ExprWithFlag *offse
     info->p = skip_whitespaces(info->p + 1);
     if (*info->p != '%' ||
         (++info->p, index_reg = find_register(&info->p), !is_reg64(index_reg)))
-      parse_error(info, "Register expected");
+      parse_error(info, "register expected");
     info->p = skip_whitespaces(info->p);
     if (*info->p == ',') {
       info->p = skip_whitespaces(info->p + 1);
@@ -321,7 +321,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, ExprWithFlag *offse
     ++info->p;
 
   if (!(is_reg64(base_reg) || (base_reg == RIP && index_reg == NOREG)))
-    parse_error(info, "Register expected");
+    parse_error(info, "register expected");
 
   if (index_reg == NOREG) {
     char no = base_reg - RAX;
@@ -333,7 +333,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, ExprWithFlag *offse
     return IND;
   } else {
     if (!is_reg64(index_reg))
-      parse_error(info, "Register expected");
+      parse_error(info, "register expected");
 
     operand->type = INDIRECT_WITH_INDEX;
     operand->indirect_with_index.offset = offset->expr;
@@ -353,7 +353,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, ExprWithFlag *offse
 static enum RegType parse_deref_register(ParseInfo *info, Operand *operand) {
   enum RegType reg = find_register(&info->p);
   if (!is_reg64(reg))
-    parse_error(info, "Illegal register");
+    parse_error(info, "illegal register");
 
   char no = reg - RAX;
   operand->type = DEREF_REG;
@@ -371,7 +371,7 @@ static unsigned int parse_deref_indirect(ParseInfo *info, Operand *operand) {
     return false;
   }
   if (info->p[1] != '%') {
-    parse_error(info, "Register expected");
+    parse_error(info, "register expected");
     return false;
   }
   info->p += 2;
@@ -386,7 +386,7 @@ static unsigned int parse_deref_indirect(ParseInfo *info, Operand *operand) {
     info->p = skip_whitespaces(info->p + 1);
     if (*info->p != '%' ||
         (++info->p, index_reg = find_register(&info->p), !is_reg64(index_reg)))
-      parse_error(info, "Register expected");
+      parse_error(info, "register expected");
     info->p = skip_whitespaces(info->p);
     if (*info->p == ',') {
       info->p = skip_whitespaces(info->p + 1);
@@ -402,7 +402,7 @@ static unsigned int parse_deref_indirect(ParseInfo *info, Operand *operand) {
     ++info->p;
 
   if (!is_reg64(base_reg) || (index_reg != NOREG && !is_reg64(index_reg)))
-    parse_error(info, "Register expected");
+    parse_error(info, "register expected");
 
   if (index_reg == NOREG) {
     operand->type = DEREF_INDIRECT;
@@ -459,7 +459,7 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
     if (*p == '$') {
       info->p = p + 1;
       if (!immediate(&info->p, &operand->immediate))
-        parse_error(info, "Syntax error");
+        parse_error(info, "syntax error");
       operand->type = IMMEDIATE;
       return IMM;
     }

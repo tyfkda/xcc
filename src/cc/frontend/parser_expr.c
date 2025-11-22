@@ -362,7 +362,7 @@ static Expr *unary(Token *tok) {
     {
       Type *type = expr->type;
       if (!is_number(type)) {
-        parse_error(PE_NOFATAL, tok, "Cannot apply `%c' except number types", *tok->begin);
+        parse_error(PE_NOFATAL, tok, "cannot apply `%c' except number types", *tok->begin);
         return expr;
       }
 
@@ -391,13 +391,13 @@ static Expr *unary(Token *tok) {
     return incdec_of(kind + (EX_PREINC - TK_INC), expr, tok);
   case TK_NOT:
     if (!is_number(expr->type) && !ptr_or_array(expr->type)) {
-      parse_error(PE_NOFATAL, tok, "Cannot apply `!' except number or pointer types");
+      parse_error(PE_NOFATAL, tok, "cannot apply `!' except number or pointer types");
       return new_expr_fixlit(&tyBool, tok, false);
     }
     return make_not_expr(tok, expr);
   case TK_TILDA:
     if (!is_fixnum(expr->type)) {
-      parse_error(PE_NOFATAL, tok, "Cannot apply `~' except integer");
+      parse_error(PE_NOFATAL, tok, "cannot apply `~' except integer");
       return new_expr_fixlit(&tyInt, expr->token, 0);
     }
     expr = promote_to_int(expr);
@@ -418,7 +418,7 @@ static Expr *unary(Token *tok) {
       case TY_FUNC:
         break;
       default:
-        parse_error(PE_NOFATAL, tok, "Cannot dereference raw type");
+        parse_error(PE_NOFATAL, tok, "cannot dereference raw type");
         return expr;
       }
       expr = str_to_char_array_var(curscope, expr);
@@ -429,7 +429,7 @@ static Expr *unary(Token *tok) {
     if (expr->kind == EX_MEMBER) {
       const MemberInfo *minfo = expr->member.info;
       if (minfo->bitfield.active)
-        parse_error(PE_NOFATAL, tok, "Cannot take reference for bitfield");
+        parse_error(PE_NOFATAL, tok, "cannot take reference for bitfield");
     }
 #endif
     expr = str_to_char_array_var(curscope, expr);
@@ -455,7 +455,7 @@ static Expr *binary(Expr *lhs, Token *tok) {
   case TK_LSHIFT: case TK_RSHIFT:
     if (!is_fixnum(lhs->type) ||
         !is_fixnum(rhs->type))
-      parse_error(PE_NOFATAL, tok, "Cannot use `%.*s' except numbers.", (int)(tok->end - tok->begin), tok->begin);
+      parse_error(PE_NOFATAL, tok, "cannot use `%.*s' except numbers.", (int)(tok->end - tok->begin), tok->begin);
 
     lhs = promote_to_int(lhs);
     return new_expr_num_bop(kind + (EX_LSHIFT - TK_LSHIFT), tok, lhs, rhs);
@@ -528,7 +528,7 @@ static Expr *assign(Expr *lhs, Token *tok) {
   switch (lhs->type->kind) {
   case TY_ARRAY:
   case TY_FUNC:
-    parse_error(PE_NOFATAL, tok, "Cannot assign to %s",
+    parse_error(PE_NOFATAL, tok, "cannot assign to %s",
                 lhs->type->kind == TY_ARRAY ? "array" : "function");
     return rhs;
   default: break;
@@ -538,7 +538,7 @@ static Expr *assign(Expr *lhs, Token *tok) {
     rhs = str_to_char_array_var(curscope, rhs);
     if (lhs->type->kind == TY_STRUCT) {  // Struct assignment requires same type.
       if (!same_type_without_qualifier(lhs->type, rhs->type, true))
-        parse_error(PE_NOFATAL, tok, "Cannot assign to incompatible struct");
+        parse_error(PE_NOFATAL, tok, "cannot assign to incompatible struct");
     } else {  // Otherwise, cast-ability required.
       rhs = make_cast(lhs->type, tok, rhs, false);
     }
@@ -657,7 +657,7 @@ static Expr *funcall(Expr *func, Token *tok) {
   check_funcall_args(func, args, curscope);
   Type *functype = get_callee_type(func->type);
   if (functype == NULL) {
-    parse_error(PE_NOFATAL, func->token, "Cannot call except function");
+    parse_error(PE_NOFATAL, func->token, "cannot call except function");
     return func;
   }
 

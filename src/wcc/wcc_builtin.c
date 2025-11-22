@@ -188,7 +188,7 @@ static Expr *proc_builtin_nan(const Token *ident) {
     }
     significand = strtoull(p, NULL, base);
   } else {
-    parse_error(PE_NOFATAL, fmt->token, "String literal expected");
+    parse_error(PE_NOFATAL, fmt->token, "string literal expected");
   }
 
   const uint64_t MASK = ((uint64_t)1 << 52) - 1UL;
@@ -439,7 +439,7 @@ static void gen_builtin_wasm_memory_size(Expr *expr, enum BuiltinFunctionPhase p
   switch (phase) {
   case BFP_TRAVERSE:
     if (index->kind != EX_FIXNUM)
-      parse_error(PE_NOFATAL, index->token, "Must be constant");
+      parse_error(PE_NOFATAL, index->token, "must be constant");
     break;
   case BFP_GEN:
     ADD_CODE(OP_MEMORY_SIZE);
@@ -457,7 +457,7 @@ static void gen_builtin_wasm_memory_grow(Expr *expr, enum BuiltinFunctionPhase p
   switch (phase) {
   case BFP_TRAVERSE:
     if (index->kind != EX_FIXNUM)
-      parse_error(PE_NOFATAL, index->token, "Must be constant");
+      parse_error(PE_NOFATAL, index->token, "must be constant");
     break;
   case BFP_GEN:
     gen_expr(npages, true);

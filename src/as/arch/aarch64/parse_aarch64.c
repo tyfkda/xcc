@@ -290,7 +290,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
   int extend = 0;
   enum RegType reg = find_register(&p, R64);
   if (reg == NOREG) {
-    parse_error(info, "Base register expected");
+    parse_error(info, "base register expected");
     return 0;
   }
   if (reg == SP) {
@@ -300,7 +300,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
     operand->indirect.reg.size = REG64;
     operand->indirect.reg.no = reg - X0;
   } else {
-    parse_error(info, "Base register expected");
+    parse_error(info, "base register expected");
   }
 
   ExprWithFlag offset_with_flag = {NULL, 0};
@@ -321,7 +321,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
         if (offset_with_flag.expr != NULL) {
           p = info->p;
         } else {
-          parse_error(info, "Offset expected");
+          parse_error(info, "offset expected");
         }
       }
     } else {
@@ -346,7 +346,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
                 scale = new_expr(EX_FIXNUM);
                 scale->fixnum = imm;
               } else {
-                // parse_error(info, "Offset expected");
+                // parse_error(info, "offset expected");
                 return 0;  // Error
               }
             }
@@ -380,7 +380,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
           offset_with_flag.expr->fixnum = imm;
           prepost = 2;
         } else {
-          // parse_error(info, "Offset expected");
+          // parse_error(info, "offset expected");
           return 0;  // Error
         }
       }

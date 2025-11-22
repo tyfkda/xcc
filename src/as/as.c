@@ -29,7 +29,7 @@ static bool read_line_comment_skip(FILE *fp, ParseInfo *info) {
       if (len == -1) {  // EOF
         info->rawline = info->p = NULL;
         if (block_comment)
-          parse_error(info, "Block comment not closed");
+          parse_error(info, "block comment not closed");
         return false;
       }
       info->rawline = p = rawline;
@@ -59,7 +59,7 @@ static bool read_line_comment_skip(FILE *fp, ParseInfo *info) {
 
     if (wait_line_end) {
       if (*p != '\0')
-        parse_error(info, "Line end expected");
+        parse_error(info, "line end expected");
       p = NULL;
       continue;
     }

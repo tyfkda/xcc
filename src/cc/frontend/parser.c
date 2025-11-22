@@ -41,7 +41,7 @@ static inline void add_func_goto_label(const Token *token, Stmt *goto_, Stmt *la
     table_put(table, token->ident, goto_label);
   } else {
     if (label != NULL && goto_label->label_stmt != NULL) {
-      parse_error(PE_NOFATAL, token, "Label `%.*s' already defined", NAMES(token->ident));
+      parse_error(PE_NOFATAL, token, "label `%.*s' already defined", NAMES(token->ident));
       return;
     }
   }
@@ -149,9 +149,9 @@ static void def_type(Type *type, Token *ident) {
   if (defined != NULL && scope == curscope) {
     if (same_type(type, defined))
       return;
-    parse_error(PE_NOFATAL, ident, "Conflict typedef");
+    parse_error(PE_NOFATAL, ident, "conflict typedef");
   } else if (scope_find(curscope, ident->ident, &scope) != NULL && scope == curscope) {
-    parse_error(PE_NOFATAL, ident, "Conflict typedef with variable");
+    parse_error(PE_NOFATAL, ident, "conflict typedef with variable");
     return;
   }
 
@@ -387,7 +387,7 @@ static Stmt *parse_case(const Token *tok) {
 
   if (value != NULL) {
     if (find_case(swtch, value->fixnum) >= 0) {
-      parse_error(PE_NOFATAL, tok, "Case value `%" PRId64 "' already defined", value->fixnum);
+      parse_error(PE_NOFATAL, tok, "case value `%" PRId64 "' already defined", value->fixnum);
     } else {
       value = make_cast(swtch->switch_.value->type, value->token, value, false);
     }
@@ -660,7 +660,7 @@ static Stmt *parse_asm(const Token *tok) {
         unsigned long index = strtoul(q, &r, 10);
         if (r > q) {  // Number:
           if (index >= param_count) {
-            parse_error(PE_FATAL, str->token, "Invalid index");
+            parse_error(PE_FATAL, str->token, "invalid index");
           }
           q[-1] = '\0';
           vec_push(templates, top);
@@ -850,7 +850,7 @@ static Function *define_func(Type *functype, const Token *ident, const Vector *p
     if (varinfo->type->kind != TY_FUNC ||
         !same_type(varinfo->type->func.ret, functype->func.ret) ||
         (varinfo->type->func.params != NULL && !same_type(varinfo->type, functype))) {
-      parse_error(PE_NOFATAL, ident, "Definition conflict: `%.*s'", NAMES(func->ident->ident));
+      parse_error(PE_NOFATAL, ident, "definition conflict: `%.*s'", NAMES(func->ident->ident));
     } else {
       if (varinfo->global.func == NULL) {
         if (varinfo->type->func.params == NULL)  // Old-style prototype definition.
@@ -980,7 +980,7 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
       if (ident != NULL) {
 #ifndef __NO_VLA
         if (is_global_scope(curscope) && type->kind == TY_PTR && type->pa.vla != NULL)
-          parse_error(PE_NOFATAL, ident, "Variable length array cannot use in global scope");
+          parse_error(PE_NOFATAL, ident, "variable length array cannot use in global scope");
 #endif
         def_type(type, ident);
       }
@@ -1085,7 +1085,7 @@ static Declaration *parse_declaration(Vector *decls) {
     parse_global_var_decl(rawtype, storage, type, ident, attributes, decls);
     return NULL;
   }
-  parse_error(PE_NOFATAL, NULL, "Unexpected token");
+  parse_error(PE_NOFATAL, NULL, "unexpected token");
   match(-1);  // Drop the token.
   return NULL;
 }

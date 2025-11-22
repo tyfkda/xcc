@@ -55,7 +55,7 @@ static Type *parse_enum(void) {
   Type *type;
   if (match(TK_LBRACE)) {
     if (einfo != NULL) {
-      parse_error(PE_NOFATAL, tagname, "Duplicate enum type");
+      parse_error(PE_NOFATAL, tagname, "duplicate enum type");
     } else {
       einfo = malloc_or_die(sizeof(*einfo));
       einfo->members = new_vector();
@@ -69,7 +69,7 @@ static Type *parse_enum(void) {
       if (tagname == NULL) {
         parse_error(PE_NOFATAL, NULL, "ident expected");
       } else {
-        // Imcomplete enum (enum with unknown name): Create silently.
+        // Incomplete enum (enum with unknown name): Create silently.
         define_enum(curscope, tagname->ident, NULL);
       }
     }
@@ -85,7 +85,7 @@ static StructInfo *parse_struct(bool is_union) {
   Token *flex_arr_mem = NULL;  // Flexible array member appeared.
   while (!match(TK_RBRACE)) {
     if (flex_arr_mem != NULL) {
-      parse_error(PE_NOFATAL, flex_arr_mem, "Flexible array member must be last element");
+      parse_error(PE_NOFATAL, flex_arr_mem, "flexible array member must be last element");
       flex_arr_mem = NULL;
     }
 
@@ -307,13 +307,13 @@ Type *parse_raw_type(int *pstorage) {
             sinfo = find_struct(curscope, name, NULL);
             if (sinfo != NULL) {
               if (sinfo->is_union != is_union)
-                parse_error(PE_NOFATAL, tok, "Wrong tag for `%.*s'", NAMES(name));
+                parse_error(PE_NOFATAL, tok, "wrong tag for `%.*s'", NAMES(name));
             }
           }
         }
 
         if (name == NULL && sinfo == NULL)
-          parse_error(PE_FATAL, tok, "Illegal struct/union usage");
+          parse_error(PE_FATAL, tok, "illegal struct/union usage");
 
         type = create_struct_type(sinfo, name, tc.qualifier);
       }
@@ -391,7 +391,7 @@ Type *parse_type_suffix(Type *type) {
   } else {
     Expr *expr = parse_const_fixnum();
     if (expr->fixnum < 0)
-      parse_error(PE_NOFATAL, expr->token, "Array size must be greater than 0, but %" PRId64,
+      parse_error(PE_NOFATAL, expr->token, "array size must be greater than 0, but %" PRId64,
                   expr->fixnum);
     length = expr->fixnum;
     consume(TK_RBRACKET, "`]' expected");
@@ -497,7 +497,7 @@ static ssize_t parse_array_size(Expr **pvla) {
   }
 
   if (length < 0 && *pvla == NULL) {
-    parse_error(PE_NOFATAL, expr->token, "Array size must be greater than 0, but %zd", length);
+    parse_error(PE_NOFATAL, expr->token, "array size must be greater than 0, but %zd", length);
     length = 1;
   }
   return length;

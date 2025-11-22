@@ -514,7 +514,7 @@ Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rh
 
   if ((kind == EX_DIV || kind == EX_MOD) && is_const(rhs) &&
       is_fixnum(rhs->type) && rhs->fixnum == 0) {
-    parse_error(PE_WARNING, rhs->token, "Divide by 0");
+    parse_error(PE_WARNING, rhs->token, "divide by 0");
   }
 
   return new_expr_bop(kind, lhs->type, tok, lhs, rhs);
@@ -611,10 +611,10 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       if (rtype->kind == TY_ARRAY)
         rtype = array_to_ptr(rtype);
       if (!same_type_without_qualifier(ltype, rtype, true))
-        parse_error(PE_FATAL, tok, "Different pointer diff");
+        parse_error(PE_FATAL, tok, "different pointer diff");
       if (is_void_ptr(ltype)) {
         // void* - void*
-        parse_error(PE_WARNING, tok, "Pointer subtraction of void*");
+        parse_error(PE_WARNING, tok, "pointer subtraction of void*");
         ltype = rtype = ptrof(&tyChar);
         lhs = new_expr_cast(ltype, lhs->token, lhs);
         rhs = new_expr_cast(rtype, rhs->token, rhs);
@@ -652,7 +652,7 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
     }
   }
   if (type == NULL) {
-    parse_error(PE_NOFATAL, tok, "Cannot apply `%.*s'", (int)(tok->end - tok->begin), tok->begin);
+    parse_error(PE_NOFATAL, tok, "cannot apply `%.*s'", (int)(tok->end - tok->begin), tok->begin);
     type = ltype;  // Dummy
   } else if (ptr_or_array(ltype)) {
     if (is_const(rhs)) {
@@ -824,7 +824,7 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
           rhs = promote_to_int(rhs);
       }
       if (!cast_numbers(&lhs, &rhs, false))
-        parse_error(PE_FATAL, tok, "Cannot compare except numbers");
+        parse_error(PE_FATAL, tok, "cannot compare except numbers");
     }
   }
 
@@ -974,7 +974,7 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
       case EX_EQ: case EX_NE:
       case EX_LT: case EX_LE: case EX_GE: case EX_GT:
       case EX_LOGAND: case EX_LOGIOR:
-        parse_error(PE_WARNING, tok, "Always %s", kind != EX_EQ ? "true" : "false");
+        parse_error(PE_WARNING, tok, "always %s", kind != EX_EQ ? "true" : "false");
         return new_expr_bop(EX_COMMA, &tyBool, tok, v,
                             new_expr_fixlit(&tyBool, tok, (kind != EX_EQ)));
       default: break;
@@ -1005,7 +1005,7 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
           (rt->kind == TY_PTR && rt->pa.ptrof->kind == TY_VOID) ||
           is_zero(rhs) || is_zero(lhs))) {
       enum ParseErrorLevel err = st || (lt->kind == TY_PTR && rt->kind == TY_PTR) ? PE_WARNING : PE_NOFATAL;
-      parse_error(err, tok, "Compare pointer to other types");
+      parse_error(err, tok, "compare pointer to other types");
     }
     if (rt->kind != TY_PTR)
       rhs = make_cast(lhs->type, rhs->token, rhs, false);
@@ -1093,7 +1093,7 @@ static Expr *calc_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
       Type *ltype = lhs->type;
       Type *rtype = rhs->type;
       if (!is_fixnum(ltype) || !is_fixnum(rtype))
-        parse_error(PE_FATAL, tok, "Cannot use `%.*s' except numbers.",
+        parse_error(PE_FATAL, tok, "cannot use `%.*s' except numbers.",
                     (int)(tok->end - tok->begin), tok->begin);
       return new_expr_bop(kind, ltype, tok, lhs, rhs);
     }
