@@ -90,7 +90,7 @@ void parse_error(enum ParseErrorLevel level, const Token *token, const char *fmt
     ++compile_warning_count;
   } else {
     ++compile_error_count;
-    if (level == PE_FATAL || compile_error_count >= MAX_ERROR_COUNT)
+    if (/*level == PE_FATAL ||*/ compile_error_count >= MAX_ERROR_COUNT)
       exit(1);
   }
 }

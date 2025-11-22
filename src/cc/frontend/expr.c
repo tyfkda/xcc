@@ -160,11 +160,11 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool make_int) {
   assert(ltype != NULL);
   assert(rtype != NULL);
   if (!is_number(ltype)) {
-    parse_error(PE_FATAL, lhs->token, "number type expected");
+    parse_error(PE_NOFATAL, lhs->token, "number type expected");
     return false;
   }
   if (!is_number(rtype)) {
-    parse_error(PE_FATAL, rhs->token, "number type expected");
+    parse_error(PE_NOFATAL, rhs->token, "number type expected");
     return false;
   }
 
@@ -521,10 +521,14 @@ Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rh
 }
 
 Expr *new_expr_int_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
-  if (!is_fixnum(lhs->type))
-    parse_error(PE_FATAL, lhs->token, "int type expected");
-  if (!is_fixnum(rhs->type))
-    parse_error(PE_FATAL, rhs->token, "int type expected");
+  if (!is_fixnum(lhs->type)) {
+    parse_error(PE_NOFATAL, lhs->token, "int type expected");
+    lhs = new_expr_fixlit(&tyInt, tok, 1);
+  }
+  if (!is_fixnum(rhs->type)) {
+    parse_error(PE_NOFATAL, rhs->token, "int type expected");
+    rhs = new_expr_fixlit(&tyInt, tok, 1);
+  }
   return new_expr_num_bop(kind, tok, lhs, rhs);
 }
 
@@ -610,8 +614,10 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
         ltype = array_to_ptr(ltype);
       if (rtype->kind == TY_ARRAY)
         rtype = array_to_ptr(rtype);
-      if (!same_type_without_qualifier(ltype, rtype, true))
-        parse_error(PE_FATAL, tok, "different pointer diff");
+      if (!same_type_without_qualifier(ltype, rtype, true)) {
+        parse_error(PE_NOFATAL, tok, "different pointer diff");
+        return new_expr_fixlit(&tySize, tok, 0);
+      }
       if (is_void_ptr(ltype)) {
         // void* - void*
         parse_error(PE_WARNING, tok, "pointer subtraction of void*");
@@ -823,8 +829,10 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
         if (rt->fixnum.kind < FX_INT)
           rhs = promote_to_int(rhs);
       }
-      if (!cast_numbers(&lhs, &rhs, false))
-        parse_error(PE_FATAL, tok, "cannot compare except numbers");
+      if (!cast_numbers(&lhs, &rhs, false)) {
+        parse_error(PE_NOFATAL, tok, "cannot compare except numbers");
+        return new_expr_fixlit(&tyBool, tok, 0);
+      }
     }
   }
 
@@ -1092,9 +1100,11 @@ static Expr *calc_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
     {
       Type *ltype = lhs->type;
       Type *rtype = rhs->type;
-      if (!is_fixnum(ltype) || !is_fixnum(rtype))
-        parse_error(PE_FATAL, tok, "cannot use `%.*s' except numbers.",
+      if (!is_fixnum(ltype) || !is_fixnum(rtype)) {
+        parse_error(PE_NOFATAL, tok, "cannot use `%.*s' except integers.",
                     (int)(tok->end - tok->begin), tok->begin);
+        return lhs;
+      }
       return new_expr_bop(kind, ltype, tok, lhs, rhs);
     }
   }

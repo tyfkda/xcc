@@ -534,7 +534,7 @@ static void traverse_switch(Stmt *stmt) {
 
 static void traverse_case(Stmt *stmt) {
   if (branching_stmt->kind != ST_SWITCH)
-    parse_error(PE_FATAL, stmt->token, "case/default inside branch not supported");
+    parse_error(PE_NOFATAL, stmt->token, "case/default inside branch not supported");
   traverse_stmt(stmt->case_.stmt);
 }
 

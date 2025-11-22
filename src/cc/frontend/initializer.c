@@ -162,7 +162,7 @@ static Stmt *init_char_array_by_string(Expr *dst, Initializer *src, const Token 
     dst->type->pa.length = dstlen = len;
   } else {
     if (dstlen < len - 1)
-      parse_error(PE_FATAL, token, "buffer is shorter than string: %d for \"%s\"", (int)dstlen,
+      parse_error(PE_NOFATAL, token, "buffer is shorter than string: %d for \"%s\"", (int)dstlen,
                   str->str.buf);
   }
 
@@ -752,8 +752,10 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
     case IK_MULTI:
       {
         ssize_t arr_len = expr->type->pa.length;
-        if (arr_len > 0 && init->multi->len > arr_len)
-          parse_error(PE_FATAL, init->token, "initializer more than array size");
+        if (arr_len > 0 && init->multi->len > arr_len) {
+          parse_error(PE_NOFATAL, init->token, "initializer more than array size");
+          break;
+        }
 
         assert(!is_global_scope(curscope));
         Type *ptr_type = array_to_ptr(expr->type);
@@ -833,7 +835,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
 #ifndef __NO_BITFIELD
           if (minfo->bitfield.width > 0) {
             if (init_elem->kind != IK_SINGLE) {
-              parse_error(PE_FATAL, init_elem->token, "illegal initializer for member `%.*s'",
+              parse_error(PE_NOFATAL, init_elem->token, "illegal initializer for member `%.*s'",
                           NAMES(minfo->name));
             } else {
               vec_push(inits, new_stmt_expr(assign_to_bitfield(init_elem->token, member,
@@ -848,8 +850,10 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       } else {
         int n = sinfo->member_count;
         int m = init->multi->len;
-        if (n <= 0 && m > 0)
-          parse_error(PE_FATAL, init->token, "initializer for empty union");
+        if (n <= 0 && m > 0) {
+          parse_error(PE_NOFATAL, init->token, "initializer for empty union");
+          break;
+        }
 
         int count = 0;
         Token *tok = alloc_token(TK_DOT, NULL, ".", NULL);
@@ -858,7 +862,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
           if (init_elem == NULL)
             continue;
           if (count > 0) {
-            parse_error(PE_FATAL, init_elem->token, "more than one initializer for union");
+            parse_error(PE_NOFATAL, init_elem->token, "more than one initializer for union");
             break;
           }
 

@@ -95,7 +95,7 @@ static StructInfo *parse_struct(bool is_union) {
       Token *ident;
       Type *type = parse_var_def(&rawType, &storage, &ident);
       if (type == NULL) {
-        parse_error(PE_FATAL, NULL, "type expected");
+        parse_error(PE_NOFATAL, NULL, "type expected");
         break;
       }
 
@@ -196,7 +196,7 @@ static Type *parse_typeof(const Token *tok) {
   if (type == NULL) {
     Expr *e = parse_expr();
     if (e == NULL) {
-      parse_error(PE_FATAL, tok, "type expected");
+      parse_error(PE_NOFATAL, tok, "type expected");
       type = &tyInt;  // Dummy.
     } else {
       type = e->type;
@@ -206,7 +206,7 @@ static Type *parse_typeof(const Token *tok) {
   return type;
 }
 
-#define ASSERT_PARSE_ERROR(cond, tok, ...)  do { if (!(cond)) parse_error(PE_FATAL, tok, __VA_ARGS__); } while (0)
+#define ASSERT_PARSE_ERROR(cond, tok, ...)  do { if (!(cond)) parse_error(PE_NOFATAL, tok, __VA_ARGS__); } while (0)
 
 Type *parse_raw_type(int *pstorage) {
   static const char MULTIPLE_STORAGE_SPECIFIED[] = "multiple storage specified";
@@ -312,10 +312,12 @@ Type *parse_raw_type(int *pstorage) {
           }
         }
 
-        if (name == NULL && sinfo == NULL)
-          parse_error(PE_FATAL, tok, "illegal struct/union usage");
-
-        type = create_struct_type(sinfo, name, tc.qualifier);
+        if (name == NULL && sinfo == NULL) {
+          parse_error(PE_NOFATAL, tok, "illegal struct/union usage");
+          type = &tyInt;  // Dummy.
+        } else {
+          type = create_struct_type(sinfo, name, tc.qualifier);
+        }
       }
       break;
     case TK_ENUM:
@@ -630,7 +632,8 @@ Vector *parse_funparams(bool *pvaargs) {
       Token *ident;
       Type *type = parse_var_def(NULL, &storage, &ident);
       if (type == NULL) {
-        parse_error(PE_FATAL, NULL, "type expected");
+        parse_error(PE_NOFATAL, NULL, "type expected");
+        type = &tyInt;
       } else {
         if (storage & VS_STATIC)
           parse_error(PE_NOFATAL, ident, "`static' for function parameter");
@@ -639,16 +642,13 @@ Vector *parse_funparams(bool *pvaargs) {
         if (storage & VS_TYPEDEF)
           parse_error(PE_NOFATAL, ident, "`typedef' for function parameter");
 
-        if (vars->len == 0) {
-          if (type->kind == TY_VOID) {  // fun(void)
-            if (ident != NULL || !match(TK_RPAR))
-              parse_error(PE_FATAL, NULL, "`)' expected");
-            break;
-          }
-        } else {
-          if (!not_void(type, NULL))
-            type = &tyInt;  // Deceive to continue compiling.
+        if (vars->len == 0 && type->kind == TY_VOID) {  // fun(void)
+          if (ident != NULL || !match(TK_RPAR))
+            parse_error(PE_NOFATAL, NULL, "`)' expected");
+          break;
         }
+        if (!not_void(type, NULL))
+          type = &tyInt;  // Deceive to continue compiling.
 
         // Treat array or function as its pointer type automatically.
         switch (type->kind) {

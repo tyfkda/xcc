@@ -25,7 +25,7 @@ extern int compile_error_count;
 enum ParseErrorLevel {
   PE_WARNING,
   PE_NOFATAL,
-  PE_FATAL,
+  // PE_FATAL,
 };
 
 typedef struct {

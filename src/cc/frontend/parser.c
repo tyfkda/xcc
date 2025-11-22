@@ -172,8 +172,8 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     if (!first) {
       type = parse_var_def(&rawType, &tmp_storage, &ident);
       if (type == NULL || ident == NULL) {
-        parse_error(PE_FATAL, NULL, "ident expected");
-        return NULL;
+        parse_error(PE_NOFATAL, NULL, "ident expected");
+        return decls;
       }
     }
     first = false;
@@ -304,7 +304,8 @@ static bool parse_vardecl(Vector *stmts) {
          match(TK_SEMICOL)) {
       // Just struct/union or enum definition.
     } else {
-      parse_error(PE_FATAL, NULL, "ident expected");
+      parse_error(PE_NOFATAL, NULL, "ident expected");
+      return false;
     }
   } else {
     Vector *decls = parse_vardecl_cont(rawType, type, storage, ident);
@@ -464,20 +465,22 @@ static Stmt *parse_for(const Token *tok) {
     Token *ident;
     Type *type = parse_var_def(&rawType, &storage, &ident);
     if (type != NULL) {
-      if (ident == NULL)
-        parse_error(PE_FATAL, NULL, "ident expected");
-      scope = enter_scope(curfunc);
-      block = new_stmt_block(tok, scope);
+      if (ident == NULL) {
+        parse_error(PE_NOFATAL, NULL, "ident expected");
+      } else {
+        scope = enter_scope(curfunc);
+        block = new_stmt_block(tok, scope);
 
-      Vector *decls = parse_vardecl_cont(rawType, type, storage, ident);
-      if (decls != NULL) {
-        Vector *stmts = block->block.stmts;
-        construct_initializing_stmts(decls);
-        for (int i = 0, len = decls->len; i < len; ++i) {
-          VarDecl *vardecl = decls->data[i];
-          Stmt *decl = new_stmt_vardecl(vardecl);
-          decl->parent = block;
-          vec_push(stmts, decl);
+        Vector *decls = parse_vardecl_cont(rawType, type, storage, ident);
+        if (decls != NULL) {
+          Vector *stmts = block->block.stmts;
+          construct_initializing_stmts(decls);
+          for (int i = 0, len = decls->len; i < len; ++i) {
+            VarDecl *vardecl = decls->data[i];
+            Stmt *decl = new_stmt_vardecl(vardecl);
+            decl->parent = block;
+            vec_push(stmts, decl);
+          }
         }
       }
     } else {
@@ -619,7 +622,8 @@ static Stmt *parse_asm(const Token *tok) {
 
   Expr *str = parse_assign();
   if (str == NULL || str->kind != EX_STR) {
-    parse_error(PE_FATAL, str != NULL ? str->token : NULL, "`__asm' expected string literal");
+    parse_error(PE_NOFATAL, str != NULL ? str->token : NULL, "`__asm' expected string literal");
+    return new_stmt(ST_EMPTY, tok);
   }
 
   Vector *outputs = NULL, *inputs = NULL;
@@ -660,7 +664,7 @@ static Stmt *parse_asm(const Token *tok) {
         unsigned long index = strtoul(q, &r, 10);
         if (r > q) {  // Number:
           if (index >= param_count) {
-            parse_error(PE_FATAL, str->token, "invalid index");
+            parse_error(PE_NOFATAL, str->token, "invalid index");
           }
           q[-1] = '\0';
           vec_push(templates, top);
@@ -685,11 +689,10 @@ static const Token *parse_stmts(Stmt *parent, Vector *stmts) {
 
     Stmt *stmt = parse_stmt();
     if (stmt == NULL) {
-      Token *tok;
-      if ((tok = match(TK_RBRACE)) != NULL) {
-        return tok;
-      }
-      parse_error(PE_FATAL, NULL, "`}' expected");
+      Token *tok = match(TK_RBRACE);
+      if (tok == NULL)
+        parse_error(PE_NOFATAL, NULL, "`}' expected");
+      return tok;
     }
     stmt->parent = parent;
     vec_push(stmts, stmt);
@@ -1062,7 +1065,7 @@ static Declaration *parse_declaration(Vector *decls) {
           match(TK_SEMICOL)) {
         // Just struct/union or enum definition.
       } else {
-        parse_error(PE_FATAL, NULL, "ident expected");
+        parse_error(PE_NOFATAL, NULL, "ident expected");
       }
       return NULL;
     }

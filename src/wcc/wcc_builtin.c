@@ -201,7 +201,7 @@ static Expr *proc_builtin_nan(const Token *ident) {
 
 static Expr *proc_builtin_va_start(const Token *ident) {
   if (curfunc == NULL || !curfunc->type->func.vaargs) {
-    parse_error(PE_FATAL, ident, "`va_start' can only be used in a variadic function");
+    parse_error(PE_NOFATAL, ident, "`va_start' can only be used in a variadic function");
     return NULL;
   }
 
@@ -210,7 +210,7 @@ static Expr *proc_builtin_va_start(const Token *ident) {
   Token *token;
   Vector *args = parse_args(&token);
   if (args->len != 2) {
-    parse_error(PE_FATAL, token, "two arguments expected");
+    parse_error(PE_NOFATAL, token, "two arguments expected");
     return NULL;
   }
 
@@ -219,13 +219,15 @@ static Expr *proc_builtin_va_start(const Token *ident) {
 
   Expr *ap = args->data[0];
   Expr *param = args->data[1];
-  if (param->kind != EX_VAR)
-    parse_error(PE_FATAL, param->token, "variable expected");
+  if (param->kind != EX_VAR) {
+    parse_error(PE_NOFATAL, param->token, "variable expected");
+    return NULL;
+  }
   const Vector *funparams = curfunc->params;
   if (funparams == NULL ||
       !equal_name(((VarInfo*)funparams->data[funparams->len - 1])->ident->ident,
                   param->var.name)) {
-    parse_error(PE_FATAL, param->token, "must be the last parameter");
+    parse_error(PE_NOFATAL, param->token, "must be the last parameter");
     return NULL;
   }
 
@@ -249,7 +251,7 @@ static Expr *proc_builtin_va_end(const Token *ident) {
   Token *token;
   Vector *args = parse_args(&token);
   if (args->len != 1) {
-    parse_error(PE_FATAL, token, "one arguments expected");
+    parse_error(PE_NOFATAL, token, "one arguments expected");
     return NULL;
   }
 
@@ -312,7 +314,7 @@ static Expr *proc_builtin_va_copy(const Token *ident) {
   Token *token;
   Vector *args = parse_args(&token);
   if (args->len != 2) {
-    parse_error(PE_FATAL, token, "two arguments expected");
+    parse_error(PE_NOFATAL, token, "two arguments expected");
     return NULL;
   }
 
