@@ -93,6 +93,7 @@ TEST(vsnprintf) {
   EXPECT("PaddingOver:12345678", "PaddingOver:%5d", 12345678);
   EXPECT("EndPadding:234  ", "EndPadding:%-5d", 234);
   EXPECT("Hex:89ab", "Hex:%x", 0x89ab);
+  EXPECT("Octal:755", "Octal:%o", 0755);
   if (sizeof(int) == 4) {
     EXPECT("Hex-:ffff7655", "Hex-:%x", -0x89ab);
     EXPECT("Unsigned:4294932053", "Unsigned:%u", -0x89ab);

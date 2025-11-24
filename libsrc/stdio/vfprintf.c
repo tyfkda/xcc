@@ -310,9 +310,10 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
         o += snprintstr(fp, p, order, suborder, leftalign, padding);
       }
       break;
-    case 'x': case 'X':
+    case 'x': case 'X': case 'o':
       {
-        const char *digits = c == 'x' ? kHexDigits : kUpperHexDigits;
+        const char *digits = c == 'X' ? kUpperHexDigits : kHexDigits;
+        int base = c == 'o' ? 8 : 16;
         unsigned long long x;
         if (sizez) {
           x = va_arg(ap, size_t);
@@ -323,7 +324,7 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
           default: x = va_arg(ap, unsigned long long); break;  // case 2:
           }
         }
-        o += snprintullong(fp, x, 16, digits, order, padding);
+        o += snprintullong(fp, x, base, digits, order, padding);
       }
       break;
     case 'p':
