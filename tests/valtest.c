@@ -835,11 +835,12 @@ TEST(all) {
 #ifndef __NO_WCHAR
   EXPECT("wide character", 0x1f600, L'😀');
   {
-    static wchar_t ws[] = L"aあ";
-    EXPECT("wide string 1", 3 * 4, sizeof(ws));
+    static const wchar_t ws[] = L"a7あ";
+    EXPECT("wide string 1", 4 * 4, sizeof(ws));
     EXPECT("wide string 1", L'a', ws[0]);
-    EXPECT("wide string 2", L'あ', ws[1]);
-    EXPECT("wide string 3", L'\0', ws[2]);
+    EXPECT("wide string 2", L'7', ws[1]);
+    EXPECT("wide string 3", L'あ', ws[2]);
+    EXPECT("wide string 4", L'\0', ws[3]);
   }
 #endif
 }

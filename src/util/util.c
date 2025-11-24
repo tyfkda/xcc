@@ -661,13 +661,15 @@ char *sb_join(StringBuffer *sb, const char *separator) {
 
 static const char *escape_hex(int c) {
   char *s = malloc_or_die(5);
-  snprintf(s, 5, "\\x%02x", c & 0xff);
+  // Escaping with hex-digits are not limited, so it may be broken if hex character followed.
+  // Must use octal: octal is 3 digits.
+  snprintf(s, 5, "\\%03o", c & 0xff);
   return s;
 }
 
 static const char *escape(int c) {
   switch (c) {
-  case '\0': return "\\0";
+  case '\0': return "\\000";  // "\nnn": Octal, atmost 3 digits in assembler.
   case '\n': return "\\n";
   case '\r': return "\\r";
   case '\t': return "\\t";

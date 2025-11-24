@@ -706,18 +706,32 @@ static char unescape_char(ParseInfo *info) {
   const char *p = info->p;
   char c = *p++;
   switch (c) {
-  case '0':  return '\0';
+  case '0': case '1': case '2': case '3': case '4':
+  case '5': case '6': case '7': case '8': case '9':
+    {
+      // Octal, but accepts '8' and '9'.
+      int x = 0;
+      --p;
+      for (int i = 0; i < 3; ++i, ++p) {  // "The numeric code is 3 octal digits."
+        char cc = *p;
+        if (!isdigit(cc))
+          break;
+        x = (x << 3) | (cc - '0');
+      }
+      info->p = p - 1;
+      return x;
+    }
   case 'x':
     {
-      c = 0;
-      for (int i = 0; i < 2; ++i, ++p) {
+      int x = 0;
+      for (;; ++p) {  // "All trailing hex digits are combined."
         int v = xvalue(*p);
         if (v < 0)
           break;  // TODO: Error
-        c = (c << 4) | v;
+        x = (x << 4) | v;
       }
       info->p = p - 1;
-      return c;
+      return x;
     }
   case 'a':  return '\a';
   case 'b':  return '\b';

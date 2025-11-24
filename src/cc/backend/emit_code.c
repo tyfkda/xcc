@@ -233,7 +233,7 @@ static void emit_string(void *ud, Expr *str, size_t size) {
   sb_append(&sb, "\"", NULL);
   escape_string(str->str.buf, src_size - is_string, &sb);
   if (size > src_size) {
-    static const char NULCHR[] = "\\0";
+    static const char NULCHR[] = "\\000";
     for (size_t i = 0, n = size - src_size; i < n; ++i)
       sb_append(&sb, NULCHR, NULL);
   }

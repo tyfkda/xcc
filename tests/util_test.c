@@ -59,7 +59,7 @@ TEST(escape) {
 
   static const char s1[] = "\"a b\tc\rd\ne\\\x1b";
   escape_string(s1, sizeof(s1), &sb);
-  EXPECT_STREQ("escape_string", "\\\"a b\\tc\\rd\\ne\\\\\\x1b\\0", sb_to_string(&sb));
+  EXPECT_STREQ("escape_string", "\\\"a b\\tc\\rd\\ne\\\\\\033\\000", sb_to_string(&sb));
 }
 
 TEST(is_fullpath) {
