@@ -20,6 +20,8 @@ function test_basic() {
   try_direct 'return void' 169 'int G; void f(int x) {return (void)(G = x);} int main(void) {f(169); return G;} //-WNOERR'
   try_direct 'enum forward declaration' 55 'enum Foo; int sub(enum Foo); enum Foo {BAR, BAZ}; int main(){ return sub(BAR); } int sub(enum Foo foo) { return foo + 55; } '
   compile_error 'incomplete enum' 'extern enum Foo x; int main(){ return x; } enum Foo x = 99;'
+  compile_error 'conflict enum and struct tag' 'int main(){ enum Foo{A}; struct Foo{int x;} s={0}; return A+s.x; }'
+  compile_error 'shadow enum and struct tag' 'int main(){enum Foo{A}; { struct Foo{int x;} s={0}; enum Foo e=0; return s.x+e; } }'
 
   end_test_suite
 }

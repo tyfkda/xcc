@@ -50,31 +50,43 @@ static void parse_enum_members(Type *type) {
   }
 }
 
+static bool handle_define_type_tag(Scope *scope, const Token *token, enum TypeTagKind kind, void *info) {
+  assert(token->kind == TK_IDENT);
+  switch (define_type_tag(scope, token->ident, kind, info)) {
+  case TAGRESULT_SUCCESS:
+    return true;
+  case TAGRESULT_CONFLICT:
+    parse_error(PE_NOFATAL, token, "different type tag");
+    break;
+  case TAGRESULT_DUPLICATED:
+    parse_error(PE_NOFATAL, token, "duplicated");
+    break;
+  }
+  return false;
+}
+
 static Type *parse_enum(void) {
   Token *tagname = match(TK_IDENT);
-  EnumInfo *einfo = tagname != NULL ? find_enum(curscope, tagname->ident, NULL) : NULL;
+  const Name *name = tagname != NULL ? tagname->ident : NULL;
   Type *type;
   if (match(TK_LBRACE)) {
-    if (einfo != NULL) {
-      parse_error(PE_NOFATAL, tagname, "duplicate enum type");
-    } else {
-      einfo = malloc_or_die(sizeof(*einfo));
-      einfo->members = new_vector();
-      if (tagname != NULL)
-        define_enum(curscope, tagname->ident, einfo);
-    }
-    type = create_enum_type(einfo, tagname != NULL ? tagname->ident : NULL);
+    EnumInfo *einfo = calloc_or_die(sizeof(*einfo));
+    einfo->members = new_vector();
+    if (tagname != NULL)
+      handle_define_type_tag(curscope, tagname, TAG_ENUM, einfo);
+    type = create_enum_type(einfo, tagname != NULL ? name : NULL);
     parse_enum_members(type);
   } else {
-    if (einfo == NULL) {
-      if (tagname == NULL) {
-        parse_error(PE_NOFATAL, NULL, "ident expected");
-      } else {
+    if (tagname == NULL) {
+      parse_error(PE_NOFATAL, NULL, "ident expected");
+    } else {
+      EnumInfo *einfo = find_enum(curscope, name, NULL);
+      if (einfo == NULL) {
         // Incomplete enum (enum with unknown name): Create silently.
-        define_enum(curscope, tagname->ident, NULL);
+        handle_define_type_tag(curscope, tagname, TAG_ENUM, NULL);
       }
     }
-    type = create_enum_type(NULL, tagname != NULL ? tagname->ident : NULL);
+    type = create_enum_type(NULL, tagname != NULL ? name : NULL);
   }
   return type;
 }
@@ -295,14 +307,8 @@ Type *parse_raw_type(int *pstorage) {
         StructInfo *sinfo = NULL;
         if (match(TK_LBRACE)) {  // Definition
           sinfo = parse_struct(is_union);
-          if (name != NULL) {
-            Scope *scope;
-            StructInfo *exist = find_struct(curscope, name, &scope);
-            if (exist != NULL && scope == curscope)
-              parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(name));
-            else
-              define_struct(curscope, name, sinfo);
-          }
+          if (name != NULL)
+            handle_define_type_tag(curscope, ident, TAG_STRUCT, sinfo);
         } else {
           if (name != NULL) {
             sinfo = find_struct(curscope, name, NULL);

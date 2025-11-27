@@ -112,15 +112,39 @@ VarInfo *scope_add(Scope *scope, const Token *name, Type *type, int storage) {
   return varinfo;
 }
 
+typedef struct {
+  enum TypeTagKind kind;
+  void *info;  // StructInfo* or EnumInfo*
+} TypeTag;
+
+enum TagDefineResult define_type_tag(Scope *scope, const Name *name, enum TypeTagKind kind, void *info) {
+  Table *table = scope->type_tag_table;
+  if (table == NULL)
+    scope->type_tag_table = table = alloc_table();
+  TypeTag *typetag = table_get(table, name);
+  if (typetag == NULL) {
+    typetag = calloc_or_die(sizeof(*typetag));
+    typetag->kind = kind;
+    table_put(table, name, typetag);
+  } else {
+    if (typetag->kind != kind)
+      return TAGRESULT_CONFLICT;
+    if (typetag->info != NULL)
+      return TAGRESULT_DUPLICATED;
+  }
+  typetag->info = info;
+  return TAGRESULT_SUCCESS;
+}
+
 StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope) {
   for (; scope != NULL; scope = scope->parent) {
-    if (scope->struct_table == NULL)
+    if (scope->type_tag_table == NULL)
       continue;
-    StructInfo *sinfo;
-    if (table_try_get(scope->struct_table, name, (void**)&sinfo)) {
+    TypeTag *typetag = table_get(scope->type_tag_table, name);
+    if (typetag != NULL) {
       if (pscope != NULL)
         *pscope = scope;
-      return sinfo;
+      return typetag->kind == TAG_STRUCT ? typetag->info : NULL;
     }
   }
   if (pscope != NULL)
@@ -128,10 +152,20 @@ StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope) {
   return NULL;
 }
 
-void define_struct(Scope *scope, const Name *name, StructInfo *sinfo) {
-  if (scope->struct_table == NULL)
-    scope->struct_table = alloc_table();
-  table_put(scope->struct_table, name, sinfo);
+EnumInfo *find_enum(Scope *scope, const Name *name, Scope **pscope) {
+  for (; scope != NULL; scope = scope->parent) {
+    if (scope->type_tag_table == NULL)
+      continue;
+    TypeTag *typetag = table_get(scope->type_tag_table, name);
+    if (typetag != NULL) {
+      if (pscope != NULL)
+        *pscope = scope;
+      return typetag->kind == TAG_ENUM ? typetag->info : NULL;
+    }
+  }
+  if (pscope != NULL)
+    *pscope = NULL;
+  return NULL;
 }
 
 Type *find_typedef(Scope *scope, const Name *name, Scope **pscope) {
@@ -161,26 +195,4 @@ bool add_typedef(Scope *scope, const Name *name, Type *type) {
   }
   table_put(scope->typedef_table, name, (void*)type);
   return true;
-}
-
-EnumInfo *find_enum(Scope *scope, const Name *name, Scope **pscope) {
-  for (; scope != NULL; scope = scope->parent) {
-    if (scope->enum_table == NULL)
-      continue;
-    EnumInfo *einfo;
-    if (table_try_get(scope->enum_table, name, (void**)&einfo)) {
-      if (pscope != NULL)
-        *pscope = scope;
-      return einfo;
-    }
-  }
-  if (pscope != NULL)
-    *pscope = NULL;
-  return NULL;
-}
-
-void define_enum(Scope *scope, const Name *name, EnumInfo *einfo) {
-  if (scope->enum_table == NULL)
-    scope->enum_table = alloc_table();
-  table_put(scope->enum_table, name, einfo);
 }

@@ -73,12 +73,22 @@ static inline bool is_local_storage(const VarInfo *varinfo)  { return !(varinfo-
 
 // Scope
 
+enum TypeTagKind {
+  TAG_STRUCT,
+  TAG_ENUM,
+};
+
+enum TagDefineResult {
+  TAGRESULT_SUCCESS,
+  TAGRESULT_CONFLICT,
+  TAGRESULT_DUPLICATED,
+};
+
 typedef struct Scope {
   struct Scope *parent;
   Vector *vars;  // <VarInfo*>
-  Table *struct_table;  // <StructInfo*>
   Table *typedef_table;  // <Type*>
-  Table *enum_table;  // <EnumInfo*>
+  Table *type_tag_table;  // <TypeTag*>
 } Scope;
 
 extern Scope *global_scope;
@@ -89,11 +99,9 @@ bool is_global_scope(Scope *scope);
 VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope);
 VarInfo *scope_add(Scope *scope, const Token *name, Type *type, int storage);
 
+enum TagDefineResult define_type_tag(Scope *scope, const Name *name, enum TypeTagKind kind, void *info);
 StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope);
-void define_struct(Scope *scope, const Name *name, StructInfo *sinfo);
+EnumInfo *find_enum(Scope *scope, const Name *name, Scope **pscope);
 
 Type *find_typedef(Scope *scope, const Name *name, Scope **pscope);
 bool add_typedef(Scope *scope, const Name *name, Type *type);
-
-EnumInfo *find_enum(Scope *scope, const Name *name, Scope **pscope);
-void define_enum(Scope *scope, const Name *name, EnumInfo *einfo);
