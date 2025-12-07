@@ -105,6 +105,7 @@ TEST(all) {
   EXPECT("escape sequence octal", 28, '\034');
   EXPECT("escape sequence hex", 27, '\x1b');
   EXPECT("escape sequence question", '?', '\?');
+  EXPECT("escape sequence high", -128, '\x80');
   EXPECT("escape char in str", 19, "\023"[0]);
   EXPECT("+-", 21, (x=5, x+20-4));
   EXPECT("*+", 47, (x=6, 5+x*7));
@@ -863,6 +864,7 @@ TEST(all) {
 
 #ifndef __NO_WCHAR
   EXPECT("wide character", 0x1f600, L'😀');
+  EXPECT("wide escape sequence", 0x98765, L'\x98765');
   {
     static const wchar_t ws[] = L"a7あ";
     EXPECT("wide string 1", 4 * 4, sizeof(ws));

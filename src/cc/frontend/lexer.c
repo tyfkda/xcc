@@ -173,20 +173,22 @@ static int backslash(int c, bool is_wide, const char **pp) {
   case '1': case '2': case '3': case '4': case '5': case '6': case '7':
     {
       const char *p = *pp + 1;
-      char vv = c - '0';
+      int vv = c - '0';
       for (int i = 0, n = is_wide ? 11 : 2; i < n; ++i, ++p) {
-        char c2 = *p;
+        int c2 = *(unsigned char*)p;
         if (!isoctal(c2))
           break;
         vv = (vv << 3) | (c2 - '0');
       }
       *pp = p - 1;
+      if (!is_wide)
+        vv = (char)vv;
       return vv;
     }
   case 'x':
     {
       const char *p = *pp + 1;
-      char vv = 0;
+      int vv = 0;
       for (int i = 0, n = is_wide ? 8 : 2; i < n; ++i, ++p) {
         int v = xvalue(*p);
         if (v < 0)
@@ -194,6 +196,8 @@ static int backslash(int c, bool is_wide, const char **pp) {
         vv = (vv << 4) | v;
       }
       *pp = p - 1;
+      if (!is_wide)
+        vv = (char)vv;
       return vv;
     }
   case 'a':  return '\a';
