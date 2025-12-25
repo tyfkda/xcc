@@ -1027,7 +1027,7 @@ export class DisWasm {
               }
               break
             default:
-              console.assert(`Illegal name type: ${nametype}`)
+              console.error(`Illegal name type: ${nametype}`)
               break
             }
 
