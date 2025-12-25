@@ -149,7 +149,7 @@ static void calc_struct_size(StructInfo *sinfo) {
     MemberInfo *minfo = &sinfo->members[i];
     size_t sz = type_size(minfo->type);
     size_t align = 1;
-    if (!sinfo->is_union) {
+    if (!(sinfo->flag & SIF_UNION)) {
 #ifndef __NO_BITFIELD
       if (minfo->bitfield.active) {
         size = calc_bitfield_size(sinfo, &i, size, &align);
@@ -340,12 +340,11 @@ Type *get_callee_type(Type *type) {
 }
 
 // Struct
-StructInfo *create_struct_info(MemberInfo *members, int count, bool is_union, bool is_flexible) {
+StructInfo *create_struct_info(MemberInfo *members, int count, int flag) {
   StructInfo *sinfo = malloc_or_die(sizeof(*sinfo));
   sinfo->members = members;
   sinfo->member_count = count;
-  sinfo->is_union = is_union;
-  sinfo->is_flexible = is_flexible;
+  sinfo->flag = flag;
   sinfo->size = -1;
   sinfo->align = 0;
   calc_struct_size(sinfo);

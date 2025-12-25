@@ -66,13 +66,15 @@ typedef struct MemberInfo {
 #endif
 } MemberInfo;
 
+#define SIF_UNION     (1 << 0)
+#define SIF_FLEXIBLE  (1 << 1)
+
 typedef struct StructInfo {
   MemberInfo *members;
   ssize_t size;
   int member_count;
   size_t align;
-  bool is_union;
-  bool is_flexible;
+  int flag;
 } StructInfo;
 
 typedef struct EnumMemberInfo {
@@ -168,7 +170,7 @@ Type *get_callee_type(Type *type);
 
 // Struct
 
-StructInfo *create_struct_info(MemberInfo *members, int count, bool is_union, bool is_flexible);
+StructInfo *create_struct_info(MemberInfo *members, int count, int flag);
 Type *create_struct_type(StructInfo *sinfo, const Name *name, int qualifier);
 int find_struct_member(const StructInfo *sinfo, const Name *name);
 

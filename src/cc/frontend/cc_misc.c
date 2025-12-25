@@ -76,7 +76,7 @@ static Fixnum calc_bitfield_initial_value(const StructInfo *sinfo, const Initial
   Fixnum x = 0;
   int i = *pi, n = sinfo->member_count;
   for (bool top = true; i < n; ++i, top = false) {
-    if (sinfo->is_union && !top)
+    if (sinfo->flag & SIF_UNION && !top)
       break;
 
     const MemberInfo *member = &sinfo->members[i];
@@ -87,7 +87,7 @@ static Fixnum calc_bitfield_initial_value(const StructInfo *sinfo, const Initial
       continue;
     const Initializer *mem_init = init->multi->data[i];
     if (mem_init == NULL) {
-      if (sinfo->is_union) {
+      if (sinfo->flag & SIF_UNION) {
         // No initializer for bitfield member.
         *pi = -1;
         return 0;
@@ -113,7 +113,7 @@ static int construct_initial_value_bitfield(
   int i = start;
   Fixnum x = calc_bitfield_initial_value(sinfo, init, &i);
   if (i < 0) {
-    assert(sinfo->is_union);
+    assert(sinfo->flag & SIF_UNION);
     return start;
   }
 
@@ -238,13 +238,13 @@ void construct_initial_value(const Type *type, const Initializer *init,
 #endif
         const Initializer *mem_init;
         if (init == NULL) {
-          if (sinfo->is_union)
+          if (sinfo->flag & SIF_UNION)
             continue;
           mem_init = NULL;
         } else {
           mem_init = init->multi->data[i];
         }
-        if (mem_init != NULL || !sinfo->is_union) {
+        if (mem_init != NULL || !(sinfo->flag & SIF_UNION)) {
           int align = align_size(member->type);
           if (offset % align != 0) {
             assert(vtable->emit_align != NULL);
@@ -256,7 +256,7 @@ void construct_initial_value(const Type *type, const Initializer *init,
           offset += type_size(member->type);
         }
       }
-      if (sinfo->is_union && count <= 0) {
+      if (sinfo->flag & SIF_UNION && count <= 0) {
         const MemberInfo *member = &sinfo->members[0];
         construct_initial_value(member->type, NULL, vtable, ud);
         offset += type_size(member->type);

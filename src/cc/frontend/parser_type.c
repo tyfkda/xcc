@@ -158,7 +158,7 @@ static StructInfo *parse_struct(bool is_union) {
         break;
       case TY_STRUCT:
         assert(type->struct_.info != NULL);
-        if (type->struct_.info->is_flexible) {
+        if (type->struct_.info->flag & SIF_FLEXIBLE) {
           assert(ident != NULL);
           flex_arr_mem = ident;
         }
@@ -200,7 +200,11 @@ static StructInfo *parse_struct(bool is_union) {
     } while (flex_arr_mem == NULL && match(TK_COMMA));
     consume(TK_SEMICOL, "`;' expected");
   }
-  return create_struct_info(members, count, is_union, flex_arr_mem != NULL);
+
+  int flag = is_union ? SIF_UNION : 0;
+  if (flex_arr_mem != NULL)
+    flag |= SIF_FLEXIBLE;
+  return create_struct_info(members, count, flag);
 }
 
 static Type *parse_typeof(const Token *tok) {
@@ -313,7 +317,7 @@ Type *parse_raw_type(int *pstorage) {
           if (name != NULL) {
             sinfo = find_struct(curscope, name, NULL);
             if (sinfo != NULL) {
-              if (sinfo->is_union != is_union)
+              if (((sinfo->flag & SIF_UNION) != 0) != is_union)
                 parse_error(PE_NOFATAL, tok, "wrong tag for `%.*s'", NAMES(name));
             }
           }
@@ -680,7 +684,7 @@ Vector *parse_funparams(bool *pvaargs) {
         ensure_type_info(type, ident, curscope, false);
 
         if (type->kind == TY_STRUCT) {
-          if (type->struct_.info != NULL && type->struct_.info->is_flexible)
+          if (type->struct_.info != NULL && type->struct_.info->flag & SIF_FLEXIBLE)
             parse_error(PE_NOFATAL, ident, "using flexible array as a parameter not allowed");
         }
 

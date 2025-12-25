@@ -455,11 +455,11 @@ bool is_small_struct(const Type *type) {
     return false;
   const StructInfo *sinfo = type->struct_.info;
   assert(sinfo != NULL);
-  if (sinfo->is_flexible)
+  if (sinfo->flag & SIF_FLEXIBLE)
     return false;
 
 #if XCC_TARGET_ARCH == XCC_ARCH_WASM
-  if (sinfo->is_union) {
+  if (sinfo->flag & SIF_UNION) {
     if (sinfo->member_count < 1)
       return false;
   } else {
@@ -507,7 +507,7 @@ void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
 
       if (type->kind == TY_STRUCT) {
         assert(type->struct_.info != NULL);
-        if (type->struct_.info->is_flexible)
+        if (type->struct_.info->flag & SIF_FLEXIBLE)
           parse_error(PE_NOFATAL, arg->token, "flexible array as an argument not allowed");
       }
     } else if (vaargs && i >= paramc) {

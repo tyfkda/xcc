@@ -127,7 +127,7 @@ TEST(flatten) {
     members[0] = (MemberInfo){ .name = alloc_name("x", NULL, false), .type = &tyChar };
     members[1] = (MemberInfo){ .name = alloc_name("y", NULL, false), .type = get_fixnum_type(FX_SHORT, false, 0) };
     members[2] = (MemberInfo){ .name = alloc_name("z", NULL, false), .type = get_fixnum_type(FX_LONG, true, 0) };
-    StructInfo *sinfo = create_struct_info(members, 3, false, false);
+    StructInfo *sinfo = create_struct_info(members, 3, 0);
     Type *type = create_struct_type(sinfo, NULL, 0);
 
     Initializer *expected = new_init_multi(3,
@@ -144,7 +144,7 @@ TEST(flatten) {
   {  // String for char array in struct.
     MemberInfo *members = malloc(sizeof(*members) * 1);
     members[0] = (MemberInfo){.name = alloc_name("str", NULL, false), .type = arrayof(&tyChar, 4)};
-    StructInfo *sinfo = create_struct_info(members, 1, false, false);
+    StructInfo *sinfo = create_struct_info(members, 1, 0);
     Type *type = create_struct_type(sinfo, NULL, 0);
     expect2("{\"abcd\"}", "{\"abcd\"}", type);
   }
@@ -163,7 +163,7 @@ TEST(flatten) {
     members[0] = (MemberInfo){.name = alloc_name("x", NULL, false), .type = &tyInt};
     members[1] = (MemberInfo){.name = alloc_name("y", NULL, false), .type = &tyInt};
     members[2] = (MemberInfo){.name = alloc_name("z", NULL, false), .type = &tyInt};
-    StructInfo *sinfo = create_struct_info(members, 3, false, false);
+    StructInfo *sinfo = create_struct_info(members, 3, 0);
     Type *type = create_struct_type(sinfo, NULL, 0);
     expect2("{7, 8, 9}", "{.z = 9, .y = 8, .x = 7}", type);
   }
@@ -191,7 +191,7 @@ TEST(flatten) {
     members[0] = (MemberInfo){.name = alloc_name("x", NULL, false), .type = &tyChar};
     members[1] = (MemberInfo){.name = alloc_name("y", NULL, false),
                               .type = get_fixnum_type(FX_SHORT, false, 0)};
-    StructInfo *sinfo = create_struct_info(members, 2, false, false);
+    StructInfo *sinfo = create_struct_info(members, 2, 0);
     Type *type = create_struct_type(sinfo, NULL, 0);
 
     expect2("{{11, 12}, {21, 22}}", "{11, 12, 21, 22}", arrayof(type, -1));
@@ -202,7 +202,7 @@ TEST(flatten) {
     MemberInfo *members = malloc(sizeof(*members) * 2);
     members[0] = (MemberInfo){.name = alloc_name("i", NULL, false), .type = &tyInt};
     members[1] = (MemberInfo){.name = alloc_name("b", NULL, false), .type = arrayof(&tyChar, 4)};
-    StructInfo *sinfo = create_struct_info(members, 2, true, false);
+    StructInfo *sinfo = create_struct_info(members, 2, SIF_UNION);
     Type *type = create_struct_type(sinfo, NULL, 0);
 
     Initializer *expected = new_init_multi(2,
@@ -218,7 +218,7 @@ TEST(flatten) {
   {  // Redundant brace for struct member.
     MemberInfo *members = malloc(sizeof(*members) * 1);
     members[0] = (MemberInfo){.name = alloc_name("x", NULL, false), .type = &tyInt};
-    StructInfo *sinfo = create_struct_info(members, 1, false, false);
+    StructInfo *sinfo = create_struct_info(members, 1, 0);
     Type *type = create_struct_type(sinfo, NULL, 0);
 
     expect2("{333}", "{{333}}", type);
@@ -228,12 +228,12 @@ TEST(flatten) {
     MemberInfo *members1 = malloc(sizeof(*members1) * 2);
     members1[0] = (MemberInfo){.name = alloc_name("x", NULL, false), .type = &tyInt};
     members1[1] = (MemberInfo){.name = alloc_name("y", NULL, false), .type = &tyInt};
-    StructInfo *sinfo1 = create_struct_info(members1, 2, false, false);
+    StructInfo *sinfo1 = create_struct_info(members1, 2, 0);
     Type *type1 = create_struct_type(sinfo1, NULL, 0);
 
     MemberInfo *members2 = malloc(sizeof(*members2) * 1);
     members2[0] = (MemberInfo){.name = alloc_name("s", NULL, false), .type = type1};
-    StructInfo *sinfo2 = create_struct_info(members2, 1, false, false);
+    StructInfo *sinfo2 = create_struct_info(members2, 1, 0);
     Type *type2 = create_struct_type(sinfo2, NULL, 0);
 
     expect2("{{98, 76}}", "{.s=98, 76}", type2);

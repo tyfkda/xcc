@@ -271,7 +271,7 @@ static Initializer *find_next_indices(InitFlattener *flattener, Initializer *ele
         {
           const StructInfo *sinfo = type->struct_.info;
           assert(sinfo != NULL);
-          int member_count = sinfo->is_union ? 1 : sinfo->member_count;
+          int member_count = sinfo->flag & SIF_UNION ? 1 : sinfo->member_count;
           for (;;) {
             if (last_index >= member_count) {
               upward = true;
@@ -831,7 +831,7 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
       }
 
       const StructInfo *sinfo = expr->type->struct_.info;
-      if (!sinfo->is_union) {
+      if (!(sinfo->flag & SIF_UNION)) {
         Token *tok = alloc_token(TK_DOT, NULL, ".", NULL);
         for (int i = 0, n = sinfo->member_count; i < n; ++i) {
           Initializer *init_elem = init->multi->data[i];
