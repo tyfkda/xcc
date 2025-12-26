@@ -913,7 +913,7 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
 
       Type *type = varinfo->type;
       size_t size = type_size(type);
-      if (type->kind == TY_STRUCT && type->struct_.info->is_flexible) {
+      if (type->kind == TY_STRUCT && type->struct_.info->flag & SIF_FLEXIBLE) {
         Initializer *init = varinfo->local.init;
         if (init != NULL) {
           int m = type->struct_.info->member_count;
