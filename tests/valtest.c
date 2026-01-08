@@ -1719,9 +1719,7 @@ TEST(bitfield) {
     };
 
     EXPECT("enum 1", One, s.x);
-#if !defined(__GNUC__)
-    EXPECT("enum 2", -Two, s.y);  // enum is treated as signed on XCC.
-#endif
+    EXPECT("enum 2", Two, s.y);  // enum value is extracted from limited bits.
     EXPECT("enum 3", Three, s.z);
   }
 
@@ -1778,6 +1776,20 @@ TEST(bitfield) {
     EXPECT("bool bitfield: true", true, s.t);
     s.t2 = true;
     EXPECT("bool bitfield 2: true", true, s.t2);
+  }
+
+  {
+    enum UnsignedEnum {UEV = 1 << 7};
+    struct UnsignedBitfield {enum UnsignedEnum foo : 8;};
+    struct UnsignedBitfield ub;
+    ub.foo = UEV;
+    EXPECT("bitfield and unsigned enum", UEV, ub.foo);
+
+    enum SignedEnum {SEV = (char)-1 << 7};
+    struct SignedBitfield {enum SignedEnum foo : 8;};
+    struct SignedBitfield sb;
+    sb.foo = SEV;
+    EXPECT("bitfield and signed enum", SEV, sb.foo);
   }
 }
 #endif

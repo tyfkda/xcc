@@ -683,7 +683,11 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
 Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo) {
   Expr *tmp = src;
   Type *type = src->type;
-  if (type->fixnum.is_unsigned) {
+  bool is_unsigned = type->fixnum.is_unsigned;
+  if (minfo->type->fixnum.kind == FX_ENUM) {
+    is_unsigned = minfo->type->fixnum.enum_.info->non_negative;
+  }
+  if (is_unsigned) {
     tmp = src;
     if (minfo->bitfield.position > 0)
       tmp = new_expr_bop(EX_RSHIFT, tmp->type, tmp->token, tmp,

@@ -16,19 +16,23 @@
 
 extern bool parsing_stmt;
 
-static void parse_enum_members(Type *type) {
+static bool parse_enum_members(Type *type) {
   assert(type != NULL && type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM);
   Type *ctype = qualified_type(type, TQ_CONST);
   Vector *members = type->fixnum.enum_.info->members;
-  int value = 0;
+  Fixnum value = 0;
+  bool is_unsigned = false, neg = false;
   while (!match(TK_RBRACE)) {
     Token *ident = consume(TK_IDENT, "ident expected");
     if (ident == NULL)
       break;
     if (match(TK_ASSIGN)) {
       Expr *expr = parse_const_fixnum();
+      is_unsigned = expr->type->fixnum.is_unsigned;
       value = expr->fixnum;
     }
+    if (!is_unsigned && value < 0)
+      neg = true;
 
     if (scope_find(global_scope, ident->ident, NULL) != NULL) {
       parse_error(PE_NOFATAL, ident, "`%.*s' is already defined", NAMES(ident->ident));
@@ -48,6 +52,7 @@ static void parse_enum_members(Type *type) {
       }
     }
   }
+  return !neg;
 }
 
 static bool handle_define_type_tag(Scope *scope, const Token *token, enum TypeTagKind kind, void *info) {
@@ -75,7 +80,7 @@ static Type *parse_enum(void) {
     if (tagname != NULL)
       handle_define_type_tag(curscope, tagname, TAG_ENUM, einfo);
     type = create_enum_type(einfo, tagname != NULL ? name : NULL);
-    parse_enum_members(type);
+    einfo->non_negative = parse_enum_members(type);
   } else {
     if (tagname == NULL) {
       parse_error(PE_NOFATAL, NULL, "ident expected");

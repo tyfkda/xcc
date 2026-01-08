@@ -85,6 +85,7 @@ typedef struct EnumMemberInfo {
 
 typedef struct EnumInfo {
   Vector *members;  // <EnumMemberInfo*>
+  bool non_negative;
 } EnumInfo;
 
 #define LEN_UND  (-1)  // Indicate array length is not specified (= []).
