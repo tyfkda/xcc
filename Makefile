@@ -136,7 +136,9 @@ test:	all
 	$(MAKE) test-libs
 
 .PHONY: test-all
-test-all: test test-gen2 diff-gen23 test-wcc test-wcc-gen2
+test-all:	all gen2 gen3 wcc wcc-gen2
+	make test && make test-gen2 && make diff-gen23
+	make test-wcc && make test-wcc-gen2
 
 .PHONY: test-libs
 test-libs:	all
