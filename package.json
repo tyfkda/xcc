@@ -4,9 +4,11 @@
   "description": "C-compiler for wasm",
   "main": "index.js",
   "scripts": {
+    "prepare": "simple-git-hooks",
     "start": "npm run default",
     "default": "npm run build-assets && npx vite --port=3000",
     "build-assets": "make assets",
+    "test": "npm run lint && make test && (which llvm-ar>/dev/null; [[ $? -ne 0 ]] || make test-wcc)",
     "lint": "eslint src/wcc/www/**/*.ts",
     "lint:fix": "eslint --fix src/wcc/www/**/*.ts",
     "release": "npx vite build",
@@ -21,6 +23,9 @@
   "engines": {
     "node": ">=20.0"
   },
+  "simple-git-hooks": {
+    "pre-push": "npm test"
+  },
   "devDependencies": {
     "@types/alpinejs": "~3.13.11",
     "@types/node": "~22.14.1",
@@ -29,6 +34,7 @@
     "@typescript-eslint/parser": "~8.30.1",
     "commander": "~13.1.0",
     "sass": "~1.86.3",
+    "simple-git-hooks": "^2.13.1",
     "ts-node": "~10.9.2",
     "vite": "~6.3.1"
   },
