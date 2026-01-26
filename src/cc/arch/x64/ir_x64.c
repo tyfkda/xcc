@@ -1013,6 +1013,7 @@ static void ei_call(IR *ir) {
     if (freg > kArchSetting.max_reg_args[FPREG])
       freg = kArchSetting.max_reg_args[FPREG];
 
+    // SysV ABI: %al holds the number of XMM regs used for arguments.
     // Break %al
     if (freg > 0)
       MOV(IM(freg), AL);

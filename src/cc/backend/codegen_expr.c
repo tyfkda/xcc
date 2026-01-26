@@ -564,6 +564,7 @@ static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *
   int gp_needed = x64_count_class(&x64, X64_ABI_INTEGER);
   int fp_needed = x64_count_class(&x64, X64_ABI_SSE);
 
+  // Args are pushed in reverse; translate to forward register indices here.
   int gp_index = work->reg_arg_count[GPREG] - (work->regarg[GPREG] + gp_needed) + work->arg_start;
   int fp_index = work->reg_arg_count[FPREG] - (work->regarg[FPREG] + fp_needed);
   assert(gp_index + gp_needed <= kArchSetting.max_reg_args[GPREG]);
@@ -577,18 +578,11 @@ static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *
     int vflag = VRF_PARAM;
     int index;
     if (x64.classes[i] == X64_ABI_SSE) {
-      vsize = chunk_size > 4 ? VRegSize8 : VRegSize4;
+      vsize = x64_sse_vsize(chunk_size);
       vflag |= VRF_FLONUM;
       index = fp_index + fp_used++;
     } else {
-      if (chunk_size <= 1)
-        vsize = VRegSize1;
-      else if (chunk_size <= 2)
-        vsize = VRegSize2;
-      else if (chunk_size <= 4)
-        vsize = VRegSize4;
-      else
-        vsize = VRegSize8;
+      vsize = x64_chunk_vsize(chunk_size);
       index = gp_index + gp_used++;
     }
     VReg *loaded = new_ir_load(vreg, (int64_t)i * 8, vsize, vflag, 0)->dst;
@@ -814,19 +808,11 @@ static inline VReg *gen_funcall_sub(Expr *expr, FuncallWork *work) {
         callinfo->x64_agg_ret = true;
         callinfo->x64_agg_ret_count = x64.count;
         for (int i = 0; i < x64.count; ++i) {
-          size_t chunk_size = x64_eightbyte_size(&x64, i);
-          enum VRegSize vsize;
-          if (chunk_size <= 1)
-            vsize = VRegSize1;
-          else if (chunk_size <= 2)
-            vsize = VRegSize2;
-          else if (chunk_size <= 4)
-            vsize = VRegSize4;
-          else
-            vsize = VRegSize8;
           callinfo->x64_agg_ret_is_fp[i] = x64.classes[i] == X64_ABI_SSE;
           callinfo->x64_agg_ret_offsets[i] = (size_t)i * 8;
-          callinfo->x64_agg_ret_vsize[i] = vsize;
+          callinfo->x64_agg_ret_vsize[i] = callinfo->x64_agg_ret_is_fp[i] ?
+              x64_sse_vsize(x64_eightbyte_size(&x64, i)) :
+              x64_chunk_vsize(x64_eightbyte_size(&x64, i));
         }
       }
     }

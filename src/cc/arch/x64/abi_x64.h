@@ -1,9 +1,12 @@
-// SysV x86-64 ABI helpers
+// SysV x86-64 ABI helpers.
+// Aggregates <= 16 bytes are split into 8-byte chunks and classified as INTEGER or SSE;
+// otherwise they fall back to MEMORY (stack).
 #pragma once
 
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "ir.h"
 #include "type.h"
 
 typedef enum {
@@ -38,4 +41,18 @@ static inline size_t x64_eightbyte_size(const X64AbiClassInfo *info, int index) 
   if (end > info->size)
     end = info->size;
   return end - start;
+}
+
+static inline enum VRegSize x64_chunk_vsize(size_t size) {
+  if (size <= 1)
+    return VRegSize1;
+  if (size <= 2)
+    return VRegSize2;
+  if (size <= 4)
+    return VRegSize4;
+  return VRegSize8;
+}
+
+static inline enum VRegSize x64_sse_vsize(size_t size) {
+  return size > 4 ? VRegSize8 : VRegSize4;
 }

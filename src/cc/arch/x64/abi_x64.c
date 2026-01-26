@@ -6,6 +6,7 @@
 #include "type.h"
 
 static X64AbiClass merge_class(X64AbiClass a, X64AbiClass b) {
+  // SysV merge: MEMORY dominates, then INTEGER, then SSE.
   if (a == X64_ABI_NO_CLASS)
     return b;
   if (b == X64_ABI_NO_CLASS)

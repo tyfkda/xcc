@@ -79,6 +79,7 @@ static void store_gp_param_chunk(int index, size_t size, int offset) {
   extern const char *kRegSizeTable[][PHYSICAL_REG_MAX];
   extern const int ArchRegParamMapping[];
 
+  // Store partial GP chunks by shifting the source register as we consume bytes.
   for (;;) {
     size_t s;
     for (int i = VRegSize8; i >= VRegSize1; --i) {

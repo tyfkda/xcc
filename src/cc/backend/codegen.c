@@ -47,15 +47,6 @@ static inline bool x64_is_reg_struct(const Type *type) {
   return x64_classify_aggregate(type, &info);
 }
 
-static inline enum VRegSize x64_vsize_for_chunk(size_t size) {
-  if (size <= 1)
-    return VRegSize1;
-  if (size <= 2)
-    return VRegSize2;
-  if (size <= 4)
-    return VRegSize4;
-  return VRegSize8;
-}
 #endif
 
 static inline bool is_reg_struct_type(const Type *type) {
@@ -501,9 +492,10 @@ static inline void gen_return_x64_struct(const Type *type, VReg *vreg, const X64
   int fp = 0;
   for (int i = 0; i < info->count; ++i) {
     size_t chunk_size = x64_eightbyte_size(info, i);
-    enum VRegSize vsize = x64_vsize_for_chunk(chunk_size);
+    enum VRegSize vsize = x64_chunk_vsize(chunk_size);
     int vflag = info->classes[i] == X64_ABI_SSE ? VRF_FLONUM : 0;
     VReg *loaded = new_ir_load(vreg, (int64_t)i * 8, vsize, vflag, 0)->dst;
+    // SysV uses separate register sequences for INTEGER (RAX/RDX) and SSE (XMM0/XMM1).
     int index = info->classes[i] == X64_ABI_SSE ? fp++ : gp++;
     new_ir_result(loaded, 0, index);
   }
