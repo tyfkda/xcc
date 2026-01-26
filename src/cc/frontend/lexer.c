@@ -201,6 +201,7 @@ static int backslash(int c, bool is_wide, const char **pp) {
   case 'b':  return '\b';
   case 'f':  return '\f';
   case 'n':  return '\n';
+  case '?':  return '\?';
   case 'r':  return '\r';
   case 't':  return '\t';
   case 'v':  return '\v';
