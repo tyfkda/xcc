@@ -266,6 +266,7 @@ Type *parse_raw_type(int *pstorage) {
     case TK_NORETURN:
       unget_token(tok);
       parse_attributes(NULL);  // Ignore leading attributes on declarations.
+      tok = NULL;
       continue;
     case TK_UNSIGNED:
       ++tc.unsigned_num;
