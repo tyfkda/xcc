@@ -262,6 +262,11 @@ Type *parse_raw_type(int *pstorage) {
       check_type_combination(&tc, tok);  // Check for last token
     tok = match(-1);
     switch (tok->kind) {
+    case TK_ATTRIBUTE:
+    case TK_NORETURN:
+      unget_token(tok);
+      parse_attributes(NULL);  // Ignore leading attributes on declarations.
+      continue;
     case TK_UNSIGNED:
       ++tc.unsigned_num;
       continue;
