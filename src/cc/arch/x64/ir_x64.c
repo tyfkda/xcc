@@ -779,6 +779,31 @@ static void emit_mov(int dstphys, VReg *opr1) {
   }
 }
 
+static void store_gp_return_chunk(int index, size_t size, int offset) {
+  for (;;) {
+    size_t s;
+    for (int i = VRegSize8; i >= VRegSize1; --i) {
+      s = 1U << i;
+      if (s <= size)
+        break;
+    }
+    int pow = most_significant_bit(s);
+    const char *src = kRegSizeTable[pow][ArchRegReturnMapping[index]];
+    const char *dst = OFFSET_INDIRECT(offset, RBP, NULL, 1);
+    MOV(src, dst);
+    size -= s;
+    offset += s;
+    if (size <= 0)
+      break;
+    if (s >= TARGET_POINTER_SIZE) {
+      ++index;
+    } else {
+      const char *reg = kReg64s[ArchRegReturnMapping[index]];
+      SHR(IM(s * TARGET_CHAR_BIT), reg);
+    }
+  }
+}
+
 static void ei_mov(IR *ir) {
   emit_mov(ir->dst->phys, ir->opr1);
 }
@@ -984,15 +1009,9 @@ static void ei_call(IR *ir) {
   push_caller_save_regs(ir->call->caller_saves, total);
 
   if (ir->call->vaarg_start >= 0) {
-    int total_arg_count = ir->call->total_arg_count;
-    int freg = 0;
-    for (int i = 0; i < total_arg_count; ++i) {
-      if (ir->call->args[i] != NULL && ir->call->args[i]->flag & VRF_FLONUM) {
-        ++freg;
-        if (freg >= kArchSetting.max_reg_args[FPREG])
-          break;
-      }
-    }
+    int freg = ir->call->fp_reg_arg_count;
+    if (freg > kArchSetting.max_reg_args[FPREG])
+      freg = kArchSetting.max_reg_args[FPREG];
 
     // Break %al
     if (freg > 0)
@@ -1016,28 +1035,51 @@ static void ei_call(IR *ir) {
   const FrameInfo *fi = ir->call->small_struct_result_frameinfo;
   if (fi != NULL) {
     assert(fi->offset <= 0);
-    ssize_t offset = fi->offset;
+    if (ir->call->x64_agg_ret) {
+      int gp_index = 0;
+      int fp_index = 0;
+      size_t total_size = fi->size;
+      for (int i = 0; i < ir->call->x64_agg_ret_count; ++i) {
+        size_t chunk_offset = (size_t)i * 8;
+        size_t chunk_size = total_size - chunk_offset;
+        if (chunk_size > 8)
+          chunk_size = 8;
+        int offset = fi->offset + (int)chunk_offset;
+        if (ir->call->x64_agg_ret_is_fp[i]) {
+          const char *src = kFReg64s[fp_index++];
+          const char *dst = OFFSET_INDIRECT(offset, RBP, NULL, 1);
+          if (chunk_size <= 4)
+            MOVSS(src, dst);
+          else
+            MOVSD(src, dst);
+        } else {
+          store_gp_return_chunk(gp_index++, chunk_size, offset);
+        }
+      }
+    } else {
+      ssize_t offset = fi->offset;
 
-    size_t size = fi->size;
-    assert(size > 0 && size <= TARGET_POINTER_SIZE * 2);
+      size_t size = fi->size;
+      assert(size > 0 && size <= TARGET_POINTER_SIZE * 2);
 
-    int regidx = 0;
-    for (;;) {
-      assert(regidx < (int)ARRAY_SIZE(ArchRegReturnMapping));
-      int pow = most_significant_bit(MIN(size, TARGET_POINTER_SIZE));
-      const char *src = kRegSizeTable[pow][ArchRegReturnMapping[regidx]];
-      const char *target = OFFSET_INDIRECT(offset, RBP, NULL, 1);
-      MOV(src, target);
-      size_t s = 1U << pow;
-      size -= s;
-      if (size <= 0)
-        break;
-      offset += s;
-      if (pow == 3) {
-        ++regidx;
-      } else {
-        const char *reg = kReg64s[ArchRegReturnMapping[regidx]];
-        SHR(IM(s * TARGET_CHAR_BIT), reg);
+      int regidx = 0;
+      for (;;) {
+        assert(regidx < (int)ARRAY_SIZE(ArchRegReturnMapping));
+        int pow = most_significant_bit(MIN(size, TARGET_POINTER_SIZE));
+        const char *src = kRegSizeTable[pow][ArchRegReturnMapping[regidx]];
+        const char *target = OFFSET_INDIRECT(offset, RBP, NULL, 1);
+        MOV(src, target);
+        size_t s = 1U << pow;
+        size -= s;
+        if (size <= 0)
+          break;
+        offset += s;
+        if (pow == 3) {
+          ++regidx;
+        } else {
+          const char *reg = kReg64s[ArchRegReturnMapping[regidx]];
+          SHR(IM(s * TARGET_CHAR_BIT), reg);
+        }
       }
     }
   } else if (ir->dst != NULL) {

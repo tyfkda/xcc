@@ -9,6 +9,7 @@
 #include "be_aux.h"
 #include "cc_misc.h"
 #include "codegen.h"
+#include "abi_x64.h"
 #include "ir.h"
 #include "regalloc.h"
 #include "table.h"
@@ -74,6 +75,35 @@ static bool is_asm(Stmt *stmt) {
   return stmt->kind == ST_ASM;
 }
 
+static void store_gp_param_chunk(int index, size_t size, int offset) {
+  extern const char *kRegSizeTable[][PHYSICAL_REG_MAX];
+  extern const int ArchRegParamMapping[];
+
+  for (;;) {
+    size_t s;
+    for (int i = VRegSize8; i >= VRegSize1; --i) {
+      s = 1U << i;
+      if (s <= size)
+        break;
+    }
+
+    int pow = most_significant_bit(s);
+    const char *src = kRegSizeTable[pow][ArchRegParamMapping[index]];
+    const char *dst = OFFSET_INDIRECT(offset, RBP, NULL, 1);
+    MOV(src, dst);
+    size -= s;
+    offset += s;
+    if (size <= 0)
+      break;
+    if (s >= TARGET_POINTER_SIZE) {
+      ++index;
+    } else {
+      const char *s64 = kRegSizeTable[VRegSize8][ArchRegParamMapping[index]];
+      SHR(IM(s * TARGET_CHAR_BIT), s64);
+    }
+  }
+}
+
 static inline void move_params_to_assigned(Function *func) {
   extern const char *kRegSizeTable[][PHYSICAL_REG_MAX];
   extern const int ArchRegParamMapping[];
@@ -99,33 +129,31 @@ static inline void move_params_to_assigned(Function *func) {
         continue;
       int offset = fi->offset;
       assert(offset < 0);
-      int index = p->index;
-      for (;;) {
-        size_t s;
-        for (int i = VRegSize8; i >= VRegSize1; --i) {
-          s = 1U << i;
-          if (s <= size)
-            break;
+      X64AbiClassInfo x64;
+      if (x64_classify_aggregate(p->type, &x64)) {
+        int gp_index = reg_index[GPREG];
+        int fp_index = reg_index[FPREG];
+        for (int i = 0; i < x64.count; ++i) {
+          size_t chunk_size = x64_eightbyte_size(&x64, i);
+          int chunk_offset = offset + (int)(i * 8);
+          if (x64.classes[i] == X64_ABI_SSE) {
+            const char *src = kFRegParam64s[fp_index++];
+            const char *dst = OFFSET_INDIRECT(chunk_offset, RBP, NULL, 1);
+            if (chunk_size <= 4)
+              MOVSS(src, dst);
+            else
+              MOVSD(src, dst);
+          } else {
+            store_gp_param_chunk(gp_index++, chunk_size, chunk_offset);
+          }
         }
-
-        int pow = most_significant_bit(s);
-        const char *src = kRegSizeTable[pow][ArchRegParamMapping[index]];
-        const char *dst = OFFSET_INDIRECT(offset, RBP, NULL, 1);
-        // TODO: Check alignment?
-        MOV(src, dst);
-        size -= s;
-        offset += s;
-        if (size <= 0)
-          break;
-        if (s >= TARGET_POINTER_SIZE) {
-          ++index;
-        } else {
-          const char *opr2 = IM(s * TARGET_CHAR_BIT);
-          const char *s64 = kRegSizeTable[VRegSize8][ArchRegParamMapping[index]];
-          SHR(opr2, s64);
-        }
+        reg_index[GPREG] = gp_index;
+        reg_index[FPREG] = fp_index;
+        continue;
       }
 
+      int index = p->index;
+      store_gp_param_chunk(index, size, offset);
       size_t n = (fi->size + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
       reg_index[GPREG] += n;
       continue;

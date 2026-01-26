@@ -4,6 +4,57 @@ set -o pipefail
 
 source ./test_sub.sh
 
+function mixed_toolchain_test() {
+  local title="$1"
+  local caller="$2"
+  local callee="$3"
+  local allow_arch="${4:-arm64 aarch64}"
+
+  begin_test "$title"
+
+  local arch="${ARCH_OVERRIDE:-$ARCH}"
+  local ok=0
+  for a in $allow_arch; do
+    if [[ "$arch" == "$a" ]]; then
+      ok=1
+      break
+    fi
+  done
+  if [[ "$ok" -eq 0 ]]; then
+    end_test
+    return
+  fi
+
+  local caller_obj="${caller%.c}.o"
+  local callee_obj="${callee%.c}.o"
+
+  eval "$XCC" -c -o "$caller_obj" -Wall -Werror "$caller" "$SILENT" || {
+    end_test 'Compile failed'
+    return
+  }
+  eval "$CC" -c -o "$callee_obj" -Wall -Werror "$callee" "$SILENT" || {
+    end_test 'Compile failed'
+    return
+  }
+  eval "$CC" -o "$AOUT" "$caller_obj" "$callee_obj" "$SILENT" || {
+    end_test 'Link failed'
+    return
+  }
+
+  $RUN_AOUT > /dev/null 2>&1
+  local actual="$?"
+  local err=''; [[ "$actual" == "0" ]] || err="exit with ${actual}"
+  end_test "$err"
+
+  rm -f "$caller_obj" "$callee_obj" "$caller" "$callee"
+}
+
+function write_src() {
+  local path="$1"
+  shift
+  printf '%s' "$1" > "$path"
+}
+
 function test_basic() {
   begin_test_suite "Basic"
 
@@ -321,11 +372,7 @@ function test_link() {
   link_success 'weak function can be overridden' -DANS=22 tmp_link_weak1.c tmp_link_weak2.c
   link_success 'first weak function alive'       -DANS=11 tmp_link_weak1.c tmp_link_weak3.c
 
-  begin_test "HFA struct args (mixed toolchain)"
-  if [[ "$ARCH" != "arm64" && "$ARCH" != "aarch64" ]]; then
-    end_test
-  else
-    cat > tmp_hfa_caller.c <<'EOF'
+  write_src tmp_hfa_caller.c "
 struct HFA { float a; float b; };
 float hfa_sum(struct HFA s, float x, float y);
 int main(void) {
@@ -333,75 +380,86 @@ int main(void) {
   float r = hfa_sum(s, 3.75f, 4.5f);
   return r == 12.0f ? 0 : 1;
 }
-EOF
-    cat > tmp_hfa_callee.c <<'EOF'
+"
+  write_src tmp_hfa_callee.c "
 struct HFA { float a; float b; };
 __attribute__((noinline)) float hfa_sum(struct HFA s, float x, float y) {
   return s.a + s.b + x + y;
 }
-EOF
+"
+  mixed_toolchain_test "HFA struct args (mixed toolchain)" tmp_hfa_caller.c tmp_hfa_callee.c
 
-    $XCC -c -o tmp_hfa_caller.o -Wall -Werror tmp_hfa_caller.c $SILENT || {
-      end_test 'Compile failed'
-      return
-    }
-    $CC -c -o tmp_hfa_callee.o -Wall -Werror tmp_hfa_callee.c $SILENT || {
-      end_test 'Compile failed'
-      return
-    }
-    $CC -o "$AOUT" tmp_hfa_caller.o tmp_hfa_callee.o $SILENT || {
-      end_test 'Link failed'
-      return
-    }
-
-    $RUN_AOUT > /dev/null 2>&1
-    local actual="$?"
-    local err=''; [[ "$actual" == "0" ]] || err="exit with ${actual}"
-    end_test "$err"
-
-    rm -f tmp_hfa_caller.o tmp_hfa_callee.o
-  fi
-
-  begin_test "HFA struct return (mixed toolchain)"
-  if [[ "$ARCH" != "arm64" && "$ARCH" != "aarch64" ]]; then
-    end_test
-  else
-    cat > tmp_hfa_ret_caller.c <<'EOF'
+  write_src tmp_hfa_ret_caller.c "
 struct HFA { double a; double b; };
 struct HFA hfa_ret(void);
 int main(void) {
   struct HFA s = hfa_ret();
   return (s.a == 1.25 && s.b == 2.5) ? 0 : 1;
 }
-EOF
-    cat > tmp_hfa_ret_callee.c <<'EOF'
+"
+  write_src tmp_hfa_ret_callee.c "
 struct HFA { double a; double b; };
 __attribute__((noinline)) struct HFA hfa_ret(void) {
   struct HFA s = {1.25, 2.5};
   return s;
 }
-EOF
+"
+  mixed_toolchain_test "HFA struct return (mixed toolchain)" tmp_hfa_ret_caller.c tmp_hfa_ret_callee.c
 
-    $XCC -c -o tmp_hfa_ret_caller.o -Wall -Werror tmp_hfa_ret_caller.c $SILENT || {
-      end_test 'Compile failed'
-      return
-    }
-    $CC -c -o tmp_hfa_ret_callee.o -Wall -Werror tmp_hfa_ret_callee.c $SILENT || {
-      end_test 'Compile failed'
-      return
-    }
-    $CC -o "$AOUT" tmp_hfa_ret_caller.o tmp_hfa_ret_callee.o $SILENT || {
-      end_test 'Link failed'
-      return
-    }
+  write_src tmp_x64_fp_caller.c "
+struct S { float a; float b; };
+float sum(struct S s, float x, float y);
+int main(void) {
+  struct S s = {1.5f, 2.25f};
+  float r = sum(s, 3.75f, 4.5f);
+  return r == 12.0f ? 0 : 1;
+}
+"
+  write_src tmp_x64_fp_callee.c "
+struct S { float a; float b; };
+__attribute__((noinline)) float sum(struct S s, float x, float y) {
+  return s.a + s.b + x + y;
+}
+"
+  mixed_toolchain_test "x64 SSE struct args (mixed toolchain)" \
+    tmp_x64_fp_caller.c tmp_x64_fp_callee.c "x86_64 amd64 i386"
 
-    $RUN_AOUT > /dev/null 2>&1
-    local actual="$?"
-    local err=''; [[ "$actual" == "0" ]] || err="exit with ${actual}"
-    end_test "$err"
+  write_src tmp_x64_ret_caller.c "
+struct S { double a; double b; };
+struct S ret(void);
+int main(void) {
+  struct S s = ret();
+  return (s.a == 1.25 && s.b == 2.5) ? 0 : 1;
+}
+"
+  write_src tmp_x64_ret_callee.c "
+struct S { double a; double b; };
+__attribute__((noinline)) struct S ret(void) {
+  struct S s = {1.25, 2.5};
+  return s;
+}
+"
+  mixed_toolchain_test "x64 SSE struct return (mixed toolchain)" \
+    tmp_x64_ret_caller.c tmp_x64_ret_callee.c "x86_64 amd64 i386"
 
-    rm -f tmp_hfa_ret_caller.o tmp_hfa_ret_callee.o
-  fi
+  write_src tmp_x64_mix_caller.c "
+struct S { double a; long b; };
+long sum(struct S s, long x);
+int main(void) {
+  long v = 2;
+  struct S s = {(double)v, v};
+  long r = sum(s, 3);
+  return r == 7 ? 0 : 1;
+}
+"
+  write_src tmp_x64_mix_callee.c "
+struct S { double a; long b; };
+__attribute__((noinline)) long sum(struct S s, long x) {
+  return (long)(s.a + (double)s.b + (double)x);
+}
+"
+  mixed_toolchain_test "x64 mixed struct args (mixed toolchain)" \
+    tmp_x64_mix_caller.c tmp_x64_mix_callee.c "x86_64 amd64 i386"
 
   end_test_suite
 }

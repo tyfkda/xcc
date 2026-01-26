@@ -148,8 +148,14 @@ typedef struct {
   int hfa_ret_count;
   enum VRegSize hfa_ret_vsize;
   size_t hfa_ret_offsets[HFA_MAX_ELEMS];
+  bool x64_agg_ret;
+  int x64_agg_ret_count;
+  bool x64_agg_ret_is_fp[2];
+  enum VRegSize x64_agg_ret_vsize[2];
+  size_t x64_agg_ret_offsets[2];
   int total_arg_count;
   int reg_arg_count;
+  int fp_reg_arg_count;
   int vaarg_start;
   bool global;
 } IrCallInfo;
