@@ -357,6 +357,7 @@ static inline void set_call_info(IrCallInfo *call, const Name *label, bool globa
 
 #define ARGF_FLONUM    (1 << 0)
 #define ARGF_FP_AS_GP  (1 << 1)
+#define ARGF_HFA       (1 << 2)
 
 typedef struct {
   ssize_t offset;
@@ -407,6 +408,12 @@ static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, Funca
     p->size = type_size(arg_type);
     if (is_flonum(arg_type))
       p->flag |= ARGF_FLONUM;
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+    HFAInfo hfa = {0};
+    if (get_hfa_info(arg->type, &hfa)) {
+      p->flag |= (ARGF_HFA | ARGF_FLONUM);
+    }
+#endif
     bool is_vaarg = i >= vaarg_start;
     UNUSED(is_vaarg);
 #if VAARG_FP_AS_GP
@@ -426,6 +433,15 @@ static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, Funca
                      reg_index[is_flo] >= kArchSetting.max_reg_args[is_flo];
 
     size_t regnum = 1;
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+    if (arg_type->kind == TY_STRUCT && (p->flag & ARGF_HFA)) {
+      if (reg_index[FPREG] + hfa.count <= kArchSetting.max_reg_args[FPREG]) {
+        assert(is_flo);
+        stack_arg = false;
+        regnum = hfa.count;
+      }
+    } else
+#endif
     if (arg_type->kind == TY_STRUCT && is_small_struct(arg_type)) {
       size_t n = (p->size + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
       if (reg_index[GPREG] + (int)n <= kArchSetting.max_reg_args[GPREG]) {
@@ -521,6 +537,26 @@ static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *
   return NULL;
 }
 
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+static inline VReg *gen_funarg_hfa_struct(Expr *arg, VReg *vreg, FuncallWork *work) {
+  HFAInfo hfa;
+  if (!get_hfa_info(arg->type, &hfa))
+    return NULL;
+  int n = hfa.count;
+
+  int index = work->reg_arg_count[FPREG] - (work->regarg[FPREG] + n);
+  assert(index + n <= kArchSetting.max_reg_args[FPREG]);
+  enum VRegSize vsize = to_vsize(hfa.elem_type);
+  int vflag = to_vflag(hfa.elem_type);
+  for (int i = 0; i < n; ++i) {
+    VReg *loaded = new_ir_load(vreg, hfa.offsets[i], vsize, vflag, 0)->dst;
+    new_ir_pusharg(loaded, index + i);
+  }
+  work->regarg[FPREG] += n;
+  return NULL;
+}
+#endif
+
 static inline VReg *gen_funarg_stack(Expr *arg, const ArgInfo *arg_info) {
   VReg *vreg = gen_expr(arg);
   ssize_t offset = arg_info->offset;
@@ -538,6 +574,13 @@ static inline VReg *gen_funarg_stack(Expr *arg, const ArgInfo *arg_info) {
 static inline VReg *gen_funarg_reg(Expr *arg, const ArgInfo *arg_info, FuncallWork *work) {
   VReg *vreg = gen_expr(arg);
   if (arg->type->kind == TY_STRUCT) {
+    if (arg_info->flag & ARGF_HFA) {
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+      return gen_funarg_hfa_struct(arg, vreg, work);
+#else
+      assert(false);
+#endif
+    }
     assert(is_small_struct(arg->type));
     return gen_funarg_small_struct(arg, vreg, work);
   }

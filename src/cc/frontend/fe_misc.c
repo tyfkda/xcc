@@ -474,6 +474,68 @@ bool is_small_struct(const Type *type) {
 #endif
 }
 
+static bool collect_hfa_elems(const Type *type, size_t base, HFAInfo *info) {
+  if (type == NULL)
+    return false;
+
+  switch (type->kind) {
+  case TY_FLONUM:
+    if (info->elem_type == NULL) {
+      info->elem_type = type;
+    } else if (info->elem_type->kind != TY_FLONUM ||
+               info->elem_type->flonum.kind != type->flonum.kind) {
+      return false;
+    }
+    if (info->count >= HFA_MAX_ELEMS)
+      return false;
+    info->offsets[info->count++] = base;
+    return true;
+  case TY_ARRAY:
+    {
+      ssize_t len = type->pa.length;
+      if (len <= 0)
+        return false;
+      const Type *elem = type->pa.ptrof;
+      size_t elem_size = type_size(elem);
+      if (elem_size == 0)
+        return false;
+      for (ssize_t i = 0; i < len; ++i) {
+        if (!collect_hfa_elems(elem, base + (size_t)i * elem_size, info))
+          return false;
+      }
+      return true;
+    }
+  case TY_STRUCT:
+    {
+      const StructInfo *sinfo = type->struct_.info;
+      if (sinfo == NULL)
+        return false;
+      if (sinfo->flag & (SIF_UNION | SIF_FLEXIBLE))
+        return false;
+      for (int i = 0; i < sinfo->member_count; ++i) {
+        const MemberInfo *minfo = &sinfo->members[i];
+        if (!collect_hfa_elems(minfo->type, base + minfo->offset, info))
+          return false;
+      }
+      return true;
+    }
+  default:
+    return false;
+  }
+}
+
+bool get_hfa_info(const Type *type, HFAInfo *info) {
+  if (info == NULL)
+    return false;
+  info->elem_type = NULL;
+  info->count = 0;
+  memset(info->offsets, 0, sizeof(info->offsets));
+
+  if (!collect_hfa_elems(type, 0, info))
+    return false;
+  return info->count > 0 && info->count <= HFA_MAX_ELEMS;
+}
+
 void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
   Type *functype = get_callee_type(func->type);
   if (functype == NULL)
