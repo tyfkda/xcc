@@ -1046,7 +1046,10 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
 }
 
 static Declaration *parse_declaration(Vector *decls) {
-  if (match(TK_SEMICOL))
+  bool consumed_empty = false;
+  while (match(TK_SEMICOL))
+    consumed_empty = true;
+  if (consumed_empty)
     return NULL;  // Allow empty declaration.
 
   Token *tok;
