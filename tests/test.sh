@@ -22,6 +22,7 @@ function test_basic() {
   compile_error 'incomplete enum' 'extern enum Foo x; int main(){ return x; } enum Foo x = 99;'
   compile_error 'conflict enum and struct tag' 'int main(){ enum Foo{A}; struct Foo{int x;} s={0}; return A+s.x; }'
   compile_error 'shadow enum and struct tag' 'int main(){enum Foo{A}; { struct Foo{int x;} s={0}; enum Foo e=0; return s.x+e; } }'
+  try_direct 'empty file-scope declaration' 0 '; int main(void){ return 0; }'
 
   end_test_suite
 }
