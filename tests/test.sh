@@ -362,6 +362,47 @@ EOF
     rm -f tmp_hfa_caller.o tmp_hfa_callee.o
   fi
 
+  begin_test "HFA struct return (mixed toolchain)"
+  if [[ "$ARCH" != "arm64" && "$ARCH" != "aarch64" ]]; then
+    end_test
+  else
+    cat > tmp_hfa_ret_caller.c <<'EOF'
+struct HFA { double a; double b; };
+struct HFA hfa_ret(void);
+int main(void) {
+  struct HFA s = hfa_ret();
+  return (s.a == 1.25 && s.b == 2.5) ? 0 : 1;
+}
+EOF
+    cat > tmp_hfa_ret_callee.c <<'EOF'
+struct HFA { double a; double b; };
+__attribute__((noinline)) struct HFA hfa_ret(void) {
+  struct HFA s = {1.25, 2.5};
+  return s;
+}
+EOF
+
+    $XCC -c -o tmp_hfa_ret_caller.o -Wall -Werror tmp_hfa_ret_caller.c $SILENT || {
+      end_test 'Compile failed'
+      return
+    }
+    $CC -c -o tmp_hfa_ret_callee.o -Wall -Werror tmp_hfa_ret_callee.c $SILENT || {
+      end_test 'Compile failed'
+      return
+    }
+    $CC -o "$AOUT" tmp_hfa_ret_caller.o tmp_hfa_ret_callee.o $SILENT || {
+      end_test 'Link failed'
+      return
+    }
+
+    $RUN_AOUT > /dev/null 2>&1
+    local actual="$?"
+    local err=''; [[ "$actual" == "0" ]] || err="exit with ${actual}"
+    end_test "$err"
+
+    rm -f tmp_hfa_ret_caller.o tmp_hfa_ret_callee.o
+  fi
+
   end_test_suite
 }
 

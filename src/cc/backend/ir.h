@@ -6,6 +6,10 @@
 #include <stddef.h>  // size_t
 #include <stdint.h>  // int64_t
 
+#ifndef HFA_MAX_ELEMS
+#define HFA_MAX_ELEMS  (4)
+#endif
+
 typedef struct BB BB;
 typedef struct Name Name;
 typedef struct RegAlloc RegAlloc;
@@ -140,6 +144,10 @@ typedef struct {
   const Name *label;
   VReg **args;  // [total_arg_count]
   FrameInfo *small_struct_result_frameinfo;
+  bool hfa_ret;
+  int hfa_ret_count;
+  enum VRegSize hfa_ret_vsize;
+  size_t hfa_ret_offsets[HFA_MAX_ELEMS];
   int total_arg_count;
   int reg_arg_count;
   int vaarg_start;

@@ -95,7 +95,9 @@ static inline void not_bitfield_member(Expr *expr)  { (void)expr; }  // Must not
 #endif
 bool is_small_struct(const Type *type);
 
+#ifndef HFA_MAX_ELEMS
 #define HFA_MAX_ELEMS  (4)
+#endif
 typedef struct {
   const Type *elem_type;
   int count;

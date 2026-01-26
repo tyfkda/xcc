@@ -698,10 +698,24 @@ static inline VReg *gen_funcall_sub(Expr *expr, FuncallWork *work) {
   callinfo->arg_count = arg_count - work->stack_arg_count;
   callinfo->living_pregs = 0;
   callinfo->caller_saves = NULL;
+  callinfo->hfa_ret = false;
+  callinfo->hfa_ret_count = 0;
+  callinfo->hfa_ret_vsize = 0;
+  memset(callinfo->hfa_ret_offsets, 0, sizeof(callinfo->hfa_ret_offsets));
   if (work->ret_small_struct) {
     assert(ret_varinfo != NULL && is_local_storage(ret_varinfo));
     assert(ret_varinfo->local.frameinfo->size == type_size(expr->type));
     callinfo->small_struct_result_frameinfo = ret_varinfo->local.frameinfo;
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+    HFAInfo hfa;
+    if (get_hfa_info(expr->type, &hfa)) {
+      callinfo->hfa_ret = true;
+      callinfo->hfa_ret_count = hfa.count;
+      callinfo->hfa_ret_vsize = to_vsize(hfa.elem_type);
+      for (int i = 0; i < hfa.count; ++i)
+        callinfo->hfa_ret_offsets[i] = hfa.offsets[i];
+    }
+#endif
   }
 
   VReg *dst = NULL;

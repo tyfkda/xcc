@@ -426,6 +426,22 @@ static inline void gen_return_small_struct(const Type *type, VReg *vreg) {
   }
 }
 
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+static inline void gen_return_hfa_struct(const Type *type, VReg *vreg) {
+  HFAInfo hfa;
+  if (!get_hfa_info(type, &hfa)) {
+    gen_return_small_struct(type, vreg);
+    return;
+  }
+  enum VRegSize vsize = to_vsize(hfa.elem_type);
+  int vflag = to_vflag(hfa.elem_type);
+  for (int i = 0; i < hfa.count; ++i) {
+    VReg *loaded = new_ir_load(vreg, (int64_t)hfa.offsets[i], vsize, vflag, 0)->dst;
+    new_ir_result(loaded, 0, i);
+  }
+}
+#endif
+
 static inline void gen_return(Stmt *stmt) {
   assert(curfunc != NULL);
   BB *bb = new_bb();
@@ -437,7 +453,15 @@ static inline void gen_return(Stmt *stmt) {
     VReg *result_dst = fnbe->inline_result_dst;
     if (result_dst == NULL) {  // Not inlining.
       if (is_small_struct(type)) {
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+        HFAInfo hfa;
+        if (get_hfa_info(type, &hfa)) {
+          gen_return_hfa_struct(type, vreg);
+        } else
+#endif
+        {
         gen_return_small_struct(type, vreg);
+        }
       } else if (is_prim_type(type)) {
         int flag = is_unsigned(type) ? IRF_UNSIGNED : 0;
         new_ir_result(vreg, flag, 0);
