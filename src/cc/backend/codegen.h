@@ -52,6 +52,7 @@ void gen_memcpy(const Type *type, VReg *dst, VReg *src);
 typedef struct {
   const FrameInfo *frameinfo;
   VReg *vreg;
+  const Type *type;
   int index;
   int flag;
 } RegParamInfo;

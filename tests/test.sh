@@ -4,6 +4,57 @@ set -o pipefail
 
 source ./test_sub.sh
 
+function mixed_toolchain_test() {
+  local title="$1"
+  local caller="$2"
+  local callee="$3"
+  local allow_arch="${4:-arm64 aarch64}"
+
+  begin_test "$title"
+
+  local arch="${ARCH_OVERRIDE:-$ARCH}"
+  local ok=0
+  for a in $allow_arch; do
+    if [[ "$arch" == "$a" ]]; then
+      ok=1
+      break
+    fi
+  done
+  if [[ "$ok" -eq 0 ]]; then
+    end_test
+    return
+  fi
+
+  local caller_obj="${caller%.c}.o"
+  local callee_obj="${callee%.c}.o"
+
+  eval "$XCC" -c -o "$caller_obj" -Wall -Werror "$caller" "$SILENT" || {
+    end_test 'Compile failed'
+    return
+  }
+  eval "$CC" -c -o "$callee_obj" -Wall -Werror "$callee" "$SILENT" || {
+    end_test 'Compile failed'
+    return
+  }
+  eval "$CC" -o "$AOUT" "$caller_obj" "$callee_obj" "$SILENT" || {
+    end_test 'Link failed'
+    return
+  }
+
+  $RUN_AOUT > /dev/null 2>&1
+  local actual="$?"
+  local err=''; [[ "$actual" == "0" ]] || err="exit with ${actual}"
+  end_test "$err"
+
+  rm -f "$caller_obj" "$callee_obj" "$caller" "$callee"
+}
+
+function write_src() {
+  local path="$1"
+  shift
+  printf '%s' "$1" > "$path"
+}
+
 function test_basic() {
   begin_test_suite "Basic"
 
@@ -320,6 +371,269 @@ function test_link() {
   link_success 'weak function can be called'     -DANS=11 tmp_link_weak1.c
   link_success 'weak function can be overridden' -DANS=22 tmp_link_weak1.c tmp_link_weak2.c
   link_success 'first weak function alive'       -DANS=11 tmp_link_weak1.c tmp_link_weak3.c
+
+  write_src tmp_hfa_caller.c "
+struct HFA { float a; float b; };
+float hfa_sum(struct HFA s, float x, float y);
+int main(void) {
+  struct HFA s = {1.5f, 2.25f};
+  float r = hfa_sum(s, 3.75f, 4.5f);
+  return r == 12.0f ? 0 : 1;
+}
+"
+  write_src tmp_hfa_callee.c "
+struct HFA { float a; float b; };
+__attribute__((noinline)) float hfa_sum(struct HFA s, float x, float y) {
+  return s.a + s.b + x + y;
+}
+"
+  mixed_toolchain_test "HFA struct args (mixed toolchain)" tmp_hfa_caller.c tmp_hfa_callee.c
+
+  write_src tmp_hfa_ret_caller.c "
+struct HFA { double a; double b; };
+struct HFA hfa_ret(void);
+int main(void) {
+  struct HFA s = hfa_ret();
+  return (s.a == 1.25 && s.b == 2.5) ? 0 : 1;
+}
+"
+  write_src tmp_hfa_ret_callee.c "
+struct HFA { double a; double b; };
+__attribute__((noinline)) struct HFA hfa_ret(void) {
+  struct HFA s = {1.25, 2.5};
+  return s;
+}
+"
+  mixed_toolchain_test "HFA struct return (mixed toolchain)" tmp_hfa_ret_caller.c tmp_hfa_ret_callee.c
+
+  write_src tmp_hfa_array_caller.c "
+struct S { float a[3]; };
+float sum(struct S s, float x);
+int main(void) {
+  struct S s = {{1.0f, 2.0f, 3.0f}};
+  float r = sum(s, 4.0f);
+  return r == 10.0f ? 0 : 1;
+}
+"
+  write_src tmp_hfa_array_callee.c "
+struct S { float a[3]; };
+__attribute__((noinline)) float sum(struct S s, float x) {
+  return s.a[0] + s.a[1] + s.a[2] + x;
+}
+"
+  mixed_toolchain_test "HFA array struct args (mixed toolchain)" \
+    tmp_hfa_array_caller.c tmp_hfa_array_callee.c
+
+  write_src tmp_nonhfa_caller.c "
+struct S { float a; int b; };
+int sum(struct S s, int x);
+int main(void) {
+  struct S s = {1.0f, 2};
+  return sum(s, 3) == 6 ? 0 : 1;
+}
+"
+  write_src tmp_nonhfa_callee.c "
+struct S { float a; int b; };
+__attribute__((noinline)) int sum(struct S s, int x) {
+  return (int)s.a + s.b + x;
+}
+"
+  mixed_toolchain_test "non-HFA struct args (mixed toolchain)" \
+    tmp_nonhfa_caller.c tmp_nonhfa_callee.c
+
+  write_src tmp_hfa_stack_caller.c "
+struct S { float a; float b; };
+float sum(struct S a, struct S b, struct S c, struct S d, struct S e);
+int main(void) {
+  struct S a = {1.0f, 2.0f};
+  struct S b = {3.0f, 4.0f};
+  struct S c = {5.0f, 6.0f};
+  struct S d = {7.0f, 8.0f};
+  struct S e = {9.0f, 10.0f};
+  float r = sum(a, b, c, d, e);
+  return r == 55.0f ? 0 : 1;
+}
+"
+  write_src tmp_hfa_stack_callee.c "
+struct S { float a; float b; };
+__attribute__((noinline)) float sum(struct S a, struct S b, struct S c, struct S d, struct S e) {
+  return a.a + a.b + b.a + b.b + c.a + c.b + d.a + d.b + e.a + e.b;
+}
+"
+  mixed_toolchain_test "HFA reg exhaustion (mixed toolchain)" \
+    tmp_hfa_stack_caller.c tmp_hfa_stack_callee.c
+
+  # Avoid float literals in xcc callers on macOS to keep the linker happy.
+  write_src tmp_x64_fp_caller.c "
+struct S { float a; float b; };
+float sum(struct S s, float x, float y);
+int main(void) {
+  int a = 1, b = 2, c = 3, d = 4;
+  struct S s = {(float)a, (float)b};
+  float r = sum(s, (float)c, (float)d);
+  return (int)r == 10 ? 0 : 1;
+}
+"
+  write_src tmp_x64_fp_callee.c "
+struct S { float a; float b; };
+__attribute__((noinline)) float sum(struct S s, float x, float y) {
+  return s.a + s.b + x + y;
+}
+"
+  mixed_toolchain_test "x64 SSE struct args (mixed toolchain)" \
+    tmp_x64_fp_caller.c tmp_x64_fp_callee.c "x86_64 amd64 i386"
+
+  write_src tmp_x64_ret_caller.c "
+struct S { double a; double b; };
+struct S ret(void);
+int main(void) {
+  struct S s = ret();
+  return (long)s.a + (long)s.b == 3 ? 0 : 1;
+}
+"
+  write_src tmp_x64_ret_callee.c "
+struct S { double a; double b; };
+__attribute__((noinline)) struct S ret(void) {
+  struct S s = {1.0, 2.0};
+  return s;
+}
+"
+  mixed_toolchain_test "x64 SSE struct return (mixed toolchain)" \
+    tmp_x64_ret_caller.c tmp_x64_ret_callee.c "x86_64 amd64 i386"
+
+  write_src tmp_x64_fp2_caller.c "
+struct S { float a; float b; float c; float d; };
+float sum(struct S s, float x);
+int main(void) {
+  int a = 1, b = 2, c = 3, d = 4, e = 5;
+  struct S s = {(float)a, (float)b, (float)c, (float)d};
+  float r = sum(s, (float)e);
+  return (int)r == 15 ? 0 : 1;
+}
+"
+  write_src tmp_x64_fp2_callee.c "
+struct S { float a; float b; float c; float d; };
+__attribute__((noinline)) float sum(struct S s, float x) {
+  return s.a + s.b + s.c + s.d + x;
+}
+"
+  mixed_toolchain_test "x64 SSE 16-byte struct args (mixed toolchain)" \
+    tmp_x64_fp2_caller.c tmp_x64_fp2_callee.c "x86_64 amd64 i386"
+
+  write_src tmp_x64_mix_caller.c "
+struct S { double a; long b; };
+long sum(struct S s, long x);
+int main(void) {
+  long v = 2;
+  struct S s = {(double)v, v};
+  long r = sum(s, 3);
+  return r == 7 ? 0 : 1;
+}
+"
+  write_src tmp_x64_mix_callee.c "
+struct S { double a; long b; };
+__attribute__((noinline)) long sum(struct S s, long x) {
+  return (long)(s.a + (double)s.b + (double)x);
+}
+"
+  mixed_toolchain_test "x64 mixed struct args (mixed toolchain)" \
+    tmp_x64_mix_caller.c tmp_x64_mix_callee.c "x86_64 amd64 i386"
+
+  write_src tmp_x64_mix_ret_caller.c "
+struct S { double a; long b; };
+struct S ret(void);
+int main(void) {
+  struct S s = ret();
+  return (long)(s.a + s.a) + s.b == 5 ? 0 : 1;
+}
+"
+  write_src tmp_x64_mix_ret_callee.c "
+struct S { double a; long b; };
+__attribute__((noinline)) struct S ret(void) {
+  struct S s = {1.5, 2};
+  return s;
+}
+"
+  mixed_toolchain_test "x64 mixed struct return (mixed toolchain)" \
+    tmp_x64_mix_ret_caller.c tmp_x64_mix_ret_callee.c "x86_64 amd64 i386"
+
+  write_src tmp_x64_intfp_caller.c "
+struct S { int a; float b; };
+long sum(struct S s, long x);
+int main(void) {
+  int v = 2;
+  struct S s = {1, (float)v};
+  long r = sum(s, 3);
+  return r == 6 ? 0 : 1;
+}
+"
+  write_src tmp_x64_intfp_callee.c "
+struct S { int a; float b; };
+__attribute__((noinline)) long sum(struct S s, long x) {
+  return (long)s.a + (long)s.b + x;
+}
+"
+  mixed_toolchain_test "x64 int+float struct args (mixed toolchain)" \
+    tmp_x64_intfp_caller.c tmp_x64_intfp_callee.c "x86_64 amd64 i386"
+
+  write_src tmp_x64_sse_stack_caller.c "
+struct S { float a; float b; };
+float sum(float a0, float a1, float a2, float a3, float a4, float a5, float a6, float a7, struct S s);
+int main(void) {
+  int a0 = 1, a1 = 2, a2 = 3, a3 = 4;
+  int a4 = 5, a5 = 6, a6 = 7, a7 = 8;
+  int v0 = 9, v1 = 10;
+  struct S s = {(float)v0, (float)v1};
+  float r = sum((float)a0, (float)a1, (float)a2, (float)a3, (float)a4, (float)a5, (float)a6, (float)a7, s);
+  return (int)r == 55 ? 0 : 1;
+}
+"
+  write_src tmp_x64_sse_stack_callee.c "
+struct S { float a; float b; };
+__attribute__((noinline)) float sum(float a0, float a1, float a2, float a3, float a4, float a5, float a6, float a7, struct S s) {
+  return a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7 + s.a + s.b;
+}
+"
+  mixed_toolchain_test "x64 SSE reg exhaustion (mixed toolchain)" \
+    tmp_x64_sse_stack_caller.c tmp_x64_sse_stack_callee.c "x86_64 amd64 i386"
+
+  write_src tmp_x64_aligned16_caller.c "
+struct __attribute__((aligned(16))) S { double a; };
+long sum(struct S s, long x);
+int main(void) {
+  int v = 5;
+  struct S s = {(double)v};
+  long r = sum(s, 2);
+  return r == 7 ? 0 : 1;
+}
+"
+  write_src tmp_x64_aligned16_callee.c "
+struct __attribute__((aligned(16))) S { double a; };
+__attribute__((noinline)) long sum(struct S s, long x) {
+  return (long)s.a + x;
+}
+"
+  mixed_toolchain_test "x64 aligned(16) struct args (mixed toolchain)" \
+    tmp_x64_aligned16_caller.c tmp_x64_aligned16_callee.c "x86_64 amd64 i386"
+
+  write_src tmp_x64_packed_caller.c "
+struct __attribute__((packed)) S { char c; double d; };
+long sum(struct S s, long x);
+int main(void) {
+  int v = 2;
+  struct S s = {1, (double)v};
+  long r = sum(s, 3);
+  return r == 6 ? 0 : 1;
+}
+"
+  write_src tmp_x64_packed_callee.c "
+struct __attribute__((packed)) S { char c; double d; };
+__attribute__((noinline)) long sum(struct S s, long x) {
+  return (long)s.c + (long)s.d + x;
+}
+"
+  mixed_toolchain_test "x64 packed unaligned struct args (mixed toolchain)" \
+    tmp_x64_packed_caller.c tmp_x64_packed_callee.c "x86_64 amd64 i386"
 
   end_test_suite
 }

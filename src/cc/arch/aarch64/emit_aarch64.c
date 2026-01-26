@@ -10,6 +10,7 @@
 #include "be_aux.h"
 #include "cc_misc.h"
 #include "codegen.h"
+#include "fe_misc.h"
 #include "ir.h"
 #include "regalloc.h"
 #include "table.h"
@@ -103,6 +104,20 @@ static inline void move_params_to_assigned(Function *func) {
     if (vreg == NULL) {
       // Small struct passed by value: Store to the stack frame.
       const FrameInfo *fi = p->frameinfo;
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+      HFAInfo hfa;
+      if (get_hfa_info(p->type, &hfa)) {
+        int index = p->index;
+        for (int i = 0; i < hfa.count; ++i) {
+          int offset = fi->offset + (int)hfa.offsets[i];
+          const char *src = (hfa.elem_type->flonum.kind == FL_FLOAT ? kFRegParam32s
+                                                                    : kFRegParam64s)[index + i];
+          STR(src, IMMEDIATE_OFFSET(FP, offset));
+        }
+        reg_index[FPREG] += hfa.count;
+        continue;
+      }
+#endif
       size_t size = fi->size;
       if (size <= 0)
         continue;

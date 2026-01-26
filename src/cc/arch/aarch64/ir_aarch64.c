@@ -73,6 +73,8 @@ const char *kFReg64s[PHYSICAL_FREG_MAX] = {
 
 #define GET_D0_INDEX()   0
 #define GET_D1_INDEX()   1
+#define GET_D2_INDEX()   2
+#define GET_D3_INDEX()   3
 
 #define CALLEE_SAVE_FREG_COUNT  ((int)ARRAY_SIZE(kCalleeSaveFRegs))
 static const int kCalleeSaveFRegs[] = {8, 9, 10, 11, 12, 13, 14, 15};
@@ -780,13 +782,13 @@ static void ei_mov(IR *ir) {
 }
 
 static void ei_result(IR *ir) {
-  static const int kRegIndices[][2] = {
-    {GET_X0_INDEX(), GET_X1_INDEX()},
-    {GET_D0_INDEX(), GET_D1_INDEX()},
-  };
+  static const int kRegIndicesGP[] = {GET_X0_INDEX(), GET_X1_INDEX()};
+  static const int kRegIndicesFP[] = {GET_D0_INDEX(), GET_D1_INDEX(), GET_D2_INDEX(), GET_D3_INDEX()};
   bool is_flo = ir->opr1->flag & VRF_FLONUM;
-  assert((size_t)ir->result.index < ARRAY_SIZE(kRegIndices[is_flo]));
-  int dstphys = kRegIndices[is_flo][ir->result.index];
+  const int *indices = is_flo ? kRegIndicesFP : kRegIndicesGP;
+  size_t count = is_flo ? ARRAY_SIZE(kRegIndicesFP) : ARRAY_SIZE(kRegIndicesGP);
+  assert((size_t)ir->result.index < count);
+  int dstphys = indices[ir->result.index];
   emit_mov(dstphys, ir->opr1, ir->flag & IRF_UNSIGNED);
 }
 
@@ -953,33 +955,44 @@ static void ei_call(IR *ir) {
   const FrameInfo *fi = ir->call->small_struct_result_frameinfo;
   if (fi != NULL) {
     assert(fi->offset <= 0);
-    ssize_t offset = fi->offset;
-
-    size_t size = fi->size;
-    assert(size > 0 && size <= TARGET_POINTER_SIZE * 2);
-
-    static const int kResultRegs[] = {GET_X0_INDEX(), GET_X1_INDEX()};
-    int regidx = 0;
-    for (;;) {
-      int pow = most_significant_bit(MIN(size, TARGET_POINTER_SIZE));
-      const char *src = kRegSizeTable[pow][kResultRegs[regidx]];
-      const char *target = load_store_operand(FP, offset);
-      switch (pow) {
-      case 0:          STRB(src, target); break;
-      case 1:          STRH(src, target); break;
-      case 2: case 3:  STR(src, target); break;
-      default: assert(false); break;
+    if (ir->call->hfa_ret) {
+      int count = ir->call->hfa_ret_count;
+      enum VRegSize vsize = ir->call->hfa_ret_vsize;
+      assert(0 < count && count <= 4);
+      for (int i = 0; i < count; ++i) {
+        int offset = fi->offset + (int)ir->call->hfa_ret_offsets[i];
+        const char *src = (vsize == VRegSize4 ? kFReg32s : kFReg64s)[i];
+        STR(src, IMMEDIATE_OFFSET(FP, offset));
       }
-      size_t s = 1U << pow;
-      size -= s;
-      if (size <= 0)
-        break;
-      offset += s;
-      if (pow == 3) {
-        ++regidx;
-      } else {
-        const char *reg = kReg64s[kResultRegs[regidx]];
-        LSR(reg, reg, IM(s * TARGET_CHAR_BIT));
+    } else {
+      ssize_t offset = fi->offset;
+
+      size_t size = fi->size;
+      assert(size > 0 && size <= TARGET_POINTER_SIZE * 2);
+
+      static const int kResultRegs[] = {GET_X0_INDEX(), GET_X1_INDEX()};
+      int regidx = 0;
+      for (;;) {
+        int pow = most_significant_bit(MIN(size, TARGET_POINTER_SIZE));
+        const char *src = kRegSizeTable[pow][kResultRegs[regidx]];
+        const char *target = load_store_operand(FP, offset);
+        switch (pow) {
+        case 0:          STRB(src, target); break;
+        case 1:          STRH(src, target); break;
+        case 2: case 3:  STR(src, target); break;
+        default: assert(false); break;
+        }
+        size_t s = 1U << pow;
+        size -= s;
+        if (size <= 0)
+          break;
+        offset += s;
+        if (pow == 3) {
+          ++regidx;
+        } else {
+          const char *reg = kReg64s[kResultRegs[regidx]];
+          LSR(reg, reg, IM(s * TARGET_CHAR_BIT));
+        }
       }
     }
   } else if (ir->dst != NULL) {

@@ -17,6 +17,10 @@
 #include "util.h"
 #include "var.h"
 
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+#include "../arch/x64/abi_x64.h"
+#endif
+
 bool is_stack_param(const Type *type) {
   return type->kind == TY_STRUCT;
 }
@@ -357,6 +361,7 @@ static inline void set_call_info(IrCallInfo *call, const Name *label, bool globa
 
 #define ARGF_FLONUM    (1 << 0)
 #define ARGF_FP_AS_GP  (1 << 1)
+#define ARGF_HFA       (1 << 2)
 
 typedef struct {
   ssize_t offset;
@@ -407,6 +412,12 @@ static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, Funca
     p->size = type_size(arg_type);
     if (is_flonum(arg_type))
       p->flag |= ARGF_FLONUM;
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+    HFAInfo hfa = {0};
+    if (get_hfa_info(arg->type, &hfa)) {
+      p->flag |= (ARGF_HFA | ARGF_FLONUM);
+    }
+#endif
     bool is_vaarg = i >= vaarg_start;
     UNUSED(is_vaarg);
 #if VAARG_FP_AS_GP
@@ -414,6 +425,20 @@ static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, Funca
       p->flag |= ARGF_FP_AS_GP;
 #endif
     bool is_flo = (p->flag & (ARGF_FLONUM | ARGF_FP_AS_GP)) == ARGF_FLONUM;
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+    X64AbiClassInfo x64;
+    int x64_gp = 0;
+    int x64_fp = 0;
+    bool x64_reg_struct = false;
+    if (arg_type->kind == TY_STRUCT && x64_classify_aggregate(arg->type, &x64)) {
+      x64_gp = x64_count_class(&x64, X64_ABI_INTEGER);
+      x64_fp = x64_count_class(&x64, X64_ABI_SSE);
+      if (reg_index[GPREG] + x64_gp <= kArchSetting.max_reg_args[GPREG] &&
+          reg_index[FPREG] + x64_fp <= kArchSetting.max_reg_args[FPREG]) {
+        x64_reg_struct = true;
+      }
+    }
+#endif
 #if USE_GP_FOR_OVERFLOW_FP
     if (is_flo && reg_index[is_flo] >= kArchSetting.max_reg_args[is_flo]) {
       if (reg_index[GPREG] < kArchSetting.max_reg_args[GPREG]) {
@@ -426,6 +451,21 @@ static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, Funca
                      reg_index[is_flo] >= kArchSetting.max_reg_args[is_flo];
 
     size_t regnum = 1;
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+    if (x64_reg_struct) {
+      stack_arg = false;
+    }
+#endif
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+    if (arg_type->kind == TY_STRUCT && (p->flag & ARGF_HFA)) {
+      if (reg_index[FPREG] + hfa.count <= kArchSetting.max_reg_args[FPREG]) {
+        assert(is_flo);
+        stack_arg = false;
+        regnum = hfa.count;
+      }
+    } else
+#endif
+#if XCC_TARGET_ARCH != XCC_ARCH_X64
     if (arg_type->kind == TY_STRUCT && is_small_struct(arg_type)) {
       size_t n = (p->size + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
       if (reg_index[GPREG] + (int)n <= kArchSetting.max_reg_args[GPREG]) {
@@ -434,6 +474,7 @@ static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, Funca
         regnum = n;
       }
     }
+#endif
 #if VAARG_ON_STACK
     if (is_vaarg)
       stack_arg = true;
@@ -445,9 +486,20 @@ static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, Funca
       offset += ALIGN(p->size, TARGET_POINTER_SIZE);
       ++stack_arg_count;
     } else {
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+      if (x64_reg_struct) {
+        p->reg_index = reg_index[GPREG];
+        reg_index[GPREG] += x64_gp;
+        reg_index[FPREG] += x64_fp;
+        reg_arg_count[GPREG] += x64_gp;
+        reg_arg_count[FPREG] += x64_fp;
+      } else
+#endif
+      {
       p->reg_index = reg_index[is_flo];
       reg_index[is_flo] += regnum;
       reg_arg_count[is_flo] += regnum;
+      }
     }
   }
 
@@ -502,6 +554,44 @@ static inline VReg *gen_funarg_struct_pointer(
 #endif
 
 static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *work) {
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+  X64AbiClassInfo x64;
+  if (!x64_classify_aggregate(arg->type, &x64)) {
+    assert(false);
+    return NULL;
+  }
+
+  int gp_needed = x64_count_class(&x64, X64_ABI_INTEGER);
+  int fp_needed = x64_count_class(&x64, X64_ABI_SSE);
+
+  // Args are pushed in reverse; translate to forward register indices here.
+  int gp_index = work->reg_arg_count[GPREG] - (work->regarg[GPREG] + gp_needed) + work->arg_start;
+  int fp_index = work->reg_arg_count[FPREG] - (work->regarg[FPREG] + fp_needed);
+  assert(gp_index + gp_needed <= kArchSetting.max_reg_args[GPREG]);
+  assert(fp_index + fp_needed <= kArchSetting.max_reg_args[FPREG]);
+
+  int gp_used = 0;
+  int fp_used = 0;
+  for (int i = 0; i < x64.count; ++i) {
+    size_t chunk_size = x64_eightbyte_size(&x64, i);
+    enum VRegSize vsize;
+    int vflag = VRF_PARAM;
+    int index;
+    if (x64.classes[i] == X64_ABI_SSE) {
+      vsize = x64_sse_vsize(chunk_size);
+      vflag |= VRF_FLONUM;
+      index = fp_index + fp_used++;
+    } else {
+      vsize = x64_chunk_vsize(chunk_size);
+      index = gp_index + gp_used++;
+    }
+    VReg *loaded = new_ir_load(vreg, (int64_t)i * 8, vsize, vflag, 0)->dst;
+    new_ir_pusharg(loaded, index);
+  }
+  work->regarg[GPREG] += gp_needed;
+  work->regarg[FPREG] += fp_needed;
+  return NULL;
+#else
   const enum VRegSize kMaxVSize = VRegSize8;  // TODO: Max
   const size_t kMaxSize = 1U << kMaxVSize;
   size_t size = type_size(arg->type);
@@ -519,7 +609,28 @@ static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *
   }
   work->regarg[GPREG] += n;
   return NULL;
+#endif
 }
+
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+static inline VReg *gen_funarg_hfa_struct(Expr *arg, VReg *vreg, FuncallWork *work) {
+  HFAInfo hfa;
+  if (!get_hfa_info(arg->type, &hfa))
+    return NULL;
+  int n = hfa.count;
+
+  int index = work->reg_arg_count[FPREG] - (work->regarg[FPREG] + n);
+  assert(index + n <= kArchSetting.max_reg_args[FPREG]);
+  enum VRegSize vsize = to_vsize(hfa.elem_type);
+  int vflag = to_vflag(hfa.elem_type);
+  for (int i = 0; i < n; ++i) {
+    VReg *loaded = new_ir_load(vreg, hfa.offsets[i], vsize, vflag, 0)->dst;
+    new_ir_pusharg(loaded, index + i);
+  }
+  work->regarg[FPREG] += n;
+  return NULL;
+}
+#endif
 
 static inline VReg *gen_funarg_stack(Expr *arg, const ArgInfo *arg_info) {
   VReg *vreg = gen_expr(arg);
@@ -538,6 +649,13 @@ static inline VReg *gen_funarg_stack(Expr *arg, const ArgInfo *arg_info) {
 static inline VReg *gen_funarg_reg(Expr *arg, const ArgInfo *arg_info, FuncallWork *work) {
   VReg *vreg = gen_expr(arg);
   if (arg->type->kind == TY_STRUCT) {
+    if (arg_info->flag & ARGF_HFA) {
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+      return gen_funarg_hfa_struct(arg, vreg, work);
+#else
+      assert(false);
+#endif
+    }
     assert(is_small_struct(arg->type));
     return gen_funarg_small_struct(arg, vreg, work);
   }
@@ -580,7 +698,12 @@ static inline void gen_funargs(Expr *expr, FuncallWork *work) {
   work->offset = 0;
   work->arg_start = 0;
   work->stack_arg_count = 0;
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+  X64AbiClassInfo x64;
+  work->ret_small_struct = x64_classify_aggregate(expr->type, &x64);
+#else
   work->ret_small_struct = is_small_struct(expr->type);
+#endif
   work->reg_arg_count[GPREG] = work->reg_arg_count[FPREG] = 0;
 
   Expr *func = expr->funcall.func;
@@ -655,10 +778,45 @@ static inline VReg *gen_funcall_sub(Expr *expr, FuncallWork *work) {
   callinfo->arg_count = arg_count - work->stack_arg_count;
   callinfo->living_pregs = 0;
   callinfo->caller_saves = NULL;
+  callinfo->hfa_ret = false;
+  callinfo->hfa_ret_count = 0;
+  callinfo->hfa_ret_vsize = 0;
+  memset(callinfo->hfa_ret_offsets, 0, sizeof(callinfo->hfa_ret_offsets));
+  callinfo->x64_agg_ret = false;
+  callinfo->x64_agg_ret_count = 0;
+  memset(callinfo->x64_agg_ret_is_fp, 0, sizeof(callinfo->x64_agg_ret_is_fp));
+  memset(callinfo->x64_agg_ret_vsize, 0, sizeof(callinfo->x64_agg_ret_vsize));
+  memset(callinfo->x64_agg_ret_offsets, 0, sizeof(callinfo->x64_agg_ret_offsets));
   if (work->ret_small_struct) {
     assert(ret_varinfo != NULL && is_local_storage(ret_varinfo));
     assert(ret_varinfo->local.frameinfo->size == type_size(expr->type));
     callinfo->small_struct_result_frameinfo = ret_varinfo->local.frameinfo;
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+    HFAInfo hfa;
+    if (get_hfa_info(expr->type, &hfa)) {
+      callinfo->hfa_ret = true;
+      callinfo->hfa_ret_count = hfa.count;
+      callinfo->hfa_ret_vsize = to_vsize(hfa.elem_type);
+      for (int i = 0; i < hfa.count; ++i)
+        callinfo->hfa_ret_offsets[i] = hfa.offsets[i];
+    }
+#endif
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+    X64AbiClassInfo x64;
+    if (x64_classify_aggregate(expr->type, &x64)) {
+      if (x64_count_class(&x64, X64_ABI_SSE) > 0) {
+        callinfo->x64_agg_ret = true;
+        callinfo->x64_agg_ret_count = x64.count;
+        for (int i = 0; i < x64.count; ++i) {
+          callinfo->x64_agg_ret_is_fp[i] = x64.classes[i] == X64_ABI_SSE;
+          callinfo->x64_agg_ret_offsets[i] = (size_t)i * 8;
+          callinfo->x64_agg_ret_vsize[i] = callinfo->x64_agg_ret_is_fp[i] ?
+              x64_sse_vsize(x64_eightbyte_size(&x64, i)) :
+              x64_chunk_vsize(x64_eightbyte_size(&x64, i));
+        }
+      }
+    }
+#endif
   }
 
   VReg *dst = NULL;
@@ -683,6 +841,7 @@ static inline VReg *gen_funcall_sub(Expr *expr, FuncallWork *work) {
   set_call_info(callinfo, funcname, global, total_arg_count,
                 work->reg_arg_count[GPREG] + work->reg_arg_count[FPREG] + ret_count,
                 work->arg_vregs, vaarg_start);
+  callinfo->fp_reg_arg_count = work->reg_arg_count[FPREG];
   IR *call = new_ir_call(callinfo, dst, freg);
 
   FuncallInfo *fcinfo = calloc_or_die(sizeof(*fcinfo));

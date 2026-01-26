@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 
 typedef struct Expr Expr;
 typedef struct Function Function;
@@ -93,6 +94,17 @@ void not_bitfield_member(Expr *expr);
 static inline void not_bitfield_member(Expr *expr)  { (void)expr; }  // Must not, so noop.
 #endif
 bool is_small_struct(const Type *type);
+
+#ifndef HFA_MAX_ELEMS
+#define HFA_MAX_ELEMS  (4)
+#endif
+typedef struct {
+  const Type *elem_type;
+  int count;
+  size_t offsets[HFA_MAX_ELEMS];
+} HFAInfo;
+
+bool get_hfa_info(const Type *type, HFAInfo *info);
 void check_funcall_args(Expr *func, Vector *args, Scope *scope);
 Vector *extract_varinfo_types(const Vector *vars);  // <VarInfo*> => <Type*>
 Type *choose_ternary_result_type(Expr *tval, Expr *fval);

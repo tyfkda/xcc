@@ -21,6 +21,10 @@
 #include "util.h"
 #include "var.h"
 
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+#include "../arch/x64/abi_x64.h"
+#endif
+
 void set_curbb(BB *bb) {
   assert(bb != NULL);
   assert(curfunc != NULL);
@@ -35,6 +39,23 @@ void set_curbb(BB *bb) {
 static BB *s_break_bb;
 static BB *s_continue_bb;
 
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+static inline bool x64_is_reg_struct(const Type *type) {
+  if (!is_small_struct(type))
+    return false;
+  X64AbiClassInfo info;
+  return x64_classify_aggregate(type, &info);
+}
+
+#endif
+
+static inline bool is_reg_struct_type(const Type *type) {
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+  return x64_is_reg_struct(type);
+#else
+  return is_small_struct(type);
+#endif
+}
 static void pop_break_bb(BB *save) {
   s_break_bb = save;
 }
@@ -122,7 +143,7 @@ static void alloc_variable_registers(Function *func) {
 
   // Handle if return value is on the stack.
   const Type *rettype = func->type->func.ret;
-  if (rettype->kind == TY_STRUCT && !is_small_struct(rettype)) {
+  if (rettype->kind == TY_STRUCT && !is_reg_struct_type(rettype)) {
     prepare_retvar(func);
 #if !EXTRA_RETURN_STRUCT_REGISTER
     ++regcount[GPREG];
@@ -155,6 +176,35 @@ static void alloc_variable_registers(Function *func) {
         } else {
           vreg->flag |= VRF_STACK_PARAM;
         }
+      } else if (is_stack_param(varinfo->type)) {
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+        X64AbiClassInfo x64;
+        if (x64_classify_aggregate(varinfo->type, &x64)) {
+          int gp = x64_count_class(&x64, X64_ABI_INTEGER);
+          int fp = x64_count_class(&x64, X64_ABI_SSE);
+          if (regcount[GPREG] + gp <= kArchSetting.max_reg_args[GPREG] &&
+              regcount[FPREG] + fp <= kArchSetting.max_reg_args[FPREG]) {
+            regcount[GPREG] += gp;
+            regcount[FPREG] += fp;
+          }
+        }
+        continue;
+#else
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+        HFAInfo hfa;
+        if (get_hfa_info(varinfo->type, &hfa)) {
+          if (regcount[FPREG] + hfa.count <= kArchSetting.max_reg_args[FPREG])
+            regcount[FPREG] += hfa.count;
+          continue;
+        }
+#endif
+        if (is_small_struct(varinfo->type)) {
+          // Small struct params also consume GP registers; keep regcount in sync.
+          size_t n = (type_size(varinfo->type) + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
+          if (regcount[GPREG] + (int)n <= kArchSetting.max_reg_args[GPREG])
+            regcount[GPREG] += (int)n;
+        }
+#endif
       }
     }
   }
@@ -165,13 +215,14 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
 
 #define HANDLE_RETURN_STRUCT_REGISTER(idx) do { \
     const Type *rettype = func->type->func.ret; \
-    if (rettype->kind == TY_STRUCT && !is_small_struct(rettype)) { \
+    if (rettype->kind == TY_STRUCT && !is_reg_struct_type(rettype)) { \
       FuncBackend *fnbe = func->extra; \
       if (!IS_INLINING(fnbe)) { \
         RegParamInfo *p = &args[total++]; \
         VarInfo *vi = fnbe->struct_retvar; \
         assert(vi != NULL && is_local_storage(vi)); \
         p->vreg = vi->local.vreg; \
+        p->type = vi->type; \
         assert(p->vreg != NULL); \
         p->index = idx; \
         ++arg_count[GPREG]; \
@@ -193,8 +244,45 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
     for (int i = 0, len = params->len; i < len; ++i) {
       const VarInfo *varinfo = params->data[i];
       const Type *type = varinfo->type;
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+      if (type->kind == TY_STRUCT) {
+        X64AbiClassInfo x64;
+        if (x64_classify_aggregate(type, &x64)) {
+          int gp = x64_count_class(&x64, X64_ABI_INTEGER);
+          int fp = x64_count_class(&x64, X64_ABI_SSE);
+          if (reg_index[GPREG] + gp > max_reg[GPREG] ||
+              reg_index[FPREG] + fp > max_reg[FPREG]) {
+            continue;
+          }
+          assert(is_local_storage(varinfo));
+          RegParamInfo *p = &args[total++];
+          p->frameinfo = varinfo->local.frameinfo;
+          p->vreg = varinfo->local.vreg;  // Might be NULL (small struct).
+          p->type = type;
+          p->index = reg_index[GPREG];
+          p->flag = 0;
+          reg_index[GPREG] += gp;
+          reg_index[FPREG] += fp;
+          arg_count[GPREG] += 1;
+        }
+        continue;
+      }
+#endif
       size_t n = 1;
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+      HFAInfo hfa;
+      bool is_hfa = get_hfa_info(type, &hfa);
+      if (is_hfa)
+        n = hfa.count;
+#else
+      bool is_hfa = false;
+#endif
       if (is_stack_param(type)) {
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+        if (is_hfa) {
+          // handled as FP-reg argument
+        } else
+#endif
         if (is_small_struct(type)) {
           n = (type_size(type) + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
         } else {
@@ -205,7 +293,7 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
 #endif
         }
       }
-      bool is_flo = is_flonum(type);
+      bool is_flo = is_hfa || is_flonum(type);
       int regidx = reg_index[is_flo];
       int flag = 0;
       if (regidx + (int)n > max_reg[is_flo]) {
@@ -227,7 +315,8 @@ int enumerate_register_params(Function *func, const int max_reg[2], RegParamInfo
       assert(is_local_storage(varinfo));
       RegParamInfo *p = &args[total++];
       p->frameinfo = varinfo->local.frameinfo;
-      p->vreg = varinfo->local.vreg;  // Might be NULL (small struct).
+      p->vreg = varinfo->local.vreg;  // Might be NULL (small struct/HFA).
+      p->type = type;
       p->index = regidx;
       p->flag = flag;
       arg_count[is_flo] += 1;
@@ -396,6 +485,39 @@ static inline void gen_return_small_struct(const Type *type, VReg *vreg) {
   }
 }
 
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+static inline void gen_return_x64_struct(const Type *type, VReg *vreg, const X64AbiClassInfo *info) {
+  UNUSED(type);
+  int gp = 0;
+  int fp = 0;
+  for (int i = 0; i < info->count; ++i) {
+    size_t chunk_size = x64_eightbyte_size(info, i);
+    enum VRegSize vsize = x64_chunk_vsize(chunk_size);
+    int vflag = info->classes[i] == X64_ABI_SSE ? VRF_FLONUM : 0;
+    VReg *loaded = new_ir_load(vreg, (int64_t)i * 8, vsize, vflag, 0)->dst;
+    // SysV uses separate register sequences for INTEGER (RAX/RDX) and SSE (XMM0/XMM1).
+    int index = info->classes[i] == X64_ABI_SSE ? fp++ : gp++;
+    new_ir_result(loaded, 0, index);
+  }
+}
+#endif
+
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+static inline void gen_return_hfa_struct(const Type *type, VReg *vreg) {
+  HFAInfo hfa;
+  if (!get_hfa_info(type, &hfa)) {
+    gen_return_small_struct(type, vreg);
+    return;
+  }
+  enum VRegSize vsize = to_vsize(hfa.elem_type);
+  int vflag = to_vflag(hfa.elem_type);
+  for (int i = 0; i < hfa.count; ++i) {
+    VReg *loaded = new_ir_load(vreg, (int64_t)hfa.offsets[i], vsize, vflag, 0)->dst;
+    new_ir_result(loaded, 0, i);
+  }
+}
+#endif
+
 static inline void gen_return(Stmt *stmt) {
   assert(curfunc != NULL);
   BB *bb = new_bb();
@@ -406,8 +528,26 @@ static inline void gen_return(Stmt *stmt) {
     VReg *vreg = gen_expr(val);
     VReg *result_dst = fnbe->inline_result_dst;
     if (result_dst == NULL) {  // Not inlining.
-      if (is_small_struct(type)) {
-        gen_return_small_struct(type, vreg);
+      bool is_reg_struct = is_small_struct(type);
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+      X64AbiClassInfo x64 = {0};
+      is_reg_struct = is_small_struct(type) && x64_classify_aggregate(type, &x64);
+#endif
+      if (is_reg_struct) {
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+        HFAInfo hfa;
+        if (get_hfa_info(type, &hfa)) {
+          gen_return_hfa_struct(type, vreg);
+        } else
+#endif
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+        if (x64_count_class(&x64, X64_ABI_SSE) > 0) {
+          gen_return_x64_struct(type, vreg, &x64);
+        } else
+#endif
+        {
+          gen_return_small_struct(type, vreg);
+        }
       } else if (is_prim_type(type)) {
         int flag = is_unsigned(type) ? IRF_UNSIGNED : 0;
         new_ir_result(vreg, flag, 0);
@@ -854,7 +994,7 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
   const int arg_start = 0;
 #else
   const Type *rettype = func->type->func.ret;
-  const int arg_start = is_prim_type(rettype) || is_small_struct(rettype) ? 0 : 1;
+  const int arg_start = is_prim_type(rettype) || is_reg_struct_type(rettype) ? 0 : 1;
 #endif
   int reg_index[2] = {arg_start, 0};  // [0]=gp-reg, [1]=fp-reg
 
@@ -868,16 +1008,50 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
     FrameInfo *fi = varinfo->local.frameinfo;
     size_t size = fi->size;  // type_size(type);
     if (is_small_struct(type)) {
-      size_t n = (size + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
-      if (reg_index[is_flo] + (int)n <= kArchSetting.max_reg_args[is_flo]) {
-        // Small struct, passed by register.
-        reg_index[GPREG] += n;
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+      X64AbiClassInfo x64;
+      if (x64_classify_aggregate(type, &x64)) {
+        int gp = x64_count_class(&x64, X64_ABI_INTEGER);
+        int fp = x64_count_class(&x64, X64_ABI_SSE);
+        if (reg_index[GPREG] + gp <= kArchSetting.max_reg_args[GPREG] &&
+            reg_index[FPREG] + fp <= kArchSetting.max_reg_args[FPREG]) {
+          reg_index[GPREG] += gp;
+          reg_index[FPREG] += fp;
 
-        // Allocate stack frame.
-        frame_size = ALIGN(frame_size + size, align);
-        fi->offset = -(int)frame_size;
-        continue;
+          // Allocate stack frame.
+          frame_size = ALIGN(frame_size + size, align);
+          fi->offset = -(int)frame_size;
+          continue;
+        }
       }
+#else
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+      HFAInfo hfa;
+      if (get_hfa_info(type, &hfa)) {
+        if (reg_index[FPREG] + hfa.count <= kArchSetting.max_reg_args[FPREG]) {
+          // HFA struct, passed by FP registers.
+          reg_index[FPREG] += hfa.count;
+
+          // Allocate stack frame.
+          frame_size = ALIGN(frame_size + size, align);
+          fi->offset = -(int)frame_size;
+          continue;
+        }
+      } else
+#endif
+      {
+        size_t n = (size + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
+        if (reg_index[is_flo] + (int)n <= kArchSetting.max_reg_args[is_flo]) {
+          // Small struct, passed by register.
+          reg_index[GPREG] += n;
+
+          // Allocate stack frame.
+          frame_size = ALIGN(frame_size + size, align);
+          fi->offset = -(int)frame_size;
+          continue;
+        }
+      }
+#endif
     } else if (!is_stack_param(type)
 #if STRUCT_ARG_AS_POINTER
                || (varinfo->storage & VS_PARAM)

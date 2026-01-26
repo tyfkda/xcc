@@ -22,6 +22,10 @@
 #include "util.h"
 #include "var.h"
 
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+#include "arch/x64/abi_x64.h"
+#endif
+
 static Expr *proc_builtin_classify_type(const Token *ident) {
   consume(TK_LPAR, "`(' expected");
   const Type *type = parse_var_def(NULL, NULL, NULL);
@@ -107,6 +111,25 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     VarInfo *info = params->data[i];
     Type *t = info->type;
     int n = 0;
+#if XCC_TARGET_ARCH == XCC_ARCH_X64
+    if (t->kind == TY_STRUCT) {
+      X64AbiClassInfo x64;
+      if (x64_classify_aggregate(t, &x64)) {
+        int gp = x64_count_class(&x64, X64_ABI_INTEGER);
+        int fp = x64_count_class(&x64, X64_ABI_SSE);
+        if (reg_count[GPREG] + gp <= kArchSetting.max_reg_args[GPREG] &&
+            reg_count[FPREG] + fp <= kArchSetting.max_reg_args[FPREG]) {
+          reg_count[GPREG] += gp;
+          reg_count[FPREG] += fp;
+          continue;
+        }
+      }
+      size_t size = type_size(t);
+      offset = ALIGN(offset, TARGET_POINTER_SIZE) + size;
+      continue;
+    }
+#endif
+#if XCC_TARGET_ARCH != XCC_ARCH_X64
     if (is_small_struct(t)) {
       size_t s = type_size(t);
       n = (s + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
@@ -120,6 +143,12 @@ static VReg *gen_builtin_va_start(Expr *expr) {
       assert(is_prim_type(t));
       n = 1;
     }
+#else
+    if (!is_stack_param(t)) {
+      assert(is_prim_type(t));
+      n = 1;
+    }
+#endif
 
     if (n > 0) {
       bool is_flo = is_flonum(t);
@@ -175,9 +204,17 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     VarInfo *info = params->data[i];
     const Type *t = info->type;
     if (t->kind == TY_STRUCT) {
-      // Small struct:   allow single member only, so it passed by 1 argument.
-      // Large struct:   passed as pointer, so it passed by 1 argument.
-      gn += is_small_struct(t) ? (type_size(t) + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE : 1;
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+      HFAInfo hfa;
+      if (get_hfa_info(t, &hfa)) {
+        // HFA uses FP registers.
+      } else
+#endif
+      {
+        // Small struct:   allow single member only, so it passed by 1 argument.
+        // Large struct:   passed as pointer, so it passed by 1 argument.
+        gn += is_small_struct(t) ? (type_size(t) + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE : 1;
+      }
     } else {
       if (!is_flonum(t))
         ++gn;
@@ -202,8 +239,16 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     for (int i = 0; i < param_count; ++i) {
       VReg *vreg = params[i].vreg;
       if (vreg == NULL) {
-        // Small struct? (TODO: Check)
-        ngp += (params[i].frameinfo->size + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
+#if XCC_TARGET_ARCH == XCC_ARCH_AARCH64
+        HFAInfo hfa;
+        if (get_hfa_info(params[i].type, &hfa)) {
+          // HFA uses FP registers.
+        } else
+#endif
+        {
+          // Small struct? (TODO: Check)
+          ngp += (params[i].frameinfo->size + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
+        }
       } else {
         if (!(vreg->flag & VRF_FLONUM))
           ++ngp;
