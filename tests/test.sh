@@ -321,6 +321,47 @@ function test_link() {
   link_success 'weak function can be overridden' -DANS=22 tmp_link_weak1.c tmp_link_weak2.c
   link_success 'first weak function alive'       -DANS=11 tmp_link_weak1.c tmp_link_weak3.c
 
+  begin_test "HFA struct args (mixed toolchain)"
+  if [[ "$ARCH" != "arm64" && "$ARCH" != "aarch64" ]]; then
+    end_test
+  else
+    cat > tmp_hfa_caller.c <<'EOF'
+struct HFA { float a; float b; };
+float hfa_sum(struct HFA s, float x, float y);
+int main(void) {
+  struct HFA s = {1.5f, 2.25f};
+  float r = hfa_sum(s, 3.75f, 4.5f);
+  return r == 12.0f ? 0 : 1;
+}
+EOF
+    cat > tmp_hfa_callee.c <<'EOF'
+struct HFA { float a; float b; };
+__attribute__((noinline)) float hfa_sum(struct HFA s, float x, float y) {
+  return s.a + s.b + x + y;
+}
+EOF
+
+    $XCC -c -o tmp_hfa_caller.o -Wall -Werror tmp_hfa_caller.c $SILENT || {
+      end_test 'Compile failed'
+      return
+    }
+    $CC -c -o tmp_hfa_callee.o -Wall -Werror tmp_hfa_callee.c $SILENT || {
+      end_test 'Compile failed'
+      return
+    }
+    $CC -o "$AOUT" tmp_hfa_caller.o tmp_hfa_callee.o $SILENT || {
+      end_test 'Link failed'
+      return
+    }
+
+    $RUN_AOUT > /dev/null 2>&1
+    local actual="$?"
+    local err=''; [[ "$actual" == "0" ]] || err="exit with ${actual}"
+    end_test "$err"
+
+    rm -f tmp_hfa_caller.o tmp_hfa_callee.o
+  fi
+
   end_test_suite
 }
 
