@@ -597,6 +597,44 @@ __attribute__((noinline)) float sum(float a0, float a1, float a2, float a3, floa
   mixed_toolchain_test "x64 SSE reg exhaustion (mixed toolchain)" \
     tmp_x64_sse_stack_caller.c tmp_x64_sse_stack_callee.c "x86_64 amd64 i386"
 
+  write_src tmp_x64_aligned16_caller.c "
+struct __attribute__((aligned(16))) S { double a; };
+long sum(struct S s, long x);
+int main(void) {
+  int v = 5;
+  struct S s = {(double)v};
+  long r = sum(s, 2);
+  return r == 7 ? 0 : 1;
+}
+"
+  write_src tmp_x64_aligned16_callee.c "
+struct __attribute__((aligned(16))) S { double a; };
+__attribute__((noinline)) long sum(struct S s, long x) {
+  return (long)s.a + x;
+}
+"
+  mixed_toolchain_test "x64 aligned(16) struct args (mixed toolchain)" \
+    tmp_x64_aligned16_caller.c tmp_x64_aligned16_callee.c "x86_64 amd64 i386"
+
+  write_src tmp_x64_packed_caller.c "
+struct __attribute__((packed)) S { char c; double d; };
+long sum(struct S s, long x);
+int main(void) {
+  int v = 2;
+  struct S s = {1, (double)v};
+  long r = sum(s, 3);
+  return r == 6 ? 0 : 1;
+}
+"
+  write_src tmp_x64_packed_callee.c "
+struct __attribute__((packed)) S { char c; double d; };
+__attribute__((noinline)) long sum(struct S s, long x) {
+  return (long)s.c + (long)s.d + x;
+}
+"
+  mixed_toolchain_test "x64 packed unaligned struct args (mixed toolchain)" \
+    tmp_x64_packed_caller.c tmp_x64_packed_callee.c "x86_64 amd64 i386"
+
   end_test_suite
 }
 

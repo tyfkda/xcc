@@ -74,6 +74,26 @@ static bool classify_type(const Type *type, size_t base, X64AbiClassInfo *info) 
       if (sinfo->flag & SIF_UNION) {
         for (int i = 0; i < sinfo->member_count; ++i) {
           const MemberInfo *minfo = &sinfo->members[i];
+#ifndef __NO_BITFIELD
+          if (minfo->bitfield.active) {
+            if (minfo->bitfield.width <= 0)
+              continue;
+            const Type *btype = get_fixnum_type(minfo->bitfield.base_kind, false, 0);
+            size_t align = align_size(btype);
+            size_t start_bit = (base + minfo->offset) * TARGET_CHAR_BIT + minfo->bitfield.position;
+            size_t end_bit = start_bit + (size_t)minfo->bitfield.width;
+            size_t start_byte = start_bit / TARGET_CHAR_BIT;
+            size_t end_byte = (end_bit + (TARGET_CHAR_BIT - 1)) / TARGET_CHAR_BIT;
+            if (align > 1 && (base + minfo->offset) % align != 0)
+              return false;
+            if (!add_class(info, start_byte, end_byte - start_byte, X64_ABI_INTEGER))
+              return false;
+            continue;
+          }
+#endif
+          size_t align = align_size(minfo->type);
+          if (align > 1 && (base + minfo->offset) % align != 0)
+            return false;
           if (!classify_type(minfo->type, base, info))
             return false;
         }
@@ -81,6 +101,26 @@ static bool classify_type(const Type *type, size_t base, X64AbiClassInfo *info) 
       }
       for (int i = 0; i < sinfo->member_count; ++i) {
         const MemberInfo *minfo = &sinfo->members[i];
+#ifndef __NO_BITFIELD
+        if (minfo->bitfield.active) {
+          if (minfo->bitfield.width <= 0)
+            continue;
+          const Type *btype = get_fixnum_type(minfo->bitfield.base_kind, false, 0);
+          size_t align = align_size(btype);
+          size_t start_bit = (base + minfo->offset) * TARGET_CHAR_BIT + minfo->bitfield.position;
+          size_t end_bit = start_bit + (size_t)minfo->bitfield.width;
+          size_t start_byte = start_bit / TARGET_CHAR_BIT;
+          size_t end_byte = (end_bit + (TARGET_CHAR_BIT - 1)) / TARGET_CHAR_BIT;
+          if (align > 1 && (base + minfo->offset) % align != 0)
+            return false;
+          if (!add_class(info, start_byte, end_byte - start_byte, X64_ABI_INTEGER))
+            return false;
+          continue;
+        }
+#endif
+        size_t align = align_size(minfo->type);
+        if (align > 1 && (base + minfo->offset) % align != 0)
+          return false;
         if (!classify_type(minfo->type, base + minfo->offset, info))
           return false;
       }
@@ -100,6 +140,8 @@ bool x64_classify_aggregate(const Type *type, X64AbiClassInfo *info) {
 
   size_t size = type_size(type);
   if (size == 0 || size > X64_ABI_MAX_EIGHTBYTES * 8)
+    return false;
+  if (type->struct_.info->align > 8)
     return false;
 
   info->size = size;
