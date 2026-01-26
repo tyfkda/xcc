@@ -1046,6 +1046,9 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
 }
 
 static Declaration *parse_declaration(Vector *decls) {
+  if (match(TK_SEMICOL))
+    return NULL;  // Allow empty declaration.
+
   Token *tok;
   if ((tok = match(TK_ASM)) != NULL) {
     Stmt *asm_ = parse_asm(tok);
