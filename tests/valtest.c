@@ -1218,6 +1218,11 @@ StructArg return_struct(void) { StructArg s = {.x = 12, .y = 34}; return s; }
 typedef struct {long x; long y; long dummy1, dummy2;} LongStruct;
 LongStruct return_lstruct(void) { LongStruct s = {111, 222}; return s; }
 
+typedef struct {long a; long b;} SmallStructRegs;
+int small_struct_reg_params(SmallStructRegs s, int a, int b, int c, int d, int e, int f, int g) {
+  return (int)(s.a + s.b + a + b + c + d + e + f + g);
+}
+
 typedef struct { short x, y, z; } SVec3;
 
 SVec3 vadd(SVec3 va, SVec3 vb) {
@@ -1393,6 +1398,11 @@ TEST(struct) {
 
     const StructArg bar = {56, 78};
     EXPECT("implicit cast to non-const", 246, struct_arg(bar, 3));
+  }
+
+  {
+    SmallStructRegs s = {1, 2};
+    EXPECT("small struct reg params", 283, small_struct_reg_params(s, 10, 20, 30, 40, 50, 60, 70));
   }
 
   {

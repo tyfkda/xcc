@@ -155,6 +155,12 @@ static void alloc_variable_registers(Function *func) {
         } else {
           vreg->flag |= VRF_STACK_PARAM;
         }
+      } else if (is_stack_param(varinfo->type) && is_small_struct(varinfo->type)) {
+        // Small struct params consume GP registers even without a vreg.
+        size_t n = (type_size(varinfo->type) + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
+        if (regcount[GPREG] + (int)n <= kArchSetting.max_reg_args[GPREG]) {
+          regcount[GPREG] += (int)n;
+        }
       }
     }
   }
