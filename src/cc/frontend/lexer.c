@@ -204,6 +204,7 @@ static int backslash(int c, bool is_wide, const char **pp) {
   case 'r':  return '\r';
   case 't':  return '\t';
   case 'v':  return '\v';
+  case '?':  return '\?';
 
   default:
     lex_error(*pp, "Illegal escape");
