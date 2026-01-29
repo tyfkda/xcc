@@ -638,7 +638,8 @@ static bool handle_ifdef(const char **pp) {
 
 static bool handle_if(const char **pp, Stream *stream, bool enable) {
   if (!enable) {
-    // Skip evaluation when disabled to avoid errors from unsupported constructs.
+    // Skip evaluation when disabled, but still scan to consume block comments.
+    process_disabled_line(*pp, stream);
     *pp = *pp + strlen(*pp);
     return false;
   }

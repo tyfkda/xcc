@@ -77,6 +77,8 @@ function test_if() {
   try_pp 'quote char in #if 0' '' "#if 0\nchar c='\"';\n#endif"
   try_pp 'skip invalid defined in #if 0' 'int main(void){ return 0; }' \
     "#if 0\n#if defined()\nint x;\n#endif\n#endif\nint main(void){ return 0; }"
+  try_pp 'block comment hides #endif in disabled #if' 'int main(void){ return 0; }' \
+    "#if 0\n#if defined(FOO) /*\n# endif\n*/\n#endif\n#endif\nint main(void){ return 0; }"
 
   try_pp 'Block comment hide #else' 'AAA /*#elseBBB */' '#if 1\nAAA /*\n#else\nBBB */\n#endif' '-C'
   try_pp 'Line comment hide #else' '' '#if 0\nAAA\n//#else\nBBB\n#endif' '-C'
