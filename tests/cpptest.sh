@@ -41,6 +41,7 @@ function test_basic() {
   try_pp '#if defined' '3' "#if defined(XXX)\n2\n#else\n3\n#endif"
   try_pp '#if defined w/o ()' '3' "#if defined XXX\n2\n#else\n3\n#endif"
   try_pp '#if !defined' '2' "#if !defined(XXX)\n2\n#else\n3\n#endif"
+  try_pp '#warning ignored' 'OK' "#warning xcc\nOK"
 
   try_pp '__FILE__' '"*stdin*"' "__FILE__"
   try_pp '__LINE__' "3" "\n\n__LINE__"
@@ -74,6 +75,10 @@ function test_if() {
   try_pp '#endif w/ block comment' '/**/CCC' '#if 0\nAAA\n#endif/*\n*/CCC' '-C'
   try_pp 'block comment in #if 0' '' "#if 0\n/**/\n#endif" '-C'
   try_pp 'quote char in #if 0' '' "#if 0\nchar c='\"';\n#endif"
+  try_pp 'skip invalid defined in #if 0' 'int main(void){ return 0; }' \
+    "#if 0\n#if defined()\nint x;\n#endif\n#endif\nint main(void){ return 0; }"
+  try_pp 'block comment hides #endif in disabled #if' 'int main(void){ return 0; }' \
+    "#if 0\n#if defined(FOO) /*\n# endif\n*/\n#endif\n#endif\nint main(void){ return 0; }"
 
   try_pp 'Block comment hide #else' 'AAA /*#elseBBB */' '#if 1\nAAA /*\n#else\nBBB */\n#endif' '-C'
   try_pp 'Line comment hide #else' '' '#if 0\nAAA\n//#else\nBBB\n#endif' '-C'

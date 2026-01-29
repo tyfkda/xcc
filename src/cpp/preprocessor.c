@@ -637,6 +637,12 @@ static bool handle_ifdef(const char **pp) {
 }
 
 static bool handle_if(const char **pp, Stream *stream, bool enable) {
+  if (!enable) {
+    // Skip evaluation when disabled, but still scan to consume block comments.
+    process_disabled_line(*pp, stream);
+    *pp = *pp + strlen(*pp);
+    return false;
+  }
   size_t size;
   char *expanded = preprocess_one_line(*pp, stream, &size);
 
@@ -739,14 +745,15 @@ static const char *process_directive(PreprocessFile *ppf, const char *line) {
       error("Illegal #elif");
 
     bool cond = false;
-    bool cond2 = handle_if(&next, &ppf->stream, ppf->enable);
+    bool outer_enable = (flag & CF_ENABLE) != 0;
+    bool cond2 = handle_if(&next, &ppf->stream, outer_enable);
     if (ppf->satisfy == NotSatisfied) {
       cond = cond2;
       if (cond)
         ppf->satisfy = Satisfied;
     }
 
-    ppf->enable = !ppf->enable && cond && ((flag & CF_ENABLE) != 0);
+    ppf->enable = !ppf->enable && cond && outer_enable;
   } else if ((next = keyword(directive, "endif")) != NULL) {
     if (ppf->condstack->len <= 0)
       error("`#endif' used without `#if'");
@@ -771,6 +778,9 @@ static const char *process_directive(PreprocessFile *ppf, const char *line) {
     } else if ((next = keyword(directive, "error")) != NULL) {
       fprintf(stderr, "%s(%d): error\n", ppf->stream.filename, ppf->stream.lineno);
       error("%s", line);
+    } else if ((next = keyword(directive, "warning")) != NULL) {
+      // Ignore #warning directives (commonly used by system headers).
+      next = NULL;
     } else if ((next = keyword(directive, "line")) != NULL) {
       handle_line_directive(&next, &ppf->stream);
       int flag = 1;
