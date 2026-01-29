@@ -936,7 +936,6 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
 
   func->body_block = parse_block(tok, scope);
   assert(is_global_scope(curscope));
-  match(TK_SEMICOL);  // Ignore redundant semicolon.
   curfunc = NULL;
   static_vars = NULL;
   curvarinfo = NULL;
