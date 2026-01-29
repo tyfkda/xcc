@@ -936,7 +936,6 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
 
   func->body_block = parse_block(tok, scope);
   assert(is_global_scope(curscope));
-  match(TK_SEMICOL);  // Ignore redundant semicolon.
   curfunc = NULL;
   static_vars = NULL;
   curvarinfo = NULL;
@@ -1046,6 +1045,12 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
 }
 
 static Declaration *parse_declaration(Vector *decls) {
+  bool consumed_empty = false;
+  while (match(TK_SEMICOL))
+    consumed_empty = true;
+  if (consumed_empty)
+    return NULL;  // Allow empty declaration.
+
   Token *tok;
   if ((tok = match(TK_ASM)) != NULL) {
     Stmt *asm_ = parse_asm(tok);
