@@ -636,7 +636,7 @@ static bool handle_ifdef(const char **pp) {
   return macro_get(name) != NULL;
 }
 
-static bool handle_if(const char **pp, Stream *stream, bool enable) {
+static bool handle_if(const char **pp, Stream *stream) {
   size_t size;
   char *expanded = preprocess_one_line(*pp, stream, &size);
 
@@ -655,7 +655,7 @@ static bool handle_if(const char **pp, Stream *stream, bool enable) {
     result = pp_expr();
 
     const char *p = get_lex_p();
-    if (p != NULL && enable)
+    if (p != NULL)
       error("illegal expression");
 
     set_pp_stream(bak_stream);
@@ -693,6 +693,73 @@ void set_preserve_comment(bool enable) {
   preserve_comment = enable;
 }
 
+static bool process_conditional_directive(PreprocessFile *ppf, const char *directive, const char **pnext) {
+  bool result = false;
+  enum {
+    IFDEF,
+    IFNDEF,
+    IF,
+  } ifkind;
+  const char *next;
+  if ((ifkind = IFDEF, next = keyword(directive, "ifdef")) != NULL ||
+      (ifkind = IFNDEF, next = keyword(directive, "ifndef")) != NULL ||
+      (ifkind = IF, next = keyword(directive, "if")) != NULL) {
+    vec_push(ppf->condstack, INT2VOIDP(cond_value(ppf->enable, ppf->satisfy)));
+    if (!ppf->enable) {
+      // Skip evaluating directive.
+      ppf->satisfy = NotSatisfied;  // No matter whether the condition is satisfied.
+    } else {
+      bool s;
+      switch (ifkind) {
+      default: assert(false); // Fallthrough to suppress warning.
+      case IFDEF:   s = handle_ifdef(&next); break;
+      case IFNDEF:  s = !handle_ifdef(&next); break;
+      case IF:      s = handle_if(&next, &ppf->stream); break;
+      }
+      ppf->satisfy = s ? Satisfied : NotSatisfied;
+      ppf->enable = /*ppf->enable &&*/ ppf->satisfy == Satisfied;
+    }
+    result = true;
+  } else if ((next = keyword(directive, "else")) != NULL) {
+    int last = ppf->condstack->len - 1;
+    if (last < 0)
+      error("`#else' used without `#if'");
+    intptr_t flag = VOIDP2INT(ppf->condstack->data[last]);
+    if (ppf->satisfy == ElseAppeared)
+      error("Illegal #else");
+    ppf->enable = !ppf->enable && ppf->satisfy == NotSatisfied && ((flag & CF_ENABLE) != 0);
+    ppf->satisfy = ElseAppeared;
+    result = true;
+  } else if ((next = keyword(directive, "elif")) != NULL) {
+    int last = ppf->condstack->len - 1;
+    if (last < 0)
+      error("`#elif' used without `#if'");
+    intptr_t flag = VOIDP2INT(ppf->condstack->data[last]);
+    if (ppf->satisfy == ElseAppeared)
+      error("Illegal #elif");
+    if (flag & CF_ENABLE) {
+      bool cond = false;
+      bool cond2 = handle_if(&next, &ppf->stream);
+      if (ppf->satisfy == NotSatisfied) {
+        cond = cond2;
+        if (cond)
+          ppf->satisfy = Satisfied;
+      }
+      ppf->enable = !ppf->enable && cond && ((flag & CF_ENABLE) != 0);
+    }
+    result = true;
+  } else if ((next = keyword(directive, "endif")) != NULL) {
+    if (ppf->condstack->len <= 0)
+      error("`#endif' used without `#if'");
+    int flag = VOIDP2INT(vec_pop(ppf->condstack));
+    ppf->enable = (flag & CF_ENABLE) != 0;
+    ppf->satisfy = (flag & CF_SATISFY_MASK) >> CF_SATISFY_SHIFT;
+    result = true;
+  }
+  *pnext = next;
+  return result;
+}
+
 static const char *process_directive(PreprocessFile *ppf, const char *line) {
   // Find '#'
   const char *directive = find_directive(line);
@@ -706,83 +773,40 @@ static const char *process_directive(PreprocessFile *ppf, const char *line) {
   }
 
   const char *next;
-  if ((next = keyword(directive, "ifdef")) != NULL) {
-    vec_push(ppf->condstack, INT2VOIDP(cond_value(ppf->enable, ppf->satisfy)));
-    bool defined = handle_ifdef(&next);
-    ppf->satisfy = defined ? Satisfied : NotSatisfied;
-    ppf->enable = ppf->enable && ppf->satisfy == Satisfied;
-  } else if ((next = keyword(directive, "ifndef")) != NULL) {
-    vec_push(ppf->condstack, INT2VOIDP(cond_value(ppf->enable, ppf->satisfy)));
-    bool defined = handle_ifdef(&next);
-    ppf->satisfy = defined ? NotSatisfied : Satisfied;
-    ppf->enable = ppf->enable && ppf->satisfy == Satisfied;
-  } else if ((next = keyword(directive, "if")) != NULL) {
-    vec_push(ppf->condstack, INT2VOIDP(cond_value(ppf->enable, ppf->satisfy)));
-    bool cond = handle_if(&next, &ppf->stream, ppf->enable);
-    ppf->satisfy = cond ? Satisfied : NotSatisfied;
-    ppf->enable = ppf->enable && ppf->satisfy == Satisfied;
-  } else if ((next = keyword(directive, "else")) != NULL) {
-    int last = ppf->condstack->len - 1;
-    if (last < 0)
-      error("`#else' used without `#if'");
-    intptr_t flag = VOIDP2INT(ppf->condstack->data[last]);
-    if (ppf->satisfy == ElseAppeared)
-      error("Illegal #else");
-    ppf->enable = !ppf->enable && ppf->satisfy == NotSatisfied && ((flag & CF_ENABLE) != 0);
-    ppf->satisfy = ElseAppeared;
-  } else if ((next = keyword(directive, "elif")) != NULL) {
-    int last = ppf->condstack->len - 1;
-    if (last < 0)
-      error("`#elif' used without `#if'");
-    intptr_t flag = VOIDP2INT(ppf->condstack->data[last]);
-    if (ppf->satisfy == ElseAppeared)
-      error("Illegal #elif");
+  // Conditional direcitives are nested even in disabled lines.
+  if (process_conditional_directive(ppf, directive, &next))
+    return next;
+  if (!ppf->enable)
+    return NULL;
 
-    bool cond = false;
-    bool cond2 = handle_if(&next, &ppf->stream, ppf->enable);
-    if (ppf->satisfy == NotSatisfied) {
-      cond = cond2;
-      if (cond)
-        ppf->satisfy = Satisfied;
-    }
-
-    ppf->enable = !ppf->enable && cond && ((flag & CF_ENABLE) != 0);
-  } else if ((next = keyword(directive, "endif")) != NULL) {
-    if (ppf->condstack->len <= 0)
-      error("`#endif' used without `#if'");
-    int flag = VOIDP2INT(vec_pop(ppf->condstack));
-    ppf->enable = (flag & CF_ENABLE) != 0;
-    ppf->satisfy = (flag & CF_SATISFY_MASK) >> CF_SATISFY_SHIFT;
-  } else if (ppf->enable) {
-    if ((next = keyword(directive, "include")) != NULL) {
-      handle_include(next, &ppf->stream, false);
-      ++ppf->out_lineno;
-      next = NULL;
-    } else if ((next = keyword(directive, "include_next")) != NULL) {
-      handle_include(next, &ppf->stream, true);
-      next = NULL;
-    } else if ((next = keyword(directive, "define")) != NULL) {
-      handle_define(next, &ppf->stream);
-      next = NULL;  // `#define' consumes the line all.
-    } else if ((next = keyword(directive, "undef")) != NULL) {
-      handle_undef(&next);
-    } else if ((next = keyword(directive, "pragma")) != NULL) {
-      handle_pragma(&next, ppf->stream.filename);
-    } else if ((next = keyword(directive, "error")) != NULL) {
-      fprintf(stderr, "%s(%d): error\n", ppf->stream.filename, ppf->stream.lineno);
-      error("%s", line);
-    } else if ((next = keyword(directive, "line")) != NULL) {
-      handle_line_directive(&next, &ppf->stream);
-      int flag = 1;
-      fprintf(pp_ofp, "# %d \"%s\" %d\n", ppf->stream.lineno, ppf->stream.filename, flag);
-      define_file_macro(ppf->stream.filename);
-      ppf->out_lineno = --ppf->stream.lineno;
-      next = NULL;
-    } else {
-      if (*directive != '\0')
-        error("unknown directive: [%s]", directive);
-      next = NULL;
-    }
+  if ((next = keyword(directive, "include")) != NULL) {
+    handle_include(next, &ppf->stream, false);
+    ++ppf->out_lineno;
+    next = NULL;
+  } else if ((next = keyword(directive, "include_next")) != NULL) {
+    handle_include(next, &ppf->stream, true);
+    next = NULL;
+  } else if ((next = keyword(directive, "define")) != NULL) {
+    handle_define(next, &ppf->stream);
+    next = NULL;  // `#define' consumes the line all.
+  } else if ((next = keyword(directive, "undef")) != NULL) {
+    handle_undef(&next);
+  } else if ((next = keyword(directive, "pragma")) != NULL) {
+    handle_pragma(&next, ppf->stream.filename);
+  } else if ((next = keyword(directive, "error")) != NULL) {
+    fprintf(stderr, "%s(%d): error\n", ppf->stream.filename, ppf->stream.lineno);
+    error("%s", line);
+  } else if ((next = keyword(directive, "line")) != NULL) {
+    handle_line_directive(&next, &ppf->stream);
+    int flag = 1;
+    fprintf(pp_ofp, "# %d \"%s\" %d\n", ppf->stream.lineno, ppf->stream.filename, flag);
+    define_file_macro(ppf->stream.filename);
+    ppf->out_lineno = --ppf->stream.lineno;
+    next = NULL;
+  } else {
+    if (*directive != '\0')
+      error("unknown directive: [%s]", directive);
+    next = NULL;
   }
   return next;
 }

@@ -74,6 +74,7 @@ function test_if() {
   try_pp '#endif w/ block comment' '/**/CCC' '#if 0\nAAA\n#endif/*\n*/CCC' '-C'
   try_pp 'block comment in #if 0' '' "#if 0\n/**/\n#endif" '-C'
   try_pp 'quote char in #if 0' '' "#if 0\nchar c='\"';\n#endif"
+  try_pp 'skip disabled directives by #if 0' 'MAIN' "#if 0\n#if defined() <-IGNORED\n#endif\n#endif\nMAIN"
 
   try_pp 'Block comment hide #else' 'AAA /*#elseBBB */' '#if 1\nAAA /*\n#else\nBBB */\n#endif' '-C'
   try_pp 'Line comment hide #else' '' '#if 0\nAAA\n//#else\nBBB\n#endif' '-C'
