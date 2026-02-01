@@ -117,7 +117,8 @@ typedef struct {
   void *info;  // StructInfo* or EnumInfo*
 } TypeTag;
 
-enum TagDefineResult define_type_tag(Scope *scope, const Name *name, enum TypeTagKind kind, void *info) {
+enum TagDefineResult define_type_tag(Scope *scope, const Name *name, enum TypeTagKind kind,
+                                     void *info) {
   Table *table = scope->type_tag_table;
   if (table == NULL)
     scope->type_tag_table = table = alloc_table();

@@ -188,8 +188,10 @@ static inline bool is_freg64(enum RegType reg) {
 
 static enum RegType find_register(const char **pp, unsigned int flag) {
   const char *p = *pp;
-  static const RegisterTable *kRegisters[] = { kRegisters32, kRegisters64, kFRegisters32, kFRegisters64 };
-  static const int kRegistersCount[] = { ARRAY_SIZE(kRegisters32), ARRAY_SIZE(kRegisters64), ARRAY_SIZE(kFRegisters32), ARRAY_SIZE(kFRegisters64) };
+  static const RegisterTable *kRegisters[] = {kRegisters32, kRegisters64, kFRegisters32,
+                                              kFRegisters64};
+  static const int kRegistersCount[] = {ARRAY_SIZE(kRegisters32), ARRAY_SIZE(kRegisters64),
+                                        ARRAY_SIZE(kFRegisters32), ARRAY_SIZE(kFRegisters64)};
   for (int i = 0; i < (int)ARRAY_SIZE(kRegisters); ++i) {
     if ((flag & (R32 << i)) == 0)
       continue;

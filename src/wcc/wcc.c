@@ -34,7 +34,7 @@ enum SourceType {
 };
 
 typedef struct {
-  Table* exports;
+  Table *exports;
   Vector *lib_paths;
   Vector *defines;
   Vector *sources;

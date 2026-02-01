@@ -129,7 +129,6 @@ static inline void construct_rela_element_abs64(
   int symidx = symtab_find(symtab, u->label);
   assert(symidx >= 0);
   SET_RELOCATION_INFO(rela, u->offset, symidx, 0, 3, 1, type);
-
 }
 
 #if XCC_TARGET_ARCH == XCC_ARCH_X64

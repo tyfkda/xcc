@@ -211,7 +211,7 @@ static void traverse_func_expr(Expr **pexpr) {
   if (expr->kind == EX_VAR && type->kind == TY_FUNC) {  // Function must be placed in global scope.
     const Name *funcname = expr->var.name;
     if (!table_try_get(&builtin_function_table, funcname, NULL))
-     register_func_info(funcname, NULL, NULL, FF_REFERRED);
+      register_func_info(funcname, NULL, NULL, FF_REFERRED);
   } else {
     type = get_callee_type(type);
     assert(type != NULL && type->kind == TY_FUNC);
@@ -983,7 +983,7 @@ static inline void assign_indirect_function_index(void) {
   FuncInfo *finfo;
   uint32_t index = INDIRECT_FUNCTION_TABLE_START_INDEX;
   for (int it = 0;
-        (it = table_iterate(&indirect_function_table, it, &name, (void**)&finfo)) != -1; )
+       (it = table_iterate(&indirect_function_table, it, &name, (void**)&finfo)) != -1; )
     finfo->indirect_index = index++;
 }
 
@@ -1048,7 +1048,7 @@ static inline void assign_function_index(void) {
   for (int k = 0; k < 2; ++k) {  // 0: import, 1: defined-and-referred
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&finfo)) != -1; ) {
       if ((k == 0 && (finfo->func != NULL || finfo->flag == 0)) ||  // Put external function first.
-          (k == 1 && finfo->func == NULL))                         // Defined function later.
+          (k == 1 && finfo->func == NULL))                          // Defined function later.
         continue;
       if (is_function_omitted(finfo->varinfo))
         continue;

@@ -130,10 +130,9 @@ void check_type_combination(const TypeCombination *tc, const Token *tok) {
 }
 
 bool no_type_combination(const TypeCombination *tc, int storage_mask, int qualifier_mask) {
-  return tc->unsigned_num == 0 && tc->signed_num == 0 &&
-      tc->char_num == 0 && tc->short_num == 0 && tc->int_num == 0 && tc->long_num == 0 &&
-      (tc->storage & storage_mask) == 0 && (tc->qualifier & qualifier_mask) == 0 &&
-      tc->float_num == 0 && tc->double_num == 0;
+  return tc->unsigned_num == 0 && tc->signed_num == 0 && tc->char_num == 0 && tc->short_num == 0 &&
+         tc->int_num == 0 && tc->long_num == 0 && (tc->storage & storage_mask) == 0 &&
+         (tc->qualifier & qualifier_mask) == 0 && tc->float_num == 0 && tc->double_num == 0;
 }
 
 static VarInfo *find_var_from_scope(Scope *scope, const Token *ident, Type *type, int storage,
@@ -379,7 +378,7 @@ void propagate_var_used(void) {
       if (func == NULL)  // Prototype definition
         continue;
       if (((varinfo->storage & VS_STATIC) ||
-          (varinfo->storage & (VS_INLINE | VS_EXTERN)) == VS_INLINE) &&
+           (varinfo->storage & (VS_INLINE | VS_EXTERN)) == VS_INLINE) &&
           (func->attributes == NULL ||
            (!table_try_get(func->attributes, constructor_name, NULL) &&
             !table_try_get(func->attributes, destructor_name, NULL)))) {
@@ -1016,7 +1015,8 @@ static Expr *duplicate_inline_function_expr(Function *targetfunc, Scope *targets
   return NULL;
 }
 
-static Vector *duplicate_inline_function_asm_args(Function *targetfunc, Scope *targetscope, Vector *srcs) {
+static Vector *duplicate_inline_function_asm_args(Function *targetfunc, Scope *targetscope,
+                                                  Vector *srcs) {
   if (srcs == NULL)
     return NULL;
   Vector *dups = new_vector();

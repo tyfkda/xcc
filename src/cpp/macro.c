@@ -187,7 +187,8 @@ static void hsadd(HideSet *hs, Vector *ts) {
   }
 }
 
-static inline int subst_stringify(Vector *body, Table *param_table, Vector *args, int i, Vector *os) {
+static inline int subst_stringify(Vector *body, Table *param_table, Vector *args, int i,
+                                  Vector *os) {
   if (i + 1 < body->len) {
     const Token *next = body->data[i + 1];
     intptr_t j;
@@ -225,7 +226,8 @@ static inline int subst_concat(Vector *body, Table *param_table, Vector *args, i
   return -1;
 }
 
-static inline int subst_ident(Vector *body, Table *param_table, Vector *args, Vector **expanded_args, int i, const Name *va_opt, Vector *os) {
+static inline int subst_ident(Vector *body, Table *param_table, Vector *args,
+                              Vector **expanded_args, int i, const Name *va_opt, Vector *os) {
   const Token *tok = body->data[i];
   if (body->len > i + 1 && ((Token*)body->data[i + 1])->kind == PPTK_CONCAT) {
     intptr_t j;
@@ -289,7 +291,8 @@ static inline int subst_ident(Vector *body, Table *param_table, Vector *args, Ve
   return -1;
 }
 
-static inline int subst_comma(Vector *body, Table *param_table, Vector *args, int i, int vaopt_params_len, Vector *os) {
+static inline int subst_comma(Vector *body, Table *param_table, Vector *args, int i,
+                              int vaopt_params_len, Vector *os) {
   // Handle GNU extension: , ## __VA_ARGS__
   if (body->len > i + 2 && ((Token*)body->data[i + 1])->kind == PPTK_CONCAT &&
       vaopt_params_len >= 0 &&

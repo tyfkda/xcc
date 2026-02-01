@@ -516,7 +516,7 @@ static Expr *ternary(Expr *expr, Token *tok) {
 }
 
 static Expr *assign(Expr *lhs, Token *tok) {
-  const ParseRule* rule = get_rule(tok->kind);
+  const ParseRule *rule = get_rule(tok->kind);
   assert(rule != NULL);
   Expr *rhs = parse_precedence(rule->precedence);  // Without +1 for right associativity.
 

@@ -26,7 +26,7 @@ extern int cur_depth;
 unsigned char get_func_ret_wtype(const Type *rettype) {
   if (is_small_struct(rettype))
     rettype = get_small_struct_elem_type(rettype);
-  return is_prim_type(rettype)  ? to_wtype(rettype) : WT_VOID;
+  return is_prim_type(rettype) ? to_wtype(rettype) : WT_VOID;
 }
 
 void gen_load(const Type *type) {

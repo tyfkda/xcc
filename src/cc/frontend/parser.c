@@ -301,7 +301,7 @@ static bool parse_vardecl(Vector *stmts) {
   if (ident == NULL) {
     if ((type->kind == TY_STRUCT ||
          (type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM)) &&
-         match(TK_SEMICOL)) {
+        match(TK_SEMICOL)) {
       // Just struct/union or enum definition.
     } else {
       parse_error(PE_NOFATAL, NULL, "ident expected");

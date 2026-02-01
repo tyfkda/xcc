@@ -411,7 +411,7 @@ static inline uint64_t arrange_section_offsets(Work *work) {
   work->riscv_attributes = kRiscvAttributes[isa_zbb];
   work->riscv_attributes_str_size = strlen(work->riscv_attributes) + 1;  // Include '\0'
   work->riscv_attributes_total_size = 1 + 4 + sizeof(kRiscvAttributesArch) + 1 + 4 + 1 +
-                                     work->riscv_attributes_str_size;
+                                      work->riscv_attributes_str_size;
   work->riscv_attributes_ofs = offset;
   offset += work->riscv_attributes_total_size;
 #endif

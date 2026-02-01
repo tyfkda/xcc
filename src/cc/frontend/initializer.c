@@ -305,7 +305,8 @@ static Initializer *find_next_indices(InitFlattener *flattener, Initializer *ele
         case IK_SINGLE:
           // Special handling for string.
           if (type->kind == TY_ARRAY) {
-            if (elem_init->single->kind == EX_STR && is_char_type(type->pa.ptrof, elem_init->single->str.kind)) {
+            if (elem_init->single->kind == EX_STR &&
+                is_char_type(type->pa.ptrof, elem_init->single->str.kind)) {
               return elem_init;
             }
           }
@@ -416,8 +417,7 @@ static void store_to_current_position(InitFlattener *flattener, Initializer *ini
     intptr_t index = VOIDP2INT(indices->data[d]);
     assert(index >= 0);
     if (index >= target->multi->len) {
-      assert(type->kind == TY_ARRAY &&
-             (type->pa.length == LEN_UND || type->pa.length == LEN_FAM));
+      assert(type->kind == TY_ARRAY && (type->pa.length == LEN_UND || type->pa.length == LEN_FAM));
       Vector *multi = target->multi;
       while (index >= multi->len)
         vec_push(multi, NULL);

@@ -455,7 +455,7 @@ static void emit_elems_section(EmitWasm *ew) {
   const Name *name;
   FuncInfo *finfo;
   for (int it = 0;
-        (it = table_iterate(&indirect_function_table, it, &name, (void**)&finfo)) != -1; ) {
+       (it = table_iterate(&indirect_function_table, it, &name, (void**)&finfo)) != -1; ) {
     VERBOSE("%.*s (%u)\n", NAMES(name), finfo->index);
     data_leb128(&elems_section, -1, finfo->index);  // elem function index
   }

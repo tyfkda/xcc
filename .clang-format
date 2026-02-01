@@ -10,3 +10,4 @@ BraceWrapping:
 ColumnLimit: 100
 IndentCaseLabels: false
 IndentCaseBlocks: true
+PointerAlignment: Right

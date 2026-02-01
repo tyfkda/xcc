@@ -137,7 +137,8 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   VReg *p = new_ir_bofs(fi)->dst;
   if (offset > 0) {
     enum VRegSize vsize = to_vsize(&tyVoidPtr);
-    p = new_ir_bop(IR_ADD, p, new_const_vreg(ALIGN(offset, TARGET_POINTER_SIZE), vsize), vsize, IRF_UNSIGNED);
+    p = new_ir_bop(IR_ADD, p, new_const_vreg(ALIGN(offset, TARGET_POINTER_SIZE), vsize), vsize,
+                   IRF_UNSIGNED);
   }
   new_ir_mov(varinfo->local.vreg, p, IRF_UNSIGNED);
   return NULL;
@@ -299,7 +300,8 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   VReg *fp_offset = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt), to_vsize(&tySize)),
                                ap->vsize, IRF_UNSIGNED);
   new_ir_store(fp_offset, 0,
-               new_const_vreg((MAX_REG_ARGS[GPREG] + MIN(reg_count[FPREG], MAX_REG_ARGS[FPREG])) * TARGET_POINTER_SIZE,
+               new_const_vreg((MAX_REG_ARGS[GPREG] + MIN(reg_count[FPREG], MAX_REG_ARGS[FPREG])) *
+                                  TARGET_POINTER_SIZE,
                               to_vsize(&tySize)),
                0);
 

@@ -784,7 +784,8 @@ static inline void gen_func_body(Function *func, Expr *bpvar, Expr *lspvar) {
   }
 }
 
-static inline void epilogue(Function *func, uint32_t frame_size, Expr *bpvar, Expr *lspvar, Expr *gspvar) {
+static inline void epilogue(Function *func, uint32_t frame_size, Expr *bpvar, Expr *lspvar,
+                            Expr *gspvar) {
   // Epilogue
   if (bpvar != NULL) {
     ADD_CODE(OP_END);

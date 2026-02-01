@@ -761,7 +761,7 @@ static Token *get_token(void) {
       const Name *name = alloc_name(begin, ident_end, false);
       enum TokenKind kind = reserved_word(name);
       tok = kind != TK_EOF ? alloc_token(kind, lexer.line, begin, ident_end)
-                          : alloc_ident(name, lexer.line, begin, ident_end);
+                           : alloc_ident(name, lexer.line, begin, ident_end);
       p = ident_end;
     } else {
       if (!for_preprocess) {

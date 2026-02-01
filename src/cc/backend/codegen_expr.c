@@ -891,7 +891,7 @@ static VReg *gen_expr_incdec(Expr *expr) {
 #ifndef __NO_FLONUM
       is_flonum(target->type) ? gen_flonum(new_expr_flolit(target->type, NULL, 1)) :
 #endif
-      new_const_vreg(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1, vsize);
+          new_const_vreg(expr->type->kind == TY_PTR ? type_size(expr->type->pa.ptrof) : 1, vsize);
   VReg *after = new_ir_bop(kOpAddSub[IS_DEC(expr)], val, addend, vsize, flag);
   if (varinfo != NULL)  new_ir_mov(varinfo->local.vreg, after, flag);
   else                  new_ir_store(lval, 0, after, flag);

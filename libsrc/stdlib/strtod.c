@@ -78,7 +78,7 @@ static double strtod_hex(const char *p, const char **pp) {
   return result;
 }
 
-double strtod(const char * restrict p_, char ** restrict pp) {
+double strtod(const char *restrict p_, char **restrict pp) {
   const char *p = p_;
   const char *orig = p;
 

@@ -55,7 +55,8 @@ static bool parse_enum_members(Type *type) {
   return !neg;
 }
 
-static bool handle_define_type_tag(Scope *scope, const Token *token, enum TypeTagKind kind, void *info) {
+static bool handle_define_type_tag(Scope *scope, const Token *token, enum TypeTagKind kind,
+                                   void *info) {
   assert(token->kind == TK_IDENT);
   switch (define_type_tag(scope, token->ident, kind, info)) {
   case TAGRESULT_SUCCESS:
