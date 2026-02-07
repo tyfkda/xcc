@@ -305,6 +305,7 @@ TEST(all) {
   {
     uint8_t b = 0xff;
     EXPECT("uint8_t pre-inc overlapping", 0, ++b);
+    EXPECT("uint8_t pre-inc overlapping 2", 0, (b = 0xff, (int)++b));
     uint16_t s = 0x0;
     EXPECT("uint16_t post-dec overlapping", 0xffff, (s--, s));
     uint32_t i = 0x0;

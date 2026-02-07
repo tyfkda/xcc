@@ -719,30 +719,47 @@ static void ei_cast(IR *ir) {
     }
   } else {
     // fix->fix
-    if (ir->dst->vsize <= ir->opr1->vsize) {
+
+    // dst \ src |   s8 |   u8 |  s16 |  u16 |  s16 |  u32 |  s64 |  u64 |
+    //     s8    |  \\  | sxtb | sxtb | sxtb | sxtb | sxtb | sxtb | sxtb |
+    //     u8    | uxtb |  \\  | uxtb | uxtb | uxtb | uxtb | uxtb | uxtb |
+    //    s16    | ---- | ---- |  \\  | sxth | sxth | sxth | sxth | sxth |
+    //    u16    | ---- | ---- | uxth |  \\  | uxth | uxth | uxth | uxth |
+    //    s16    | ---- | ---- | ---- | ---- |  \\  | ---- | ---- | ---- |
+    //    u32    | ---- | ---- | ---- | ---- | ---- |  \\  | ---- | ---- |
+    //    s64    | sxtb | uxtb | sxth | uxth | sxtw | uxtw |  \\  | ---- |
+    //    u64    | sxtb | uxtb | sxth | uxth | sxtw | uxtw | ---- |  \\  |
+
+    int pows = ir->opr1->vsize;
+    int powd = ir->dst->vsize;
+    assert(0 <= pows && pows < 4);
+    assert(0 <= powd && powd < 4);
+    bool du = ir->flag & IRF_UNSIGNED, su = ir->cast.src_unsigned;
+    if (powd == VRegSize4 ||
+        (powd == pows && (du == su || powd == VRegSize8)) ||
+        (powd < VRegSize4 && powd > pows) ||
+        (powd > VRegSize4 && (pows >= VRegSize8 /*|| du == su*/))) {
       if (ir->dst->phys != ir->opr1->phys) {
-        int pow = ir->dst->vsize;
-        assert(0 <= pow && pow < 4);
+        int pow = powd;
         const char **regs = kRegSizeTable[pow];
         MOV(regs[ir->dst->phys], regs[ir->opr1->phys]);
       }
     } else {
-      int pows = ir->opr1->vsize;
-      int powd = ir->dst->vsize;
-      assert(0 <= pows && pows < 4);
-      assert(0 <= powd && powd < 4);
-      if (ir->cast.src_unsigned) {
-        switch (pows) {
-        case 0:  UXTB(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
-        case 1:  UXTH(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
-        case 2:  UXTW(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
+      const char *dst = kRegSizeTable[powd][ir->dst->phys];
+      const char *src = kRegSizeTable[powd < VRegSize4 ? powd : pows][ir->opr1->phys];
+      int pow = powd <= VRegSize4 ? powd : pows;
+      if (powd <= VRegSize4 ? du : su) {
+        switch (pow) {
+        case 0:  UXTB(dst, src); break;
+        case 1:  UXTH(dst, src); break;
+        case 2:  UXTW(dst, src); break;
         default: assert(false); break;
         }
       } else {
-        switch (pows) {
-        case 0:  SXTB(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
-        case 1:  SXTH(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
-        case 2:  SXTW(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
+        switch (pow) {
+        case 0:  SXTB(dst, src); break;
+        case 1:  SXTH(dst, src); break;
+        case 2:  SXTW(dst, src); break;
         default: assert(false); break;
         }
       }
@@ -794,7 +811,7 @@ static void ei_cond(IR *ir) {
   cmp_vregs(ir->opr1, ir->opr2);
 
   assert(!(ir->dst->flag & VRF_CONST));
-  const char *dst = kReg32s[ir->dst->phys];  // Assume bool is 4 byte.
+  const char *dst = kReg32s[ir->dst->phys];  // Minimum register size.
   int cond = ir->cond.kind;
   // On aarch64, flag for comparing flonum is signed.
   if (cond & COND_FLONUM) {
