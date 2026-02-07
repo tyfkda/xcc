@@ -1173,25 +1173,47 @@ Expr *make_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) 
   if (ranged != NULL)
     return ranged;
 
+  bool lc = is_const(lhs), rc = is_const(rhs);
+
   // Adjust type for comparison.
   {
     Type *lt = lhs->type, *rt = rhs->type;
     if (is_number(lt) && is_number(rt)) {
       if (is_fixnum(lt) && is_fixnum(rt)) {
-        if (lt->fixnum.kind < FX_INT)
-          lhs = promote_to_int(lhs);
-        if (rt->fixnum.kind < FX_INT)
-          rhs = promote_to_int(rhs);
+        if (lc || rc) {
+          Expr **pLhs = &lhs, **pRhs = &rhs;
+          if (lc) {  // Make rhs const.
+            pLhs = &rhs, pRhs = &lhs;
+          }
+          Type *ltype = (*pLhs)->type, *rtype = (*pRhs)->type;
+          Type *dst_type = ltype;
+          if (dst_type->qualifier & TQ_VOLATILE)
+            dst_type = get_fixnum_type(ltype->fixnum.kind, ltype->fixnum.is_unsigned, 0);
+          if (rtype->fixnum.is_unsigned && !ltype->fixnum.is_unsigned &&
+              ltype->fixnum.kind <= FX_LLONG && type_size(ltype) == type_size(rtype)) {
+            dst_type = get_fixnum_type(ltype->fixnum.kind, true, 0);
+            *pLhs = make_cast(dst_type, (*pLhs)->token, *pLhs, false);
+          }
+          // Cast constant as non-const type.
+          *pRhs = make_cast(dst_type, (*pRhs)->token, *pRhs, false);
+        } else {
+          if (lt->fixnum.kind < FX_INT)
+            lhs = promote_to_int(lhs);
+          if (rt->fixnum.kind < FX_INT)
+            rhs = promote_to_int(rhs);
+        }
       }
-      if (!cast_numbers(&lhs, &rhs, false)) {
-        parse_error(PE_NOFATAL, tok, "cannot compare except numbers");
-        return new_expr_fixlit(&tyBool, tok, 0);
+      if (!(is_fixnum(lt) && is_fixnum(rt)) || !(lc || rc)) {
+        if (!cast_numbers(&lhs, &rhs, false)) {
+          parse_error(PE_NOFATAL, tok, "cannot compare except numbers");
+          return new_expr_fixlit(&tyBool, tok, 0);
+        }
       }
     }
   }
 
-  if (is_const(lhs) || is_const(rhs)) {
-    if (is_const(lhs) && is_const(rhs))
+  if (lc || rc) {
+    if (lc && rc)
       return make_expr_cmp_const_folding(kind, tok, lhs, rhs);
 
     Expr *unnested = make_expr_equality_unnested(kind, tok, lhs, rhs);
