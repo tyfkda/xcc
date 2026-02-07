@@ -4,7 +4,7 @@ import path from 'path-browserify'
 
 export class WaProc {
   private memory: WebAssembly.Memory
-  private imports: any
+  private imports: WebAssembly.Imports
   private wasi: WASI
 
   constructor(private wasmFs: WasmFs, args: string[], env: Record<string, string>) {
@@ -29,24 +29,18 @@ export class WaProc {
     }
   }
 
-  public async runWasiEntry(wasmPath: string): Promise<any> {
+  public async runWasiEntry(wasmPath: string): Promise<void> {
     const instance = await this.loadWasm(wasmPath)
-    this.wasi.start(instance!)
+    this.wasi.start(instance)
   }
 
-  private async loadWasm(wasmPath: string): Promise<WebAssembly.Instance|null> {
-    let obj: WebAssembly.WebAssemblyInstantiatedSource
-    if (typeof wasmPath === 'string') {
-      const bin = this.wasmFs.fs.readFileSync(wasmPath) as Uint8Array
-
-      if (bin == null) {
-        throw 'File not found'
-      }
-      obj = await WebAssembly.instantiate(bin, this.imports)
-    } else {
-      console.error(`Path or buffer required: ${wasmPath}`)
-      return null
+  private async loadWasm(wasmPath: string): Promise<WebAssembly.Instance> {
+    const bin = this.wasmFs.fs.readFileSync(wasmPath) as Uint8Array
+    if (bin == null) {
+      throw 'File not found'
     }
+
+    const obj = await WebAssembly.instantiate(bin.buffer, this.imports)
     const instance = obj.instance
 
     if (instance.exports.memory) {
