@@ -59,7 +59,14 @@ async function getRealpaths(map) {
     const importObject = wasi.getImportObject?.call(wasi) ??
         { wasi_snapshot_preview1: wasi.wasiImport }
     const instance = await WebAssembly.instantiate(wasmModule, importObject)
-    const result = wasi.start(instance)
+    let result = 0
+    // JSP is not supported on Node.js V24.
+    // if (WebAssembly.promising != null) {
+    //   wasi.finalizeBindings(instance)  // Default memory is instance.exports.memory
+    //   const start = WebAssembly.promising(instance.exports._start, options)
+    //   result = await start()
+    // } else
+      result = wasi.start(instance)
     process.exit(result)
   } catch (e) {
     console.error(e)
