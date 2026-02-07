@@ -3,7 +3,6 @@ import {WasmFs} from '@wasmer/wasmfs'
 import path from 'path-browserify'
 
 export class WaProc {
-  private memory: WebAssembly.Memory
   private imports: WebAssembly.Imports
   private wasi: WASI
 
@@ -31,7 +30,14 @@ export class WaProc {
 
   public async runWasiEntry(wasmPath: string): Promise<void> {
     const instance = await this.loadWasm(wasmPath)
-    this.wasi.start(instance)
+    if (WebAssembly.promising == null)
+      return this.wasi.start(instance)
+
+    // Use JSPI to support suspending.
+    if (instance.exports._start) {
+      const promise = WebAssembly.promising(instance.exports._start as Function)
+      return await promise()
+    }
   }
 
   private async loadWasm(wasmPath: string): Promise<WebAssembly.Instance> {
@@ -43,10 +49,11 @@ export class WaProc {
     const obj = await WebAssembly.instantiate(bin.buffer, this.imports)
     const instance = obj.instance
 
-    if (instance.exports.memory) {
-      this.memory = instance.exports.memory as WebAssembly.Memory
-      this.wasi.setMemory(this.memory)
+    const memory = instance.exports?.memory
+    if (!(memory instanceof WebAssembly.Memory)) {
+      throw new Error(`instance.exports.memory must be a WebAssembly.Memory. Recceived ${memory}.`)
     }
+    this.wasi.setMemory(memory)
     return instance
   }
 }
