@@ -637,14 +637,32 @@ static void ei_cast(IR *ir) {
     }
   } else {
     // fix->fix
+
+    // dst \ src |    8s |    u8 |   s16 |   u16 |   s32 |   u32 |   s64 |   u64 |
+    //     8s    |   \\  | sextb | sextb | sextb | sextb | sextb | sextb | sextb |
+    //     u8    | zextb |   \\  | zextb | zextb | zextb | zextb | zextb | zextb |
+    //    s16    | ----- | ----- |   \\  | sexth | sexth | sexth | sexth | sexth |
+    //    u16    | zextb | ----- | zexth |   \\  | zexth | zexth | zexth | zexth |
+    //    s32    | ----- | ----- | ----- | ----- |   \\  | sextw | sextw | sextw |
+    //    u32    | ----- | ----- | ----- | ----- | zextw |   \\  | zextw | zextw |
+    //    s64    | sextb | zextb | sexth | zexth | sextw | zextw |   \\  | ----- |
+    //    u64    | sextb | zextb | sexth | zexth | sextw | zextw | ----- |   \\  |
+
     int pows = ir->opr1->vsize;
     int powd = ir->dst->vsize;
     assert(0 <= pows && pows < 4);
     assert(0 <= powd && powd < 4);
-    int pow = MIN(powd, pows);
+    bool du = ir->dst->flag & VRF_UNSIGNED, su = ir->opr1->flag & VRF_UNSIGNED;
     const char *dst = kReg64s[ir->dst->phys], *src = kReg64s[ir->opr1->phys];
-    if (pow < 3) {
-      if ((powd <= pows && (ir->dst->flag & VRF_UNSIGNED)) || (powd > pows && ir->opr1->flag & VRF_UNSIGNED)) {
+    if ((powd == pows && (du == su || powd == VRegSize8)) ||
+        (powd < VRegSize4 && (powd > pows && (!du || su))) ||
+        (powd > VRegSize4 && (pows >= VRegSize8 /*|| du == su*/))) {
+      if (ir->dst->phys != ir->opr1->phys) {
+        MV(dst, src);
+      }
+    } else {
+      int pow = powd <= VRegSize4 ? powd : pows;
+      if (powd <= VRegSize4 ? du : su) {
         switch (pow) {
         case 0:  ZEXT_B(dst, src); break;
         case 1:  ZEXT_H(dst, src); break;
@@ -659,8 +677,6 @@ static void ei_cast(IR *ir) {
         default: assert(false); break;
         }
       }
-    } else if (ir->dst->phys != ir->opr1->phys) {
-      MV(dst, src);
     }
   }
 }

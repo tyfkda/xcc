@@ -295,6 +295,9 @@ TEST(all) {
   {
     int32_t a = -1;
     EXPECT("cast from small signed to large unsigned", 0xffffffffffffffffULL, (uint64_t)a);
+
+    int8_t i8 = -71;
+    EXPECT_TRUE((uint16_t)65465 == (uint16_t)i8);  // i8->u16 without cast to i64
   }
   {
     int32_t a = 0xF3E141B6L;
@@ -821,6 +824,14 @@ TEST(all) {
   {
     int64_t x = 0;
     EXPECT("literal auto unsigned", 1, 0x89abcdef01234567LL > x);
+  }
+
+  {
+    uint16_t x = 0xfedc;
+    int32_t y = x;
+    unsigned short *p = &x;
+    *p += 1;  // Dummy.
+    EXPECT("reference and signedness", 0xfedc, y);
   }
 
   {
