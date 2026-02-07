@@ -53,16 +53,37 @@ async function getRealpaths(map) {
     preopens: await getRealpaths(preopens),
   })
 
+  let exitCode = null
+  const wasiImport = wasi.wasiImport
+  if (WebAssembly.promising != null) {
+    const originalProcExit = wasiImport.proc_exit
+    wasiImport.proc_exit = code => { exitCode = code; return originalProcExit(code) }
+
+    const sleepFunc = ms => new Promise(resolve => setTimeout(resolve, ms * 1000))
+    wasiImport.sleep = new WebAssembly.Suspending(sleepFunc)
+  }
+
   try {
     const wasmBin = await fsPromises.readFile(wasmFileName)
     const wasmModule = await WebAssembly.compile(wasmBin)
     const importObject = wasi.getImportObject?.call(wasi) ??
-        { wasi_snapshot_preview1: wasi.wasiImport }
+        { wasi_snapshot_preview1: wasiImport }
     const instance = await WebAssembly.instantiate(wasmModule, importObject)
-    const result = wasi.start(instance)
+    let result = 0
+    // JSP is not supported on Node.js V24.
+    if (WebAssembly.promising != null) {
+      wasi.finalizeBindings(instance)  // Default memory is instance.exports.memory
+      const start = WebAssembly.promising(instance.exports._start)
+      result = await start()
+    } else {
+      result = wasi.start(instance)
+    }
     process.exit(result)
   } catch (e) {
-    console.error(e)
-    process.exit(1)
+    if (!(typeof(e) === 'symbol' && String(e) === 'Symbol(kExitCode)')) {
+      console.error(e)
+      exitCode = 1
+    }
+    process.exit(exitCode)
   }
 })()

@@ -30,6 +30,7 @@ interface FileSystemWritableFileStream extends WritableStream {
 
 declare namespace WebAssembly {
   function instantiate(bytes: ArrayBufferLike, importObject?: Imports): Promise<WebAssemblyInstantiatedSource>
+  function promising(func: Function): () => Promise<any>
 }
 
 declare let monaco: any
