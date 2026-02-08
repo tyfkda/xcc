@@ -162,36 +162,10 @@ static void squash_cases(Vector *cases) {
   }
 }
 
-static void gen_switch(Stmt *stmt) {
-  int save_depth = break_depth;
-  break_depth = cur_depth;
-
-  ADD_CODE(OP_BLOCK, WT_VOID);
-  Vector *cases = stmt->switch_.cases;
-  squash_cases(cases);
-  int case_count = cases->len;
-  int block_count = 0;
-  for (int i = 0; i < case_count; ++i) {
-    Stmt *c = cases->data[i];
-    if (c->case_.block_index >= 0) {
-      ADD_CODE(OP_BLOCK, WT_VOID);
-      ++block_count;
-    }
-  }
-  cur_depth += block_count + 1;
-
-  Expr *value = stmt->switch_.value;
-  if (value->kind == EX_COMMA) {
-    gen_expr(value, false);
-    value = value->bop.rhs;
-  }
-  // Must be simple expression, because this is evaluated multiple times.
-  assert(is_const(value) || value->kind == EX_VAR);
-  assert(is_fixnum(value->type));
-
-  int default_index = block_count;
+static void gen_switch_dispatching(Stmt *stmt, Expr *value, Vector *cases, int default_index) {
   Fixnum min = INTPTR_MAX;
   Fixnum max = INTPTR_MIN;
+  int case_count = cases->len;
   for (int i = 0; i < case_count; ++i) {
     Stmt *c = cases->data[i];
     if (c->case_.value == NULL) {
@@ -230,6 +204,36 @@ static void gen_switch(Stmt *stmt) {
     ADD_CODE(OP_BR);
     ADD_ULEB128(default_index);
   }
+}
+
+static void gen_switch(Stmt *stmt) {
+  int save_depth = break_depth;
+  break_depth = cur_depth;
+
+  ADD_CODE(OP_BLOCK, WT_VOID);
+  Vector *cases = stmt->switch_.cases;
+  squash_cases(cases);
+  int case_count = cases->len;
+  int block_count = 0;
+  for (int i = 0; i < case_count; ++i) {
+    Stmt *c = cases->data[i];
+    if (c->case_.block_index >= 0) {
+      ADD_CODE(OP_BLOCK, WT_VOID);
+      ++block_count;
+    }
+  }
+  cur_depth += block_count + 1;
+
+  Expr *value = stmt->switch_.value;
+  if (value->kind == EX_COMMA) {
+    gen_expr(value, false);
+    value = value->bop.rhs;
+  }
+  // Must be simple expression, because this is evaluated multiple times.
+  assert(is_const(value) || value->kind == EX_VAR);
+  assert(is_fixnum(value->type));
+
+  gen_switch_dispatching(stmt, value, cases, block_count);
 
   // Body.
   gen_stmt(stmt->switch_.body, false);

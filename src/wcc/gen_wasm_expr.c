@@ -107,6 +107,89 @@ static void gen_arith(enum ExprKind kind, const Type *type) {
   ADD_CODE(kOpTable[is_unsigned][index][kind - EX_ADD]);
 }
 
+static void gen_cast_to_i(const Type *dst, Type *src) {
+  switch (src->kind) {
+  case TY_FIXNUM: case TY_PTR: case TY_FUNC:
+    {
+      size_t d = type_size(dst), s = type_size(src);
+      bool du = dst->kind != TY_FIXNUM || dst->fixnum.is_unsigned;
+      bool su = src->kind != TY_FIXNUM || src->fixnum.is_unsigned;
+      enum { I64TO32 = 1, I32TO64 = 2 };
+      switch ((d > I32_SIZE ? 2 : 0) + (s > I32_SIZE ? 1 : 0)) {
+      case I64TO32: ADD_CODE(OP_I32_WRAP_I64); break;
+      case I32TO64: ADD_CODE(su ? OP_I64_EXTEND_I32_U : OP_I64_EXTEND_I32_S); break;
+      default: break;
+      }
+      if (d < s) {
+        assert(d <= I32_SIZE);
+        if (d < I32_SIZE) {
+          if (du) {
+            ADD_CODE(OP_I32_CONST);
+            ADD_LEB128((1U << (d * TARGET_CHAR_BIT)) - 1);
+            ADD_CODE(OP_I32_AND);
+          } else {
+            ADD_CODE(OP_I32_EXTEND8_S + most_significant_bit(d));
+          }
+        }
+      } else if (du != su) {
+        if (du) {  // unsigned <- signed
+          if (d < I32_SIZE && s < I32_SIZE) {
+            ADD_CODE(OP_I32_CONST);
+            ADD_LEB128((1U << (d * TARGET_CHAR_BIT)) - 1);
+            ADD_CODE(OP_I32_AND);
+          }
+        } else {  // signed <- unsigned
+          if (d < I32_SIZE)
+            ADD_CODE(OP_I32_EXTEND8_S + most_significant_bit(d));
+        }
+      }
+    }
+    break;
+  case TY_FLONUM:
+    {
+      static const unsigned char OpTable[][4] = {
+        { OP_I32_TRUNC_F32_S, OP_I32_TRUNC_F64_S, OP_I64_TRUNC_F32_S, OP_I64_TRUNC_F64_S },
+        { OP_I32_TRUNC_F32_U, OP_I32_TRUNC_F64_U, OP_I64_TRUNC_F32_U, OP_I64_TRUNC_F64_U },
+      };
+      int d = type_size(dst);
+      int index = (d > I32_SIZE ? 2 : 0) + (src->flonum.kind >= FL_DOUBLE ? 1 : 0);
+      bool du = !is_fixnum(dst) || dst->fixnum.is_unsigned;
+      ADD_CODE(OpTable[du][index]);
+    }
+    break;
+  default:  assert(!"Cast not handled"); break;
+  }
+}
+
+static void gen_cast_to_f(const Type *dst, Type *src) {
+  switch (src->kind) {
+  case TY_FIXNUM:
+    {
+      static const unsigned char OpTable[][4] = {
+        { OP_F32_CONVERT_I32_S, OP_F32_CONVERT_I64_S, OP_F64_CONVERT_I32_S, OP_F64_CONVERT_I64_S },
+        { OP_F32_CONVERT_I32_U, OP_F32_CONVERT_I64_U, OP_F64_CONVERT_I32_U, OP_F64_CONVERT_I64_U },
+      };
+      int s = type_size(src);
+      int index = (dst->flonum.kind >= FL_DOUBLE ? 2 : 0) + (s > I32_SIZE ? 1 : 0);
+      bool su = !is_fixnum(src) || src->fixnum.is_unsigned;
+      ADD_CODE(OpTable[su][index]);
+    }
+    break;
+  case TY_FLONUM:
+    {
+      size_t ss = type_size(src), ds = type_size(dst);
+      if (ss != ds) {
+        switch (ds) {
+        case 4:  ADD_CODE(OP_F32_DEMOTE_F64); break;
+        case 8:  ADD_CODE(OP_F64_PROMOTE_F32); break;
+        }
+      }
+    }
+    break;
+  default:  assert(!"Cast not handled"); break;
+  }
+}
+
 static void gen_cast_to(const Type *dst, Type *src) {
   if (dst->kind == TY_VOID) {
     ADD_CODE(OP_DROP);
@@ -117,92 +200,16 @@ static void gen_cast_to(const Type *dst, Type *src) {
 
   switch (dst->kind) {
   case TY_FIXNUM: case TY_PTR:
-    switch (src->kind) {
-    case TY_FIXNUM: case TY_PTR: case TY_FUNC:
-      {
-        size_t d = type_size(dst), s = type_size(src);
-        bool du = dst->kind != TY_FIXNUM || dst->fixnum.is_unsigned;
-        bool su = src->kind != TY_FIXNUM || src->fixnum.is_unsigned;
-        enum { I64TO32 = 1, I32TO64 = 2 };
-        switch ((d > I32_SIZE ? 2 : 0) + (s > I32_SIZE ? 1 : 0)) {
-        case I64TO32: ADD_CODE(OP_I32_WRAP_I64); break;
-        case I32TO64: ADD_CODE(su ? OP_I64_EXTEND_I32_U : OP_I64_EXTEND_I32_S); break;
-        default: break;
-        }
-        if (d < s) {
-          assert(d <= I32_SIZE);
-          if (d < I32_SIZE) {
-            if (du) {
-              ADD_CODE(OP_I32_CONST);
-              ADD_LEB128((1U << (d * TARGET_CHAR_BIT)) - 1);
-              ADD_CODE(OP_I32_AND);
-            } else {
-              ADD_CODE(OP_I32_EXTEND8_S + most_significant_bit(d));
-            }
-          }
-        } else if (du != su) {
-          if (du) {  // unsigned <- signed
-            if (d < I32_SIZE && s < I32_SIZE) {
-              ADD_CODE(OP_I32_CONST);
-              ADD_LEB128((1U << (d * TARGET_CHAR_BIT)) - 1);
-              ADD_CODE(OP_I32_AND);
-            }
-          } else {  // signed <- unsigned
-            if (d < I32_SIZE)
-              ADD_CODE(OP_I32_EXTEND8_S + most_significant_bit(d));
-          }
-        }
-      }
-      return;
-    case TY_FLONUM:
-      {
-        static const unsigned char OpTable[][4] = {
-          { OP_I32_TRUNC_F32_S, OP_I32_TRUNC_F64_S, OP_I64_TRUNC_F32_S, OP_I64_TRUNC_F64_S },
-          { OP_I32_TRUNC_F32_U, OP_I32_TRUNC_F64_U, OP_I64_TRUNC_F32_U, OP_I64_TRUNC_F64_U },
-        };
-        int d = type_size(dst);
-        int index = (d > I32_SIZE ? 2 : 0) + (src->flonum.kind >= FL_DOUBLE ? 1 : 0);
-        bool du = !is_fixnum(dst) || dst->fixnum.is_unsigned;
-        ADD_CODE(OpTable[du][index]);
-      }
-      return;
-    default: break;
-    }
+    gen_cast_to_i(dst, src);
     break;
   case TY_FLONUM:
-    switch (src->kind) {
-    case TY_FIXNUM:
-      {
-        static const unsigned char OpTable[][4] = {
-          { OP_F32_CONVERT_I32_S, OP_F32_CONVERT_I64_S, OP_F64_CONVERT_I32_S, OP_F64_CONVERT_I64_S },
-          { OP_F32_CONVERT_I32_U, OP_F32_CONVERT_I64_U, OP_F64_CONVERT_I32_U, OP_F64_CONVERT_I64_U },
-        };
-        int s = type_size(src);
-        int index = (dst->flonum.kind >= FL_DOUBLE ? 2 : 0) + (s > I32_SIZE ? 1 : 0);
-        bool su = !is_fixnum(src) || src->fixnum.is_unsigned;
-        ADD_CODE(OpTable[su][index]);
-      }
-      return;
-    case TY_FLONUM:
-      {
-        size_t ss = type_size(src), ds = type_size(dst);
-        if (ss != ds) {
-          switch (ds) {
-          case 4:  ADD_CODE(OP_F32_DEMOTE_F64); break;
-          case 8:  ADD_CODE(OP_F64_PROMOTE_F32); break;
-          }
-        }
-      }
-      return;
-    default: break;
-    }
+    gen_cast_to_f(dst, src);
     break;
   case TY_STRUCT:
     assert(same_type_without_qualifier(dst, src, true));
-    return;
-  default: break;
+    break;
+  default:  assert(!"Cast not handled"); break;
   }
-  assert(!"Cast not handled");
 }
 
 static void gen_ternary(Expr *expr, bool needval) {
@@ -490,60 +497,58 @@ void gen_clear_local_var(const VarInfo *varinfo) {
   ADD_CODE(OP_0xFC, OPFC_MEMORY_FILL, 0);
 }
 
+static void gen_ref_var(Expr *expr) {
+  Scope *scope;
+  const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
+  assert(varinfo != NULL && scope == expr->var.scope);
+  assert(!is_prim_type(expr->type) || varinfo->storage & VS_REF_TAKEN ||
+          is_global_datsec_var(varinfo, scope));
+  if (is_global_scope(scope) || !is_local_storage(varinfo)) {
+    if (varinfo->type->kind == TY_FUNC) {
+      ADD_CODE(OP_I32_CONST);
+      FuncInfo *finfo = table_get(&indirect_function_table, expr->var.name);
+      assert(finfo != NULL && finfo->indirect_index > 0);
+      FuncExtra *extra = curfunc->extra;
+      DataStorage *code = extra->code;
+      RelocInfo *ri = calloc_or_die(sizeof(*ri));
+      ri->type = R_WASM_TABLE_INDEX_SLEB;
+      ri->offset = code->len;
+      ri->index = finfo->index;  // Assume that symtab index is same as function index.
+      vec_push(extra->reloc_code, ri);
+
+      ADD_VARINT32(finfo->indirect_index);
+    } else {
+      GVarInfo *info = get_gvar_info(expr);
+      assert(info != NULL);
+      ADD_CODE(OP_I32_CONST);
+      FuncExtra *extra = curfunc->extra;
+      DataStorage *code = extra->code;
+      RelocInfo *ri = calloc_or_die(sizeof(*ri));
+      ri->type = R_WASM_MEMORY_ADDR_SLEB;
+      ri->offset = code->len;
+      ri->addend = 0;
+      ri->index = info->symbol_index;
+      vec_push(extra->reloc_code, ri);
+
+      ADD_VARINT32(info->non_prim.address);
+    }
+  } else {
+    VReg *vreg = varinfo->local.vreg;
+    if (varinfo->storage & VS_PARAM &&
+        is_stack_param(expr->type) && !is_small_struct(expr->type)) {
+      // struct parameter is passed by pointer.
+      ADD_CODE(OP_LOCAL_GET);
+      ADD_ULEB128(vreg->prim.local_index);
+      return;
+    }
+    gen_bpofs(vreg->non_prim.offset);
+  }
+}
+
 static void gen_ref_sub(Expr *expr) {
   switch (expr->kind) {
-  case EX_VAR:
-    {
-      Scope *scope;
-      const VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, &scope);
-      assert(varinfo != NULL && scope == expr->var.scope);
-      assert(!is_prim_type(expr->type) || varinfo->storage & VS_REF_TAKEN ||
-             is_global_datsec_var(varinfo, scope));
-      if (is_global_scope(scope) || !is_local_storage(varinfo)) {
-        if (varinfo->type->kind == TY_FUNC) {
-          ADD_CODE(OP_I32_CONST);
-          FuncInfo *finfo = table_get(&indirect_function_table, expr->var.name);
-          assert(finfo != NULL && finfo->indirect_index > 0);
-          FuncExtra *extra = curfunc->extra;
-          DataStorage *code = extra->code;
-          RelocInfo *ri = calloc_or_die(sizeof(*ri));
-          ri->type = R_WASM_TABLE_INDEX_SLEB;
-          ri->offset = code->len;
-          ri->index = finfo->index;  // Assume that symtab index is same as function index.
-          vec_push(extra->reloc_code, ri);
-
-          ADD_VARINT32(finfo->indirect_index);
-        } else {
-          GVarInfo *info = get_gvar_info(expr);
-          assert(info != NULL);
-          ADD_CODE(OP_I32_CONST);
-          FuncExtra *extra = curfunc->extra;
-          DataStorage *code = extra->code;
-          RelocInfo *ri = calloc_or_die(sizeof(*ri));
-          ri->type = R_WASM_MEMORY_ADDR_SLEB;
-          ri->offset = code->len;
-          ri->addend = 0;
-          ri->index = info->symbol_index;
-          vec_push(extra->reloc_code, ri);
-
-          ADD_VARINT32(info->non_prim.address);
-        }
-      } else {
-        VReg *vreg = varinfo->local.vreg;
-        if (varinfo->storage & VS_PARAM &&
-            is_stack_param(expr->type) && !is_small_struct(expr->type)) {
-          // struct parameter is passed by pointer.
-          ADD_CODE(OP_LOCAL_GET);
-          ADD_ULEB128(vreg->prim.local_index);
-          break;
-        }
-        gen_bpofs(vreg->non_prim.offset);
-      }
-    }
-    return;
-  case EX_DEREF:
-    gen_expr(expr->unary.sub, true);
-    return;
+  case EX_VAR:    gen_ref_var(expr); return;
+  case EX_DEREF:  gen_expr(expr->unary.sub, true); return;
   case EX_MEMBER:
     {
       gen_expr(expr->member.target, true);
@@ -772,68 +777,49 @@ static void gen_bitnot(Expr *expr, bool needval) {
   }
 }
 
-static void gen_incdec(Expr *expr, bool needval) {
 #define IS_POST(expr)  ((expr)->kind >= EX_POSTINC)
 #define IS_DEC(expr)   (((expr)->kind - EX_PREINC) & 1)
-  assert(is_prim_type(expr->type));
-  Expr *target = expr->unary.sub;
-  if (target->kind == EX_COMPLIT) {
-    gen_expr(target, true);
-    target = target->complit.var;
-    assert(target->kind == EX_VAR);
-  } else {
-    assert(target->kind == EX_VAR);
-    gen_expr(target, true);
-  }
-  if (IS_POST(expr) && needval) {
-    gen_expr(target, true);  // Duplicate the result: target is VAR.
-    needval = false;
-  }
+static void gen_incdec_addend(Expr *expr, Expr *target) {
+  Type *type = expr->type;
+  int addend = type->kind == TY_PTR ? type_size(type->pa.ptrof) : 1;
+  unsigned char wtype = to_wtype(type);
+  switch (wtype) {
+  case WT_I32: case WT_I64:
+    {
+      static const unsigned char CONST_OP[] = {OP_I32_CONST, OP_I64_CONST};
+      static const unsigned char ADDSUB_OP[] = {OP_I32_ADD, OP_I64_ADD, OP_I32_SUB, OP_I64_SUB};
+      int i1 = wtype == WT_I32 ? 0 : 1;
+      int i2 = IS_DEC(expr) ? 2 : 0;
+      ADD_CODE(CONST_OP[i1]);
+      ADD_ULEB128(addend);
+      ADD_CODE(ADDSUB_OP[i1 | i2]);
 
-  // gen_incdec(expr->type, IS_DEC(expr));
-  // static void gen_incdec(const Type *type, bool dec)
-  {
-    Type *type = expr->type;
-    int addend = type->kind == TY_PTR ? type_size(type->pa.ptrof) : 1;
-    unsigned char wtype = to_wtype(type);
-    switch (wtype) {
-    case WT_I32:
-    case WT_I64:
-      {
-        static unsigned char CONST_OP[] = {OP_I32_CONST, OP_I64_CONST};
-        static unsigned char ADDSUB_OP[] = {OP_I32_ADD, OP_I64_ADD, OP_I32_SUB, OP_I64_SUB};
-        int i1 = wtype == WT_I32 ? 0 : 1;
-        int i2 = IS_DEC(expr) ? 2 : 0;
-        ADD_CODE(CONST_OP[i1]);
-        ADD_ULEB128(addend);
-        ADD_CODE(ADDSUB_OP[i1 | i2]);
-
-        if (type_size(type) < type_size(&tyInt))
-          gen_cast_to(target->type, &tyInt);
-      }
-      break;
-#ifndef __NO_FLONUM
-    case WT_F32:
-    case WT_F64:
-      {
-        static unsigned char ADDSUB_OP[] = {OP_F32_ADD, OP_F64_ADD, OP_F32_SUB, OP_F64_SUB};
-        int i2 = IS_DEC(expr) ? 2 : 0;
-        if (wtype == WT_F32) {
-          ADD_CODE(OP_F32_CONST);
-          ADD_F32(addend);
-        } else {
-          ADD_CODE(OP_F64_CONST);
-          ADD_F64(addend);
-          i2 += 1;
-        }
-        ADD_CODE(ADDSUB_OP[i2]);
-      }
-      break;
-#endif
-    default: assert(false); break;
+      if (type_size(type) < type_size(&tyInt))
+        gen_cast_to(target->type, &tyInt);
     }
+    break;
+#ifndef __NO_FLONUM
+  case WT_F32: case WT_F64:
+    {
+      static const unsigned char ADDSUB_OP[] = {OP_F32_ADD, OP_F64_ADD, OP_F32_SUB, OP_F64_SUB};
+      int i2 = IS_DEC(expr) ? 2 : 0;
+      if (wtype == WT_F32) {
+        ADD_CODE(OP_F32_CONST);
+        ADD_F32(addend);
+      } else {
+        ADD_CODE(OP_F64_CONST);
+        ADD_F64(addend);
+        i2 += 1;
+      }
+      ADD_CODE(ADDSUB_OP[i2]);
+    }
+    break;
+#endif
+  default: assert(false); break;
   }
+}
 
+static void gen_incdec_store(Expr *target, bool needval) {
   Scope *scope;
   const VarInfo *varinfo = scope_find(target->var.scope, target->var.name, &scope);
   assert(varinfo != NULL);
@@ -853,9 +839,29 @@ static void gen_incdec(Expr *expr, bool needval) {
       ADD_ULEB128(info->prim.index);
     }
   }
+}
+
+static void gen_incdec(Expr *expr, bool needval) {
+  assert(is_prim_type(expr->type));
+  Expr *target = expr->unary.sub;
+  if (target->kind == EX_COMPLIT) {
+    gen_expr(target, true);
+    target = target->complit.var;
+    assert(target->kind == EX_VAR);
+  } else {
+    assert(target->kind == EX_VAR);
+    gen_expr(target, true);
+  }
+  if (IS_POST(expr) && needval) {
+    gen_expr(target, true);  // Duplicate the result: target is VAR.
+    needval = false;
+  }
+
+  gen_incdec_addend(expr, target);
+  gen_incdec_store(target, needval);
+}
 #undef IS_POST
 #undef IS_DEC
-}
 
 static void gen_assign_sub(Expr *lhs, Expr *rhs) {
   switch (lhs->type->kind) {

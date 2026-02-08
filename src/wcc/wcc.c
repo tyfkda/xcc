@@ -144,6 +144,52 @@ static void compilec(FILE *ppin, const char *filename, Vector *toplevel) {
     exit(1);
 }
 
+static const char *output_wasm_obj(const char *src, const char *ofn, Options *opts) {
+  Table *exports = NULL;
+  enum OutType out_type = opts->out_type;
+  if (out_type < OutExecutable) {
+    exports = opts->exports;
+    int undef = 0;
+    const Name *name;
+    for (int it = 0; (it = table_iterate(exports, it, &name, NULL)) != -1; ) {
+      if (!table_try_get(&func_info_table, name, NULL)) {
+        fprintf(stderr, "Export: `%.*s' not defined\n", NAMES(name));
+        ++undef;
+      }
+    }
+    if (undef > 0)
+      return NULL;
+  }
+
+  FILE *ofp;
+  const char *outfn = NULL;
+  if (out_type >= OutExecutable) {
+    char template[] = "/tmp/xcc-XXXXXX.o";
+    int obj_fd = mkstemps(template, 2);
+    if (obj_fd == -1) {
+      perror("Failed to open output file");
+      exit(1);
+    }
+    char *tmpfn = strdup(template);
+    ofp = fdopen(obj_fd, "wb");
+    outfn = tmpfn;
+    vec_push(&remove_on_exit, tmpfn);
+  } else {
+    outfn = ofn;
+    if (outfn == NULL)
+      outfn = src != NULL ? change_ext(basename((char*)src), "o") : "a.o";
+    ofp = fopen(outfn, "wb");
+  }
+  if (ofp == NULL) {
+    error("Cannot open output file");
+  } else {
+    emit_wasm(ofp, opts->linker_opts.import_module_name, exports);
+    assert(compile_error_count == 0);
+    fclose(ofp);
+  }
+  return outfn;
+}
+
 int compile_csource(const char *src, const char *ofn, Vector *obj_files, Options *opts) {
   FILE *ppout;
   enum OutType out_type = opts->out_type;
@@ -189,47 +235,9 @@ int compile_csource(const char *src, const char *ofn, Vector *obj_files, Options
   if (cc_flags.warn_as_error && compile_warning_count != 0)
     return 2;
 
-  Table *exports = NULL;
-  if (opts->out_type < OutExecutable) {
-    exports = opts->exports;
-    int undef = 0;
-    const Name *name;
-    for (int it = 0; (it = table_iterate(exports, it, &name, NULL)) != -1; ) {
-      if (!table_try_get(&func_info_table, name, NULL)) {
-        fprintf(stderr, "Export: `%.*s' not defined\n", NAMES(name));
-        ++undef;
-      }
-    }
-    if (undef > 0)
-      return 3;
-  }
-
-  FILE *ofp;
-  const char *outfn = NULL;
-  if (out_type >= OutExecutable) {
-    char template[] = "/tmp/xcc-XXXXXX.o";
-    int obj_fd = mkstemps(template, 2);
-    if (obj_fd == -1) {
-      perror("Failed to open output file");
-      exit(1);
-    }
-    char *tmpfn = strdup(template);
-    ofp = fdopen(obj_fd, "wb");
-    outfn = tmpfn;
-    vec_push(&remove_on_exit, tmpfn);
-  } else {
-    outfn = ofn;
-    if (outfn == NULL)
-      outfn = src != NULL ? change_ext(basename((char*)src), "o") : "a.o";
-    ofp = fopen(outfn, "wb");
-  }
-  if (ofp == NULL) {
-    error("Cannot open output file");
-  } else {
-    emit_wasm(ofp, opts->linker_opts.import_module_name, exports);
-    assert(compile_error_count == 0);
-    fclose(ofp);
-  }
+  const char *outfn = output_wasm_obj(src, ofn, opts);
+  if (outfn == NULL)
+    return 3;
 
   vec_push(obj_files, outfn);
   return 0;
@@ -600,64 +608,71 @@ static int do_link(Vector *obj_files, Options *opts) {
 #endif
 }
 
+static bool do_compile1(char *src, Options *opts, Vector *obj_files) {
+  const char *outfn = opts->ofn;
+  if (src != NULL) {
+    if (*src == '\0')
+      return true;
+    if (*src == '-' && src[1] != '\0') {
+      assert(src[1] == 'l');
+#if USE_EMCC_AS_LINKER
+      UNUSED(search_library);
+      vec_push(obj_files, src);
+#else
+      const char *path = search_library(opts->lib_paths, optarg);
+      if (path != NULL) {
+        vec_push(obj_files, path);
+      } else {
+        fprintf(stderr, "%s: library not found\n", optarg);
+        // ++error_count;
+        return false;
+      }
+#endif
+      return true;
+    }
+
+    if (outfn == NULL) {
+      if (opts->out_type == OutObject)
+        outfn = change_ext(basename(src), "o");
+    }
+  }
+
+  enum SourceType st = opts->src_type;
+  if (src != NULL) {
+    char *ext = get_ext(src);
+    if      (strcasecmp(ext, "c") == 0)  st = Clanguage;
+    else if (strcasecmp(ext, "o") == 0)  st = ObjectFile;
+    else if (strcasecmp(ext, "a") == 0)  st = ArchiveFile;
+  }
+
+  switch (st) {
+  case UnknownSource:
+    fprintf(stderr, "Unknown source type: %s\n", src);
+    return 1;  // exit
+  case Clanguage:
+    {
+      int res = compile_csource(src, outfn, obj_files, opts);
+      if (res != 0)
+        return 1;  // exit
+    }
+    break;
+  case ObjectFile:
+  case ArchiveFile:
+    if (opts->out_type >= OutExecutable)
+      vec_push(obj_files, src);
+    break;
+  }
+  return true;
+}
+
 static int do_compile(Options *opts) {
   Vector *obj_files = new_vector();
 
   int error_count = 0;
   for (int i = 0; i < opts->sources->len; ++i) {
     char *src = opts->sources->data[i];
-    const char *outfn = opts->ofn;
-    if (src != NULL) {
-      if (*src == '\0')
-        continue;
-      if (*src == '-' && src[1] != '\0') {
-        assert(src[1] == 'l');
-#if USE_EMCC_AS_LINKER
-        UNUSED(search_library);
-        vec_push(obj_files, src);
-#else
-        const char *path = search_library(opts->lib_paths, optarg);
-        if (path != NULL) {
-          vec_push(obj_files, path);
-        } else {
-          fprintf(stderr, "%s: library not found\n", optarg);
-          ++error_count;
-        }
-#endif
-        continue;
-      }
-
-      if (outfn == NULL) {
-        if (opts->out_type == OutObject)
-          outfn = change_ext(basename(src), "o");
-      }
-    }
-
-    enum SourceType st = opts->src_type;
-    if (src != NULL) {
-      char *ext = get_ext(src);
-      if      (strcasecmp(ext, "c") == 0)  st = Clanguage;
-      else if (strcasecmp(ext, "o") == 0)  st = ObjectFile;
-      else if (strcasecmp(ext, "a") == 0)  st = ArchiveFile;
-    }
-
-    switch (st) {
-    case UnknownSource:
-      fprintf(stderr, "Unknown source type: %s\n", src);
-      return 1;  // exit
-    case Clanguage:
-      {
-        int res = compile_csource(src, outfn, obj_files, opts);
-        if (res != 0)
-          return 1;  // exit
-      }
-      break;
-    case ObjectFile:
-    case ArchiveFile:
-      if (opts->out_type >= OutExecutable)
-        vec_push(obj_files, src);
-      break;
-    }
+    if (!do_compile1(src, opts, obj_files))
+      ++error_count;
   }
   if (error_count > 0)
     return 1;

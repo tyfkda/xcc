@@ -49,49 +49,23 @@ static bool traverse_ast_expr(Expr **pexpr, LexicalStack *parent, TraverseAstPar
     break;
 
   // Bop
-  case EX_ADD:
-  case EX_SUB:
-  case EX_MUL:
-  case EX_DIV:
-  case EX_MOD:
-  case EX_BITAND:
-  case EX_BITOR:
-  case EX_BITXOR:
-  case EX_EQ:
-  case EX_NE:
-  case EX_LT:
-  case EX_LE:
-  case EX_GE:
-  case EX_GT:
-  case EX_LOGAND:
-  case EX_LOGIOR:
-  case EX_LSHIFT:
-  case EX_RSHIFT:
-  case EX_COMMA:
-  case EX_ASSIGN:
+  case EX_ADD: case EX_SUB: case EX_MUL: case EX_DIV: case EX_MOD:
+  case EX_BITAND: case EX_BITOR: case EX_BITXOR:
+  case EX_EQ: case EX_NE: case EX_LT: case EX_LE: case EX_GE: case EX_GT:
+  case EX_LOGAND: case EX_LOGIOR: case EX_LSHIFT: case EX_RSHIFT:
+  case EX_COMMA: case EX_ASSIGN:
     return traverse_ast_expr(&expr->bop.lhs, &lstack, param) ||
            traverse_ast_expr(&expr->bop.rhs, &lstack, param);
 
   // Unary
-  case EX_POS:
-  case EX_NEG:
-  case EX_BITNOT:
-  case EX_REF:
-  case EX_DEREF:
-  case EX_CAST:
-  case EX_PREINC:
-  case EX_PREDEC:
-  case EX_POSTINC:
-  case EX_POSTDEC:
+  case EX_POS: case EX_NEG: case EX_BITNOT: case EX_REF: case EX_DEREF: case EX_CAST:
+  case EX_PREINC: case EX_PREDEC: case EX_POSTINC: case EX_POSTDEC:
     return traverse_ast_expr(&expr->unary.sub, &lstack, param);
 
   case EX_TERNARY:
     return traverse_ast_expr(&expr->ternary.cond, &lstack, param) ||
            traverse_ast_expr(&expr->ternary.tval, &lstack, param) ||
            traverse_ast_expr(&expr->ternary.fval, &lstack, param);
-
-  case EX_MEMBER:
-    return traverse_ast_expr(&expr->member.target, &lstack, param);
 
   case EX_FUNCALL:
     {
@@ -105,14 +79,10 @@ static bool traverse_ast_expr(Expr **pexpr, LexicalStack *parent, TraverseAstPar
     }
     break;
 
-  case EX_INLINED:
-    return traverse_ast_stmt(&expr->inlined.embedded, &lstack, param);
-
-  case EX_COMPLIT:
-    return traverse_ast_stmts(expr->complit.inits, &lstack, param);
-
-  case EX_BLOCK:
-    return traverse_ast_stmt(&expr->block, &lstack, param);
+  case EX_MEMBER:   return traverse_ast_expr(&expr->member.target, &lstack, param);
+  case EX_INLINED:  return traverse_ast_stmt(&expr->inlined.embedded, &lstack, param);
+  case EX_COMPLIT:  return traverse_ast_stmts(expr->complit.inits, &lstack, param);
+  case EX_BLOCK:    return traverse_ast_stmt(&expr->block, &lstack, param);
   }
   return false;
 }

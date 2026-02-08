@@ -174,6 +174,12 @@ static bool resolve_symbols(WasmLinker *linker) {
 
   resolve_symbols_auto_fill(linker);
 
+  return err_count == 0;
+}
+
+static bool enumerate_unresolved(WasmLinker *linker) {
+  int err_count = 0;
+
   // Enumerate unresolved: import
   uint32_t unresolved_func_count = 0;
   const Name *name;
@@ -1043,13 +1049,67 @@ static void verbose_symbols(WasmObj *wasmobj, enum SymInfoKind kind) {
   }
 }
 
+static inline void verbose_link_result(WasmLinker *linker) {
+  const Name *name;
+  SymbolInfo *sym;
+
+  printf("### Functions\n");
+  uint32_t imports_count = 0;
+  // Import.
+  for (int it = 0; (it = table_iterate(&linker->unresolved, it, &name, (void**)&sym)) != -1; ) {
+    if (sym->kind != SIK_SYMTAB_FUNCTION)
+      continue;
+    const Name *modname = sym->module_name;
+    assert(modname != NULL);
+    const Name *name = sym->name;
+    printf("%2d: %.*s.%.*s (import)\n", imports_count, NAMES(modname), NAMES(name));
+    ++imports_count;
+  }
+  // Defined.
+  for (int i = 0; i < linker->files->len; ++i) {
+    File *file = linker->files->data[i];
+    switch (file->kind) {
+    case FK_WASMOBJ:
+      verbose_symbols(file->wasmobj, SIK_SYMTAB_FUNCTION);
+      break;
+    case FK_ARCHIVE:
+      FOREACH_FILE_ARCONTENT(file->archive, content, {
+        verbose_symbols(content->obj, SIK_SYMTAB_FUNCTION);
+      });
+      break;
+    }
+  }
+
+  printf("### Globals\n");
+  for (int it = 0; (it = table_iterate(&linker->defined, it, &name, (void**)&sym)) != -1; ) {
+    if (sym->kind != SIK_SYMTAB_GLOBAL)
+      continue;
+    printf("%2d: %.*s\n", sym->combined_index, NAMES(sym->name));
+  }
+
+  printf("### Data\n");
+  for (int i = 0; i < linker->files->len; ++i) {
+    File *file = linker->files->data[i];
+    switch (file->kind) {
+    case FK_WASMOBJ:
+      verbose_symbols(file->wasmobj, SIK_SYMTAB_DATA);
+      break;
+    case FK_ARCHIVE:
+      FOREACH_FILE_ARCONTENT(file->archive, content, {
+        verbose_symbols(content->obj, SIK_SYMTAB_DATA);
+      });
+      break;
+    }
+  }
+}
+
 bool link_wasm_objs(WasmLinker *linker, Table *exports, uint32_t stack_size) {
   const Name *name;
   for (int it = 0; (it = table_iterate(exports, it, &name, NULL)) != -1; ) {
     table_put(&linker->unresolved, name, NULL);
   }
 
-  if (!resolve_symbols(linker))
+  if (!resolve_symbols(linker) || !enumerate_unresolved(linker))
     return false;
 
   uint32_t data_end_address = remap_data_address(linker, stack_size);
@@ -1080,59 +1140,8 @@ bool link_wasm_objs(WasmLinker *linker, Table *exports, uint32_t stack_size) {
 
   linker->address_bottom = address_bottom;
 
-  if (verbose) {
-    const Name *name;
-    SymbolInfo *sym;
-
-    printf("### Functions\n");
-    uint32_t imports_count = 0;
-    // Import.
-    for (int it = 0; (it = table_iterate(&linker->unresolved, it, &name, (void**)&sym)) != -1; ) {
-      if (sym->kind != SIK_SYMTAB_FUNCTION)
-        continue;
-      const Name *modname = sym->module_name;
-      assert(modname != NULL);
-      const Name *name = sym->name;
-      printf("%2d: %.*s.%.*s (import)\n", imports_count, NAMES(modname), NAMES(name));
-      ++imports_count;
-    }
-    // Defined.
-    for (int i = 0; i < linker->files->len; ++i) {
-      File *file = linker->files->data[i];
-      switch (file->kind) {
-      case FK_WASMOBJ:
-        verbose_symbols(file->wasmobj, SIK_SYMTAB_FUNCTION);
-        break;
-      case FK_ARCHIVE:
-        FOREACH_FILE_ARCONTENT(file->archive, content, {
-          verbose_symbols(content->obj, SIK_SYMTAB_FUNCTION);
-        });
-        break;
-      }
-    }
-
-    printf("### Globals\n");
-    for (int it = 0; (it = table_iterate(&linker->defined, it, &name, (void**)&sym)) != -1; ) {
-      if (sym->kind != SIK_SYMTAB_GLOBAL)
-        continue;
-      printf("%2d: %.*s\n", sym->combined_index, NAMES(sym->name));
-    }
-
-    printf("### Data\n");
-    for (int i = 0; i < linker->files->len; ++i) {
-      File *file = linker->files->data[i];
-      switch (file->kind) {
-      case FK_WASMOBJ:
-        verbose_symbols(file->wasmobj, SIK_SYMTAB_DATA);
-        break;
-      case FK_ARCHIVE:
-        FOREACH_FILE_ARCONTENT(file->archive, content, {
-          verbose_symbols(content->obj, SIK_SYMTAB_DATA);
-        });
-        break;
-      }
-    }
-  }
+  if (verbose)
+    verbose_link_result(linker);
 
   return true;
 }

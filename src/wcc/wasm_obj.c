@@ -496,6 +496,50 @@ static void read_reloc(WasmObj *wasmobj, unsigned char *p, int is_data) {
   wasmobj->reloc[is_data].count = count;
 }
 
+static void read_custom_section(WasmObj *wasmobj, unsigned char *p, unsigned char *end) {
+  unsigned char *q;
+  if (match_string(p, "linking", &q)) {
+    read_linking(wasmobj, q, end);
+  } else if (match_string(p, "reloc.CODE", &q)) {
+    read_reloc(wasmobj, q, 0);
+  } else if (match_string(p, "reloc.DATA", &q)) {
+    read_reloc(wasmobj, q, 1);
+  }
+}
+
+static void read_wasm_sections(WasmObj *wasmobj) {
+  WasmSection *sections = NULL;
+  unsigned char *p = wasmobj->buffer;
+  unsigned char *end = p + wasmobj->bufsiz;
+  while (p < end) {
+    uint8_t id = *p++;
+    if (id > SEC_TAG) {
+      error("invalid section id: %d\n", id);
+    }
+
+    size_t size = read_uleb128(p, &p);
+    int count = ++wasmobj->section_count;
+    wasmobj->sections = sections = realloc_or_die(sections, sizeof(WasmSection) * count);
+    WasmSection *sec = &sections[count - 1];
+    sec->start = p;
+    sec->size = size;
+    sec->id = id;
+
+    switch (id) {
+    case SEC_TYPE:    read_type_section(wasmobj, p); break;
+    case SEC_IMPORT:  read_import_section(wasmobj, p); break;
+    case SEC_FUNC:    read_func_section(wasmobj, p); break;
+    case SEC_TAG:     read_tag_section(wasmobj, p); break;
+    case SEC_DATA:    read_data_section(wasmobj, p); break;
+    case SEC_ELEM:    read_elem_section(wasmobj, p); break;
+    case SEC_CUSTOM:  read_custom_section(wasmobj, p, sec->start + size); break;
+    default: break;
+    }
+
+    p += size;
+  }
+}
+
 WasmObj *read_wasm(FILE *fp, const char *filename, size_t filesize) {
   static const char MAGIC[] = WASM_BINARY_MAGIC;
 
@@ -521,69 +565,11 @@ WasmObj *read_wasm(FILE *fp, const char *filename, size_t filesize) {
   wasmobj->bufsiz = bufsize;
 
   // Enumerate sections.
-  WasmSection *sections = NULL;
-  int linking_section_index = -1;
   wasmobj->section_count = 0;
-  {
-    unsigned char *p = wasmobj->buffer;
-    unsigned char *end = p + wasmobj->bufsiz;
-    while (p < end) {
-      uint8_t id = *p++;
-      if (id > SEC_TAG) {
-        error("invalid section id: %d\n", id);
-      }
+  read_wasm_sections(wasmobj);
 
-      size_t size = read_uleb128(p, &p);
-      int count = ++wasmobj->section_count;
-      wasmobj->sections = sections = realloc_or_die(sections, sizeof(WasmSection) * count);
-      WasmSection *sec = &sections[count - 1];
-      sec->start = p;
-      sec->size = size;
-      sec->id = id;
-      wasmobj->sections = sections;
-      wasmobj->section_count = count;
-
-      switch (id) {
-      case SEC_TYPE:
-        read_type_section(wasmobj, p);
-        break;
-      case SEC_IMPORT:
-        read_import_section(wasmobj, p);
-        break;
-      case SEC_FUNC:
-        read_func_section(wasmobj, p);
-        break;
-      case SEC_TAG:
-        read_tag_section(wasmobj, p);
-        break;
-      case SEC_DATA:
-        read_data_section(wasmobj, p);
-        break;
-      case SEC_ELEM:
-        read_elem_section(wasmobj, p);
-        break;
-      case SEC_CUSTOM:
-        {
-          unsigned char *q;
-          if (match_string(p, "linking", &q)) {
-            linking_section_index = count;
-            read_linking(wasmobj, q, sec->start + size);
-          } else if (match_string(p, "reloc.CODE", &q)) {
-            read_reloc(wasmobj, q, 0);
-          } else if (match_string(p, "reloc.DATA", &q)) {
-            read_reloc(wasmobj, q, 1);
-          }
-        }
-        break;
-      default: break;
-      }
-
-      p += size;
-    }
-  }
-
-  if (linking_section_index < 0) {
-    fprintf(stderr, "no linking section: %s\n", filename);
+  if (wasmobj->linking.symtab->len == 0) {
+    fprintf(stderr, "no linking symbol: %s\n", filename);
     return NULL;
   }
 

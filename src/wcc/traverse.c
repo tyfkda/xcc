@@ -825,9 +825,8 @@ static void traverse_defun(Function *func) {
   // Pick up constructor function.
   // Destructor is converted to constructor which register itself with atexit,
   // so it is not necessary to pick up destructor here.
-  const Name *constructor_name = alloc_name("constructor", NULL, false);
   if (func->attributes != NULL) {
-    if (table_try_get(func->attributes, constructor_name, NULL)) {
+    if (table_try_get(func->attributes, alloc_name("constructor", NULL, false), NULL)) {
       // Ensure that the function has no parameters and returns void.
       const Type *type = func->type;
       if (type->func.params == NULL || type->func.params->len > 0 ||
