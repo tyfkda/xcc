@@ -420,26 +420,6 @@ Type *parse_raw_type(int *pstorage) {
   return type;
 }
 
-Type *parse_type_suffix(Type *type) {
-  if (type == NULL)
-    return NULL;
-
-  if (!match(TK_LBRACKET))
-    return type;
-  ssize_t length = -1;
-  if (match(TK_RBRACKET)) {
-    // Arbitrary size.
-  } else {
-    Expr *expr = parse_const_fixnum();
-    if (expr->fixnum < 0)
-      parse_error(PE_NOFATAL, expr->token, "array size must be greater than 0, but %" PRId64,
-                  expr->fixnum);
-    length = expr->fixnum;
-    consume(TK_RBRACKET, "`]' expected");
-  }
-  return arrayof(parse_type_suffix(type), length);
-}
-
 // <pointer> ::= * {<type-qualifier>}* {<pointer>}?
 static Type *parse_pointer(Type *type) {
   if (type == NULL)

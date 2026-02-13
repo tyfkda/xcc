@@ -969,10 +969,6 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
   for (;;) {
     attributes = parse_attributes(attributes);
 
-    if (!(type->kind == TY_PTR && type->pa.ptrof->kind == TY_FUNC) &&
-        type->kind != TY_VOID)
-      type = parse_type_suffix(type);
-
 #ifndef __NO_VLA
     if (type->kind == TY_ARRAY && type->pa.vla != NULL)
       type = array_to_ptr(type);
