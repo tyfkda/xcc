@@ -14,18 +14,28 @@
 
 // Register allocator
 
-const char *kRegSizeTable[][PHYSICAL_REG_MAX] = {
-  { AL, DIL, SIL,  DL,  CL, R8B, R9B,  BL, R12B, R13B, R14B, R15B, BPL, R10B, R11B},
-  { AX,  DI,  SI,  DX,  CX, R8W, R9W,  BX, R12W, R13W, R14W, R15W,  BP, R10W, R11W},
-  {EAX, EDI, ESI, EDX, ECX, R8D, R9D, EBX, R12D, R13D, R14D, R15D, EBP, R10D, R11D},
-  {RAX, RDI, RSI, RDX, RCX,  R8,  R9, RBX,  R12,  R13,  R14,  R15, RBP,  R10,  R11},
-};
+static const char *kReg8s[PHYSICAL_REG_MAX]  = {
+    AL,  DIL,  SIL,   DL,   CL,  R8B,  R9B,  // Temporary
+    BL, R12B, R13B, R14B, R15B,  BPL,        // Callee save
+  R10B, R11B};                               // Caller save
+static const char *kReg16s[PHYSICAL_REG_MAX] = {
+    AX,   DI,   SI,   DX,   CX,  R8W,  R9W,  // Temporary
+    BX, R12W, R13W, R14W, R15W,   BP,        // Callee save
+  R10W, R11W};                               // Caller save
+static const char *kReg32s[PHYSICAL_REG_MAX] = {
+   EAX,  EDI,  ESI,  EDX,  ECX,  R8D,  R9D,  // Temporary
+   EBX, R12D, R13D, R14D, R15D,  EBP,        // Callee save
+  R10D, R11D};                               // Caller save
+static const char *kReg64s[PHYSICAL_REG_MAX] = {
+   RAX,  RDI,  RSI,  RDX,  RCX,   R8,   R9,  // Temporary
+   RBX,  R12,  R13,  R14,  R15,  RBP,        // Callee save
+   R10,  R11};                               // Caller save
 
 // Return index of %rcx register.
 // Detect the index using the fact that %rcx is 4th parameter on calling convention.
-#define GET_AREG_INDEX()  0
 #define GET_CREG_INDEX()  4  // ArchRegParamMapping[3]
 #define GET_DREG_INDEX()  3  // ArchRegParamMapping[2]
+#define GET_AREG_INDEX()  0
 #define GET_BPREG_INDEX() 12
 
 #define CALLEE_SAVE_REG_COUNT  ((int)ARRAY_SIZE(kCalleeSaveRegs))
@@ -37,9 +47,7 @@ static const int kCallerSaveRegs[] = {13, 14};
 const int ArchRegParamMapping[] = {1, 2, 3, 4, 5, 6};
 const int ArchRegReturnMapping[] = {GET_AREG_INDEX(), GET_DREG_INDEX()};
 
-#define kReg8s   (kRegSizeTable[0])
-#define kReg32s  (kRegSizeTable[2])
-#define kReg64s  (kRegSizeTable[3])
+const char **kRegSizeTable[] = {kReg8s, kReg16s, kReg32s, kReg64s};
 
 #define SZ_FLOAT   VRegSize4
 #define SZ_DOUBLE  VRegSize8
@@ -1077,32 +1085,6 @@ static void ei_keep(IR *ir) {
   UNUSED(ir);
 }
 
-static void ei_asm(IR *ir) {
-  Vector *templates = ir->asm_.templates;
-  Vector *registers = ir->additional_operands;
-  int dst_exists = ir->dst != NULL;
-  for (int i = 0, n = templates->len; i < n; i += 2) {
-    const char *str = templates->data[i];
-    emit_asm_raw(str);
-    if (i + 1 < n) {
-      uintptr_t index = (uintptr_t)templates->data[i + 1];
-      assert(index < (uintptr_t)(registers->len + dst_exists));
-      VReg *value = dst_exists && index == 0 ? ir->dst : registers->data[index - dst_exists];
-      assert(!(value->flag & VRF_FLONUM));  // TODO:
-      if (value->flag & VRF_CONST) {
-        emit_asm_raw(IM(value->fixnum));
-      } else {
-        assert(value->phys >= 0);
-        int pow = value->vsize;
-        assert(0 <= pow && pow < 4);
-        const char **regs = kRegSizeTable[pow];
-        emit_asm_raw(regs[value->phys]);
-      }
-    }
-  }
-  emit_asm_raw("\n");
-}
-
 const EmitIrFunc kEmitIrFuncTable[] = {
   [IR_BOFS] = ei_bofs, [IR_IOFS] = ei_iofs, [IR_SOFS] = ei_sofs,
   [IR_LOAD] = ei_load, [IR_LOAD_S] = ei_load_s, [IR_STORE] = ei_store, [IR_STORE_S] = ei_store_s,
@@ -1117,7 +1099,7 @@ const EmitIrFunc kEmitIrFuncTable[] = {
 
   [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
   [IR_PUSHARG] = ei_pusharg, [IR_CALL] = ei_call,
-  [IR_SUBSP] = ei_subsp, [IR_KEEP] = ei_keep, [IR_ASM] = ei_asm,
+  [IR_SUBSP] = ei_subsp, [IR_KEEP] = ei_keep,
 };
 
 // Rewrite `A = B op C` to `A = B; A = A op C`.

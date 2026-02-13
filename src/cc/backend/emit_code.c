@@ -368,6 +368,35 @@ static void emit_asm(const Asm *asm_) {
   EMIT_ASM(str);
 }
 
+static void ei_asm(IR *ir) {
+  extern const char **kRegSizeTable[];
+  extern char *im(int64_t x);
+
+  Vector *templates = ir->asm_.templates;
+  Vector *registers = ir->additional_operands;
+  int dst_exists = ir->dst != NULL;
+  for (int i = 0, n = templates->len; i < n; i += 2) {
+    const char *str = templates->data[i];
+    emit_asm_raw(str);
+    if (i + 1 < n) {
+      uintptr_t index = (uintptr_t)templates->data[i + 1];
+      assert(index < (uintptr_t)(registers->len + dst_exists));
+      VReg *value = dst_exists && index == 0 ? ir->dst : registers->data[index - dst_exists];
+      assert(!(value->flag & VRF_FLONUM));  // TODO:
+      if (value->flag & VRF_CONST) {
+        emit_asm_raw(im(value->fixnum));
+      } else {
+        assert(value->phys >= 0);
+        int pow = value->vsize;
+        assert(0 <= pow && pow < 4);
+        const char **regs = kRegSizeTable[pow];
+        emit_asm_raw(regs[value->phys]);
+      }
+    }
+  }
+  emit_asm_raw("\n");
+}
+
 void emit_bb_irs(BBContainer *bbcon) {
   for (int i = 0; i < bbcon->len; ++i) {
     BB *bb = bbcon->data[i];
@@ -388,6 +417,10 @@ void emit_bb_irs(BBContainer *bbcon) {
       EMIT_LABEL(fmt_name(bb->label));
     for (int j = 0; j < bb->irs->len; ++j) {
       IR *ir = bb->irs->data[j];
+      if (ir->kind == IR_ASM) {
+        ei_asm(ir);
+        continue;
+      }
       assert(kEmitIrFuncTable[ir->kind] != NULL);
       (*kEmitIrFuncTable[ir->kind])(ir);
     }

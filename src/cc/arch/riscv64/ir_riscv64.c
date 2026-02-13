@@ -32,6 +32,8 @@ static const int kCallerSaveRegs[] = {19, 20, 21, 22, 23, 24, 25};
 const int ArchRegParamMapping[] = {0, 1, 2, 3, 4, 5, 6, 7};
 #define ArchRegReturnMapping  ArchRegParamMapping
 
+const char **kRegSizeTable[] = {kReg64s, kReg64s, kReg64s, kReg64s};
+
 // Break s1 in store, mod and tjmp
 static const char *kTmpReg = S1;
 
@@ -992,29 +994,6 @@ static void ei_keep(IR *ir) {
   UNUSED(ir);
 }
 
-static void ei_asm(IR *ir) {
-  Vector *templates = ir->asm_.templates;
-  Vector *registers = ir->additional_operands;
-  int dst_exists = ir->dst != NULL;
-  for (int i = 0, n = templates->len; i < n; i += 2) {
-    const char *str = templates->data[i];
-    emit_asm_raw(str);
-    if (i + 1 < n) {
-      uintptr_t index = (uintptr_t)templates->data[i + 1];
-      assert(index < (uintptr_t)(registers->len + dst_exists));
-      VReg *value = dst_exists && index == 0 ? ir->dst : registers->data[index - dst_exists];
-      assert(!(value->flag & VRF_FLONUM));  // TODO:
-      if (value->flag & VRF_CONST) {
-        emit_asm_raw(IM(value->fixnum));
-      } else {
-        assert(value->phys >= 0);
-        emit_asm_raw(kReg64s[value->phys]);
-      }
-    }
-  }
-  emit_asm_raw("\n");
-}
-
 const EmitIrFunc kEmitIrFuncTable[] = {
   [IR_BOFS] = ei_bofs, [IR_IOFS] = ei_iofs, [IR_SOFS] = ei_sofs,
   [IR_LOAD] = ei_load, [IR_LOAD_S] = ei_load_s, [IR_STORE] = ei_store, [IR_STORE_S] = ei_store_s,
@@ -1029,7 +1008,7 @@ const EmitIrFunc kEmitIrFuncTable[] = {
 
   [IR_JMP] = ei_jmp, [IR_TJMP] = ei_tjmp,
   [IR_PUSHARG] = ei_pusharg, [IR_CALL] = ei_call,
-  [IR_SUBSP] = ei_subsp, [IR_KEEP] = ei_keep, [IR_ASM] = ei_asm,
+  [IR_SUBSP] = ei_subsp, [IR_KEEP] = ei_keep,
 };
 
 //
