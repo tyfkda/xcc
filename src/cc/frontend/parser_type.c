@@ -16,6 +16,10 @@
 
 extern bool parsing_stmt;
 
+// <enumerator-list> ::= <enumerator>
+//                     | <enumerator-list> , <enumerator>
+// <enumerator> ::= <identifier>
+//                | <identifier> = <constant-expression>
 static bool parse_enum_members(Type *type) {
   assert(type != NULL && type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM);
   Type *ctype = qualified_type(type, TQ_CONST);
@@ -71,6 +75,9 @@ static bool handle_define_type_tag(Scope *scope, const Token *token, enum TypeTa
   return false;
 }
 
+// <enum-specifier> ::= enum <identifier> { <enumerator-list> }
+//                    | enum { <enumerator-list> }
+//                    | enum <identifier>
 static Type *parse_enum(void) {
   Token *tagname = match(TK_IDENT);
   const Name *name = tagname != NULL ? tagname->ident : NULL;
@@ -97,8 +104,14 @@ static Type *parse_enum(void) {
   return type;
 }
 
-// Parse struct or union definition `{...}`
+// <struct-declaration> ::= {<specifier-qualifier>}* <struct-declarator-list>
+// <struct-declarator-list> ::= <struct-declarator>
+//                            | <struct-declarator-list> , <struct-declarator>
+// <struct-declarator> ::= <declarator>
+//                       | <declarator> : <constant-expression>
+//                       | : <constant-expression>
 static StructInfo *parse_struct(bool is_union, Table *attributes) {
+  // Parse struct or union definition `{...}`
   int count = 0;
   MemberInfo *members = NULL;
   Token *flex_arr_mem = NULL;  // Flexible array member appeared.
@@ -249,6 +262,9 @@ static Type *parse_typeof(const Token *tok) {
 
 #define ASSERT_PARSE_ERROR(cond, tok, ...)  do { if (!(cond)) parse_error(PE_NOFATAL, tok, __VA_ARGS__); } while (0)
 
+// <declaration-specifier> ::= <storage-class-specifier>
+//                           | <type-specifier>
+//                           | <type-qualifier>
 Type *parse_raw_type(int *pstorage) {
   static const char MULTIPLE_STORAGE_SPECIFIED[] = "multiple storage specified";
   static const char MULTIPLE_QUALIFIER_SPECIFIED[] = "multiple qualifier specified";
@@ -629,6 +645,19 @@ Type *parse_declarator(Type *rawtype, Token **pident) {
   return parse_direct_declarator(type, pident);
 }
 
+// <parameter-type-list> ::= <parameter-list>
+//                         | <parameter-list> , ...
+// <parameter-list> ::= <parameter-declaration>
+//                    | <parameter-list> , <parameter-declaration>
+// <parameter-declaration> ::= {<declaration-specifier>}+ <declarator>
+//                           | {<declaration-specifier>}+ <abstract-declarator>
+//                           | {<declaration-specifier>}+
+// <abstract-declarator> ::= <pointer>
+//                         | <pointer> <direct-abstract-declarator>
+//                         | <direct-abstract-declarator>
+// <direct-abstract-declarator> ::=  ( <abstract-declarator> )
+//                                | {<direct-abstract-declarator>}? [ {<constant-expression>}? ]
+//                                | {<direct-abstract-declarator>}? ( {<parameter-type-list>}? )
 Vector *parse_funparams(bool *pvaargs) {
   Vector *bak_parsing_funparams = parsing_funparams;
   parsing_funparams = NULL;

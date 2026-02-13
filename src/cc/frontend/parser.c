@@ -72,6 +72,8 @@ static inline void check_goto_labels(Function *func) {
 
 //
 
+// <initializer-list> ::= <initializer>
+//                      | <initializer-list> , <initializer>
 static Initializer *parse_initializer_multi(void) {
   Initializer *init = NULL;
   const Token *tok;
@@ -107,6 +109,9 @@ static Initializer *parse_initializer_multi(void) {
   return init;
 }
 
+// <initializer> ::= <assignment-expression>
+//                 | { <initializer-list> }
+//                 | { <initializer-list> , }
 Initializer *parse_initializer(void) {
   Initializer *result;
   const Token *lblace_tok;
@@ -681,7 +686,7 @@ static Stmt *parse_asm(const Token *tok) {
   return new_stmt_asm(tok, templates, outputs, inputs, flag);
 }
 
-static const Token *parse_stmts(Stmt *parent, Vector *stmts) {
+static inline const Token *parse_stmts(Stmt *parent, Vector *stmts) {
   for (;;) {
     parsing_stmt = true;
     if (parse_vardecl(stmts))
@@ -699,6 +704,7 @@ static const Token *parse_stmts(Stmt *parent, Vector *stmts) {
   }
 }
 
+// <compound-statement> ::= { {<declaration>}* {<statement>}* }
 Stmt *parse_block(const Token *tok, Scope *scope) {
   if (scope == NULL)
     scope = enter_scope(curfunc);
@@ -708,6 +714,26 @@ Stmt *parse_block(const Token *tok, Scope *scope) {
   return stmt;
 }
 
+// <statement> ::= <labeled-statement>
+//               | <expression-statement>
+//               | <compound-statement>
+//               | <selection-statement>
+//               | <iteration-statement>
+//               | <jump-statement>
+// <labeled-statement> ::= <identifier> : <statement>
+//                       | case <constant-expression> : <statement>
+//                       | default : <statement>
+// <expression-statement> ::= {<expression>}? ;
+// <selection-statement> ::= if ( <expression> ) <statement>
+//                         | if ( <expression> ) <statement> else <statement>
+//                         | switch ( <expression> ) <statement>
+// <iteration-statement> ::= while ( <expression> ) <statement>
+//                         | do <statement> while ( <expression> ) ;
+//                         | for ( {<expression>}? ; {<expression>}? ; {<expression>}? ) <statement>
+// <jump-statement> ::= goto <identifier> ;
+//                    | continue ;
+//                    | break ;
+//                    | return {<expression>}? ;
 static Stmt *parse_stmt(void) {
   parsing_stmt = true;
   Token *tok = match(-1);
@@ -882,6 +908,7 @@ static void modify_funparam_vla_type(Type *type, Scope *scope) {
 }
 #endif
 
+// <function-definition> ::= {<declaration-specifier>}* <declarator> {<declaration>}* <compound-statement>
 static Declaration *parse_defun(Type *functype, int storage, Token *ident, const Token *tok,
                                 Table *attributes) {
   assert(functype->kind == TY_FUNC);
@@ -963,6 +990,7 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
   return decl;
 }
 
+// <declaration> ::=  {<declaration-specifier>}+ {<init-declarator>}* ;
 static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token *ident,
                                   Table *attributes, Vector *decls) {
   UNUSED(decls);
@@ -1040,6 +1068,8 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
   consume(TK_SEMICOL, "`;' or `,' expected");
 }
 
+// <external-declaration> ::= <function-definition>
+//                          | <declaration>
 static Declaration *parse_declaration(Vector *decls) {
   bool consumed_empty = false;
   while (match(TK_SEMICOL))
@@ -1248,6 +1278,7 @@ static void modify_dtor_func(Vector *decls) {
 }
 #endif
 
+// <translation-unit> ::= {<external-declaration>}*
 void parse(Vector *decls) {
   curscope = global_scope;
 
