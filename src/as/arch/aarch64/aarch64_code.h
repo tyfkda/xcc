@@ -50,9 +50,9 @@
 
 #define W_B()                                      MAKE_CODE32(inst, code, 0x14000000U)
 #define W_BR(rn)                                   MAKE_CODE32(inst, code, 0xd61f0000U | ((rn) << 5))
-#define W_BCC(cond)                                MAKE_CODE32(inst, code, 0x54000000U | (cond))
-#define W_CBZ(sz, rt)                              MAKE_CODE32(inst, code, 0x34000000U | ((sz) << 31) | (rt))
-#define W_CBNZ(sz, rt)                             MAKE_CODE32(inst, code, 0x35000000U | ((sz) << 31) | (rt))
+#define W_BCC(cond, ofs)                           MAKE_CODE32(inst, code, 0x54000000U | (cond) | (((ofs & (((1 << 19) - 1) << 2))) << (5 - 2)))
+#define W_CBZ(sz, rt, ofs)                         MAKE_CODE32(inst, code, 0x34000000U | ((sz) << 31) | (rt) | (((ofs & (((1 << 19) - 1) << 2))) << (5 - 2)))
+#define W_CBNZ(sz, rt, ofs)                        MAKE_CODE32(inst, code, 0x35000000U | ((sz) << 31) | (rt) | (((ofs & (((1 << 19) - 1) << 2))) << (5 - 2)))
 
 #define W_CLZ(sz, rd, rn)                          MAKE_CODE32(inst, code, 0x5ac01000U | ((sz) << 31) | ((rn) << 5) | (rd))
 #define W_RBIT(sz, rd, rn)                         MAKE_CODE32(inst, code, 0x5ac00000U | ((sz) << 31) | ((rn) << 5) | (rd))

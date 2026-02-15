@@ -185,6 +185,7 @@ static inline void construct_rela_element(
     construct_rela_element_abs64(symtab, u, rela, ARM64_RELOC_UNSIGNED);
     break;
 
+  case UNRES_EXTERN_PC32:
   case UNRES_CALL:
     {
       int symidx = symtab_find(symtab, u->label);

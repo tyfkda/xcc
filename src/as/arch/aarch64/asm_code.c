@@ -416,20 +416,29 @@ static unsigned char *asm_br(Inst *inst, Code *code) {
   return NULL;
 }
 
-static unsigned char *asm_bcc(Inst *inst, Code *code) {
+void asm_bcc_with_offset(Inst *inst, Code *code, int64_t offset) {
+  assert((offset & 3) == 0);
   uint32_t cond = inst->op == B ? BAL - BEQ : inst->op - BEQ;
-  W_BCC(cond);
+  W_BCC(cond, offset);
+}
+
+static unsigned char *asm_bcc(Inst *inst, Code *code) {
+  asm_bcc_with_offset(inst, code, 0);
   return code->buf;
 }
 
-static unsigned char *asm_cbxx(Inst *inst, Code *code) {
+void asm_cbxx_with_offset(Inst *inst, Code *code, int64_t offset) {
   Operand *opr1 = &inst->opr[0];
   uint32_t sz = opr1->reg.size == REG64 ? 1 : 0;
   switch (inst->op) {
-  case CBZ:   W_CBZ(sz, opr1->reg.no); break;
-  case CBNZ:  W_CBNZ(sz, opr1->reg.no); break;
-  default: return NULL;
+  case CBZ:   W_CBZ(sz, opr1->reg.no, offset); break;
+  case CBNZ:  W_CBNZ(sz, opr1->reg.no, offset); break;
+  default:  assert(false); break;
   }
+}
+
+static unsigned char *asm_cbxx(Inst *inst, Code *code) {
+  asm_cbxx_with_offset(inst, code, 0);
   return code->buf;
 }
 

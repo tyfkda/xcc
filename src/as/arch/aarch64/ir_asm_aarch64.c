@@ -2,7 +2,9 @@
 #include "ir_asm.h"
 
 #include <assert.h>
+#include <string.h>
 
+#include "aarch64_code.h"
 #include "inst.h"
 #include "parse_asm.h"
 #include "table.h"
@@ -189,72 +191,87 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
           case BMI: case BPL: case BVS: case BVC:
           case BHI: case BLS: case BGE: case BLT:
           case BGT: case BLE: case BAL: case BNV:
-            if (inst->opr[0].type == DIRECT) {
-              Value value = calc_expr(label_table, inst->opr[0].direct.expr.expr);
-              if (value.label != NULL) {
-                LabelInfo *label_info = table_get(label_table, value.label);
-                if (label_info == NULL) {
-                  /*UnresolvedInfo *info = malloc_or_die(sizeof(*info));
-                  info->kind = UNRES_EXTERN;
-                  info->label = value.label;
-                  info->src_section = section;
-                  info->offset = address - start_address;
-                  info->add = value.offset - 4;
-                  vec_push(unresolved, info);
-                  break;*/
-                  assert(false);
-                } else {
-                  value.offset += label_info->address;
-                }
-              }
-
-              int64_t offset = value.offset - address;
-              if (inst->op == B) {
-                if (offset >= (1L << 27) || offset < -(1L << 27) || (offset & 3) != 0)
-                  error("Jump offset too far (over 32bit)");
-
-                Code *code = &ir->code;
-                uint32_t *buf = (uint32_t*)code->buf;
-                *buf = (*buf & 0xfc000000) | ((offset >> 2) & ((1U << 26) - 1));
-              } else {
-                if (offset >= (1L << 20) || offset < -(1L << 20) || (offset & 3) != 0)
-                  error("Jump offset too far (over 32bit)");
-
-                Code *code = &ir->code;
-                uint32_t *buf = (uint32_t*)code->buf;
-                *buf = (*buf & 0xff00001f) | ((offset & ((1U << 21) - 1)) << (5 - 2));
-              }
-            }
-            break;
-
           case CBZ: case CBNZ:
-            if (inst->opr[1].type == DIRECT) {
-              Value value = calc_expr(label_table, inst->opr[1].direct.expr.expr);
-              if (value.label != NULL) {
-                LabelInfo *label_info = table_get(label_table, value.label);
-                if (label_info == NULL) {
-                  /*UnresolvedInfo *info = malloc_or_die(sizeof(*info));
-                  info->kind = UNRES_EXTERN;
-                  info->label = value.label;
-                  info->src_section = section;
-                  info->offset = address - start_address;
-                  info->add = value.offset - 4;
-                  vec_push(unresolved, info);
-                  break;*/
-                  assert(false);
-                } else {
-                  value.offset += label_info->address;
+            {
+              bool cb = inst->op == CBZ || inst->op == CBNZ;
+              Operand *label_opr = &inst->opr[cb];
+              if (label_opr->type == DIRECT) {
+                Value value = calc_expr(label_table, label_opr->direct.expr.expr);
+                if (value.label != NULL) {
+                  LabelInfo *label_info = table_get(label_table, value.label);
+                  if (label_info == NULL) {
+                    if (inst->op != B) {
+                      extern void asm_bcc_with_offset(Inst *inst, Code *code, int64_t offset);
+                      extern void asm_cbxx_with_offset(Inst *inst, Code *code, int64_t offset);
+
+                      Inst *binst = calloc_or_die(sizeof(*binst));
+                      binst->op = B;
+                      binst->opr[0] = *label_opr;
+
+                      Code bcode;
+                      memset(&bcode, 0, sizeof(bcode));
+                      bcode.inst = binst;
+                      {
+                        Inst *inst = binst;
+                        Code *code = &bcode;
+                        W_B();
+                      }
+
+                      IR *bir = new_ir_code(&bcode);
+                      vec_insert(irs, i + 1, bir);
+
+                      // Flip branch condition and modify target.
+                      static const enum Opcode kFlippedTable[] = {
+                        [BEQ] = BNE, [BNE] = BEQ, [BHS] = BLO, [BLO] = BHS,
+                        [BMI] = BPL, [BPL] = BMI, [BVS] = BVC, [BVC] = BVS,
+                        [BHI] = BLS, [BLS] = BHI, [BGE] = BLT, [BLT] = BGE,
+                        [BGT] = BLE, [BLE] = BGT, [BAL] = BNV, [BNV] = BAL,
+                        [CBZ] = CBNZ, [CBNZ] = CBZ,
+                      };
+                      inst->op = kFlippedTable[inst->op];
+                      label_opr->type = IMMEDIATE;
+                      label_opr->immediate = 4;
+
+                      const int64_t kSkipOffset = 4 + 4;
+                      ir->code.len = 0;
+                      if (cb)
+                        asm_cbxx_with_offset(inst, &ir->code, kSkipOffset);
+                      else
+                        asm_bcc_with_offset(inst, &ir->code, kSkipOffset);
+
+                      size_upgraded = true;
+                      break;
+                    }
+
+                    UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                    info->kind = UNRES_EXTERN_PC32;
+                    info->label = value.label;
+                    info->src_section = section;
+                    info->offset = address - start_address;
+                    info->add = value.offset;
+                    vec_push(unresolved, info);
+                    break;
+                  } else {
+                    value.offset += label_info->address;
+                  }
                 }
-              }
 
-              int64_t offset = value.offset - address;
-              {
-                if (offset >= (1L << 20) || offset < -(1L << 20) || (offset & 3) != 0)
-                  error("Jump offset too far (over 32bit)");
+                int64_t offset = value.offset - address;
+                if (inst->op == B) {
+                  if (offset >= (1L << 27) || offset < -(1L << 27) || (offset & 3) != 0)
+                    error("Jump offset too far (over 32bit)");
 
-                Code *code = &ir->code;
-                uint32_t *buf = (uint32_t*)code->buf;
-                *buf = (*buf & 0xff00001f) | ((offset & ((1U << 21) - 1)) << (5 - 2));
+                  Code *code = &ir->code;
+                  uint32_t *buf = (uint32_t*)code->buf;
+                  *buf = (*buf & 0xfc000000) | ((offset >> 2) & ((1U << 26) - 1));
+                } else {
+                  if (offset >= (1L << 20) || offset < -(1L << 20) || (offset & 3) != 0)
+                    error("Jump offset too far (over 32bit)");
+
+                  Code *code = &ir->code;
+                  uint32_t *buf = (uint32_t*)code->buf;
+                  *buf = (*buf & 0xff00001f) | ((offset & ((1U << 21) - 1)) << (5 - 2));
+                }
               }
             }
             break;
