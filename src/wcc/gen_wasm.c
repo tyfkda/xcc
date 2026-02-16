@@ -163,8 +163,8 @@ static void squash_cases(Vector *cases) {
 }
 
 static void gen_switch_dispatching(Stmt *stmt, Expr *value, Vector *cases, int default_index) {
-  Fixnum min = INTPTR_MAX;
-  Fixnum max = INTPTR_MIN;
+  Fixnum min = INT64_MAX;
+  Fixnum max = INT64_MIN;
   int case_count = cases->len;
   for (int i = 0; i < case_count; ++i) {
     Stmt *c = cases->data[i];
