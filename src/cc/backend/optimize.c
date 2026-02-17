@@ -51,6 +51,14 @@ static void replace_jmp_destination(BBContainer *bbcon, BB *src, BB *dst) {
   }
 }
 
+static void clear_unused_bbs(BBContainer *bbcon) {
+  for (int i = 1; i < bbcon->len; ++i) {
+    BB *bb = bbcon->data[i];
+    if (bb->from_bbs->len == 0)
+      vec_clear(bb->irs);
+  }
+}
+
 static void remove_unnecessary_bb(BBContainer *bbcon) {
   Table keeptbl;
   for (;;) {
@@ -717,12 +725,7 @@ static void copy_propagation(RegAlloc *ra, BBContainer *bbcon) {
 //
 
 void optimize(RegAlloc *ra, BBContainer *bbcon) {
-  // Clean up unused IRs.
-  for (int i = 1; i < bbcon->len; ++i) {
-    BB *bb = bbcon->data[i];
-    if (bb->from_bbs->len == 0)
-      vec_clear(bb->irs);
-  }
+  clear_unused_bbs(bbcon);
 
   // Peephole
   for (int i = 0; i < bbcon->len; ++i) {
@@ -736,6 +739,10 @@ void optimize(RegAlloc *ra, BBContainer *bbcon) {
     remove_unused_vregs(ra, bbcon);
     if (!keep_phi) {
       resolve_phis(ra, bbcon);
+
+      detect_from_bbs(bbcon);
+      clear_unused_bbs(bbcon);
+
       remove_unnecessary_bb(bbcon);
     }
   } else {
