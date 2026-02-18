@@ -30,12 +30,11 @@ extern const char VA_ARGS_NAME[];
 extern Table builtin_function_table;
 extern Vector *functypes;  // <DataStorage*>
 
-#define FF_REFERRED  (1 << 0)
-#define FF_INDIRECT  (1 << 1)
-#define FF_INLINING  (1 << 2)
-#define FF_WEAK      (1 << 3)
-#define FF_STACK_MODIFIED  (1 << 4)
-#define FF_IMPORT_NAME     (1 << 5)
+#define FF_REFERRED        (1 << 0)
+#define FF_INDIRECT        (1 << 1)
+#define FF_WEAK            (1 << 2)
+#define FF_STACK_MODIFIED  (1 << 3)
+#define FF_IMPORT_NAME     (1 << 4)
 
 typedef struct {
   Function *func;
@@ -44,6 +43,7 @@ typedef struct {
   const Name *func_name;
   const Name *bpname;
   const Name *lspname;
+  Expr *inlining;
   uint32_t index;  // also represents symbol_index (because functions are put first in symbol table.)
   int flag;
   uint32_t type_index;

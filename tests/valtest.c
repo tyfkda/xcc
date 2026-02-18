@@ -2009,6 +2009,7 @@ static inline bool inline_even(int x);
 static inline bool inline_odd(int x)  { return x == 0 ? false : inline_even(x - 1); }
 static inline bool inline_even(int x)  { return x == 0 ? true : inline_odd(x - 1); }
 static inline MoreParamsReturnsStruct inline_returns_struct(int x, int y) { return (MoreParamsReturnsStruct){-x, ~y}; }
+static inline int inline_if_else_return(int x) { if (x >= 0) return x; else return -x; }
 
 typedef struct {short x;} SmallStruct;
 SmallStruct small_struct_param_and_result(int a, SmallStruct s1, int b, SmallStruct s2) {
@@ -2134,6 +2135,8 @@ TEST(function) {
     EXPECT("inline return struct 1", -1234, r.x);
     EXPECT("inline return struct 2", ~5678, r.y);
   }
+  EXPECT("inline if-else-return", 147, inline_if_else_return(-147));
+
   {
     static SmallStruct s1 = {87}, s2 = {12};
     SmallStruct r1 = small_struct_param_and_result(100, s1, 2, s2);

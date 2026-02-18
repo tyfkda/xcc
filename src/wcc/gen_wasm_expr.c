@@ -1009,8 +1009,8 @@ static void gen_inlined(Expr *expr, bool needval) {
 
   assert(curfunc != NULL);
   FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
-  int bak_flag = finfo->flag;
-  finfo->flag |= FF_INLINING;
+  Expr *bak_inlining = finfo->inlining;
+  finfo->inlining = expr;
 
   int bak_depth = cur_depth;
   cur_depth = 1;
@@ -1035,7 +1035,7 @@ static void gen_inlined(Expr *expr, bool needval) {
     ADD_CODE(OP_DROP);
 
   cur_depth = bak_depth;
-  finfo->flag = bak_flag;
+  finfo->inlining = bak_inlining;
   curscope = bak_curscope;
 }
 

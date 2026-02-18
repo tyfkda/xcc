@@ -387,7 +387,7 @@ static void gen_return(Stmt *stmt, bool is_last) {
       assert(rettype->kind == TY_STRUCT);
       FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
       assert(finfo != NULL);
-      if (finfo->flag & FF_INLINING) {
+      if (finfo->inlining != NULL) {
         gen_lval(val);  // Put a pointer to the top of stack.
       } else if (is_small_struct(rettype)) {
         gen_lval(val);
@@ -407,7 +407,7 @@ static void gen_return(Stmt *stmt, bool is_last) {
   FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
   assert(finfo != NULL);
   if (!is_last) {
-    if (finfo->bpname != NULL || finfo->lspname != NULL || finfo->flag & FF_INLINING) {
+    if (finfo->bpname != NULL || finfo->lspname != NULL || finfo->inlining != NULL) {
       assert(cur_depth > 0);
       ADD_CODE(OP_BR);
       ADD_ULEB128(cur_depth - 1);
@@ -428,8 +428,13 @@ static void gen_if(Stmt *stmt, bool is_last) {
   }
 
   unsigned char wt = WT_VOID;
-  if (is_last && check_funcend_return(stmt))
-    wt = get_func_ret_wtype(curfunc->type->func.ret);
+  if (is_last && check_funcend_return(stmt)) {
+    FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
+    assert(finfo != NULL);
+    Expr *inlining = finfo->inlining;
+    const Type *rettype = inlining != NULL ? inlining->type : curfunc->type->func.ret;
+    wt = get_func_ret_wtype(rettype);
+  }
 
   gen_cond(stmt->if_.cond, true, true);
   ADD_CODE(OP_IF, wt);

@@ -1030,12 +1030,10 @@ static Vector *duplicate_inline_function_asm_args(Function *targetfunc, Scope *t
   return dups;
 }
 
-static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
-  if (stmt == NULL)
-    return NULL;
-
+static inline Stmt *do_duplicate_inline_function_stmt(Function *targetfunc, Scope *targetscope,
+                                                      Stmt *stmt) {
   static Scope *original_scope;
-
+  assert(stmt != NULL);
   switch (stmt->kind) {
   case ST_EXPR:
     {
@@ -1210,15 +1208,23 @@ static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targets
       return dup;
     }
     break;
+  default:
+#if XCC_TARGET_ARCH == XCC_ARCH_WASM
+  case ST_BLOCK_FOR_LABEL:  // Inlining function which contains label or goto is prevented.
+#endif
+    assert(false);
+    // Fallthrough to suppress warning.
   case ST_EMPTY: case ST_GOTO:
     return stmt;
-#if XCC_TARGET_ARCH == XCC_ARCH_WASM
-  case ST_BLOCK_FOR_LABEL:
-    assert(false);  // Inlining function which contains label or goto is prevented.
-    break;
-#endif
   }
-  return NULL;
+}
+
+static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
+  if (stmt == NULL)
+    return NULL;
+  Stmt *duplicated = do_duplicate_inline_function_stmt(targetfunc, targetscope, stmt);
+  duplicated->reach = stmt->reach;
+  return duplicated;
 }
 
 Stmt *embed_inline_funcall(VarInfo *varinfo) {
