@@ -688,15 +688,18 @@ static void check_reachability_stmt(Stmt *stmt) {
     return;
   switch (stmt->kind) {
   case ST_IF:
-    check_reachability_stmt(stmt->if_.tblock);
-    check_reachability_stmt(stmt->if_.fblock);
-    if (is_const_truthy(stmt->if_.cond)) {
-      stmt->reach = stmt->if_.tblock->reach;
-    } else if (is_const_falsy(stmt->if_.cond)) {
-      stmt->reach = stmt->if_.fblock != NULL ? stmt->if_.fblock->reach : 0;
-    } else {
-      stmt->reach = stmt->if_.tblock->reach &
-                    (stmt->if_.fblock != NULL ? stmt->if_.fblock->reach : 0);
+    {
+      check_reachability_stmt(stmt->if_.tblock);
+      check_reachability_stmt(stmt->if_.fblock);
+      int reach = 0;
+      if (is_const_truthy(stmt->if_.cond)) {
+        reach = stmt->if_.tblock->reach;
+      } else if (stmt->if_.fblock != NULL) {
+        reach = stmt->if_.fblock->reach;
+        if (!is_const_falsy(stmt->if_.cond))
+          reach = stmt->if_.tblock->reach & reach;
+      }
+      stmt->reach = reach;
     }
     break;
   case ST_SWITCH:
