@@ -14,7 +14,7 @@ Type tyInt =           {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=f
 Type tyVoid =          {.kind=TY_VOID};
 Type tyConstVoid =     {.kind=TY_VOID, .qualifier=TQ_CONST};
 Type tyVoidPtr =       {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
-Type tyBool =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_BOOL,   .is_unsigned=false}};
+Type tyBool =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_BOOL,  .is_unsigned=false}};
 Type tySize =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=true}};
 Type tySSize =         {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=false}};
 Type tyFloat =         {.kind=TY_FLONUM, .flonum={.kind=FL_FLOAT}};
@@ -40,8 +40,8 @@ static Type kFixnumTypeTable[2][4][FX_LLONG + 1] = {
 };
 #undef FIXNUM_TABLE
 
-size_t fixnum_size_table[]  = {1, 2, 4, 8, 8, 4, 4};
-int    fixnum_align_table[] = {1, 2, 4, 8, 8, 4, 4};
+size_t fixnum_size_table[]  = {1, 2, 4, 8, 8, 4, 1};
+int    fixnum_align_table[] = {1, 2, 4, 8, 8, 4, 1};
 
 size_t flonum_size_table[]  = {4, 8, 8};
 int    flonum_align_table[] = {4, 8, 8};
