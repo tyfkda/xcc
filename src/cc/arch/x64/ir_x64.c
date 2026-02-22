@@ -831,7 +831,7 @@ static void ei_cond(IR *ir) {
         MOV(IM(cond != COND_EQ ? 1 : 0), dst);
         EMIT_LABEL(fmt_name(skip_label));
 
-        MOVSX(dst, kReg32s[ir->dst->phys]);  // Assume bool is 4 byte.
+        // MOVSX(dst, kReg32s[ir->dst->phys]);  // Assume bool is 4 byte.
       }
       return;
 
@@ -861,7 +861,7 @@ static void ei_cond(IR *ir) {
   case COND_GE | COND_UNSIGNED:  SETAE(dst); break;
   default: assert(false); break;
   }
-  MOVSX(dst, kReg32s[ir->dst->phys]);  // Assume bool is 4 byte.
+  // MOVSX(dst, kReg32s[ir->dst->phys]);  // Assume bool is 4 byte.
 }
 
 static void ei_jmp(IR *ir) {

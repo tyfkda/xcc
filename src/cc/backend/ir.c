@@ -9,7 +9,7 @@
 #include "util.h"
 
 static const enum VRegSize vtVoidPtr = VRegSize8;
-static const enum VRegSize vtBool = VRegSize4;
+static const enum VRegSize vtBool = VRegSize1;
 
 Phi *new_phi(VReg *dst, Vector *params) {
   Phi *phi = malloc_or_die(sizeof(*phi));
