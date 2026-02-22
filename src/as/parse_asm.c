@@ -642,11 +642,10 @@ static bool parse_inst(ParseInfo *info, Line *line) {
       }
 
       Operand *opr = &inst.opr[i];
-      const char *before = info->p;
       unsigned int result = parse_operand(info, opr_flags, opr);
       if (result == 0) {
         parse_error(info, "illegal operand");
-        info->p = before;
+        info->p = NULL;
         return false;  // Error
       }
 
