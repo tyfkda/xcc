@@ -791,7 +791,7 @@ static inline void gen_func_body(Function *func, Expr *bpvar, Expr *lspvar) {
 
 static inline void epilogue(Function *func, uint32_t frame_size, Expr *bpvar, Expr *lspvar,
                             Expr *gspvar) {
-  // Epilogue
+  UNUSED(func);
   if (bpvar != NULL) {
     ADD_CODE(OP_END);
     cur_depth -= 1;
@@ -802,8 +802,7 @@ static inline void epilogue(Function *func, uint32_t frame_size, Expr *bpvar, Ex
     ADD_CODE(OP_END);
     cur_depth -= 1;
 
-    FuncInfo *finfo = table_get(&func_info_table, func->ident->ident);
-    assert(!(finfo->flag & FF_STACK_MODIFIED));
+    assert(!(((FuncInfo*)table_get(&func_info_table, func->ident->ident))->flag & FF_STACK_MODIFIED));
     assert(frame_size > 0);
     // Restore stack pointer: global.sp = local.sp + frame_size;
     gen_expr_stmt(new_expr_bop(EX_ASSIGN, &tyVoid, NULL, gspvar,

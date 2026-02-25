@@ -563,8 +563,7 @@ static void ei_cast(IR *ir) {
       }
     } else {
       // fix->flonum
-      int pows = ir->opr1->vsize;
-      assert(0 <= pows && pows < 4);
+      assert(0 <= ir->opr1->vsize && ir->opr1->vsize < 4);
 
       const char *src = kReg64s[ir->opr1->phys];
       if (ir->opr1->vsize < VRegSize8) {
@@ -824,7 +823,7 @@ static void ei_jmp(IR *ir) {
   const char *label = fmt_name(ir->jmp.bb->label);
   int cond = ir->jmp.cond;
   assert(cond != COND_NONE);
-  if (ir->jmp.cond == COND_ANY) {
+  if (cond == COND_ANY) {
     J(label);
     return;
   }
@@ -836,7 +835,7 @@ static void ei_jmp(IR *ir) {
   const char *opr2 = !(ir->opr2->flag & VRF_CONST) ? kReg64s[ir->opr2->phys] : ZERO;
 
   // On aarch64, flag for comparing flonum is signed.
-  switch (ir->jmp.cond & (COND_MASK | COND_UNSIGNED)) {
+  switch (cond & (COND_MASK | COND_UNSIGNED)) {
   case COND_EQ | COND_UNSIGNED:  // Fallthrough
   case COND_EQ:  Bcc(CEQ, opr1, opr2, label); break;
 

@@ -179,6 +179,7 @@ static inline void construct_rela_element(
 static inline void construct_rela_element(
     Symtab *symtab, Table *label_table, SectionInfo *section,
     const UnresolvedInfo *u, struct relocation_info *rela) {
+  UNUSED(label_table);
   switch (u->kind) {
   default: assert(false); break;
   case UNRES_ABS64:
@@ -199,8 +200,7 @@ static inline void construct_rela_element(
   case UNRES_GOT_HI:
   case UNRES_GOT_LO:
     {
-      LabelInfo *label = table_get(label_table, u->label);
-      assert(label != NULL);
+      assert(table_get(label_table, u->label) != NULL);
       int symidx = symtab_find(symtab, u->label);
       assert(symidx >= 0);
 

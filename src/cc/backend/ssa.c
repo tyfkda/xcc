@@ -86,8 +86,7 @@ static Vector **ssa_transform(RegAlloc *ra, BBContainer *bbcon) {
   }
 
   // Traverse BBs.
-  int count = bbcon->len;
-  assert(count > 0);
+  assert(bbcon->len > 0);
 
   Table checked;
   table_init(&checked);

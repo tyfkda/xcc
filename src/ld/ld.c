@@ -331,6 +331,7 @@ static inline bool resolve_rela_element(const ResolveRelaWork *work, int j, Elf6
       assert(j >= 2);
       const Elf64_Rela *hirela = &work->relas[j - 2];
       Elf64_Word hitype = ELF64_R_TYPE(hirela->r_info);
+      UNUSED(hitype);
       assert((rtype == R_RISCV_PCREL_LO12_I &&
               hitype == R_RISCV_PCREL_HI20) ||
              (rtype == R_RISCV_LO12_I &&
@@ -422,10 +423,9 @@ static int resolve_rela_elfobj(LinkEditor *ld, ElfObj *elfobj) {
     work.symhdrinfo = symhdrinfo;
     work.strinfo = strinfo;
 
-    size_t symbol_count = elfobj->symtab_section->symtab.count;
     for (size_t j = 0, n = shdr->sh_size / sizeof(Elf64_Rela); j < n; ++j) {
       const Elf64_Rela *rela = &relas[j];
-      assert(ELF64_R_SYM(rela->r_info) < symbol_count);
+      assert(ELF64_R_SYM(rela->r_info) < elfobj->symtab_section->symtab.count);
       const Elf64_Sym *sym = &symhdrinfo->symtab.syms[ELF64_R_SYM(rela->r_info)];
       work.address = calc_rela_sym_address(ld, elfobj, rela, sym, strinfo);
 
