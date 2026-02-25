@@ -415,8 +415,7 @@ static double calc_fconst_expr(IR *ir) {
 
 static bool constant_folding(RegAlloc *ra, IR *ir) {
   switch (ir->kind) {
-  case IR_DIV:
-  case IR_MOD:
+  case IR_DIV: case IR_MOD:
     if ((ir->opr2->flag & VRF_CONST) &&
         (   (!(ir->opr2->flag & VRF_FLONUM) && ir->opr2->fixnum == 0)
 #ifndef __NO_FLONUM
@@ -429,16 +428,8 @@ static bool constant_folding(RegAlloc *ra, IR *ir) {
       break;
     }
     // Fallthrough
-  case IR_ADD:
-  case IR_SUB:
-  case IR_MUL:
-  case IR_BITAND:
-  case IR_BITOR:
-  case IR_BITXOR:
-  case IR_LSHIFT:
-  case IR_RSHIFT:
-  case IR_NEG:
-  case IR_BITNOT:
+  case IR_ADD: case IR_SUB: case IR_MUL: case IR_BITAND: case IR_BITOR: case IR_BITXOR:
+  case IR_LSHIFT: case IR_RSHIFT: case IR_NEG: case IR_BITNOT:
     if ((ir->opr1->flag & VRF_CONST) && (ir->opr2 == NULL || ir->opr2->flag & VRF_CONST)) {
 #ifndef __NO_FLONUM
       if (ir->opr1->flag & VRF_FLONUM) {

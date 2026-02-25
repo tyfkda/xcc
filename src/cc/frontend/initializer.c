@@ -746,6 +746,133 @@ static Initializer *check_global_initializer(Type *type, Initializer *init) {
   return init;
 }
 
+static void assign_array_initial_value(Expr *expr, Initializer *init, Vector *inits) {
+  switch (init->kind) {
+  case IK_MULTI:
+    {
+      ssize_t arr_len = expr->type->pa.length;
+      if (arr_len > 0 && init->multi->len > arr_len) {
+        parse_error(PE_NOFATAL, init->token, "initializer more than array size");
+        break;
+      }
+
+      assert(!is_global_scope(curscope));
+      Type *ptr_type = array_to_ptr(expr->type);
+      Expr *ptr_var = alloc_tmp_var(curscope, ptr_type);
+      vec_push(inits, new_stmt_expr(new_expr_bop(EX_ASSIGN, ptr_type, NULL, ptr_var, expr)));
+
+      const size_t len = init->multi->len;
+      const size_t elem_size = type_size(expr->type->pa.ptrof);
+      size_t prev_index = 0, index = 0;
+      for (size_t i = 0; i < len; ++i) {
+        Initializer *init_elem = init->multi->data[i];
+        if (init_elem != NULL && init_elem->kind == IK_BRKT) {
+          index = init_elem->bracket.index;
+          init_elem = init_elem->bracket.value;
+        }
+
+        size_t add = index - prev_index;
+        if (add > 0) {
+          const Fixnum n = add * elem_size;
+          vec_push(inits, new_stmt_expr(
+              new_expr_bop(EX_ASSIGN, ptr_type, NULL, ptr_var,
+                  new_expr_bop(EX_ADD, ptr_type, NULL, ptr_var,
+                      new_expr_fixlit(&tySize, NULL, n)))));
+        }
+
+        assign_initial_value(new_expr_deref(NULL, ptr_var), init_elem, inits);
+        prev_index = index++;
+      }
+    }
+    break;
+  case IK_SINGLE:
+    // Special handling for string (char[]).
+    if (init->single->kind == EX_STR &&
+        is_char_type(expr->type->pa.ptrof, init->single->str.kind) ) {
+      vec_push(inits, init_char_array_by_string(expr, init, init->single->token));
+      break;
+    }
+    if (init->kind == IK_SINGLE && init->single->kind == EX_COMPLIT) {
+      Expr *single = init->single;
+      if (!same_type_without_qualifier(expr->type, single->type, true)) {
+        // Error should be raised before here.
+        // parse_error(PE_NOFATAL, init->token, "different type initializer");
+      } else {
+        vec_push(inits, build_memcpy(expr, single, type_size(expr->type)));
+      }
+      break;
+    }
+    // Fallthrough
+  default:
+    parse_error(PE_NOFATAL, init->token, "array initializer requires `{'");
+    break;
+  }
+}
+
+static void assign_struct_initial_value(Expr *expr, Initializer *init, Vector *inits) {
+  if (init->kind == IK_SINGLE) {
+    Expr *e = init->single;
+    if (same_type_without_qualifier(expr->type, e->type, true)) {
+      vec_push(inits, new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, init->token, expr, e)));
+      return;
+    }
+  }
+  if (init->kind != IK_MULTI) {
+    parse_error(PE_NOFATAL, init->token, "struct initializer requires `{'");
+    return;
+  }
+
+  const StructInfo *sinfo = expr->type->struct_.info;
+  if (!(sinfo->flag & SIF_UNION)) {
+    Token *tok = alloc_token(TK_DOT, NULL, ".", NULL);
+    for (int i = 0, n = sinfo->member_count; i < n; ++i) {
+      Initializer *init_elem = init->multi->data[i];
+      if (init_elem == NULL)
+        continue;
+      const MemberInfo *minfo = &sinfo->members[i];
+      Expr *member = new_expr_member(tok, minfo->type, expr, NULL, minfo);
+#ifndef __NO_BITFIELD
+      if (minfo->bitfield.width > 0) {
+        if (init_elem->kind != IK_SINGLE) {
+          parse_error(PE_NOFATAL, init_elem->token, "illegal initializer for member `%.*s'",
+                      NAMES(minfo->name));
+        } else {
+          vec_push(inits, new_stmt_expr(assign_to_bitfield(init_elem->token, member,
+                                                            init_elem->single, minfo)));
+        }
+      } else
+#endif
+      {
+        assign_initial_value(member, init_elem, inits);
+      }
+    }
+  } else {
+    int n = sinfo->member_count;
+    int m = init->multi->len;
+    if (n <= 0 && m > 0) {
+      parse_error(PE_NOFATAL, init->token, "initializer for empty union");
+      return;
+    }
+
+    int count = 0;
+    Token *tok = alloc_token(TK_DOT, NULL, ".", NULL);
+    for (int i = 0; i < n; ++i) {
+      Initializer *init_elem = init->multi->data[i];
+      if (init_elem == NULL)
+        continue;
+      if (count > 0) {
+        parse_error(PE_NOFATAL, init_elem->token, "more than one initializer for union");
+        break;
+      }
+
+      const MemberInfo *minfo = &sinfo->members[i];
+      Expr *mem = new_expr_member(tok, minfo->type, expr, NULL, minfo);
+      assign_initial_value(mem, init_elem, inits);
+      ++count;
+    }
+  }
+}
+
 Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
   if (init == NULL)
     return inits;
@@ -754,133 +881,8 @@ Vector *assign_initial_value(Expr *expr, Initializer *init, Vector *inits) {
     inits = new_vector();
 
   switch (expr->type->kind) {
-  case TY_ARRAY:
-    switch (init->kind) {
-    case IK_MULTI:
-      {
-        ssize_t arr_len = expr->type->pa.length;
-        if (arr_len > 0 && init->multi->len > arr_len) {
-          parse_error(PE_NOFATAL, init->token, "initializer more than array size");
-          break;
-        }
-
-        assert(!is_global_scope(curscope));
-        Type *ptr_type = array_to_ptr(expr->type);
-        Expr *ptr_var = alloc_tmp_var(curscope, ptr_type);
-        vec_push(inits, new_stmt_expr(new_expr_bop(EX_ASSIGN, ptr_type, NULL, ptr_var, expr)));
-
-        const size_t len = init->multi->len;
-        const size_t elem_size = type_size(expr->type->pa.ptrof);
-        size_t prev_index = 0, index = 0;
-        for (size_t i = 0; i < len; ++i) {
-          Initializer *init_elem = init->multi->data[i];
-          if (init_elem != NULL && init_elem->kind == IK_BRKT) {
-            index = init_elem->bracket.index;
-            init_elem = init_elem->bracket.value;
-          }
-
-          size_t add = index - prev_index;
-          if (add > 0) {
-            const Fixnum n = add * elem_size;
-            vec_push(inits, new_stmt_expr(
-                new_expr_bop(EX_ASSIGN, ptr_type, NULL, ptr_var,
-                    new_expr_bop(EX_ADD, ptr_type, NULL, ptr_var,
-                        new_expr_fixlit(&tySize, NULL, n)))));
-          }
-
-          assign_initial_value(new_expr_deref(NULL, ptr_var), init_elem, inits);
-          prev_index = index++;
-        }
-      }
-      break;
-    case IK_SINGLE:
-      // Special handling for string (char[]).
-      if (init->single->kind == EX_STR &&
-          is_char_type(expr->type->pa.ptrof, init->single->str.kind) ) {
-        vec_push(inits, init_char_array_by_string(expr, init, init->single->token));
-        break;
-      }
-      if (init->kind == IK_SINGLE && init->single->kind == EX_COMPLIT) {
-        Expr *single = init->single;
-        if (!same_type_without_qualifier(expr->type, single->type, true)) {
-          // Error should be raised before here.
-          // parse_error(PE_NOFATAL, init->token, "different type initializer");
-        } else {
-          vec_push(inits, build_memcpy(expr, single, type_size(expr->type)));
-        }
-        break;
-      }
-      // Fallthrough
-    default:
-      parse_error(PE_NOFATAL, init->token, "array initializer requires `{'");
-      break;
-    }
-    break;
-  case TY_STRUCT:
-    {
-      if (init->kind == IK_SINGLE) {
-        Expr *e = init->single;
-        if (same_type_without_qualifier(expr->type, e->type, true)) {
-          vec_push(inits, new_stmt_expr(new_expr_bop(EX_ASSIGN, expr->type, init->token, expr, e)));
-          break;
-        }
-      }
-      if (init->kind != IK_MULTI) {
-        parse_error(PE_NOFATAL, init->token, "struct initializer requires `{'");
-        break;
-      }
-
-      const StructInfo *sinfo = expr->type->struct_.info;
-      if (!(sinfo->flag & SIF_UNION)) {
-        Token *tok = alloc_token(TK_DOT, NULL, ".", NULL);
-        for (int i = 0, n = sinfo->member_count; i < n; ++i) {
-          Initializer *init_elem = init->multi->data[i];
-          if (init_elem == NULL)
-            continue;
-          const MemberInfo *minfo = &sinfo->members[i];
-          Expr *member = new_expr_member(tok, minfo->type, expr, NULL, minfo);
-#ifndef __NO_BITFIELD
-          if (minfo->bitfield.width > 0) {
-            if (init_elem->kind != IK_SINGLE) {
-              parse_error(PE_NOFATAL, init_elem->token, "illegal initializer for member `%.*s'",
-                          NAMES(minfo->name));
-            } else {
-              vec_push(inits, new_stmt_expr(assign_to_bitfield(init_elem->token, member,
-                                                               init_elem->single, minfo)));
-            }
-          } else
-#endif
-          {
-            assign_initial_value(member, init_elem, inits);
-          }
-        }
-      } else {
-        int n = sinfo->member_count;
-        int m = init->multi->len;
-        if (n <= 0 && m > 0) {
-          parse_error(PE_NOFATAL, init->token, "initializer for empty union");
-          break;
-        }
-
-        int count = 0;
-        Token *tok = alloc_token(TK_DOT, NULL, ".", NULL);
-        for (int i = 0; i < n; ++i) {
-          Initializer *init_elem = init->multi->data[i];
-          if (init_elem == NULL)
-            continue;
-          if (count > 0) {
-            parse_error(PE_NOFATAL, init_elem->token, "more than one initializer for union");
-            break;
-          }
-
-          const MemberInfo *minfo = &sinfo->members[i];
-          Expr *mem = new_expr_member(tok, minfo->type, expr, NULL, minfo);
-          assign_initial_value(mem, init_elem, inits);
-          ++count;
-        }
-      }
-    }
-    break;
+  case TY_ARRAY:   assign_array_initial_value(expr, init, inits); break;
+  case TY_STRUCT:  assign_struct_initial_value(expr, init, inits); break;
   default:
     {
       assert(init->kind == IK_SINGLE);

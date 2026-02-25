@@ -132,58 +132,141 @@ static int construct_initial_value_bitfield(
 }
 #endif
 
+#ifndef __NO_FLONUM
+static void construct_flonum_initial_value(const Type *type, const Initializer *init,
+                                           const ConstructInitialValueVTable *vtable, void *ud) {
+  switch (type->flonum.kind) {
+  case FL_DOUBLE:
+  case FL_LDOUBLE:  // long-double in XCC is same as double.
+    {
+      union {double f; uint64_t h;} v;
+      v.f = 0;
+      if (init != NULL) {
+        assert(init->kind == IK_SINGLE);
+        Expr *value = init->single;
+        if (!(is_const(value) && is_flonum(value->type)))
+          error("Illegal initializer: constant number expected");
+        v.f = value->flonum;
+      }
+#if 0
+      _DOUBLE(FLONUM(v.d));
+#else
+      (*vtable->emit_number)(ud, type, NULL, v.h);
+#endif
+    }
+    break;
+  case FL_FLOAT:
+    {
+      union {float f; uint32_t h;} v;
+      v.f = 0;
+      if (init != NULL) {
+        assert(init->kind == IK_SINGLE);
+        Expr *value = init->single;
+        if (!(is_const(value) && is_flonum(value->type)))
+          error("Illegal initializer: constant number expected");
+        v.f = value->flonum;
+      }
+#if 0
+      _FLOAT(FLONUM(v.f));
+#else
+      (*vtable->emit_number)(ud, type, NULL, v.h);
+#endif
+    }
+    break;
+  }
+}
+#endif
+
+static void construct_array_initial_value(const Type *type, const Initializer *init,
+                                          const ConstructInitialValueVTable *vtable, void *ud) {
+  if (init == NULL || init->kind == IK_MULTI) {
+    const Type *elem_type = type->pa.ptrof;
+    ssize_t index = 0;
+    if (init != NULL) {
+      Vector *init_array = init->multi;
+      for (ssize_t i = 0; i < init_array->len; ++i, ++index) {
+        const Initializer *init_elem = init_array->data[i];
+        construct_initial_value(elem_type, init_elem, vtable, ud);
+      }
+    }
+    // Padding
+    for (ssize_t i = index, n = type->pa.length; i < n; ++i)
+      construct_initial_value(elem_type, NULL, vtable, ud);
+    return;
+  }
+  if (init->kind == IK_SINGLE) {
+    Expr *e = strip_cast(init->single);
+    if (e->kind == EX_STR && is_char_type(type->pa.ptrof, e->str.kind)) {
+      assert(vtable->emit_string != NULL);
+      (*vtable->emit_string)(ud, e, type_size(type));
+      return;
+    }
+  }
+  error("Illegal initializer");
+}
+
+static void construct_struct_initial_value(const Type *type, const Initializer *init,
+                                           const ConstructInitialValueVTable *vtable, void *ud) {
+  const StructInfo *sinfo = type->struct_.info;
+  assert(init == NULL || (init->kind == IK_MULTI && init->multi->len == sinfo->member_count));
+  bool packed = sinfo->flag & SIF_PACKED;
+  int count = 0;
+  int offset = 0;
+  for (int i = 0, n = sinfo->member_count; i < n; ++i) {
+    const MemberInfo *member = &sinfo->members[i];
+#ifndef __NO_BITFIELD
+    if (member->bitfield.active) {
+      i = construct_initial_value_bitfield(sinfo, init, i, &offset, vtable, ud);
+      ++count;
+      continue;
+    }
+#endif
+    const Initializer *mem_init;
+    if (init == NULL) {
+      if (sinfo->flag & SIF_UNION)
+        continue;
+      mem_init = NULL;
+    } else {
+      mem_init = init->multi->data[i];
+    }
+    if (mem_init != NULL || !(sinfo->flag & SIF_UNION)) {
+      int align = align_size(member->type);
+      if (!packed && offset % align != 0) {
+        assert(vtable->emit_align != NULL);
+        (*vtable->emit_align)(ud, align);
+        offset = ALIGN(offset, align);
+      }
+      construct_initial_value(member->type, mem_init, vtable, ud);
+      ++count;
+      offset += type_size(member->type);
+    }
+  }
+  if (sinfo->flag & SIF_UNION && count <= 0) {
+    const MemberInfo *member = &sinfo->members[0];
+    construct_initial_value(member->type, NULL, vtable, ud);
+    offset += type_size(member->type);
+  }
+
+  size_t size = type_size(type);
+  if (size != (size_t)offset) {
+    // Put padding.
+    int d = size - offset;
+    const Type *type = get_fixnum_type_from_size(d);
+    if (type != NULL) {
+      (*vtable->emit_number)(ud, type, NULL, 0);
+    } else {
+      for (int i = 0; i < d; ++i)
+        (*vtable->emit_number)(ud, &tyChar, NULL, 0);
+    }
+  }
+}
+
 void construct_initial_value(const Type *type, const Initializer *init,
                              const ConstructInitialValueVTable *vtable, void *ud) {
   assert(init == NULL || init->kind != IK_DOT);
 
   switch (type->kind) {
-  case TY_FLONUM:
-#ifndef __NO_FLONUM
-    switch (type->flonum.kind) {
-    case FL_DOUBLE:
-    case FL_LDOUBLE:  // long-double in XCC is same as double.
-      {
-        union {double f; uint64_t h;} v;
-        v.f = 0;
-        if (init != NULL) {
-          assert(init->kind == IK_SINGLE);
-          Expr *value = init->single;
-          if (!(is_const(value) && is_flonum(value->type)))
-            error("Illegal initializer: constant number expected");
-          v.f = value->flonum;
-        }
-#if 0
-        _DOUBLE(FLONUM(v.d));
-#else
-        (*vtable->emit_number)(ud, type, NULL, v.h);
-#endif
-      }
-      break;
-    case FL_FLOAT:
-      {
-        union {float f; uint32_t h;} v;
-        v.f = 0;
-        if (init != NULL) {
-          assert(init->kind == IK_SINGLE);
-          Expr *value = init->single;
-          if (!(is_const(value) && is_flonum(value->type)))
-            error("Illegal initializer: constant number expected");
-          v.f = value->flonum;
-        }
-#if 0
-        _FLOAT(FLONUM(v.f));
-#else
-        (*vtable->emit_number)(ud, type, NULL, v.h);
-#endif
-      }
-      break;
-    }
-#else
-    assert(false);
-#endif
-    break;
-  case TY_FIXNUM:
-  case TY_PTR:
+  case TY_FIXNUM: case TY_PTR:
     {
       Expr *var = NULL;
       Fixnum offset = 0;
@@ -195,88 +278,15 @@ void construct_initial_value(const Type *type, const Initializer *init,
       (*vtable->emit_number)(ud, type, var, offset);
     }
     break;
-  case TY_ARRAY:
-    if (init == NULL || init->kind == IK_MULTI) {
-      const Type *elem_type = type->pa.ptrof;
-      ssize_t index = 0;
-      if (init != NULL) {
-        Vector *init_array = init->multi;
-        for (ssize_t i = 0; i < init_array->len; ++i, ++index) {
-          const Initializer *init_elem = init_array->data[i];
-          construct_initial_value(elem_type, init_elem, vtable, ud);
-        }
-      }
-      // Padding
-      for (ssize_t i = index, n = type->pa.length; i < n; ++i)
-        construct_initial_value(elem_type, NULL, vtable, ud);
-      break;
-    }
-    if (init->kind == IK_SINGLE) {
-      Expr *e = strip_cast(init->single);
-      if (e->kind == EX_STR && is_char_type(type->pa.ptrof, e->str.kind)) {
-        assert(vtable->emit_string != NULL);
-        (*vtable->emit_string)(ud, e, type_size(type));
-        break;
-      }
-    }
-    error("Illegal initializer");
-    break;
-  case TY_STRUCT:
-    {
-      const StructInfo *sinfo = type->struct_.info;
-      assert(init == NULL || (init->kind == IK_MULTI && init->multi->len == sinfo->member_count));
-      bool packed = sinfo->flag & SIF_PACKED;
-      int count = 0;
-      int offset = 0;
-      for (int i = 0, n = sinfo->member_count; i < n; ++i) {
-        const MemberInfo *member = &sinfo->members[i];
-#ifndef __NO_BITFIELD
-        if (member->bitfield.active) {
-          i = construct_initial_value_bitfield(sinfo, init, i, &offset, vtable, ud);
-          ++count;
-          continue;
-        }
-#endif
-        const Initializer *mem_init;
-        if (init == NULL) {
-          if (sinfo->flag & SIF_UNION)
-            continue;
-          mem_init = NULL;
-        } else {
-          mem_init = init->multi->data[i];
-        }
-        if (mem_init != NULL || !(sinfo->flag & SIF_UNION)) {
-          int align = align_size(member->type);
-          if (!packed && offset % align != 0) {
-            assert(vtable->emit_align != NULL);
-            (*vtable->emit_align)(ud, align);
-            offset = ALIGN(offset, align);
-          }
-          construct_initial_value(member->type, mem_init, vtable, ud);
-          ++count;
-          offset += type_size(member->type);
-        }
-      }
-      if (sinfo->flag & SIF_UNION && count <= 0) {
-        const MemberInfo *member = &sinfo->members[0];
-        construct_initial_value(member->type, NULL, vtable, ud);
-        offset += type_size(member->type);
-      }
+  case TY_ARRAY:   construct_array_initial_value(type, init, vtable, ud); break;
+  case TY_STRUCT:  construct_struct_initial_value(type, init, vtable, ud); break;
 
-      size_t size = type_size(type);
-      if (size != (size_t)offset) {
-        // Put padding.
-        int d = size - offset;
-        const Type *type = get_fixnum_type_from_size(d);
-        if (type != NULL) {
-          (*vtable->emit_number)(ud, type, NULL, 0);
-        } else {
-          for (int i = 0; i < d; ++i)
-            (*vtable->emit_number)(ud, &tyChar, NULL, 0);
-        }
-      }
-    }
+  case TY_FLONUM:
+#ifndef __NO_FLONUM
+    construct_flonum_initial_value(type, init, vtable, ud);
     break;
+#endif
+    // Fallthrough
   case TY_FUNC: case TY_VOID: case TY_AUTO: assert(false); break;
   }
 }

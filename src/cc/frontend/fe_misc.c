@@ -881,138 +881,337 @@ bool satisfy_inline_criteria(const VarInfo *varinfo) {
 }
 
 static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targetscope, Stmt *stmt);
+static Expr *duplicate_inline_function_expr(Function *targetfunc, Scope *targetscope, Expr *expr);
+
+static Expr *dup_expr_literal(Function *targetfunc, Scope *targetscope, Expr *expr) {
+  UNUSED(targetfunc);
+  UNUSED(targetscope);
+  return expr;
+}
+
+static Expr *dup_expr_var(Function *targetfunc, Scope *targetscope, Expr *expr) {
+  if (is_global_scope(expr->var.scope))
+    return expr;
+
+  const Name *name = expr->var.name;
+  VarInfo *varinfo = scope_find(expr->var.scope, name, NULL);
+  if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) {
+    // No need to duplicate.
+    return expr;
+  }
+
+  // Detect relative scope.
+  Scope *scope = curscope;
+  for (Scope *p = targetscope; !is_global_scope(p); p = p->parent, scope = scope->parent) {
+    if (expr->var.scope == p)
+      break;
+  }
+  if (varinfo->storage & VS_PARAM) {
+    // Assume parameters are stored in top scope in order.
+    Vector *top_scope_vars = ((Scope*)targetfunc->scopes->data[0])->vars;
+    int i;
+    for (i = 0; i < top_scope_vars->len; ++i) {
+      VarInfo *vi = top_scope_vars->data[i];
+      if (vi == varinfo)
+        break;
+    }
+    assert(i < top_scope_vars->len);
+    // Rename.
+    assert(i < scope->vars->len);
+    name = ((VarInfo*)scope->vars->data[i])->ident->ident;
+  }
+  return new_expr_variable(name, varinfo->type, expr->token, scope);
+}
+
+static Expr *dup_expr_bop(Function *targetfunc, Scope *targetscope, Expr *expr) {
+  Expr *lhs = duplicate_inline_function_expr(targetfunc, targetscope, expr->bop.lhs);
+  Expr *rhs = duplicate_inline_function_expr(targetfunc, targetscope, expr->bop.rhs);
+  return new_expr_bop(expr->kind, expr->type, expr->token, lhs, rhs);
+}
+
+static Expr *dup_expr_unary(Function *targetfunc, Scope *targetscope, Expr *expr) {
+  Expr *sub = duplicate_inline_function_expr(targetfunc, targetscope, expr->unary.sub);
+  return new_expr_unary(expr->kind, expr->type, expr->token, sub);
+}
+
+static Expr *dup_expr_ternary(Function *targetfunc, Scope *targetscope, Expr *expr) {
+  Expr *cond = duplicate_inline_function_expr(targetfunc, targetscope, expr->ternary.cond);
+  Expr *tval = duplicate_inline_function_expr(targetfunc, targetscope, expr->ternary.tval);
+  Expr *fval = duplicate_inline_function_expr(targetfunc, targetscope, expr->ternary.fval);
+  return new_expr_ternary(expr->token, cond, tval, fval, expr->type);
+}
+
+static Expr *dup_expr_member(Function *targetfunc, Scope *targetscope, Expr *expr) {
+  Expr *target = duplicate_inline_function_expr(targetfunc, targetscope, expr->member.target);
+  return new_expr_member(expr->token, expr->type, target, expr->member.ident,
+                         expr->member.info);
+}
+
+static Expr *dup_expr_funcall(Function *targetfunc, Scope *targetscope, Expr *expr) {
+  Expr *func = duplicate_inline_function_expr(targetfunc, targetscope, expr->funcall.func);
+  Vector *args = new_vector();
+  Vector *src_args = expr->funcall.args;
+  for (int i = 0; i < src_args->len; ++i) {
+    Expr *arg = src_args->data[i];
+    vec_push(args, duplicate_inline_function_expr(targetfunc, targetscope, arg));
+  }
+  return new_expr_funcall(expr->token, get_callee_type(func->type), func, args);
+}
+
+static Expr *dup_expr_inlined(Function *targetfunc, Scope *targetscope, Expr *expr) {
+  Vector *args = new_vector();
+  Vector *src_args = expr->inlined.args;
+  for (int i = 0; i < src_args->len; ++i) {
+    Expr *arg = src_args->data[i];
+    vec_push(args, duplicate_inline_function_expr(targetfunc, targetscope, arg));
+  }
+
+  // Duplicate from original to receive function parameters correctly.
+  VarInfo *varinfo = scope_find(global_scope, expr->inlined.funcname, NULL);
+  assert(varinfo != NULL);
+  assert(satisfy_inline_criteria(varinfo));
+  return new_expr_inlined(expr->token, varinfo->ident->ident, expr->type, args,
+                          embed_inline_funcall(varinfo));
+}
+
+static Expr *dup_expr_complit(Function *targetfunc, Scope *targetscope, Expr *expr) {
+  Vector *inits = new_vector();
+  Vector *src_inits = expr->complit.inits;
+  for (int i = 0; i < src_inits->len; ++i) {
+    Stmt *stmt = duplicate_inline_function_stmt(targetfunc, targetscope, src_inits->data[i]);
+    vec_push(inits, stmt);
+  }
+
+  // Refer duplicated local variable.
+  const Expr *org_var = expr->complit.var;
+  assert(org_var->kind == EX_VAR);
+#if !defined(NDEBUG)
+  // Variable for complit must be in current scope.
+  Scope *scope;
+  VarInfo *varinfo = scope_find(curscope, org_var->var.name, &scope);
+  assert(varinfo != NULL);
+  assert(scope == curscope);
+#else
+  Scope *scope = curscope;
+#endif
+  Expr *var = new_expr_variable(org_var->var.name, org_var->type, expr->token, scope);
+  return new_expr_complit(expr->type, expr->token, var, inits, expr->complit.original_init);
+}
+
+static Expr *dup_expr_block(Function *targetfunc, Scope *targetscope, Expr *expr) {
+  Stmt *block = duplicate_inline_function_stmt(targetfunc, targetscope, expr->block);
+  return new_expr_block(block);
+}
 
 static Expr *duplicate_inline_function_expr(Function *targetfunc, Scope *targetscope, Expr *expr) {
   if (expr == NULL)
     return NULL;
 
-  switch (expr->kind) {
-  case EX_FIXNUM:
-  case EX_FLONUM:
-  case EX_STR:
-    return expr;
-  case EX_VAR:
-    {
-      if (is_global_scope(expr->var.scope))
-        return expr;
+  typedef Expr *(*DuplicateExpr)(Function*, Scope*, Expr*);
+  static const DuplicateExpr table[] = {
+    [EX_FIXNUM] = dup_expr_literal, [EX_FLONUM] = dup_expr_literal,
+    [EX_STR] = dup_expr_literal,
 
-      const Name *name = expr->var.name;
-      VarInfo *varinfo = scope_find(expr->var.scope, name, NULL);
-      if (varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) {
-        // No need to duplicate.
-        return expr;
-      }
+    [EX_VAR] = dup_expr_var,
 
-      // Detect relative scope.
-      Scope *scope = curscope;
-      for (Scope *p = targetscope; !is_global_scope(p); p = p->parent, scope = scope->parent) {
-        if (expr->var.scope == p)
-          break;
-      }
-      if (varinfo->storage & VS_PARAM) {
-        // Assume parameters are stored in top scope in order.
-        Vector *top_scope_vars = ((Scope*)targetfunc->scopes->data[0])->vars;
-        int i;
-        for (i = 0; i < top_scope_vars->len; ++i) {
-          VarInfo *vi = top_scope_vars->data[i];
-          if (vi == varinfo)
-            break;
+    [EX_ADD] = dup_expr_bop, [EX_SUB] = dup_expr_bop,
+    [EX_MUL] = dup_expr_bop, [EX_DIV] = dup_expr_bop, [EX_MOD] = dup_expr_bop,
+    [EX_BITAND] = dup_expr_bop, [EX_BITOR] = dup_expr_bop, [EX_BITXOR] = dup_expr_bop,
+    [EX_LSHIFT] = dup_expr_bop, [EX_RSHIFT] = dup_expr_bop,
+    [EX_EQ] = dup_expr_bop, [EX_NE] = dup_expr_bop,
+    [EX_LT] = dup_expr_bop, [EX_LE] = dup_expr_bop, [EX_GE] = dup_expr_bop, [EX_GT] = dup_expr_bop,
+    [EX_LOGAND] = dup_expr_bop, [EX_LOGIOR] = dup_expr_bop,
+    [EX_ASSIGN] = dup_expr_bop, [EX_COMMA] = dup_expr_bop,
+
+    [EX_POS] = dup_expr_unary, [EX_NEG] = dup_expr_unary, [EX_BITNOT] = dup_expr_unary,
+    [EX_PREINC] = dup_expr_unary, [EX_PREDEC] = dup_expr_unary,
+    [EX_POSTINC] = dup_expr_unary, [EX_POSTDEC] = dup_expr_unary,
+    [EX_REF] = dup_expr_unary, [EX_DEREF] = dup_expr_unary, [EX_CAST] = dup_expr_unary,
+
+    [EX_TERNARY] = dup_expr_ternary,
+    [EX_MEMBER] = dup_expr_member,
+    [EX_FUNCALL] = dup_expr_funcall,
+    [EX_INLINED] = dup_expr_inlined,
+    [EX_COMPLIT] = dup_expr_complit,
+    [EX_BLOCK] = dup_expr_block,
+  };
+  assert(expr->kind < (int)ARRAY_SIZE(table));
+  assert(table[expr->kind] != NULL);
+  return (*table[expr->kind])(targetfunc, targetscope, expr);
+}
+
+static Stmt *dup_stmt_empty(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
+  UNUSED(targetfunc);
+  UNUSED(targetscope);
+  return stmt;
+}
+#define dup_stmt_goto  dup_stmt_empty
+
+static Stmt *dup_stmt_expr(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
+  Expr *expr = duplicate_inline_function_expr(targetfunc, targetscope, stmt->expr);
+  return new_stmt_expr(expr);
+}
+
+static Stmt *dup_stmt_block(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
+  static Scope *original_scope;
+  Scope *bak_original_scope = original_scope;
+  Scope *scope = NULL;
+  if (stmt->block.scope != NULL) {
+    original_scope = stmt->block.scope;
+    Vector *vars = NULL;
+    Vector *org_vars = stmt->block.scope->vars;
+    if (org_vars != NULL) {
+      vars = new_vector();
+      for (int i = 0; i < org_vars->len; ++i) {
+        VarInfo *vi = org_vars->data[i];
+        const Token *token;
+        if (vi->storage & VS_PARAM) {  // Rename parameter to be unique.
+          token = alloc_dummy_ident();
+        } else {
+          token = vi->ident;
         }
-        assert(i < top_scope_vars->len);
-        // Rename.
-        assert(i < scope->vars->len);
-        name = ((VarInfo*)scope->vars->data[i])->ident->ident;
+        // The new variable is no longer a parameter.
+        VarInfo *dup = var_add(vars, token, vi->type, vi->storage & ~VS_PARAM);
+        if (vi->storage & VS_STATIC)
+          dup->static_.svar = vi->static_.svar;
       }
-      return new_expr_variable(name, varinfo->type, expr->token, scope);
     }
-
-  case EX_ADD: case EX_SUB: case EX_MUL: case EX_DIV: case EX_MOD:
-  case EX_BITAND: case EX_BITOR: case EX_BITXOR: case EX_LSHIFT: case EX_RSHIFT:
-  case EX_EQ: case EX_NE: case EX_LT: case EX_LE: case EX_GE: case EX_GT:
-  case EX_LOGAND: case EX_LOGIOR: case EX_ASSIGN: case EX_COMMA:
-    {
-      Expr *lhs = duplicate_inline_function_expr(targetfunc, targetscope, expr->bop.lhs);
-      Expr *rhs = duplicate_inline_function_expr(targetfunc, targetscope, expr->bop.rhs);
-      return new_expr_bop(expr->kind, expr->type, expr->token, lhs, rhs);
-    }
-  case EX_POS: case EX_NEG: case EX_BITNOT:
-  case EX_PREINC: case EX_PREDEC: case EX_POSTINC: case EX_POSTDEC:
-  case EX_REF: case EX_DEREF: case EX_CAST:
-    {
-      Expr *sub = duplicate_inline_function_expr(targetfunc, targetscope, expr->unary.sub);
-      return new_expr_unary(expr->kind, expr->type, expr->token, sub);
-    }
-  case EX_TERNARY:
-    {
-      Expr *cond = duplicate_inline_function_expr(targetfunc, targetscope, expr->ternary.cond);
-      Expr *tval = duplicate_inline_function_expr(targetfunc, targetscope, expr->ternary.tval);
-      Expr *fval = duplicate_inline_function_expr(targetfunc, targetscope, expr->ternary.fval);
-      return new_expr_ternary(expr->token, cond, tval, fval, expr->type);
-    }
-  case EX_MEMBER:
-    {
-      Expr *target = duplicate_inline_function_expr(targetfunc, targetscope, expr->member.target);
-      return new_expr_member(expr->token, expr->type, target, expr->member.ident,
-                             expr->member.info);
-    }
-  case EX_FUNCALL:
-    {
-      Expr *func = duplicate_inline_function_expr(targetfunc, targetscope, expr->funcall.func);
-      Vector *args = new_vector();
-      Vector *src_args = expr->funcall.args;
-      for (int i = 0; i < src_args->len; ++i) {
-        Expr *arg = src_args->data[i];
-        vec_push(args, duplicate_inline_function_expr(targetfunc, targetscope, arg));
-      }
-      return new_expr_funcall(expr->token, get_callee_type(func->type), func, args);
-    }
-  case EX_INLINED:
-    {
-      Vector *args = new_vector();
-      Vector *src_args = expr->inlined.args;
-      for (int i = 0; i < src_args->len; ++i) {
-        Expr *arg = src_args->data[i];
-        vec_push(args, duplicate_inline_function_expr(targetfunc, targetscope, arg));
-      }
-
-      // Duplicate from original to receive function parameters correctly.
-      VarInfo *varinfo = scope_find(global_scope, expr->inlined.funcname, NULL);
-      assert(varinfo != NULL);
-      assert(satisfy_inline_criteria(varinfo));
-      return new_expr_inlined(expr->token, varinfo->ident->ident, expr->type, args,
-                              embed_inline_funcall(varinfo));
-    }
-  case EX_COMPLIT:
-    {
-      Vector *inits = new_vector();
-      Vector *src_inits = expr->complit.inits;
-      for (int i = 0; i < src_inits->len; ++i) {
-        Stmt *stmt = duplicate_inline_function_stmt(targetfunc, targetscope, src_inits->data[i]);
-        vec_push(inits, stmt);
-      }
-
-      // Refer duplicated local variable.
-      const Expr *org_var = expr->complit.var;
-      assert(org_var->kind == EX_VAR);
-#if !defined(NDEBUG)
-      // Variable for complit must be in current scope.
-      Scope *scope;
-      VarInfo *varinfo = scope_find(curscope, org_var->var.name, &scope);
-      assert(varinfo != NULL);
-      assert(scope == curscope);
-#else
-      Scope *scope = curscope;
-#endif
-      Expr *var = new_expr_variable(org_var->var.name, org_var->type, expr->token, scope);
-      return new_expr_complit(expr->type, expr->token, var, inits, expr->complit.original_init);
-    }
-  case EX_BLOCK:
-    {
-      Stmt *block = duplicate_inline_function_stmt(targetfunc, targetscope, expr->block);
-      return new_expr_block(block);
-    }
+    scope = enter_scope(curfunc);
+    scope->vars = vars;
+    targetscope = stmt->block.scope;
   }
-  return NULL;
+  assert(stmt->block.stmts != NULL);
+  Stmt *dup_block = new_stmt_block(stmt->token, scope);
+  dup_block->block.rbrace = stmt->block.rbrace;
+  Vector *stmts = dup_block->block.stmts;
+  for (int i = 0, len = stmt->block.stmts->len; i < len; ++i) {
+    Stmt *st = stmt->block.stmts->data[i];
+    if (st == NULL)
+      continue;
+    Stmt *dup_stmt = duplicate_inline_function_stmt(targetfunc, targetscope, st);
+    vec_push(stmts, dup_stmt);
+  }
+
+  if (stmt->block.scope != NULL)
+    exit_scope();
+  dup_block->reach = stmt->reach;
+  original_scope = bak_original_scope;
+  return dup_block;
+}
+
+static Stmt *dup_stmt_if(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
+  Expr *cond = duplicate_inline_function_expr(targetfunc, targetscope, stmt->if_.cond);
+  Stmt *tblock = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->if_.tblock);
+  Stmt *fblock = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->if_.fblock);
+  return new_stmt_if(stmt->token, cond, tblock, fblock);
+}
+
+static Stmt *dup_stmt_switch(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
+  Expr *value = duplicate_inline_function_expr(targetfunc, targetscope, stmt->switch_.value);
+  Stmt *dup = new_stmt_switch(stmt->token, value);
+  // Prepare buffer for cases.
+  Vector *cases = new_vector();
+  for (int i = 0; i < stmt->switch_.cases->len; ++i)
+    vec_push(cases, NULL);
+  dup->switch_.cases = cases;
+
+  SAVE_LOOP_SCOPE(save, stmt, NULL); loop_scope.swtch = dup; {
+    // cases, default_ will be updated according to the body statements duplication.
+    Stmt *body = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->switch_.body);
+    dup->switch_.body = body;
+  } RESTORE_LOOP_SCOPE(save);
+
+  return dup;
+}
+
+static Stmt *dup_stmt_while(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
+  Expr *cond = duplicate_inline_function_expr(targetfunc, targetscope, stmt->while_.cond);
+  Stmt *dup = new_stmt_while(stmt->token, cond, NULL);
+  SAVE_LOOP_SCOPE(save, dup, dup); {
+    dup->while_.body = duplicate_inline_function_stmt(targetfunc, targetscope,
+                                                      stmt->while_.body);
+  } RESTORE_LOOP_SCOPE(save);
+  return dup;
+}
+
+static Stmt *dup_stmt_do_while(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
+  Stmt *dup = new_stmt(ST_DO_WHILE, stmt->token);
+  SAVE_LOOP_SCOPE(save, dup, dup); {
+    dup->while_.body = duplicate_inline_function_stmt(targetfunc, targetscope,
+                                                      stmt->while_.body);
+  } RESTORE_LOOP_SCOPE(save);
+  dup->while_.cond = duplicate_inline_function_expr(targetfunc, targetscope, stmt->while_.cond);
+  return dup;
+}
+
+static Stmt *dup_stmt_for(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
+  Expr *pre = duplicate_inline_function_expr(targetfunc, targetscope, stmt->for_.pre);
+  Expr *cond = duplicate_inline_function_expr(targetfunc, targetscope, stmt->for_.cond);
+  Expr *post = duplicate_inline_function_expr(targetfunc, targetscope, stmt->for_.post);
+  Stmt *dup = new_stmt_for(stmt->token, pre, cond, post, NULL);
+  SAVE_LOOP_SCOPE(save, dup, dup); {
+    dup->for_.body = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->for_.body);
+  } RESTORE_LOOP_SCOPE(save);
+  return dup;
+}
+
+static Stmt *dup_stmt_break(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
+  UNUSED(targetfunc);
+  UNUSED(targetscope);
+  Stmt *dup = new_stmt(stmt->kind, stmt->token);
+  Stmt *parent = stmt->kind == ST_BREAK ? loop_scope.break_ : loop_scope.continu;
+  assert(parent != NULL);
+  dup->break_.parent = parent;
+  return dup;
+}
+#define dup_stmt_continue  dup_stmt_break
+
+static Stmt *dup_stmt_return(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
+  Expr *val = duplicate_inline_function_expr(targetfunc, targetscope, stmt->return_.val);
+  Stmt *dup = new_stmt_return(stmt->token, val);
+  return dup;
+}
+
+static Stmt *dup_stmt_case(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
+  Stmt *swtch = loop_scope.swtch;
+  assert(swtch != NULL);
+  Stmt *dup = new_stmt_case(stmt->token, swtch, stmt->case_.value);
+  if (stmt->case_.value == NULL) {
+    swtch->switch_.default_ = dup;
+  } else {
+    // Value is constant so reuse.
+    assert(is_const(stmt->case_.value));
+  }
+  dup->case_.stmt = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->case_.stmt);
+
+  // Find index.
+  Stmt *org_swtch = stmt->case_.swtch;
+  Vector *org_cases = org_swtch->switch_.cases;
+  int index = 0;
+  for (int len = org_cases->len; index < len; ++index) {
+    if (org_cases->data[index] == stmt)
+      break;
+  }
+  assert(index < org_cases->len);
+  swtch->switch_.cases->data[index] = dup;
+  return dup;
+}
+
+static Stmt *dup_stmt_label(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
+  Stmt *follow = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->label.stmt);
+  Stmt *dup = new_stmt_label(stmt->token, follow);
+  return dup;
+}
+
+static Stmt *dup_stmt_vardecl(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
+  VarDecl *d = stmt->vardecl;
+  if (d->varinfo->storage & VS_STATIC)
+    return NULL;
+  VarInfo *varinfo = scope_find(curscope, d->varinfo->ident->ident, NULL);
+  assert(varinfo != NULL);
+  VarDecl *decl = new_vardecl(varinfo);
+  decl->init_stmt = duplicate_inline_function_stmt(targetfunc, targetscope, d->init_stmt);
+  return new_stmt_vardecl(decl);
 }
 
 static Vector *duplicate_inline_function_asm_args(Function *targetfunc, Scope *targetscope,
@@ -1030,199 +1229,33 @@ static Vector *duplicate_inline_function_asm_args(Function *targetfunc, Scope *t
   return dups;
 }
 
-static inline Stmt *do_duplicate_inline_function_stmt(Function *targetfunc, Scope *targetscope,
-                                                      Stmt *stmt) {
-  static Scope *original_scope;
-  assert(stmt != NULL);
-  switch (stmt->kind) {
-  case ST_EXPR:
-    {
-      Expr *expr = duplicate_inline_function_expr(targetfunc, targetscope, stmt->expr);
-      return new_stmt_expr(expr);
-    }
-  case ST_BLOCK:
-    {
-      Scope *bak_original_scope = original_scope;
-      Scope *scope = NULL;
-      if (stmt->block.scope != NULL) {
-        original_scope = stmt->block.scope;
-        Vector *vars = NULL;
-        Vector *org_vars = stmt->block.scope->vars;
-        if (org_vars != NULL) {
-          vars = new_vector();
-          for (int i = 0; i < org_vars->len; ++i) {
-            VarInfo *vi = org_vars->data[i];
-            const Token *token;
-            if (vi->storage & VS_PARAM) {  // Rename parameter to be unique.
-              token = alloc_dummy_ident();
-            } else {
-              token = vi->ident;
-            }
-            // The new variable is no longer a parameter.
-            VarInfo *dup = var_add(vars, token, vi->type, vi->storage & ~VS_PARAM);
-            if (vi->storage & VS_STATIC)
-              dup->static_.svar = vi->static_.svar;
-          }
-        }
-        scope = enter_scope(curfunc);
-        scope->vars = vars;
-        targetscope = stmt->block.scope;
-      }
-      assert(stmt->block.stmts != NULL);
-      Stmt *dup_block = new_stmt_block(stmt->token, scope);
-      dup_block->block.rbrace = stmt->block.rbrace;
-      Vector *stmts = dup_block->block.stmts;
-      for (int i = 0, len = stmt->block.stmts->len; i < len; ++i) {
-        Stmt *st = stmt->block.stmts->data[i];
-        if (st == NULL)
-          continue;
-        Stmt *dup_stmt = duplicate_inline_function_stmt(targetfunc, targetscope, st);
-        vec_push(stmts, dup_stmt);
-      }
-
-      if (stmt->block.scope != NULL)
-        exit_scope();
-      dup_block->reach = stmt->reach;
-      original_scope = bak_original_scope;
-      return dup_block;
-    }
-    break;
-  case ST_IF:
-    {
-      Expr *cond = duplicate_inline_function_expr(targetfunc, targetscope, stmt->if_.cond);
-      Stmt *tblock = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->if_.tblock);
-      Stmt *fblock = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->if_.fblock);
-      return new_stmt_if(stmt->token, cond, tblock, fblock);
-    }
-  case ST_SWITCH:
-    {
-      Expr *value = duplicate_inline_function_expr(targetfunc, targetscope, stmt->switch_.value);
-      Stmt *dup = new_stmt_switch(stmt->token, value);
-      // Prepare buffer for cases.
-      Vector *cases = new_vector();
-      for (int i = 0; i < stmt->switch_.cases->len; ++i)
-        vec_push(cases, NULL);
-      dup->switch_.cases = cases;
-
-      SAVE_LOOP_SCOPE(save, stmt, NULL); loop_scope.swtch = dup; {
-        // cases, default_ will be updated according to the body statements duplication.
-        Stmt *body = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->switch_.body);
-        dup->switch_.body = body;
-      } RESTORE_LOOP_SCOPE(save);
-
-      return dup;
-    }
-  case ST_WHILE:
-    {
-      Expr *cond = duplicate_inline_function_expr(targetfunc, targetscope, stmt->while_.cond);
-      Stmt *dup = new_stmt_while(stmt->token, cond, NULL);
-      SAVE_LOOP_SCOPE(save, dup, dup); {
-        dup->while_.body = duplicate_inline_function_stmt(targetfunc, targetscope,
-                                                          stmt->while_.body);
-      } RESTORE_LOOP_SCOPE(save);
-      return dup;
-    }
-  case ST_DO_WHILE:
-    {
-      Stmt *dup = new_stmt(ST_DO_WHILE, stmt->token);
-      SAVE_LOOP_SCOPE(save, dup, dup); {
-        dup->while_.body = duplicate_inline_function_stmt(targetfunc, targetscope,
-                                                          stmt->while_.body);
-      } RESTORE_LOOP_SCOPE(save);
-      dup->while_.cond = duplicate_inline_function_expr(targetfunc, targetscope, stmt->while_.cond);
-      return dup;
-    }
-  case ST_FOR:
-    {
-      Expr *pre = duplicate_inline_function_expr(targetfunc, targetscope, stmt->for_.pre);
-      Expr *cond = duplicate_inline_function_expr(targetfunc, targetscope, stmt->for_.cond);
-      Expr *post = duplicate_inline_function_expr(targetfunc, targetscope, stmt->for_.post);
-      Stmt *dup = new_stmt_for(stmt->token, pre, cond, post, NULL);
-      SAVE_LOOP_SCOPE(save, dup, dup); {
-        dup->for_.body = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->for_.body);
-      } RESTORE_LOOP_SCOPE(save);
-      return dup;
-    }
-  case ST_BREAK:
-  case ST_CONTINUE:
-    {
-      Stmt *dup = new_stmt(stmt->kind, stmt->token);
-      Stmt *parent = stmt->kind == ST_BREAK ? loop_scope.break_ : loop_scope.continu;
-      assert(parent != NULL);
-      dup->break_.parent = parent;
-      return dup;
-    }
-  case ST_RETURN:
-    {
-      Expr *val = duplicate_inline_function_expr(targetfunc, targetscope, stmt->return_.val);
-      Stmt *dup = new_stmt_return(stmt->token, val);
-      return dup;
-    }
-  case ST_CASE:
-    {
-      Stmt *swtch = loop_scope.swtch;
-      assert(swtch != NULL);
-      Stmt *dup = new_stmt_case(stmt->token, swtch, stmt->case_.value);
-      if (stmt->case_.value == NULL) {
-        swtch->switch_.default_ = dup;
-      } else {
-        // Value is constant so reuse.
-        assert(is_const(stmt->case_.value));
-      }
-      dup->case_.stmt = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->case_.stmt);
-
-      // Find index.
-      Stmt *org_swtch = stmt->case_.swtch;
-      Vector *org_cases = org_swtch->switch_.cases;
-      int index = 0;
-      for (int len = org_cases->len; index < len; ++index) {
-        if (org_cases->data[index] == stmt)
-          break;
-      }
-      assert(index < org_cases->len);
-      swtch->switch_.cases->data[index] = dup;
-      return dup;
-    }
-  case ST_LABEL:
-    {
-      Stmt *follow = duplicate_inline_function_stmt(targetfunc, targetscope, stmt->label.stmt);
-      Stmt *dup = new_stmt_label(stmt->token, follow);
-      return dup;
-    }
-  case ST_VARDECL:
-    {
-      VarDecl *d = stmt->vardecl;
-      if (d->varinfo->storage & VS_STATIC)
-        return NULL;
-      VarInfo *varinfo = scope_find(curscope, d->varinfo->ident->ident, NULL);
-      assert(varinfo != NULL);
-      VarDecl *decl = new_vardecl(varinfo);
-      decl->init_stmt = duplicate_inline_function_stmt(targetfunc, targetscope, d->init_stmt);
-      return new_stmt_vardecl(decl);
-    }
-  case ST_ASM:
-    {
-      Vector *outputs = duplicate_inline_function_asm_args(targetfunc, targetscope, stmt->asm_.outputs);
-      Vector *inputs = duplicate_inline_function_asm_args(targetfunc, targetscope, stmt->asm_.inputs);
-      Stmt *dup = new_stmt_asm(stmt->token, stmt->asm_.templates, outputs, inputs, stmt->asm_.flag);
-      return dup;
-    }
-    break;
-  default:
-#if XCC_TARGET_ARCH == XCC_ARCH_WASM
-  case ST_BLOCK_FOR_LABEL:  // Inlining function which contains label or goto is prevented.
-#endif
-    assert(false);
-    // Fallthrough to suppress warning.
-  case ST_EMPTY: case ST_GOTO:
-    return stmt;
-  }
+static Stmt *dup_stmt_asm(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
+  Vector *outputs = duplicate_inline_function_asm_args(targetfunc, targetscope, stmt->asm_.outputs);
+  Vector *inputs = duplicate_inline_function_asm_args(targetfunc, targetscope, stmt->asm_.inputs);
+  Stmt *dup = new_stmt_asm(stmt->token, stmt->asm_.templates, outputs, inputs, stmt->asm_.flag);
+  return dup;
 }
 
 static Stmt *duplicate_inline_function_stmt(Function *targetfunc, Scope *targetscope, Stmt *stmt) {
   if (stmt == NULL)
     return NULL;
-  Stmt *duplicated = do_duplicate_inline_function_stmt(targetfunc, targetscope, stmt);
+
+  typedef Stmt *(*DuplicateStmt)(Function*, Scope*, Stmt*);
+  static const DuplicateStmt table[] = {
+    [ST_EMPTY] = dup_stmt_empty, [ST_EXPR] = dup_stmt_expr, [ST_BLOCK] = dup_stmt_block,
+    [ST_IF] = dup_stmt_if, [ST_SWITCH] = dup_stmt_switch, [ST_WHILE] = dup_stmt_while,
+    [ST_DO_WHILE] = dup_stmt_do_while, [ST_FOR] = dup_stmt_for, [ST_BREAK] = dup_stmt_break,
+    [ST_CONTINUE] = dup_stmt_continue, [ST_RETURN] = dup_stmt_return, [ST_CASE] = dup_stmt_case,
+    [ST_GOTO] = dup_stmt_goto, [ST_LABEL] = dup_stmt_label, [ST_VARDECL] = dup_stmt_vardecl,
+    [ST_ASM] = dup_stmt_asm,
+#if XCC_TARGET_ARCH == XCC_ARCH_WASM
+    // Inlining function which contains label or goto is prevented.
+    // [ST_BLOCK_FOR_LABEL] = dup_stmt_block_for_label,
+#endif
+  };
+  assert(stmt->kind < (int)ARRAY_SIZE(table));
+  assert(table[stmt->kind] != NULL);
+  Stmt *duplicated = (*table[stmt->kind])(targetfunc, targetscope, stmt);
   duplicated->reach = stmt->reach;
   return duplicated;
 }

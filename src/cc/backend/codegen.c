@@ -839,7 +839,7 @@ void detect_living_registers(RegAlloc *ra, BBContainer *bbcon) {
 #undef VREGFOR
 }
 
-void alloc_stack_variables_onto_stack_frame(Function *func) {
+static size_t alloc_params_onto_stack_frame(Function *func, bool *prequire_stack_frame) {
   FuncBackend *fnbe = func->extra;
   assert(fnbe->frame_size == 0);
   size_t frame_size = 0;
@@ -864,7 +864,6 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
 #endif
   int reg_index[2] = {arg_start, 0};  // [0]=gp-reg, [1]=fp-reg
 
-  // Parameters.
   for (int i = 0; i < func->params->len; ++i) {
     VarInfo *varinfo = func->params->data[i];
     assert(is_local_storage(varinfo));
@@ -902,7 +901,11 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
     require_stack_frame = true;
   }
 
-  // Local variables.
+  *prequire_stack_frame = require_stack_frame;
+  return frame_size;
+}
+
+static size_t alloc_locals_onto_stack_frame(Function *func, size_t frame_size) {
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     for (int j = 0; j < scope->vars->len; ++j) {
@@ -944,9 +947,10 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
       fi->offset = -(int)frame_size;
     }
   }
+  return frame_size;
+}
 
-  // Allocate spilled variables onto stack frame.
-  RegAlloc *ra = fnbe->ra;
+static size_t alloc_spilled_vregs_onto_stack_frame(RegAlloc *ra, size_t frame_size) {
   for (int i = 0; i < ra->vregs->len; ++i) {
     LiveInterval *li = ra->sorted_intervals[i];
     if (li->state != LI_SPILL)
@@ -962,10 +966,20 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
     frame_size = ALIGN(frame_size + size, align);
     vreg->frame.offset = -(int)frame_size;
   }
+  return frame_size;
+}
+
+void alloc_stack_variables_onto_stack_frame(Function *func) {
+  bool require_stack_frame;
+  size_t frame_size = alloc_params_onto_stack_frame(func, &require_stack_frame);
+  frame_size = alloc_locals_onto_stack_frame(func, frame_size);
+
+  FuncBackend *fnbe = func->extra;
+  frame_size = alloc_spilled_vregs_onto_stack_frame(fnbe->ra, frame_size);
 
   fnbe->frame_size = frame_size;
+
   assert(!(require_stack_frame || frame_size > 0) || (fnbe->ra->flag & RAF_STACK_FRAME));
-  UNUSED(require_stack_frame);
 }
 
 bool gen_defun(Function *func) {
