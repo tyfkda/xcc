@@ -449,20 +449,12 @@ static Expr *binary(Expr *lhs, Token *tok) {
   enum TokenKind kind = tok->kind;
   switch (kind) {
   case TK_ADD: case TK_SUB:
-    return new_expr_addsub(kind + (EX_ADD - TK_ADD), tok, lhs, rhs);
-  case TK_MUL: case TK_DIV: case TK_MOD:
-    return new_expr_num_bop(kind + (EX_MUL - TK_MUL), tok, lhs, rhs);
+  case TK_MUL: case TK_DIV:
+  case TK_MOD: case TK_AND: case TK_OR: case TK_HAT:
   case TK_LSHIFT: case TK_RSHIFT:
-    if (!is_fixnum(lhs->type) ||
-        !is_fixnum(rhs->type))
-      parse_error(PE_NOFATAL, tok, "cannot use `%.*s' except numbers.", (int)(tok->end - tok->begin), tok->begin);
-
-    lhs = promote_to_int(lhs);
-    return new_expr_num_bop(kind + (EX_LSHIFT - TK_LSHIFT), tok, lhs, rhs);
-  case TK_AND: case TK_OR: case TK_HAT:
-    return new_expr_int_bop(kind + (EX_BITAND - TK_AND), tok, lhs, rhs);
+    return make_expr_num_bop(kind + (EX_ADD - TK_ADD), tok, lhs, rhs);
   case TK_EQ: case TK_NE: case TK_LT: case TK_LE: case TK_GE: case TK_GT:
-    return new_expr_cmp(kind + (EX_EQ - TK_EQ), tok, lhs, rhs);
+    return make_expr_cmp(kind + (EX_EQ - TK_EQ), tok, lhs, rhs);
   case TK_LOGAND: case TK_LOGIOR:
     lhs = make_cond(lhs);
     rhs = make_cond(rhs);
@@ -588,7 +580,7 @@ static Expr *array_index(Expr *expr, Token *token) {
   if (!is_fixnum(index->type)) {
     parse_error(PE_NOFATAL, index->token, "int required for `['");
   } else {
-    expr = new_expr_addsub(EX_ADD, token, expr, index);
+    expr = make_expr_num_bop(EX_ADD, token, expr, index);
   }
   return new_expr_deref(token, expr);
 }

@@ -348,10 +348,10 @@ static VReg *gen_alloca(Expr *expr) {
   assert(curfunc != NULL);
   Expr *size = args->data[0];
   const Token *token = size->token;
-  Expr *aligned_size = new_expr_int_bop(
+  Expr *aligned_size = make_expr_num_bop(
       EX_BITAND, token,
-      new_expr_addsub(EX_ADD, token, make_cast(&tySSize, token, size, false),
-                      new_expr_fixlit(&tySSize, token, stack_align - 1)),
+      make_expr_num_bop(EX_ADD, token, make_cast(&tySSize, token, size, false),
+                        new_expr_fixlit(&tySSize, token, stack_align - 1)),
       new_expr_fixlit(&tySSize, token, -stack_align));
   VReg *addend = gen_expr(aligned_size);
   VReg *result = add_new_vreg(&tyVoidPtr);

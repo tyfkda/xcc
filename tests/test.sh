@@ -24,6 +24,11 @@ function test_basic() {
   compile_error 'shadow enum and struct tag' 'int main(){enum Foo{A}; { struct Foo{int x;} s={0}; enum Foo e=0; return s.x+e; } }'
   try_direct 'empty file-scope declaration' 0 ';; int main(void){ return 0; };'
 
+  # If no-flonum, Compile error occurred, anyway.
+  compile_error 'mod float' 'int main(void) {double x=123.45; return x%3.14;}'
+  compile_error 'lshift float' 'int main(void) {double x=123.45; return x<<5.5;}'
+  compile_error 'rshift float' 'int main(void) {double x=123.45; return x>>5.5;}'
+
   end_test_suite
 }
 

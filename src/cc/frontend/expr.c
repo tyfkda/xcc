@@ -53,8 +53,8 @@ Expr *reserve_vla_type_size(Type *type) {
 
   const Token *token = type->pa.vla->token;
   Expr *var = alloc_tmp_var(curscope, &tySize);
-  Expr *value = new_expr_num_bop(EX_MUL, token, make_cast(&tySize, token, type->pa.vla, false),
-                                 calc_type_size(type->pa.ptrof));
+  Expr *value = make_expr_num_bop(EX_MUL, token, make_cast(&tySize, token, type->pa.vla, false),
+                                  calc_type_size(type->pa.ptrof));
   Expr *assign = new_expr_bop(EX_ASSIGN, &tySize, token, var, value);
   type->pa.size_var = var;
 
@@ -140,7 +140,7 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
     Type *i64t = get_fixnum_type_from_size(dst_size);
     Expr *cond = new_expr_bop(EX_LE, &tyBool, token, sub,
                               new_expr_flolit(sub->type, sub->token, INT64_MAX));
-    Expr *offsetted = new_expr_addsub(
+    Expr *offsetted = make_expr_num_bop(
         EX_SUB, token, sub,
         new_expr_flolit(sub->type, sub->token, (uint64_t)INT64_MAX + 1UL));
     Expr *xorred = new_expr_bop(EX_BITXOR, i64t, token, make_cast(i64t, token, offsetted, false),
@@ -343,196 +343,160 @@ Expr *promote_to_int(Expr *expr) {
   return make_cast(&tyInt, expr->token, expr, false);
 }
 
-Expr *new_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
-  if (kind == EX_LSHIFT || kind == EX_RSHIFT) {
-    lhs = promote_to_int(lhs);
-    rhs = make_cast(lhs->type, rhs->token, rhs, false);
-  } else {
-    cast_numbers(&lhs, &rhs, true);
-  }
-
-  do {
-    if (is_const(rhs) && is_number(rhs->type)) {
-      if (is_const(lhs) && is_number(lhs->type)) {
+static inline Expr *make_expr_num_bop_const_folding(enum ExprKind kind, const Token *tok, Expr *lhs,
+                                                    Expr *rhs) {
+  if (is_const(rhs) && is_number(rhs->type)) {
+    if (is_const(lhs) && is_number(lhs->type)) {
 #ifndef __NO_FLONUM
-        if (is_flonum(lhs->type)) {
-          assert(is_flonum(rhs->type));
-          Flonum lval = lhs->flonum;
-          Flonum rval = rhs->flonum;
-          Flonum value;
-          switch (kind) {
-          case EX_MUL:     value = lval * rval; break;
-          case EX_DIV:     value = lval / rval; break;
-          default:
-            assert(!"err");
-            value = -1;  // Dummy
-            break;
-          }
-          Type *type = lhs->type;
-          if (is_flonum(rhs->type))
-            type = rhs->type;
-          if (is_flonum(type)) {
-            return new_expr_flolit(type, lhs->token, value);
-          } else {
-            Fixnum fixnum = value;
-            return new_expr_fixlit(type, lhs->token, fixnum);
-          }
+      if (is_flonum(lhs->type)) {
+        assert(is_flonum(rhs->type));
+        Flonum lval = lhs->flonum;
+        Flonum rval = rhs->flonum;
+        Flonum value;
+        switch (kind) {
+        case EX_MUL:  value = lval * rval; break;
+        case EX_DIV:  value = lval / rval; break;
+        default:  assert(!"err"); value = -1; break;
         }
+        return new_expr_flolit(lhs->type, lhs->token, value);
+      }
 #endif
 
-        if ((kind == EX_DIV || kind == EX_MOD) && rhs->fixnum == 0)
-          break;
+      if ((kind == EX_DIV || kind == EX_MOD) && rhs->fixnum == 0) {
+        parse_error(PE_WARNING, rhs->token, "divide by 0");
+        return NULL;
+      }
 
 #define CALC(kind, lval, rval, value) \
-  switch (kind) { \
-  default: assert(false); /* Fallthrough */ \
-  case EX_MUL:     value = lval * rval; break; \
-  case EX_DIV:     value = lval / rval; break; \
-  case EX_MOD:     value = lval % rval; break; \
-  case EX_BITAND:  value = lval & rval; break; \
-  case EX_BITOR:   value = lval | rval; break; \
-  case EX_BITXOR:  value = lval ^ rval; break; \
-  case EX_LSHIFT:  value = lval << rval; break; \
-  case EX_RSHIFT:  value = lval >> rval; break; \
-  }
+switch (kind) { \
+default: assert(false); /* Fallthrough */ \
+case EX_MUL:     value = lval * rval; break; \
+case EX_DIV:     value = lval / rval; break; \
+case EX_MOD:     value = lval % rval; break; \
+case EX_BITAND:  value = lval & rval; break; \
+case EX_BITOR:   value = lval | rval; break; \
+case EX_BITXOR:  value = lval ^ rval; break; \
+case EX_LSHIFT:  value = lval << rval; break; \
+case EX_RSHIFT:  value = lval >> rval; break; \
+}
 
-        Fixnum value;
-        if (lhs->type->fixnum.is_unsigned) {
-          UFixnum lval = lhs->fixnum;
-          UFixnum rval = rhs->fixnum;
-          CALC(kind, lval, rval, value)
-        } else {
-          Fixnum lval = lhs->fixnum;
-          Fixnum rval = rhs->fixnum;
-          CALC(kind, lval, rval, value)
-        }
-#undef CALC
-        enum FixnumKind lk = lhs->type->fixnum.kind, rk = rhs->type->fixnum.kind;
-        Type *type = lk >= rk ? lhs->type : rhs->type;
-        if (type->fixnum.kind < FX_INT)
-          type = &tyInt;
-        value = wrap_value(value, type_size(type), type->fixnum.is_unsigned);
-        return new_expr_fixlit(type, lhs->token, value);
+      Fixnum value;
+      if (lhs->type->fixnum.is_unsigned) {
+        UFixnum lval = lhs->fixnum;
+        UFixnum rval = rhs->fixnum;
+        CALC(kind, lval, rval, value)
       } else {
-#ifndef __NO_FLONUM
-        if (is_flonum(rhs->type)) {
-          assert(is_flonum(lhs->type));
-          Flonum rval = rhs->flonum;
-          switch (kind) {
-          case EX_MUL:
-            if (rval == 0.0)
-              return new_expr_bop(EX_COMMA, rhs->type, tok, lhs, rhs);  // 0.0
-            if (rval == -1.0)
-              return new_expr_unary(EX_NEG, lhs->type, lhs->token, lhs);  // -lhs
-            // Fallthrough.
-          case EX_DIV:
-            if (rval == 1.0)
-              return lhs;  // no effect.
-            break;
-          default: break;
-          }
-          break;
-        }
-#endif
+        Fixnum lval = lhs->fixnum;
         Fixnum rval = rhs->fixnum;
-        switch (kind) {
-        case EX_MUL:
-          if (rval == 0)
-            return new_expr_bop(EX_COMMA, rhs->type, tok, lhs, rhs);  // 0
-          if (rval == -1)
-            return new_expr_unary(EX_NEG, lhs->type, lhs->token, lhs);
-          // Fallthrough.
-        case EX_DIV:
-          if (rval == 1)
-            return lhs;  // no effect.
-          break;
-        case EX_BITAND:
-          if (rval == 0)
-            return new_expr_bop(EX_COMMA, rhs->type, tok, lhs, rhs);  // 0
-          break;
-        case EX_BITOR:
-        case EX_BITXOR:
-        case EX_LSHIFT:
-        case EX_RSHIFT:
-          if (rval == 0)
-            return lhs;  // no effect.
-          break;
-        default: break;
-        }
+        CALC(kind, lval, rval, value)
       }
+#undef CALC
+      enum FixnumKind lk = lhs->type->fixnum.kind, rk = rhs->type->fixnum.kind;
+      Type *type = lk >= rk ? lhs->type : rhs->type;
+      if (type->fixnum.kind < FX_INT)
+        type = &tyInt;
+      value = wrap_value(value, type_size(type), type->fixnum.is_unsigned);
+      return new_expr_fixlit(type, lhs->token, value);
     } else {
-      if (is_const(lhs) && is_number(lhs->type)) {
 #ifndef __NO_FLONUM
-        if (is_flonum(lhs->type)) {
-          assert(is_flonum(rhs->type));
-          Flonum lval = lhs->flonum;
-          switch (kind) {
-          case EX_MUL:
-            if (lval == 0.0)
-              return new_expr_bop(EX_COMMA, lhs->type, tok, rhs, lhs);  // 0.0
-            if (lval == 1.0)
-              return rhs;  // no effect.
-            if (lval == -1.0)
-              return new_expr_unary(EX_NEG, rhs->type, rhs->token, rhs);  // -rhs
-            break;
-          default: break;
-          }
-          break;
-        }
-#endif
-        Fixnum lval = rhs->fixnum;
+      if (is_flonum(rhs->type)) {
+        assert(is_flonum(lhs->type));
+        Flonum rval = rhs->flonum;
         switch (kind) {
         case EX_MUL:
-          if (lval == 0)
-            return new_expr_bop(EX_COMMA, lhs->type, tok, rhs, lhs);  // 0
-          if (lval == -1)
-            return new_expr_unary(EX_NEG, rhs->type, rhs->token, rhs);  // -rhs
+          if (rval == 0.0)
+            return new_expr_bop(EX_COMMA, rhs->type, tok, lhs, rhs);  // 0.0
+          if (rval == -1.0)
+            return new_expr_unary(EX_NEG, lhs->type, lhs->token, lhs);  // -lhs
           // Fallthrough.
         case EX_DIV:
-          if (lval == 1)
-            return rhs;  // no effect.
-          break;
-        case EX_BITAND:
-          if (lval == 0)
-            return new_expr_bop(EX_COMMA, lhs->type, tok, rhs, lhs);  // 0
-          break;
-        case EX_BITOR:
-        case EX_BITXOR:
-          if (lval == 0)
-            return rhs;  // no effect.
-          break;
-        case EX_LSHIFT:
-        case EX_RSHIFT:
-          if (lval == 0)
+          if (rval == 1.0)
             return lhs;  // no effect.
           break;
         default: break;
         }
+        return NULL;
+      }
+#endif
+      Fixnum rval = rhs->fixnum;
+      switch (kind) {
+      case EX_MUL:
+        if (rval == 0)
+          return new_expr_bop(EX_COMMA, rhs->type, tok, lhs, rhs);  // 0
+        if (rval == -1)
+          return new_expr_unary(EX_NEG, lhs->type, lhs->token, lhs);
+        // Fallthrough.
+      case EX_DIV:
+        if (rval == 1)
+          return lhs;  // no effect.
+        break;
+      case EX_BITAND:
+        if (rval == 0)
+          return new_expr_bop(EX_COMMA, rhs->type, tok, lhs, rhs);  // 0
+        break;
+      case EX_BITOR:
+      case EX_BITXOR:
+      case EX_LSHIFT:
+      case EX_RSHIFT:
+        if (rval == 0)
+          return lhs;  // no effect.
+        break;
+      default: break;
       }
     }
-  } while (0);
-
-  if ((kind == EX_DIV || kind == EX_MOD) && is_const(rhs) &&
-      is_fixnum(rhs->type) && rhs->fixnum == 0) {
-    parse_error(PE_WARNING, rhs->token, "divide by 0");
+  } else  // `rhs` is not constant.
+  if (is_const(lhs) && is_number(lhs->type)) {
+#ifndef __NO_FLONUM
+    if (is_flonum(lhs->type)) {
+      assert(is_flonum(rhs->type));
+      Flonum lval = lhs->flonum;
+      switch (kind) {
+      case EX_MUL:
+        if (lval == 0.0)
+          return new_expr_bop(EX_COMMA, lhs->type, tok, rhs, lhs);  // 0.0
+        if (lval == 1.0)
+          return rhs;  // no effect.
+        if (lval == -1.0)
+          return new_expr_unary(EX_NEG, rhs->type, rhs->token, rhs);  // -rhs
+        break;
+      default: break;
+      }
+      return NULL;
+    }
+#endif
+    Fixnum lval = rhs->fixnum;
+    switch (kind) {
+    case EX_MUL:
+      if (lval == 0)
+        return new_expr_bop(EX_COMMA, lhs->type, tok, rhs, lhs);  // 0
+      if (lval == -1)
+        return new_expr_unary(EX_NEG, rhs->type, rhs->token, rhs);  // -rhs
+      // Fallthrough.
+    case EX_DIV:
+      if (lval == 1)
+        return rhs;  // no effect.
+      break;
+    case EX_BITAND:
+      if (lval == 0)
+        return new_expr_bop(EX_COMMA, lhs->type, tok, rhs, lhs);  // 0
+      break;
+    case EX_BITOR:
+    case EX_BITXOR:
+      if (lval == 0)
+        return rhs;  // no effect.
+      break;
+    case EX_LSHIFT:
+    case EX_RSHIFT:
+      if (lval == 0)
+        return lhs;  // no effect.
+      break;
+    default: break;
+    }
   }
-
-  return new_expr_bop(kind, lhs->type, tok, lhs, rhs);
+  return NULL;
 }
 
-Expr *new_expr_int_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
-  if (!is_fixnum(lhs->type)) {
-    parse_error(PE_NOFATAL, lhs->token, "int type expected");
-    lhs = new_expr_fixlit(&tyInt, tok, 1);
-  }
-  if (!is_fixnum(rhs->type)) {
-    parse_error(PE_NOFATAL, rhs->token, "int type expected");
-    rhs = new_expr_fixlit(&tyInt, tok, 1);
-  }
-  return new_expr_num_bop(kind, tok, lhs, rhs);
-}
-
-Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
+static Expr *make_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
   lhs = str_to_char_array_var(curscope, lhs);
   rhs = str_to_char_array_var(curscope, rhs);
 
@@ -606,9 +570,9 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       // lhs + ((size_t)rhs * sizeof(*lhs))
       if (!ensure_type_info(type->pa.ptrof, tok, curscope, true))
         return lhs;
-      rhs = new_expr_num_bop(EX_MUL, rhs->token,
-                             make_cast(&tySize, rhs->token, rhs, false),
-                             calc_type_size(type->pa.ptrof));
+      rhs = make_expr_num_bop(EX_MUL, rhs->token,
+                              make_cast(&tySize, rhs->token, rhs, false),
+                              calc_type_size(type->pa.ptrof));
     } else if (kind == EX_SUB && ptr_or_array(rtype)) {
       if (ltype->kind == TY_ARRAY)
         ltype = array_to_ptr(ltype);
@@ -647,9 +611,9 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
       // ((size_t)lhs * sizeof(*rhs)) + rhs
       if (!ensure_type_info(type->pa.ptrof, tok, curscope, true))
         return rhs;
-      Expr *tmp = new_expr_num_bop(EX_MUL, lhs->token,
-                                   make_cast(&tySize, lhs->token, lhs, false),
-                                   new_expr_fixlit(&tySize, tok, type_size(type->pa.ptrof)));
+      Expr *tmp = make_expr_num_bop(EX_MUL, lhs->token,
+                                    make_cast(&tySize, lhs->token, lhs, false),
+                                    new_expr_fixlit(&tySize, tok, type_size(type->pa.ptrof)));
       lhs = rhs;
       rhs = tmp;
       Type *t = ltype;
@@ -677,6 +641,42 @@ Expr *new_expr_addsub(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs
     }
   }
   return new_expr_bop(kind, type, tok, lhs, rhs);
+}
+
+Expr *make_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
+  switch (kind) {
+  case EX_ADD: case EX_SUB:
+    return make_expr_addsub(kind, tok, lhs, rhs);
+
+  // integer only bop.
+  case EX_MOD: case EX_BITAND: case EX_BITOR: case EX_BITXOR:
+  case EX_LSHIFT: case EX_RSHIFT:
+    if (!is_fixnum(lhs->type)) {
+      parse_error(PE_NOFATAL, lhs->token, "int type expected");
+      lhs = new_expr_fixlit(&tyInt, tok, 1);  // Dummy
+    }
+    if (!is_fixnum(rhs->type)) {
+      parse_error(PE_NOFATAL, rhs->token, "int type expected");
+      rhs = new_expr_fixlit(&tyInt, tok, 1);  // Dummy
+    }
+
+    if (kind == EX_LSHIFT || kind == EX_RSHIFT) {
+      lhs = promote_to_int(lhs);
+      rhs = make_cast(lhs->type, rhs->token, rhs, false);
+    }
+    break;
+
+  default:
+    break;
+  }
+
+  cast_numbers(&lhs, &rhs, true);
+
+  Expr *folded = make_expr_num_bop_const_folding(kind, tok, lhs, rhs);
+  if (folded != NULL)
+    return folded;
+
+  return new_expr_bop(kind, lhs->type, tok, lhs, rhs);
 }
 
 #ifndef __NO_BITFIELD
@@ -715,13 +715,13 @@ Expr *assign_bitfield_member(const Token *tok, Expr *dst, Expr *src, Expr *val,
   val = make_cast(type, val->token, val, false);
 
   UFixnum mask = ((UFixnum)1 << minfo->bitfield.width) - 1;
-  Expr *val_masked = new_expr_num_bop(EX_BITAND, tok, val, new_expr_fixlit(type, tok, mask));
+  Expr *val_masked = make_expr_num_bop(EX_BITAND, tok, val, new_expr_fixlit(type, tok, mask));
   val_masked = make_cast(type, tok, val_masked, false);
   if (minfo->bitfield.position > 0)
-    val_masked = new_expr_num_bop(EX_LSHIFT, tok, val_masked,
+    val_masked = make_expr_num_bop(EX_LSHIFT, tok, val_masked,
                                   new_expr_fixlit(type, tok, minfo->bitfield.position));
   Expr *src_mask = new_expr_fixlit(type, tok, ~(mask << minfo->bitfield.position));
-  Expr *src_masked = new_expr_num_bop(EX_BITAND, tok, src, src_mask);
+  Expr *src_masked = make_expr_num_bop(EX_BITAND, tok, src, src_mask);
   return new_expr_bop(EX_ASSIGN, type, tok, dst,
                       new_expr_bop(EX_BITOR, type, tok, val_masked, src_masked));
 }
@@ -817,7 +817,168 @@ Expr *incdec_of(enum ExprKind kind, Expr *target, const Token *tok) {
   return new_expr_unary(kind, target->type, tok, target);
 }
 
-Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
+static Expr *make_expr_cmp_const_folding(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
+#define JUDGE(kind, tf, l, r)               \
+  switch (kind) {                           \
+  default: assert(false); /* Fallthrough */ \
+  case EX_EQ: tf = l == r; break;           \
+  case EX_NE: tf = l != r; break;           \
+  case EX_LT: tf = l < r; break;            \
+  case EX_LE: tf = l <= r; break;           \
+  case EX_GE: tf = l >= r; break;           \
+  case EX_GT: tf = l > r; break;            \
+  }
+
+  bool tf = false;
+  switch (lhs->kind) {
+  default:
+    assert(false);
+    // Fallthrough to suppress warning.
+  case EX_FIXNUM:
+    switch (rhs->kind) {
+    case EX_FIXNUM:
+      if (lhs->type->fixnum.is_unsigned || rhs->type->fixnum.is_unsigned) {
+        UFixnum l = lhs->fixnum, r = rhs->fixnum;
+        JUDGE(kind, tf, l, r);
+      } else {
+        Fixnum l = lhs->fixnum, r = rhs->fixnum;
+        JUDGE(kind, tf, l, r);
+      }
+      break;
+#ifndef __NO_FLONUM
+    case EX_FLONUM: assert(false); break;  // Comparing fix and flo is automatically casted.
+#endif
+    case EX_STR:
+      switch (kind) {
+      case EX_EQ: tf = false; break;
+      case EX_NE: tf = true; break;
+      default: break;
+      }
+      break;
+    default: break;
+    }
+    break;
+#ifndef __NO_FLONUM
+  case EX_FLONUM:
+    switch (rhs->kind) {
+    case EX_STR: break;
+    case EX_FIXNUM: assert(false); break;  // Comparing fix and flo is automatically casted.
+    case EX_FLONUM:
+      {
+        Flonum l = lhs->flonum;
+        Flonum r;
+        if (rhs->kind == EX_FLONUM) {
+          r = rhs->flonum;
+        } else if (rhs->kind == EX_FIXNUM) {
+          r = rhs->type->fixnum.is_unsigned ? (Flonum)(UFixnum)rhs->fixnum : (Flonum)rhs->fixnum;
+        } else {
+          break;
+        }
+        JUDGE(kind, tf, l, r);
+      }
+      break;
+    default: break;
+    }
+    break;
+#endif
+  case EX_STR:
+    switch (kind) {
+    case EX_EQ: tf = false; break;
+    case EX_NE: tf = true; break;
+    default: break;
+    }
+    break;
+  }
+  return new_expr_fixlit(&tyBool, tok, tf);
+#undef JUDGE
+}
+
+static Expr *make_expr_equality_unnested(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
+  // !(x == true) => x != true
+  // !(x && y) => !x || !y
+
+  if (kind != EX_EQ && kind != EX_NE)
+    return NULL;
+
+  Expr *v, *c;
+  if (is_const(lhs)) {
+    v = rhs;
+    c = lhs;
+  } else {
+    v = lhs;
+    c = rhs;
+  }
+  assert(is_const(c));
+  enum { NEVER = -1, UNKNOWN = -2 };
+  int value = UNKNOWN;
+  switch (c->kind) {
+#ifndef __NO_FLONUM
+  case EX_FLONUM:
+    if (c->flonum == 0.0)
+      value = 0;
+    else if (c->flonum == 1.0)
+      value = 1;
+    else
+      value = NEVER;
+    break;
+#endif
+  case EX_FIXNUM:
+    value = c->fixnum == 0 || c->fixnum == 1 ? c->fixnum : NEVER;
+    break;
+  case EX_STR:
+    value = NEVER;
+    break;
+  default:
+    break;
+  }
+
+  Expr *p = strip_cast(v);
+  int k = kind;
+  switch (value) {
+  case 1:
+    // Swap condition that regard the value as 0.
+    k = (EX_EQ + EX_NE) - k;  // EQ <-> NE
+    // Fallthrough
+  case 0:
+    // Eliminate comparing comparison result with 0.
+    switch (p->kind) {
+    case EX_EQ: case EX_NE:
+      if (k == EX_EQ)
+        p->kind = (EX_EQ + EX_NE) - p->kind;  // EQ <-> NE
+      return p;
+    case EX_LT: case EX_LE: case EX_GE: case EX_GT:
+      if (k == EX_EQ)
+        p->kind = EX_LT + ((p->kind - EX_LT) ^ 2);  // LT <-> GE, LE <-> GT
+      return p;
+    case EX_LOGAND: case EX_LOGIOR:
+      if (k == EX_EQ)
+        p = new_expr_bop(
+            (EX_LOGAND + EX_LOGIOR) - p->kind,  // LOGAND <-> LOGIOR
+            &tyBool, p->token,
+            make_not_expr(p->bop.lhs->token, p->bop.lhs),
+            make_not_expr(p->bop.rhs->token, p->bop.rhs));
+      return p;
+    default: break;
+    }
+    break;
+  case NEVER:
+    switch (p->kind) {
+    case EX_EQ: case EX_NE:
+    case EX_LT: case EX_LE: case EX_GE: case EX_GT:
+    case EX_LOGAND: case EX_LOGIOR:
+      parse_error(PE_WARNING, tok, "always %s", kind != EX_EQ ? "true" : "false");
+      return new_expr_bop(EX_COMMA, &tyBool, tok, v,
+                          new_expr_fixlit(&tyBool, tok, (kind != EX_EQ)));
+    default: break;
+    }
+    break;
+  case UNKNOWN: default:
+    break;
+  }
+  return NULL;
+}
+
+Expr *make_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
   if (lhs->type->kind == TY_FUNC)
     lhs = make_refer(lhs->token, lhs);
   if (rhs->type->kind == TY_FUNC)
@@ -840,161 +1001,13 @@ Expr *new_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
     }
   }
 
-  if (is_const(lhs) && is_const(rhs)) {
-#define JUDGE(kind, tf, l, r)               \
-  switch (kind) {                           \
-  default: assert(false); /* Fallthrough */ \
-  case EX_EQ: tf = l == r; break;           \
-  case EX_NE: tf = l != r; break;           \
-  case EX_LT: tf = l < r; break;            \
-  case EX_LE: tf = l <= r; break;           \
-  case EX_GE: tf = l >= r; break;           \
-  case EX_GT: tf = l > r; break;            \
-  }
-    int tf = -1;
-    switch (lhs->kind) {
-    default:
-      assert(false);
-      // Fallthrough to suppress warning.
-    case EX_FIXNUM:
-      switch (rhs->kind) {
-      case EX_FIXNUM:
-        if (lhs->type->fixnum.is_unsigned || rhs->type->fixnum.is_unsigned) {
-          UFixnum l = lhs->fixnum, r = rhs->fixnum;
-          JUDGE(kind, tf, l, r);
-        } else {
-          Fixnum l = lhs->fixnum, r = rhs->fixnum;
-          JUDGE(kind, tf, l, r);
-        }
-        break;
-#ifndef __NO_FLONUM
-      case EX_FLONUM: assert(false); break;
-#endif
-      case EX_STR:
-        if (is_zero(lhs)) {
-          switch (kind) {
-          case EX_EQ: tf = false; break;
-          case EX_NE: tf = true; break;
-          default: break;
-          }
-        }
-        break;
-      default: break;
-      }
-      break;
-#ifndef __NO_FLONUM
-    case EX_FLONUM:
-      switch (rhs->kind) {
-      case EX_STR: break;
-      case EX_FIXNUM: assert(false); break;
-      case EX_FLONUM:
-        {
-          Flonum l = lhs->flonum;
-          Flonum r;
-          if (rhs->kind == EX_FLONUM) {
-            r = rhs->flonum;
-          } else if (rhs->kind == EX_FIXNUM) {
-            r = rhs->type->fixnum.is_unsigned ? (Flonum)(UFixnum)rhs->fixnum : (Flonum)rhs->fixnum;
-          } else {
-            break;
-          }
-          JUDGE(kind, tf, l, r);
-        }
-        break;
-      default: break;
-      }
-      break;
-#endif
-    case EX_STR:
-      if (is_zero(rhs)) {
-        switch (kind) {
-        case EX_EQ: tf = false; break;
-        case EX_NE: tf = true; break;
-        default: break;
-        }
-      }
-      break;
-    }
-    if (tf >= 0)
-      return new_expr_fixlit(&tyBool, tok, tf);
-#undef JUDGE
-  }
+  if (is_const(lhs) || is_const(rhs)) {
+    if (is_const(lhs) && is_const(rhs))
+      return make_expr_cmp_const_folding(kind, tok, lhs, rhs);
 
-  if ((kind == EX_EQ || kind == EX_NE) && (is_const(rhs) || is_const(lhs))) {
-    Expr *v, *c;
-    if (is_const(lhs)) {
-      v = rhs;
-      c = lhs;
-    } else {
-      v = lhs;
-      c = rhs;
-    }
-    enum { NEVER = -1, UNKNOWN = -2 };
-    int value = UNKNOWN;
-    switch (c->kind) {
-#ifndef __NO_FLONUM
-    case EX_FLONUM:
-      if (c->flonum == 0.0)
-        value = 0;
-      else if (c->flonum == 1.0)
-        value = 1;
-      else
-        value = NEVER;
-      break;
-#endif
-    case EX_FIXNUM:
-      value = c->fixnum == 0 || c->fixnum == 1 ? c->fixnum : NEVER;
-      break;
-    case EX_STR:
-      value = NEVER;
-      break;
-    default:
-      break;
-    }
-
-    Expr *p = strip_cast(v);
-    int k = kind;
-    switch (value) {
-    case 1:
-      // Swap condition that regard the value as 0.
-      k = (EX_EQ + EX_NE) - k;  // EQ <-> NE
-      // Fallthrough
-    case 0:
-      // Eliminate comparing comparison result with 0.
-      switch (p->kind) {
-      case EX_EQ: case EX_NE:
-        if (k == EX_EQ)
-          p->kind = (EX_EQ + EX_NE) - p->kind;  // EQ <-> NE
-        return p;
-      case EX_LT: case EX_LE: case EX_GE: case EX_GT:
-        if (k == EX_EQ)
-          p->kind = EX_LT + ((p->kind - EX_LT) ^ 2);  // LT <-> GE, LE <-> GT
-        return p;
-      case EX_LOGAND: case EX_LOGIOR:
-        if (k == EX_EQ)
-          p = new_expr_bop(
-              (EX_LOGAND + EX_LOGIOR) - p->kind,  // LOGAND <-> LOGIOR
-              &tyBool, p->token,
-              make_not_expr(p->bop.lhs->token, p->bop.lhs),
-              make_not_expr(p->bop.rhs->token, p->bop.rhs));
-        return p;
-      default: break;
-      }
-      break;
-    case NEVER:
-      switch (p->kind) {
-      case EX_EQ: case EX_NE:
-      case EX_LT: case EX_LE: case EX_GE: case EX_GT:
-      case EX_LOGAND: case EX_LOGIOR:
-        parse_error(PE_WARNING, tok, "always %s", kind != EX_EQ ? "true" : "false");
-        return new_expr_bop(EX_COMMA, &tyBool, tok, v,
-                            new_expr_fixlit(&tyBool, tok, (kind != EX_EQ)));
-      default: break;
-      }
-      break;
-    case UNKNOWN: default:
-      break;
-    }
+    Expr *unnested = make_expr_equality_unnested(kind, tok, lhs, rhs);
+    if (unnested != NULL)
+      return unnested;
   }
 
   lhs = str_to_char_array_var(curscope, lhs);
@@ -1041,14 +1054,8 @@ Expr *make_cond(Expr *expr) {
   case EX_STR:
     expr = new_expr_fixlit(&tyBool, expr->token, true);
     break;
-  case EX_EQ:
-  case EX_NE:
-  case EX_LT:
-  case EX_LE:
-  case EX_GE:
-  case EX_GT:
-  case EX_LOGAND:
-  case EX_LOGIOR:
+  case EX_EQ: case EX_NE: case EX_LT: case EX_LE: case EX_GE: case EX_GT:
+  case EX_LOGAND: case EX_LOGIOR:
     break;
   case EX_COMMA:
     expr->bop.rhs = make_cond(expr->bop.rhs);
@@ -1061,7 +1068,7 @@ Expr *make_cond(Expr *expr) {
       expr = new_expr_fixlit(&tyBool, expr->token, true);
       break;
     default:
-      expr = new_expr_cmp(
+      expr = make_expr_cmp(
           EX_NE, expr->token, expr,
           make_cast(expr->type, expr->token, new_expr_fixlit(&tyInt, expr->token, 0), false));
       break;
@@ -1085,7 +1092,7 @@ Expr *make_not_expr(const Token *tok, Expr *expr) {
   {
     zero = new_expr_fixlit(type, tok, 0);
   }
-  return new_expr_cmp(EX_EQ, tok, expr, zero);
+  return make_expr_cmp(EX_EQ, tok, expr, zero);
 }
 
 static Expr *calc_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
@@ -1095,11 +1102,9 @@ static Expr *calc_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
   default:  assert(false);
     // Fallthrough to avoid compile error.
   case EX_ADD: case EX_SUB:
-    return new_expr_addsub(kind, tok, lhs, rhs);
   case EX_MUL: case EX_DIV:
-    return new_expr_num_bop(kind, tok, lhs, rhs);
   case EX_MOD: case EX_BITAND: case EX_BITOR: case EX_BITXOR:
-    return new_expr_int_bop(kind, tok, lhs, rhs);
+    return make_expr_num_bop(kind, tok, lhs, rhs);
   case EX_LSHIFT: case EX_RSHIFT:
     {
       Type *ltype = lhs->type;
@@ -1188,12 +1193,8 @@ static Expr *unnest_arg(Expr *arg, Vector *unnested) {
 // precalculate it and make function argument simple.
 static Expr *simplify_funarg_recur(Expr *arg, Vector *unnested) {
   switch (arg->kind) {
-  case EX_TERNARY:
-  case EX_FUNCALL:
-  case EX_INLINED:
-  case EX_BLOCK:
-  case EX_LOGAND:  // Shortcut must be handled properly.
-  case EX_LOGIOR:
+  case EX_TERNARY: case EX_FUNCALL: case EX_INLINED: case EX_BLOCK:
+  case EX_LOGAND: case EX_LOGIOR:  // Shortcut must be handled properly.
     return unnest_arg(arg, unnested);
 
   case EX_COMMA:
@@ -1205,11 +1206,8 @@ static Expr *simplify_funarg_recur(Expr *arg, Vector *unnested) {
     return arg->complit.var;
 
   // Binary operators
-  case EX_MUL:
-  case EX_DIV:
-  case EX_MOD:
-  case EX_LSHIFT:
-  case EX_RSHIFT:
+  case EX_MUL: case EX_DIV: case EX_MOD:
+  case EX_LSHIFT: case EX_RSHIFT:
 #if XCC_TARGET_ARCH == XCC_ARCH_X64
     // On x64, MUL, DIV and MOD instruction implicitly uses (breaks) %rdx
     // and %rdx is used as 3rd argument.
@@ -1220,17 +1218,8 @@ static Expr *simplify_funarg_recur(Expr *arg, Vector *unnested) {
     // Except x64, these opcodes can be used in function argument.
     // Fallthrough
 #endif
-  case EX_ADD:
-  case EX_SUB:
-  case EX_BITAND:
-  case EX_BITOR:
-  case EX_BITXOR:
-  case EX_EQ:
-  case EX_NE:
-  case EX_LT:
-  case EX_LE:
-  case EX_GE:
-  case EX_GT:
+  case EX_ADD: case EX_SUB: case EX_BITAND: case EX_BITOR: case EX_BITXOR:
+  case EX_EQ: case EX_NE: case EX_LT: case EX_LE: case EX_GE: case EX_GT:
     arg->bop.lhs = simplify_funarg_recur(arg->bop.lhs, unnested);
     arg->bop.rhs = simplify_funarg_recur(arg->bop.rhs, unnested);
     break;
@@ -1243,16 +1232,9 @@ static Expr *simplify_funarg_recur(Expr *arg, Vector *unnested) {
     break;
 
   // Unary operators
-  case EX_POS:
-  case EX_NEG:
-  case EX_BITNOT:
-  case EX_PREINC:
-  case EX_PREDEC:
-  case EX_POSTINC:
-  case EX_POSTDEC:
-  case EX_REF:
-  case EX_DEREF:
-  case EX_CAST:
+  case EX_POS: case EX_NEG: case EX_BITNOT:
+  case EX_PREINC: case EX_PREDEC: case EX_POSTINC: case EX_POSTDEC:
+  case EX_REF: case EX_DEREF: case EX_CAST:
     arg->unary.sub = simplify_funarg_recur(arg->unary.sub, unnested);
     break;
 
@@ -1261,10 +1243,7 @@ static Expr *simplify_funarg_recur(Expr *arg, Vector *unnested) {
     break;
 
   // Literals
-  case EX_FIXNUM:
-  case EX_FLONUM:
-  case EX_STR:
-  case EX_VAR:
+  case EX_FIXNUM: case EX_FLONUM: case EX_STR: case EX_VAR:
     break;
   }
   return arg;

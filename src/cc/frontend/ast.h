@@ -54,6 +54,8 @@ enum TokenKind {
   TK_AND,            // &
   TK_OR,             // |
   TK_HAT,            // ^
+  TK_LSHIFT,         // <<
+  TK_RSHIFT,         // >>
   TK_NOT,            // !
   TK_LPAR,           // (
   TK_RPAR,           // )
@@ -74,8 +76,6 @@ enum TokenKind {
   TK_FLOATLIT,       // float literal (float/double/long double)
   TK_STR,            // String literal
   TK_IDENT,          // Identifier
-  TK_LSHIFT,         // <<
-  TK_RSHIFT,         // >>
   TK_EQ,             // ==
   TK_NE,             // !=
   TK_LT,             // <

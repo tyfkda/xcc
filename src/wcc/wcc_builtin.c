@@ -340,10 +340,10 @@ static void gen_alloca(Expr *expr, enum BuiltinFunctionPhase phase) {
   assert(curfunc != NULL);
   Expr *size = args->data[0];
   const Token *token = size->token;
-  Expr *aligned_size = new_expr_int_bop(
+  Expr *aligned_size = make_expr_num_bop(
       EX_BITAND, token,
-      new_expr_addsub(EX_ADD, token, make_cast(&tySSize, token, size, false),
-                      new_expr_fixlit(&tySSize, token, STACK_ALIGN - 1)),
+      make_expr_num_bop(EX_ADD, token, make_cast(&tySSize, token, size, false),
+                        new_expr_fixlit(&tySSize, token, STACK_ALIGN - 1)),
       new_expr_fixlit(&tySSize, token, -STACK_ALIGN));
 
   assert(finfo != NULL);
