@@ -1157,6 +1157,18 @@ int oldstylefunc(int x) {
 
 //
 
+static inline int goto_in_inline_func(int n) {
+  int acc = 0;
+  for (int i = 1; i < n; ++i) {
+    acc += i;
+    if (i % 5 == 0)
+      goto exit;
+  }
+  acc = -acc;
+exit:
+  return acc;
+}
+
 TEST(goto) {
 #define SUPPRESS_LABEL(label)  do { if (false) goto label; } while (0)
 
@@ -1204,6 +1216,8 @@ TTT:;
     TTT ttt = 369;
     EXPECT("typedef and label", 369, ttt);
   }
+
+  EXPECT("goto in inline func", 15, goto_in_inline_func(10));
 }
 
 //
@@ -2002,7 +2016,7 @@ static inline int inline_square(int x) { return x * x; }
 static int g_shadow = 55;
 static inline void inline_shadow(int x) { g_shadow = x; }
 static inline int inline_conflict_varname(int x, int y) { return x * g_shadow + y; }
-static inline int inline_share_static_var(int add) { static int sum; if (add == 0) sum = 0; return sum += add; }
+static inline int inline_share_static_var(int add) { static int sum; if (add < 0) sum = 0; else sum += add; return sum; }
 static inline int inline_modifiy_param(int x) { int *p = &x; *p += 1; return x + x; }
 static inline int inline_factorial(int x) { return x <= 1 ? 1 : x * inline_factorial(x - 1); }
 static inline bool inline_even(int x);
@@ -2116,7 +2130,8 @@ TEST(function) {
   }
   {
     int result;
-    for (int i = 0; i <= 10; ++i)
+    inline_share_static_var(-1);
+    for (int i = 1; i <= 10; ++i)
       result = inline_share_static_var(i);
     EXPECT("static variable in inline func", 55, result);
   }
