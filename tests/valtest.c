@@ -131,7 +131,8 @@ TEST(all) {
   }
   {
     // Check shift types, taken from tcc test #55.
-#define PTYPE(M) ((M) < 0 || -(M) < 0 ? -1 : 1) * (ssize_t) sizeof((M)+0)
+    const int ZERO = 0;
+#define PTYPE(M) ((M) < ZERO || -(M) < ZERO ? -1 : 1) * (ssize_t) sizeof((M)+0)
 #define U(x)  ((ssize_t)sizeof(x))
 #define S(x)  (-(ssize_t)sizeof(x))
     short s = 1;
@@ -348,6 +349,11 @@ TEST(all) {
     uint32_t y = -10;
     EXPECT_TRUE(y > x);
     EXPECT("compare with different sign3", 111, y > x ? 111 : -111);
+
+    uint32_t u32 = -1;
+    EXPECT_TRUE(u32 == -1);  // Literal is automatically casted to unsigned.
+    uint32_t u64 = -1;
+    EXPECT_TRUE(u64 == -1);
   }
   EXPECT("condition is true", true, (x = 3, (x != 0) == true));
   EXPECT("condition is not true", false, (x = 4, (x > 0) != true));

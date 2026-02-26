@@ -2,12 +2,17 @@
 #include "expr.h"
 
 #include <assert.h>
+#include <limits.h>
 
 #include "fe_misc.h"
 #include "initializer.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
+
+#ifndef __NO_FLONUM
+#include <math.h>
+#endif
 
 Expr *string_expr(const Token *token, char *str, ssize_t len, enum StrKind kind) {
   enum FixnumKind fxkind = FX_CHAR;
@@ -997,11 +1002,175 @@ static Expr *make_expr_equality_unnested(enum ExprKind kind, const Token *tok, E
   return NULL;
 }
 
+static Expr *make_expr_cmp_check_range(enum ExprKind kind, const Token *tok, Expr **pLhs, Expr **pRhs) {
+  Expr *lhs = *pLhs;
+  Expr *rhs = *pRhs;
+  bool swapped = false;
+  if (!is_const(rhs)) {
+    if (!is_const(lhs))  // Both sides are non-const.
+      return NULL;
+
+    // Swap LR to make RHS is const.
+    Expr *tmp = lhs; lhs = rhs; rhs = tmp;
+    swapped = true;
+    switch (kind) {
+    default: assert(false); break;
+    case EX_EQ: case EX_NE:  break;
+    case EX_LT: case EX_LE: case EX_GE: case EX_GT:  // Swap.
+      kind = (EX_GT + EX_LT) - kind;
+      break;
+    }
+  }
+  if (is_const(lhs))  // Both sides are const: Handled other place.
+    return NULL;
+  if (!is_number(rhs->type))
+    return NULL;
+#ifndef __NO_FLONUM
+  if (is_flonum(rhs->type) && isnan(rhs->flonum))
+    return NULL;
+#endif
+
+  Type *type = lhs->type;
+  if (!is_fixnum(type) || !is_number(rhs->type))
+    return NULL;
+
+  enum { NEVER, ALWAYS, UNKNOWN } result = UNKNOWN;
+  do {
+#ifndef __NO_FLONUM
+    if (is_flonum(rhs->type)) {  // Cast RHS to integer because LHS is so.
+      Flonum f = rhs->flonum;
+      bool u = type->fixnum.is_unsigned;
+      if (kind == EX_EQ || kind == EX_NE) {
+        double ipart;
+        if (modf(f, &ipart) != 0.0 ||
+            ( u && (f < 0 || f > UINT64_MAX)) ||
+            (!u && (f < INT64_MIN || f > INT64_MAX))) {
+          result = kind == EX_NE;
+          break;
+        }
+      } else {
+        if (kind == EX_LT || kind == EX_GE) {
+          if (( u && f <= 0) ||
+              (!u && f <= INT64_MIN)) {
+            result = kind == EX_GE;
+            break;
+          } else if (( u && f > UINT64_MAX) ||
+                     (!u && f > INT64_MAX)) {
+            result = kind == EX_LT;
+            break;
+          }
+          // Avoid using ceil() to eliminate dependency on math library.
+          // Casting float to int truncates toward zero. TODO: Precision.
+          Flonum i = u ? (Flonum)(uint64_t)f : (Flonum)(int64_t)f;
+          double ipart;
+          if (modf(f, &ipart) != 0.0 && f > 0)
+            i += 1;
+          f = i;
+        } else {  // LE or GT
+          if (( u && f < 0) ||
+              (!u && f < INT64_MIN)) {
+            result = kind == EX_GT;
+            break;
+          } else if (( u && f >= UINT64_MAX) ||
+                     (!u && f >= INT64_MAX)) {
+            result = kind == EX_LE;
+            break;
+          }
+          // Avoid using floor() to eliminate dependency on math library.
+          // Casting float to int truncates toward zero. TODO: Precision.
+          Flonum i = u ? (Flonum)(uint64_t)f : (Flonum)(int64_t)f;
+          double ipart;
+          if (modf(f, &ipart) != 0.0 && f < 0)
+            i -= 1;
+          f = i;
+        }
+      }
+      rhs->flonum = f;
+      rhs = make_cast(type, tok, rhs, false);  // Cast flonum to integer.
+    }
+#endif
+
+    // Here, both fixnum.
+
+#define JUDGE(result, v, min, max) \
+    do { \
+      switch (kind) { \
+      case EX_EQ:  if (v < min || v > max) result = NEVER; break; \
+      case EX_NE:  if (v < min || v > max) result = ALWAYS; break; \
+      case EX_LT:  if (max <  v) result = ALWAYS; else if (v <= min) result = NEVER; break; \
+      case EX_LE:  if (max <= v) result = ALWAYS; else if (v <  min) result = NEVER; break; \
+      case EX_GT:  if (min >  v) result = ALWAYS; else if (v >= max) result = NEVER; break; \
+      case EX_GE:  if (min >= v) result = ALWAYS; else if (v >  max) result = NEVER; break; \
+      default: assert(false); break; \
+      } \
+    } while (0)
+
+    size_t size = type_size(type);
+    assert(size * TARGET_CHAR_BIT <= sizeof(Fixnum) * CHAR_BIT);
+    if (type->fixnum.is_unsigned) {
+      UFixnum min = 0;
+      UFixnum max = ((UFixnum)-1) >> (sizeof(UFixnum) * CHAR_BIT - size * TARGET_CHAR_BIT);
+      UFixnum v = rhs->fixnum;
+      if (!rhs->type->fixnum.is_unsigned && (Fixnum)v < (Fixnum)min) {
+        if (size < type_size(&tyInt)) {
+          result = NEVER;
+          break;
+        }
+        v = wrap_value(v, size, true);
+      }
+      JUDGE(result, v, min, max);
+    } else {
+      Fixnum min, max;
+      if (type->fixnum.kind == FX_BOOL) {
+        min = 0;
+        max = 1;
+      } else {
+        min = (UFixnum)-1 << (size * TARGET_CHAR_BIT - 1);
+        max = ((UFixnum)-1) >> (sizeof(UFixnum) * CHAR_BIT - size * TARGET_CHAR_BIT + 1);
+      }
+      Fixnum v = rhs->fixnum;
+      if (rhs->type->fixnum.is_unsigned && (UFixnum)v > (UFixnum)max) {
+        if (size < type_size(&tyInt)) {
+          result = NEVER;
+          break;
+        }
+        v = wrap_value(v, size, false);
+      }
+      JUDGE(result, v, min, max);
+    }
+#undef JUDGE
+  } while (0);
+
+  switch (result) {
+  case NEVER: case ALWAYS:
+    {
+      static const char *kMessage[] = {"never", "always"};
+      parse_error(PE_WARNING, tok, "condition %s met", kMessage[result]);
+      return new_expr_fixlit(&tyBool, tok, result);
+    }
+  default:  break;
+  }
+
+  if (swapped) {
+    *pLhs = rhs;
+    *pRhs = lhs;
+  } else {
+    *pLhs = lhs;
+    *pRhs = rhs;
+  }
+  return NULL;
+}
+
 Expr *make_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
   if (lhs->type->kind == TY_FUNC)
     lhs = make_refer(lhs->token, lhs);
   if (rhs->type->kind == TY_FUNC)
     rhs = make_refer(rhs->token, rhs);
+
+  // Check range before left and right types are adjusted.
+  Expr *ranged = make_expr_cmp_check_range(kind, tok, &lhs, &rhs);
+  if (ranged != NULL)
+    return ranged;
 
   // Adjust type for comparison.
   {
