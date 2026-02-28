@@ -4,7 +4,6 @@
 #include <assert.h>
 
 #include "ast.h"
-#include "expr.h"
 #include "fe_misc.h"  // curfunc, curscope
 #include "table.h"
 #include "type.h"
@@ -575,7 +574,7 @@ static void gen_ref_sub(Expr *expr) {
 }
 
 void gen_lval(Expr *expr) {
-  gen_ref_sub(reduce_refer(expr));
+  gen_ref_sub(expr);
 }
 
 static void gen_var(Expr *expr, bool needval) {
