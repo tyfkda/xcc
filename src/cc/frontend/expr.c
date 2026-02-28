@@ -681,37 +681,51 @@ Expr *make_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *r
 
 #ifndef __NO_BITFIELD
 Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo) {
-  Expr *tmp = src;
   Type *type = src->type;
   bool is_unsigned = type->fixnum.is_unsigned;
   if (minfo->type->fixnum.kind == FX_ENUM) {
     is_unsigned = minfo->type->fixnum.enum_.info->non_negative;
   }
+  Expr *result;
   if (is_unsigned) {
-    tmp = src;
+    Expr *tmp = src;
     if (minfo->bitfield.position > 0)
       tmp = new_expr_bop(EX_RSHIFT, tmp->type, tmp->token, tmp,
                          new_expr_fixlit(tmp->type, tmp->token, minfo->bitfield.position));
     UFixnum mask = ((UFixnum)1 << minfo->bitfield.width) - 1;
-    tmp = new_expr_bop(EX_BITAND, tmp->type, tmp->token, tmp,
-                       new_expr_fixlit(tmp->type, tmp->token, mask));
+    result = new_expr_bop(EX_BITAND, tmp->type, tmp->token, tmp,
+                          new_expr_fixlit(tmp->type, tmp->token, mask));
   } else {
-    int w = MAX(type_size(type), MINREGSIZE) * TARGET_CHAR_BIT;
+    Expr *comma = NULL;
+    Expr *var = src;
+    size_t dst_size = type_size(type), s = dst_size;
+    if (dst_size < MINREGSIZE) {
+      Type *inttype = get_fixnum_type_from_size(MINREGSIZE);
+      if (is_unsigned)
+        inttype = get_fixnum_type(inttype->fixnum.kind, true, inttype->qualifier);
+      var = alloc_tmp_var(curscope, inttype);
+      comma = new_expr_bop(EX_ASSIGN, var->type, src->token, var, src);  // Omit casting.
+      s = MINREGSIZE;
+    }
+    int w = s * TARGET_CHAR_BIT;
     int l = w - (minfo->bitfield.position + minfo->bitfield.width);
-    tmp = src;
+    Expr *tmp = var;
     if (l > 0)
       tmp = new_expr_bop(EX_LSHIFT, tmp->type, tmp->token, tmp,
                          new_expr_fixlit(tmp->type, tmp->token, l));
     if (minfo->bitfield.width < w)
       tmp = new_expr_bop(EX_RSHIFT, tmp->type, tmp->token, tmp,
                          new_expr_fixlit(tmp->type, tmp->token, w - minfo->bitfield.width));
+    result = tmp;
+    if (comma != NULL)
+      result = new_expr_bop(EX_COMMA, result->type, comma->token, comma, result);
   }
   Type *mtype = minfo->type;
   if (mtype->fixnum.is_unsigned &&
       (size_t)minfo->bitfield.width < type_size(mtype) * TARGET_CHAR_BIT) {
     mtype = get_fixnum_type(mtype->fixnum.kind, false, mtype->qualifier);
   }
-  return make_cast(mtype, src->token, tmp, false);
+  return make_cast(mtype, src->token, result, false);
 }
 
 static Expr *assign_bitfield_member(const Token *tok, Expr *dst, Expr *src, Expr *val,
