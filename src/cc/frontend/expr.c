@@ -706,7 +706,12 @@ Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo) {
       tmp = new_expr_bop(EX_RSHIFT, tmp->type, tmp->token, tmp,
                          new_expr_fixlit(tmp->type, tmp->token, w - minfo->bitfield.width));
   }
-  return make_cast(minfo->type, src->token, tmp, false);
+  Type *mtype = minfo->type;
+  if (mtype->fixnum.is_unsigned &&
+      (size_t)minfo->bitfield.width < type_size(mtype) * TARGET_CHAR_BIT) {
+    mtype = get_fixnum_type(mtype->fixnum.kind, false, mtype->qualifier);
+  }
+  return make_cast(mtype, src->token, tmp, false);
 }
 
 static Expr *assign_bitfield_member(const Token *tok, Expr *dst, Expr *src, Expr *val,

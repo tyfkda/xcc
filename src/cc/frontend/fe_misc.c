@@ -359,6 +359,27 @@ void mark_var_used_for_func(Expr *expr) {
   mark_var_used_sub(expr, true);
 }
 
+Expr *used_as_value(Expr *expr) {
+  mark_var_used(expr);
+#ifndef __NO_BITFIELD
+  switch (expr->kind) {
+  case EX_MEMBER:
+    {
+      const MemberInfo *minfo = expr->member.info;
+      if (minfo->bitfield.width > 0) {
+        Type *type = get_fixnum_type(minfo->bitfield.base_kind, minfo->type->fixnum.is_unsigned, 0);
+        Expr *ptr = make_cast(ptrof(type), expr->token, make_refer(expr->token, expr), true);
+        Expr *load = new_expr_deref(NULL, ptr);
+        return extract_bitfield_value(load, minfo);
+      }
+    }
+    break;
+  default: break;
+  }
+#endif
+  return expr;
+}
+
 void propagate_var_used(void) {
   Table used, unused;
   table_init(&used);

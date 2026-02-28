@@ -138,7 +138,7 @@ Initializer *parse_initializer(void) {
     result->multi = multi;
   } else {
     Expr *value = parse_assign();
-    mark_var_used(value);
+    value = used_as_value(value);
     result = new_initializer(IK_SINGLE, value->token);
     result->single = value;
   }
@@ -332,7 +332,7 @@ static bool parse_vardecl(Vector *stmts) {
 static Stmt *parse_if(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *cond = parse_expr();
-  mark_var_used(cond);
+  cond = used_as_value(cond);
   consume(TK_RPAR, "`)' expected");
   Stmt *tblock = parse_stmt();
   Stmt *fblock = NULL;
@@ -349,7 +349,7 @@ static Stmt *parse_if(const Token *tok) {
 static Stmt *parse_switch(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *value = parse_expr();
-  mark_var_used(value);
+  value = used_as_value(value);
   not_void(value->type, value->token);
   consume(TK_RPAR, "`)' expected");
 
@@ -422,7 +422,7 @@ static Stmt *parse_case(const Token *tok) {
 static Stmt *parse_while(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *cond = make_cond(parse_expr());
-  mark_var_used(cond);
+  cond = used_as_value(cond);
   consume(TK_RPAR, "`)' expected");
 
   Stmt *stmt = new_stmt_while(tok, cond, NULL);
@@ -452,7 +452,7 @@ static Stmt *parse_do_while(const Token *tok) {
   consume(TK_WHILE, "`while' expected");
   consume(TK_LPAR, "`(' expected");
   Expr *cond = parse_expr();
-  mark_var_used(cond);
+  cond = used_as_value(cond);
   stmt->while_.cond = make_cond(cond);
   consume(TK_RPAR, "`)' expected");
   consume(TK_SEMICOL, "`;' expected");
@@ -498,7 +498,7 @@ static Stmt *parse_for(const Token *tok) {
   Expr *post = NULL;
   if (!match(TK_SEMICOL)) {
     Expr *e = parse_expr();
-    mark_var_used(e);
+    e = used_as_value(e);
     cond = make_cond(e);
     consume(TK_SEMICOL, "`;' expected");
   }
@@ -567,7 +567,7 @@ static Stmt *parse_return(const Token *tok) {
   if (!match(TK_SEMICOL)) {
     val = parse_expr();
     consume(TK_SEMICOL, "`;' expected");
-    mark_var_used(val);
+    val = used_as_value(val);
     val = str_to_char_array_var(curscope, val);
   }
 

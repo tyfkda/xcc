@@ -85,6 +85,7 @@ const MemberInfo *search_from_anonymous(const Type *type, const Name *name, cons
                                         Vector *stack);
 void mark_var_used(Expr *expr);
 void mark_var_used_for_func(Expr *expr);
+Expr *used_as_value(Expr *expr);
 void propagate_var_used(void);
 void check_lval(const Token *tok, Expr *expr, const char *error);
 #ifndef __NO_BITFIELD
