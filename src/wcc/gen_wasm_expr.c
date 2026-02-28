@@ -916,10 +916,7 @@ static void gen_comma(Expr *expr, bool needval) {
 static void gen_cast(Expr *expr, bool needval) {
   Expr *src = expr->unary.sub;
   Type *dst_type = expr->type;
-  if (is_bool(dst_type)) {
-    gen_expr(make_cond(src), needval);
-    return;
-  }
+  assert(!is_bool(dst_type));  // bool is handled in parse phase.
 
   gen_expr(src, needval);
   if (needval)

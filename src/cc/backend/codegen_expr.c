@@ -176,8 +176,7 @@ void gen_cond_jmp(Expr *cond, BB *tbb, BB *fbb) {
 static VReg *gen_cast(Expr *expr) {
   Expr *src = expr->unary.sub;
   Type *dst_type = expr->type;
-  if (is_bool(dst_type))
-    return gen_expr(make_cond(src));
+  assert(!is_bool(dst_type));  // bool is handled in parse phase.
 
   VReg *vreg = gen_expr(src);
   assert(!is_bool(dst_type));
