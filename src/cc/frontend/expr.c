@@ -709,8 +709,8 @@ Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo) {
   return make_cast(minfo->type, src->token, tmp, false);
 }
 
-Expr *assign_bitfield_member(const Token *tok, Expr *dst, Expr *src, Expr *val,
-                             const MemberInfo *minfo) {
+static Expr *assign_bitfield_member(const Token *tok, Expr *dst, Expr *src, Expr *val,
+                                    const MemberInfo *minfo) {
   Type *type = dst->type;
   val = make_cast(type, val->token, val, false);
 
