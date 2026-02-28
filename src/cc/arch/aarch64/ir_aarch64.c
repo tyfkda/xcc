@@ -1040,6 +1040,26 @@ void tweak_irs(FuncBackend *fnbe) {
       }
 #endif
 
+      // Arithmetic operation under 4 bytes.
+      {
+        VReg *dst = ir->dst;
+        if (dst != NULL && !(dst->flag & VRF_FLONUM) && dst->vsize < VRegSize4) {
+          switch (ir->kind) {
+          default: break;
+          case IR_ADD: case IR_SUB: case IR_MUL: // case IR_DIV: case IR_MOD:
+          case IR_LSHIFT: // case IR_BITAND: case IR_BITOR: case IR_BITXOR: case IR_RSHIFT:
+            {
+              // insert_tmp_mov(&ir->opr1, irs, j++);
+              VReg *tmp = reg_alloc_spawn(ra, VRegSize4, dst->flag & VRF_MASK);
+              IR *cast = new_ir_bop_raw(IR_CAST, dst, tmp, NULL);  // new_ir_cast.
+              vec_insert(irs, j + 1, cast);
+              ir->dst = tmp;
+            }
+            break;
+          }
+        }
+      }
+
       switch (ir->kind) {
       case IR_LOAD:
         if (ir->opr1->flag & VRF_CONST) {
