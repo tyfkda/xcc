@@ -9,7 +9,11 @@
 #define FF_EOF          (1 << 3)
 #define FF_GROWMEM      (1 << 4)
 #define FF_FIFO         (1 << 5)
+#define FF_BUF_FULL     (1 << 6)
+#define FF_BUF_LINE     (1 << 7)
 #define FF_INITIALIZED  (1 << 15)
+
+#define FF_BUF_MASK     (3 << 6)
 
 typedef ssize_t (*cookie_read_function_t)(void *cookie, char *buf, size_t size);
 typedef ssize_t (*cookie_write_function_t)(void *cookie, const char *buf, size_t size);

@@ -5,11 +5,18 @@
 #include <sys/types.h>  // ssize_t
 
 #define EOF  (-1)
+#define BUFSIZ  (512)
 
 enum {
   SEEK_SET,  // 0
   SEEK_CUR,  // 1
   SEEK_END,  // 2
+};
+
+enum {
+  _IOFBF,  // Full buffering.
+  _IOLBF,  // Line buffering.
+  _IONBF,  // No buffering.
 };
 
 typedef struct FILE FILE;
@@ -75,6 +82,9 @@ int vprintf(const char *fmt, va_list ap);
 int vsprintf(char *buf, const char *fmt, va_list ap);
 int vfprintf(FILE *fp, const char *fmt, va_list ap);
 int vsnprintf(char *out, size_t n, const char *fmt_, va_list ap);
+
+void setbuf(FILE *fp, char *buf);
+int setvbuf(FILE *fp, char *buf, int mode, size_t size);
 
 void perror(const char*);
 
