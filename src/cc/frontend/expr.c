@@ -188,13 +188,23 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool make_int) {
   enum FixnumKind rkind = rtype->fixnum.kind;
   bool changed = false;
   if (ltype->fixnum.kind >= FX_ENUM) {
-    ltype = &tyInt;
-    lkind = FX_INT;
+    if (make_int) {
+      ltype = &tyInt;
+      lkind = FX_INT;
+    } else {
+      ltype = get_fixnum_type_from_size(type_size(ltype));
+      lkind = ltype->fixnum.kind;
+    }
     changed = true;
   }
   if (rtype->fixnum.kind >= FX_ENUM) {
-    rtype = &tyInt;
-    rkind = FX_INT;
+    if (make_int) {
+      rtype = &tyInt;
+      rkind = FX_INT;
+    } else {
+      rtype = get_fixnum_type_from_size(type_size(rtype));
+      rkind = rtype->fixnum.kind;
+    }
     changed = true;
   }
 
@@ -1179,6 +1189,7 @@ Expr *make_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) 
   {
     Type *lt = lhs->type, *rt = rhs->type;
     if (is_number(lt) && is_number(rt)) {
+      bool make_int = false;
       if (is_fixnum(lt) && is_fixnum(rt)) {
         if (lc || rc) {
           Expr **pLhs = &lhs, **pRhs = &rhs;
@@ -1197,14 +1208,37 @@ Expr *make_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) 
           // Cast constant as non-const type.
           *pRhs = make_cast(dst_type, (*pRhs)->token, *pRhs, false);
         } else {
-          if (lt->fixnum.kind < FX_INT)
-            lhs = promote_to_int(lhs);
-          if (rt->fixnum.kind < FX_INT)
-            rhs = promote_to_int(rhs);
+          bool lu = lt->fixnum.is_unsigned;
+          bool ru = rt->fixnum.is_unsigned;
+          make_int = lu != ru;
+          if (lu != ru) {
+            size_t ls = type_size(lt), rs = type_size(rt);
+            if (MAX(ls, rs) >= type_size(&tyInt)) {
+              make_int = true;
+            } else {
+              // Avoid promote-to-int
+              // Cast to larger signed type.
+              if (ls >= rs) {
+                if (lt->fixnum.is_unsigned) {
+                  lt = get_fixnum_type_from_size(ls);
+                  lhs = make_cast(lt, lhs->token, lhs, false);
+                }
+                rhs = make_cast(lt, rhs->token, rhs, false);
+                rt = lt;
+              } else {
+                if (rt->fixnum.is_unsigned) {
+                  rt = get_fixnum_type_from_size(ls);
+                  rhs = make_cast(rt, rhs->token, rhs, false);
+                }
+                lhs = make_cast(rt, lhs->token, lhs, false);
+                lt = rt;
+              }
+            }
+          }
         }
       }
       if (!(is_fixnum(lt) && is_fixnum(rt)) || !(lc || rc)) {
-        if (!cast_numbers(&lhs, &rhs, false)) {
+        if (!cast_numbers(&lhs, &rhs, make_int)) {
           parse_error(PE_NOFATAL, tok, "cannot compare except numbers");
           return new_expr_fixlit(&tyBool, tok, 0);
         }
