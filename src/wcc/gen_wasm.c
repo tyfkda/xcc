@@ -542,6 +542,16 @@ void gen_stmts(Vector *stmts, bool is_last) {
   }
 }
 
+int get_funparam_index(Function *func, const Name *name) {
+  const Vector *params = func->params;
+  for (int i = 0, param_count = params->len; i < param_count; ++i) {
+    VarInfo *v = params->data[i];
+    if (equal_name(v->ident->ident, name))
+      return i;
+  }
+  return -1;
+}
+
 static inline uint32_t calc_frame_size(
     Function *func, unsigned int local_counts[4], FuncInfo *finfo) {
   const Type *functype = func->type;

@@ -878,16 +878,6 @@ bool check_funcend_return(Stmt *stmt) {
   return stmt->reach & REACH_RETURN;
 }
 
-int get_funparam_index(Function *func, const Name *name) {
-  const Vector *params = func->params;
-  for (int i = 0, param_count = params->len; i < param_count; ++i) {
-    VarInfo *v = params->data[i];
-    if (equal_name(v->ident->ident, name))
-      return i;
-  }
-  return -1;
-}
-
 //
 
 bool satisfy_inline_criteria(const VarInfo *varinfo) {

@@ -102,7 +102,5 @@ void check_unused_variables(Function *func);
 void check_func_reachability(Function *func);
 bool check_funcend_return(Stmt *stmt);
 
-int get_funparam_index(Function *func, const Name *name);  // -1: Not funparam.
-
 bool satisfy_inline_criteria(const VarInfo *varinfo);
 Stmt *embed_inline_funcall(VarInfo *varinfo);

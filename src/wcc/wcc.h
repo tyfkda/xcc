@@ -152,6 +152,8 @@ typedef void (*BuiltinFunctionProc)(Expr *expr, enum BuiltinFunctionPhase phase)
 void add_builtin_function(const char *str, Type *type, BuiltinFunctionProc *proc,
                           bool add_to_scope);
 
+int get_funparam_index(Function *func, const Name *name);  // -1: Not funparam.
+
 // wcc_builtin
 
 void install_builtins(void);
