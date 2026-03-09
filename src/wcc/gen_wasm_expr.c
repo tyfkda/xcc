@@ -236,12 +236,13 @@ typedef struct {
 } FuncallWork;
 
 static Expr *gen_struct_funarg(Expr *arg, FuncallWork *work, size_t offset) {
-  Expr *lspvar = work->lspvar;
   const Type *type = arg->type;
-  assert(lspvar != NULL);
-  Expr *dst = lspvar;
+  Expr *dst = NULL;
   size_t size = type_size(type);
   if (size > 0) {
+    Expr *lspvar = work->lspvar;
+    assert(lspvar != NULL);
+    dst = lspvar;
     // _memcpy(local.sp + offset, &arg, size);
     if (offset != 0)
       dst = new_expr_bop(EX_ADD, &tyVoidPtr, NULL, lspvar, new_expr_fixlit(&tySize, NULL, offset));
@@ -251,6 +252,9 @@ static Expr *gen_struct_funarg(Expr *arg, FuncallWork *work, size_t offset) {
     ADD_CODE(OP_I32_CONST);
     ADD_LEB128(size);
     ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);
+  } else {
+    // TODO: Suppress zero sized struct.
+    dst = make_refer(arg->token, arg);
   }
   return dst;
 }

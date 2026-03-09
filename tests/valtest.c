@@ -2037,6 +2037,12 @@ SmallStruct return_small_struct_by_funcall(int x) {
   return small_struct_param_and_result(x, (SmallStruct){x}, 1, (SmallStruct){1});
 }
 
+struct ZeroSized {};
+int take_zero_struct(int a, struct ZeroSized z, int b) {
+  (void)z;
+  return a + b;
+}
+
 int mul2(int x) {return x * 2;}
 int div2(int x) {return x / 2;}
 int (*func_ptr_array[])(int) = {mul2, div2};
@@ -2168,6 +2174,11 @@ TEST(function) {
 
     SmallStruct r3 = return_small_struct_by_funcall(111);
     EXPECT("return struct by funcall2", 12322, r3.x);
+  }
+
+  {
+    struct ZeroSized z;
+    EXPECT("take zero struct", 42, take_zero_struct(11, z, 31));
   }
 
   {
