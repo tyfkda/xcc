@@ -620,55 +620,66 @@ static inline uint32_t calc_frame_size(
 static inline void assign_variable_index_or_offsets(
     Function *func, unsigned int ret_param, size_t frame_size, unsigned int local_indices[4]) {
   const Type *functype = func->type;
-  unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
-  const Name *va_args_name = functype->func.vaargs ? alloc_name(VA_ARGS_NAME, NULL, false) : NULL;
   uint32_t frame_offset = 0;
+
+  // Parameters.
+  int param_local_index = ret_param;
+  const Vector *param_vars = functype->func.param_vars;
+  if (param_vars != NULL) {
+    int param_count = param_vars->len;
+    int n = param_count + functype->func.vaargs;
+    for (int j = 0; j < n; ++j) {
+      VarInfo *varinfo;
+      if (j >= param_count)
+        varinfo = scope_find(func->scopes->data[0], alloc_name(VA_ARGS_NAME, NULL, false), NULL);
+      else
+        varinfo = param_vars->data[j];
+      assert(varinfo->storage & VS_PARAM);
+
+      VReg *vreg = calloc_or_die(sizeof(*vreg));
+      varinfo->local.vreg = vreg;
+      vreg->param_index = param_local_index++;
+      vreg->prim.local_index = vreg->param_index;
+      const Type *type = varinfo->type;
+      bool small_struct = is_small_struct(type);
+      if (small_struct || varinfo->storage & VS_REF_TAKEN) {
+        size_t size = type_size(type), align = align_size(type);
+        frame_offset = ALIGN(frame_offset, align);
+        vreg->non_prim.offset = frame_offset - frame_size;
+        if (size < 1)
+          size = 1;
+        frame_offset += size;
+      }
+    }
+  }
+
+  // Local variables.
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];
     for (int j = 0; j < scope->vars->len; ++j) {
       VarInfo *varinfo = scope->vars->data[j];
       if (!is_local_storage(varinfo))
         continue;
+      if (varinfo->storage & VS_PARAM)
+        continue;
 
       VReg *vreg = calloc_or_die(sizeof(*vreg));
       varinfo->local.vreg = vreg;
-      int param_index = -1;
-      if (i == 0 && varinfo->storage & VS_PARAM) {
-        if (va_args_name != NULL && equal_name(varinfo->ident->ident, va_args_name)) {
-          param_index = param_count;
-        } else if (param_count > 0) {
-          int k = get_funparam_index(func, varinfo->ident->ident);
-          if (k >= 0)
-            param_index = k;
-        }
-      }
-      vreg->param_index = ret_param + param_index;
+      vreg->param_index = -1;
       const Type *type = varinfo->type;
       size_t size = type_size(type), align = align_size(type);
       bool prim = is_prim_type(type);
-      if (param_index >= 0) {
-        vreg->prim.local_index = vreg->param_index;
-        bool small_struct = is_small_struct(type);
-        if (small_struct || varinfo->storage & VS_REF_TAKEN) {
-          frame_offset = ALIGN(frame_offset, align);
-          vreg->non_prim.offset = frame_offset - frame_size;
-          if (size < 1)
-            size = 1;
-          frame_offset += size;
-        }
-      } else {
-        if ((prim && varinfo->storage & VS_REF_TAKEN) ||  // `&` taken wasm local var.
-            !prim) {  // non-prim variable (not function parameter)
-          frame_offset = ALIGN(frame_offset, align);
-          vreg->non_prim.offset = frame_offset - frame_size;
-          if (size < 1)
-            size = 1;
-          frame_offset += size;
-        } else {  // Not `&` taken, wasm local var.
-          unsigned char wt = to_wtype(type);
-          int index = WT_I32 - wt;
-          vreg->prim.local_index = local_indices[index]++;
-        }
+      if ((prim && varinfo->storage & VS_REF_TAKEN) ||  // `&` taken wasm local var.
+          !prim) {  // non-prim variable (not function parameter)
+        frame_offset = ALIGN(frame_offset, align);
+        vreg->non_prim.offset = frame_offset - frame_size;
+        if (size < 1)
+          size = 1;
+        frame_offset += size;
+      } else {  // Not `&` taken, wasm local var.
+        unsigned char wt = to_wtype(type);
+        int index = WT_I32 - wt;
+        vreg->prim.local_index = local_indices[index]++;
       }
     }
   }
