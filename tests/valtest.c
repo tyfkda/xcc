@@ -2038,6 +2038,9 @@ SmallStruct return_small_struct_by_funcall(int x) {
 }
 
 struct ZeroSized {};
+struct ZeroSized return_zero_struct(void) {
+  return (struct ZeroSized){};
+}
 int take_zero_struct(int a, struct ZeroSized z, int b) {
   (void)z;
   return a + b;
@@ -2178,6 +2181,7 @@ TEST(function) {
 
   {
     struct ZeroSized z;
+    z = return_zero_struct();
     EXPECT("take zero struct", 42, take_zero_struct(11, z, 31));
   }
 

@@ -500,10 +500,12 @@ static inline VReg *gen_funarg_struct_pointer(
 }
 #endif
 
-static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *work) {
+static inline void gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *work) {
   const enum VRegSize kMaxVSize = VRegSize8;  // TODO: Max
   const size_t kMaxSize = 1U << kMaxVSize;
   size_t size = type_size(arg->type);
+  if (size == 0)
+    return;
   int n = (size + (kMaxSize - 1)) / kMaxSize;
 
   // Assumed little endian.
@@ -517,7 +519,6 @@ static inline VReg *gen_funarg_small_struct(Expr *arg, VReg *vreg, FuncallWork *
     new_ir_pusharg(loaded, index + i);
   }
   work->regarg[GPREG] += n;
-  return NULL;
 }
 
 static inline VReg *gen_funarg_stack(Expr *arg, const ArgInfo *arg_info) {
@@ -538,7 +539,8 @@ static inline VReg *gen_funarg_reg(Expr *arg, const ArgInfo *arg_info, FuncallWo
   VReg *vreg = gen_expr(arg);
   if (arg->type->kind == TY_STRUCT) {
     assert(is_small_struct(arg->type));
-    return gen_funarg_small_struct(arg, vreg, work);
+    gen_funarg_small_struct(arg, vreg, work);
+    return NULL;
   }
 
   bool is_flo = (arg_info->flag & (ARGF_FLONUM | ARGF_FP_AS_GP)) == ARGF_FLONUM;
@@ -654,7 +656,7 @@ static inline VReg *gen_funcall_sub(Expr *expr, FuncallWork *work) {
   callinfo->arg_count = arg_count - work->stack_arg_count;
   callinfo->living_pregs = 0;
   callinfo->caller_saves = NULL;
-  if (work->ret_small_struct) {
+  if (work->ret_small_struct && type_size(expr->type) > 0) {
     assert(ret_varinfo != NULL && is_local_storage(ret_varinfo));
     assert(ret_varinfo->local.frameinfo->size == type_size(expr->type));
     callinfo->small_struct_result_frameinfo = ret_varinfo->local.frameinfo;

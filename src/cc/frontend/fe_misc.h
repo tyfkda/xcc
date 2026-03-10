@@ -94,6 +94,7 @@ void not_bitfield_member(Expr *expr);
 static inline void not_bitfield_member(Expr *expr)  { (void)expr; }  // Must not, so noop.
 #endif
 bool is_small_struct(const Type *type);
+bool is_phantom_struct(const Type *type);
 void check_funcall_args(Expr *func, Vector *args, Scope *scope);
 Vector *extract_varinfo_types(const Vector *vars);  // <VarInfo*> => <Type*>
 Type *choose_ternary_result_type(Expr *tval, Expr *fval);

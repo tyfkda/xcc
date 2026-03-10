@@ -122,7 +122,7 @@ static void alloc_variable_registers(Function *func) {
 
   // Handle if return value is on the stack.
   const Type *rettype = func->type->func.ret;
-  if (rettype->kind == TY_STRUCT && !is_small_struct(rettype)) {
+  if (rettype->kind == TY_STRUCT && !is_small_struct(rettype) && !is_phantom_struct(rettype)) {
     prepare_retvar(func);
 #if !EXTRA_RETURN_STRUCT_REGISTER
     ++regcount[GPREG];
@@ -155,7 +155,7 @@ static void alloc_variable_registers(Function *func) {
         } else {
           vreg->flag |= VRF_STACK_PARAM;
         }
-      } else if (is_stack_param(varinfo->type) && is_small_struct(varinfo->type)) {
+      } else if (is_small_struct(varinfo->type)) {
         // Small struct params consume GP registers even without a vreg.
         size_t n = (type_size(varinfo->type) + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE;
         if (regcount[GPREG] + (int)n <= kArchSetting.max_reg_args[GPREG]) {
@@ -879,7 +879,7 @@ static size_t alloc_params_onto_stack_frame(Function *func, bool *prequire_stack
         reg_index[GPREG] += n;
 
         // Allocate stack frame.
-        frame_size = ALIGN(frame_size + size, align);
+        frame_size = ALIGN(frame_size + MAX(size, 1), align);
         fi->offset = -(int)frame_size;
         continue;
       }

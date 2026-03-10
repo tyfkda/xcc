@@ -494,6 +494,10 @@ bool is_small_struct(const Type *type) {
 #endif
 }
 
+bool is_phantom_struct(const Type *type) {
+  return type->kind == TY_STRUCT && type_size(type) == 0;
+}
+
 void check_funcall_args(Expr *func, Vector *args, Scope *scope) {
   Type *functype = get_callee_type(func->type);
   if (functype == NULL)
