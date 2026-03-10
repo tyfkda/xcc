@@ -2009,6 +2009,7 @@ void empty_function(void){}
 int more_params(int a, int b, int c, int d, int e, int f, char g, long h, short i, unsigned char j) { return a + b + c + d + e + f + g + h + i + j; }
 typedef struct {int x; int y; long dummy1, dummy2;} MoreParamsReturnsStruct;
 MoreParamsReturnsStruct more_params_returns_struct(int a, int b, int c, int d, int e, int f, char g, long h, short i, unsigned char j) { return (MoreParamsReturnsStruct){a + b + c + d + e + f + g + h + i + j}; }
+MoreParamsReturnsStruct return_struct_by_funcall(int x) { return more_params_returns_struct(x, x+1, x+2, x+3, x+4, x+5, x+6, x+7, x+8, x+9); }
 int array_arg_wo_size(int arg[]) { return arg[1]; }
 long long long_immediate(unsigned long long x) { return x / 11; }
 
@@ -2031,6 +2032,9 @@ SmallStruct small_struct_param_and_result(int a, SmallStruct s1, int b, SmallStr
 }
 static inline SmallStruct inline_small_struct_param_and_result(int a, SmallStruct s1, int b, SmallStruct s2) {
   return (SmallStruct){a * s1.x + b * s2.x};
+}
+SmallStruct return_small_struct_by_funcall(int x) {
+  return small_struct_param_and_result(x, (SmallStruct){x}, 1, (SmallStruct){1});
 }
 
 int mul2(int x) {return x * 2;}
@@ -2074,6 +2078,9 @@ TEST(function) {
   {
     MoreParamsReturnsStruct s = more_params_returns_struct(11, 22, 33, 44, 55, 66, 77, 88, 99, 110);
     EXPECT("more params w/ struct", 605, s.x);
+
+    MoreParamsReturnsStruct s2 = return_struct_by_funcall(11);
+    EXPECT("return struct by funcall", 155, s2.x);
   }
 
   // EXPECT("proto in func", 78, 'int main(){ int sub(int); return sub(77); } int sub(int x) { return x + 1; }')
@@ -2158,6 +2165,9 @@ TEST(function) {
     EXPECT("small struct", 8724, r1.x);
     SmallStruct r2 = inline_small_struct_param_and_result(1000, s2, 3, s1);
     EXPECT("inline small struct", 12261, r2.x);
+
+    SmallStruct r3 = return_small_struct_by_funcall(111);
+    EXPECT("return struct by funcall2", 12322, r3.x);
   }
 
   {

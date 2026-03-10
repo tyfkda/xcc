@@ -310,7 +310,7 @@ static inline void gen_funarg_vaarg(Expr *arg, FuncallWork *work) {
   gen_store(type);
 }
 
-static inline Expr *gen_fun_ret_buf(Expr *expr) {
+static Expr *gen_fun_ret_buf(Expr *expr) {
   assert(expr->kind == EX_FUNCALL);
   assert(expr->funcall.fcinfo != NULL);
   const VarInfo *ret_varinfo = expr->funcall.fcinfo->varinfo;
@@ -896,6 +896,8 @@ static void gen_assign_sub(Expr *lhs, Expr *rhs) {
         ADD_CODE(OP_I32_CONST);
         ADD_LEB128(size);
         ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);
+      } else {
+        gen_expr(rhs, false);
       }
     }
     break;

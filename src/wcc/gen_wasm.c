@@ -388,14 +388,14 @@ static void gen_return(Stmt *stmt, bool is_last) {
       FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
       assert(finfo != NULL);
       if (finfo->inlining != NULL) {
-        gen_lval(val);  // Put a pointer to the top of stack.
+        gen_expr(val, true);  // Put a pointer to the top of stack.
       } else if (is_small_struct(rettype)) {
-        gen_lval(val);
+        gen_expr(val, true);
         const Type *et = get_small_struct_elem_type(rettype);
         gen_load(et);
       } else {
         ADD_CODE(OP_LOCAL_GET, 0);  // Local #0 is the pointer for result.
-        gen_lval(val);
+        gen_expr(val, true);
         ADD_CODE(OP_I32_CONST);
         ADD_LEB128(type_size(rettype));
         ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);
