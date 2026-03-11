@@ -133,18 +133,17 @@ static Expr *parse_compound_literal(Type *type) {
 
   if (type->kind == TY_ARRAY)
     type = fix_array_size(type, init, token);
+  init = flatten_initializer(type, init);
 
   Expr *var = alloc_tmp_var(curscope, type);
   Vector *inits = NULL;
   if (is_global_scope(curscope)) {
-    // Global variable initializer is flattened in `check_vardecl()`
     const Name *name = var->var.name;
     VarInfo *varinfo = scope_find(curscope, name, NULL);
     assert(varinfo != NULL);
     varinfo->storage |= VS_STATIC;
     varinfo->global.init = init;
   } else {
-    init = flatten_initializer(type, init);
     inits = assign_initial_value(var, init, NULL);
   }
 

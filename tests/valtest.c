@@ -2000,6 +2000,15 @@ TEST(initializer) {
     struct T {char *str;};
     struct T *t = &(struct T){"xyz"};
     EXPECT_STREQ("String in initializer with compound literal", "xyz", t->str);
+
+    struct U {
+      union {
+        struct {int x;} a;
+        struct {int y;} b;
+      } u;
+    };
+    struct U u = (struct U){.u.b = {369}};
+    EXPECT("Initializer with compound literal contains union", 369, u.u.b.y);
   }
 }
 

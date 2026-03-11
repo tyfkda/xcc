@@ -497,11 +497,9 @@ static void flatten_initializer_single(Expr *value) {
 
   case EX_COMPLIT:
     {
-      Initializer *init = flatten_initializer(value->type, value->complit.original_init);
-      value->complit.original_init = init;
-
       Expr *var = value->complit.var;
       if (is_global_scope(var->var.scope)) {
+        Initializer *init = value->complit.original_init;  // Suppose already flattened.
         assert(init->kind == IK_MULTI);
         VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
         assert(varinfo != NULL);
