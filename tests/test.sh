@@ -83,6 +83,7 @@ function test_struct() {
   try_direct 'FAM array' 20 'struct Foo{int a; int b[];}; struct Foo x[5]; int main(){return sizeof(x);}'
   compile_error 'FAM not last in struct' 'struct Foo{int a; int b[];}; struct Bar {struct Foo foo; int x;}; int main(){}'
   try_direct 'FAM at last in struct' 8 'struct Foo{int a; int b[];}; struct Bar {int x; struct Foo foo;}; int main(){return sizeof(struct Bar);}'
+  try_direct 'Zero sized global struct' 0 'struct {} z = {}; int main(){ return sizeof(z); }'
 
   end_test_suite
 }

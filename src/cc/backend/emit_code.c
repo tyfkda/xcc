@@ -265,11 +265,12 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
     .emit_string = emit_string,
   };
 
-  const Name *name = varinfo->ident->ident;
-  if (init != NULL) {
+  const Type *type = varinfo->type;
+  size_t size = type_size(type);
+  if (init != NULL && size > 0) {
     if (is_cstring(varinfo, init))
       _CSTRING();
-    else if (varinfo->type->qualifier & TQ_CONST)
+    else if (type->qualifier & TQ_CONST)
       _RODATA();
     else
       _DATA();
@@ -279,6 +280,7 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
     }
   }
 
+  const Name *name = varinfo->ident->ident;
   char *label = fmt_name(name);
   if ((varinfo->storage & VS_STATIC) == 0) {  // global
     label = quote_label(MANGLE(label));
@@ -291,20 +293,17 @@ static void emit_varinfo(const VarInfo *varinfo, const Initializer *init) {
   EMIT_ASM(".type", quote_label(fmt_name(name)), "@object");
 #endif
 
-  if (init != NULL) {
-    EMIT_ALIGN(align_size(varinfo->type));
+  if (init != NULL && size > 0) {
+    EMIT_ALIGN(align_size(type));
     EMIT_LABEL(label);
-    construct_initial_value(varinfo->type, init, &kVtable, NULL);
+    construct_initial_value(type, init, &kVtable, NULL);
   } else {
-    size_t size = type_size(varinfo->type);
-    if (size < 1)
-      size = 1;
-
-    size_t align = align_size(varinfo->type);
+    size = MAX(size, 1);
+    size_t align = align_size(type);
     if (cc_flags.common) {
       _COMM(label, size, align);
     } else {
-      EMIT_ALIGN(align_size(varinfo->type));
+      EMIT_ALIGN(align);
       EMIT_LABEL(label);
       _ZERO(num(size));
     }
