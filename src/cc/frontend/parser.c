@@ -586,8 +586,6 @@ static Stmt *parse_return(const Token *tok) {
       }
     } else {
       val = make_cast(rettype, val->token, val, false);
-      if (is_phantom_struct(rettype))
-        val = NULL;  // Omit value for phantom struct return, as it has no real value.
     }
   }
 

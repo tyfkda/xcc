@@ -406,29 +406,31 @@ static inline void gen_return(Stmt *stmt) {
   assert(curfunc != NULL);
   BB *bb = new_bb();
   FuncBackend *fnbe = curfunc->extra;
-  if (stmt->return_.val != NULL) {
-    Expr *val = stmt->return_.val;
-    const Type *type = val->type;
+  Expr *val = stmt->return_.val;
+  if (val != NULL) {
     VReg *vreg = gen_expr(val);
-    VReg *result_dst = fnbe->inline_result_dst;
-    if (result_dst == NULL) {  // Not inlining.
-      if (is_small_struct(type)) {
-        gen_return_small_struct(type, vreg);
-      } else if (is_prim_type(type)) {
-        int flag = is_unsigned(type) ? IRF_UNSIGNED : 0;
-        new_ir_result(vreg, flag, 0);
-      } else if (type->kind != TY_VOID) {
-        assert(fnbe->struct_retvar != NULL && is_local_storage(fnbe->struct_retvar));
-        VReg *retval = fnbe->struct_retvar->local.vreg;
-        assert(retval != NULL);
-        gen_memcpy(type, retval, vreg);
-        new_ir_result(retval, IRF_UNSIGNED, 0);  // Pointer is unsigned.
+    const Type *type = val->type;
+    if (!is_phantom_struct(type)) {
+      VReg *result_dst = fnbe->inline_result_dst;
+      if (result_dst == NULL) {  // Not inlining.
+        if (is_small_struct(type)) {
+          gen_return_small_struct(type, vreg);
+        } else if (is_prim_type(type)) {
+          int flag = is_unsigned(type) ? IRF_UNSIGNED : 0;
+          new_ir_result(vreg, flag, 0);
+        } else if (type->kind != TY_VOID) {
+          assert(fnbe->struct_retvar != NULL && is_local_storage(fnbe->struct_retvar));
+          VReg *retval = fnbe->struct_retvar->local.vreg;
+          assert(retval != NULL);
+          gen_memcpy(type, retval, vreg);
+          new_ir_result(retval, IRF_UNSIGNED, 0);  // Pointer is unsigned.
+        }
+      } else {  // Inlining.
+        // Primitive            : return its value
+        // Non-primitive(struct): return its pointer
+        int flag = !is_prim_type(type) || is_unsigned(type) ? IRF_UNSIGNED : 0;
+        new_ir_mov(result_dst, vreg, flag);
       }
-    } else {  // Inlining.
-      // Primitive            : return its value
-      // Non-primitive(struct): return its pointer
-      int flag = !is_prim_type(type) || is_unsigned(type) ? IRF_UNSIGNED : 0;
-      new_ir_mov(result_dst, vreg, flag);
     }
   }
   new_ir_jmp(fnbe->ret_bb);
