@@ -36,9 +36,19 @@ typedef unsigned long long  uintmax_t;
 #define INT64_MAX    9223372036854775807
 #define UINT64_MAX   18446744073709551615
 
-#define INTPTR_MAX   ((((intptr_t)1) << (sizeof(intptr_t) * 8 - 1)) - 1)
-#define INTPTR_MIN   (((intptr_t)-1) << (sizeof(intptr_t) * 8 - 1))
-
 #define INTMAX_MIN   INT64_MIN
 #define INTMAX_MAX   INT64_MAX
 #define UINTMAX_MAX  UINT64_MAX
+
+#if defined(__ILP32__)
+#define INTPTR_MIN   -2147483648L
+#define INTPTR_MAX   2147483647L
+#define UINTPTR_MAX  4294967295UL
+
+#else
+#define INTPTR_MIN   -9223372036854775808L
+#define INTPTR_MAX   9223372036854775807L
+#define UINTPTR_MAX  18446744073709551615UL
+#endif
+
+#define SIZE_MAX     UINTPTR_MAX
