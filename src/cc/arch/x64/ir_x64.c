@@ -792,6 +792,9 @@ static void ei_mov(IR *ir) {
 }
 
 static void ei_result(IR *ir) {
+  if (ir->opr1 == NULL)  // No effect.
+    return;
+
   static const int kRegIndices[][2] = {
     {GET_AREG_INDEX(), GET_DREG_INDEX()},
     {GET_XMM0_INDEX(), GET_XMM1_INDEX()},

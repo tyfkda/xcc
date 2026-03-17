@@ -108,6 +108,10 @@ static void dump_ir(FILE *fp, IR *ir, RegAlloc *ra) {
   case IR_JMP:
     fprintf(fp, "J%s%s\t", kCond[ir->jmp.cond], us);
     break;
+  case IR_RESULT:
+    if (ir->opr1 == NULL)  // No effect: suppress output.
+      return;
+    // Fallthrough
   default:
     assert(0 <= ir->kind && ir->kind <= IR_ASM);
     fprintf(fp, "%s%s\t", kOps[ir->kind], us);

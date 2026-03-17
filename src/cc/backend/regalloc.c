@@ -302,12 +302,15 @@ static void detect_live_interval_flags(RegAlloc *ra, BBContainer *bbcon, int vre
         break;
 
       case IR_RESULT:
-        if (ir->dst == NULL) {
-          if (ir->flag & IRF_UNSIGNED) {
-            int n = ir->pusharg.index;  // Assume same order on FP-register.
+        if (ir->opr1 == NULL) {
+          // Clear register usage.
+          argset[GPREG] = argset[FPREG] = 0;
+        } else if (ir->dst == NULL) {
+          if (ir->opr1->flag & VRF_FLONUM) {
+            int n = ir->result.index;  // Assume same order on FP-register.
             argset[FPREG] |= 1UL << n;
           } else {
-            int n = settings->reg_return_mapping[ir->pusharg.index];
+            int n = settings->reg_return_mapping[ir->result.index];
             assert(n >= 0);
             argset[GPREG] |= 1UL << n;
           }

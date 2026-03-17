@@ -433,6 +433,7 @@ static inline void gen_return(Stmt *stmt) {
       }
     }
   }
+  new_ir_result(NULL, 0, -1);  // Indicate result is done.
   new_ir_jmp(fnbe->ret_bb);
   set_curbb(bb);
 }

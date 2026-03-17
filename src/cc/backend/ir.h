@@ -95,7 +95,7 @@ enum IrKind {
   IR_BITNOT,
   IR_CAST,    // dst <- opr1
   IR_MOV,     // dst = opr1
-  IR_RESULT,  // retval = opr1
+  IR_RESULT,  // retval = opr1.  opr1 is NULL indicates RESULT is done.
 
   IR_JMP,     // Non conditional jump, or conditional jmp (opr1 @@ opr2)
   IR_TJMP,    // Table jump (opr1).  opr2 is NULL, but it might be used to keep temporary vreg.
