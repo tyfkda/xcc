@@ -121,7 +121,6 @@ enum ConditionKind {
 enum {
   COND_MASK = 0x07,
   COND_UNSIGNED = 1 << 3,
-  COND_FLONUM = 1 << 4,
 };
 
 enum ConditionKind swap_cond(enum ConditionKind cond);

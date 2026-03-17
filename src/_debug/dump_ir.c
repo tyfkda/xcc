@@ -106,7 +106,7 @@ static void dump_ir(FILE *fp, IR *ir, RegAlloc *ra) {
     fprintf(fp, "%s%s\t", kOps[ir->kind], us);
     break;
   case IR_JMP:
-    fprintf(fp, "J%s%s\t", kCond[ir->jmp.cond & (COND_MASK | COND_UNSIGNED)], us);
+    fprintf(fp, "J%s%s\t", kCond[ir->jmp.cond], us);
     break;
   default:
     assert(0 <= ir->kind && ir->kind <= IR_ASM);
@@ -132,7 +132,7 @@ static void dump_ir(FILE *fp, IR *ir, RegAlloc *ra) {
   case IR_BITXOR: dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, " ^ "); dump_vreg(fp, ir->opr2, ra); fprintf(fp, "\n"); break;
   case IR_LSHIFT: dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, " << "); dump_vreg(fp, ir->opr2, ra); fprintf(fp, "\n"); break;
   case IR_RSHIFT: dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, " >> "); dump_vreg(fp, ir->opr2, ra); fprintf(fp, "\n"); break;
-  case IR_COND:   dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); if (ir->cond.kind != COND_ANY && ir->cond.kind != COND_NONE) {dump_vreg(fp, ir->opr1, ra); fprintf(fp, " %s ", kCond2[ir->cond.kind & (COND_MASK | COND_UNSIGNED)]); dump_vreg(fp, ir->opr2, ra);} fprintf(fp, "\n"); break;
+  case IR_COND:   dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); if (ir->cond.kind != COND_ANY && ir->cond.kind != COND_NONE) {dump_vreg(fp, ir->opr1, ra); fprintf(fp, " %s ", kCond2[ir->cond.kind]); dump_vreg(fp, ir->opr2, ra);} fprintf(fp, "\n"); break;
   case IR_NEG:    dump_vreg(fp, ir->dst, ra); fprintf(fp, " = -"); dump_vreg(fp, ir->opr1, ra); fprintf(fp, "\n"); break;
   case IR_BITNOT: dump_vreg(fp, ir->dst, ra); fprintf(fp, " = ~"); dump_vreg(fp, ir->opr1, ra); fprintf(fp, "\n"); break;
   case IR_CAST:   dump_vreg(fp, ir->dst, ra); fprintf(fp, " = "); dump_vreg(fp, ir->opr1, ra); fprintf(fp, "\n"); break;

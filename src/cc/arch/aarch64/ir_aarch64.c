@@ -797,8 +797,8 @@ static void ei_cond(IR *ir) {
   const char *dst = kReg32s[ir->dst->phys];  // Assume bool is 4 byte.
   int cond = ir->cond.kind;
   // On aarch64, flag for comparing flonum is signed.
-  if (cond & COND_FLONUM) {
-    cond &= COND_MASK;
+  if (ir->opr1->flag & VRF_FLONUM) {
+    assert((cond & ~COND_MASK) == 0);
     switch (cond) {
     case COND_LT:  CSET(dst, CMI); return;
     case COND_LE:  CSET(dst, CLS); return;
@@ -849,8 +849,8 @@ static void ei_jmp(IR *ir) {
 
   cmp_vregs(ir->opr1, ir->opr2);
 
-  if (cond & COND_FLONUM) {
-    cond &= COND_MASK;
+  if (ir->opr1->flag & VRF_FLONUM) {
+    assert((cond & ~COND_MASK) == 0);
     switch (cond) {
     case COND_LT:  Bcc(CMI, label); return;
     case COND_LE:  Bcc(CLS, label); return;

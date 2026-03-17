@@ -698,7 +698,7 @@ static void ei_cond(IR *ir) {
   assert(ir->opr2 != NULL);
   const char *dst = kReg64s[ir->dst->phys];
   assert(!(ir->opr1->flag & VRF_CONST));
-  int cond = ir->cond.kind & (COND_MASK | COND_UNSIGNED);
+  int cond = ir->cond.kind;
 
   if (ir->opr1->flag & VRF_FLONUM) {
     assert(ir->opr2->flag & VRF_FLONUM);
@@ -835,7 +835,7 @@ static void ei_jmp(IR *ir) {
   const char *opr2 = !(ir->opr2->flag & VRF_CONST) ? kReg64s[ir->opr2->phys] : ZERO;
 
   // On aarch64, flag for comparing flonum is signed.
-  switch (cond & (COND_MASK | COND_UNSIGNED)) {
+  switch (cond) {
   case COND_EQ | COND_UNSIGNED:  // Fallthrough
   case COND_EQ:  Bcc(CEQ, opr1, opr2, label); break;
 

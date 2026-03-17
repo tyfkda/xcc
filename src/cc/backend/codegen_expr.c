@@ -72,8 +72,6 @@ static struct CompareExpr gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
     // unsigned
     flag = COND_UNSIGNED;
   }
-  if (is_flonum(lhs->type))
-    flag |= COND_FLONUM;
 
   VReg *lhs_reg = gen_expr(lhs);
   VReg *rhs_reg = gen_expr(rhs);
@@ -82,7 +80,7 @@ static struct CompareExpr gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *
       static struct CompareExpr kNone = {.cond = COND_NONE};
       static struct CompareExpr kAny = {.cond = COND_ANY};
 #ifndef __NO_FLONUM
-      if (flag & COND_FLONUM) {
+      if (is_flonum(lhs->type)) {
         assert(lhs_reg->flag & VRF_FLONUM);
         assert(rhs_reg->flag & VRF_FLONUM);
         switch (cond) {

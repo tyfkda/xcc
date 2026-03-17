@@ -809,8 +809,8 @@ static void ei_cond(IR *ir) {
   const char *dst = kReg8s[ir->dst->phys];
   int cond = ir->cond.kind;
   // On x64, flag for comparing flonum is same as unsigned.
-  if (cond & COND_FLONUM) {
-    cond &= COND_MASK;
+  if (ir->opr1->flag & VRF_FLONUM) {
+    assert((cond & ~COND_MASK) == 0);
     if (cond == COND_LT || cond == COND_LE) {
       VReg *tmp = opr1;
       opr1 = opr2;
@@ -865,27 +865,33 @@ static void ei_cond(IR *ir) {
 }
 
 static void ei_jmp(IR *ir) {
+  const char *label = fmt_name(ir->jmp.bb->label);
   int cond = ir->jmp.cond;
   assert(cond != COND_NONE);
+  if (cond == COND_ANY) {
+    JMP(label);
+    return;
+  }
 
-  const char *label = fmt_name(ir->jmp.bb->label);
   VReg *opr1 = ir->opr1, *opr2 = ir->opr2;
+  assert(opr1 != NULL && opr2 != NULL);
+
   // On x64, flag for comparing flonum is same as unsigned.
-  if (cond & COND_FLONUM) {
-    cond &= COND_MASK;
+  if (opr1->flag & VRF_FLONUM) {
+    assert((cond & ~COND_MASK) == 0);
     // Special handling required for `==` and `!=`.
     switch (cond) {
     case COND_EQ:
       {
         const Name *skip_label = alloc_label();
-        cmp_vregs(ir->opr1, ir->opr2, cond);
+        cmp_vregs(opr1, opr2, cond);
         JP(fmt_name(skip_label));
         JE(label);
         EMIT_LABEL(fmt_name(skip_label));
       }
       return;
     case COND_NE:
-      cmp_vregs(ir->opr1, ir->opr2, cond);
+      cmp_vregs(opr1, opr2, cond);
       JP(label);
       JNE(label);
       return;
@@ -903,11 +909,6 @@ static void ei_jmp(IR *ir) {
     }
 
     cond |= COND_UNSIGNED;  // Turn on unsigned
-  }
-
-  if (cond == COND_ANY) {
-    JMP(label);
-    return;
   }
 
   cmp_vregs(opr1, opr2, cond);
