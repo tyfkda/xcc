@@ -564,19 +564,18 @@ static unsigned char *asm_divss_xx(Inst *inst, Code *code) { return assemble_bop
 
 static unsigned char *assemble_xorpd_xx(Inst *inst, Code *code, bool single) {
   unsigned char *p = code->buf;
-  if (inst->opr[0].type == REG_XMM && inst->opr[1].type == REG_XMM) {
-    unsigned char sno = inst->opr[0].regxmm - XMM0;
-    unsigned char dno = inst->opr[1].regxmm - XMM0;
-    short buf[] = {
-      single ? -1 : 0x66,
-      sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
-      0x0f,
-      0x57,
-      (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
-    };
-    p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
-  }
-
+  assert(inst->opr[0].type == REG_XMM);
+  assert(inst->opr[1].type == REG_XMM);
+  unsigned char sno = inst->opr[0].regxmm - XMM0;
+  unsigned char dno = inst->opr[1].regxmm - XMM0;
+  short buf[] = {
+    single ? -1 : 0x66,
+    sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
+    0x0f,
+    0x57,
+    (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+  };
+  p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
   return p;
 }
 static unsigned char *asm_xorpd_xx(Inst *inst, Code *code) { return assemble_xorpd_xx(inst, code, false); }
@@ -584,18 +583,18 @@ static unsigned char *asm_xorps_xx(Inst *inst, Code *code) { return assemble_xor
 
 static unsigned char *assemble_ucomisd(Inst *inst, Code *code, unsigned char opc, bool single) {
   unsigned char *p = code->buf;
-  if (inst->opr[0].type == REG_XMM && inst->opr[1].type == REG_XMM) {
-    unsigned char sno = inst->opr[0].regxmm - XMM0;
-    unsigned char dno = inst->opr[1].regxmm - XMM0;
-    short buf[] = {
-      single ? -1 : 0x66,
-      sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
-      0x0f,
-      opc,
-      (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
-    };
-    p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
-  }
+  assert(inst->opr[0].type == REG_XMM);
+  assert(inst->opr[1].type == REG_XMM);
+  unsigned char sno = inst->opr[0].regxmm - XMM0;
+  unsigned char dno = inst->opr[1].regxmm - XMM0;
+  short buf[] = {
+    single ? -1 : 0x66,
+    sno >= 8 || dno >= 8 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) : -1,
+    0x0f,
+    opc,
+    (unsigned char)0xc0 | ((dno & 7) << 3) | (sno & 7),
+  };
+  p = put_code_filtered(p, buf, ARRAY_SIZE(buf));
   return p;
 }
 static unsigned char *asm_comisd_xx(Inst *inst, Code *code) { return assemble_ucomisd(inst, code, 0x2f, false); }

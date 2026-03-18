@@ -387,11 +387,9 @@ static unsigned char *asm_ldpstp(Inst *inst, Code *code) {
 
 static unsigned char *asm_adrp(Inst *inst, Code *code) {
   Operand *opr1 = &inst->opr[0];
-  if (opr1->reg.size == REG64) {
-    W_ADRP(opr1->reg.no, 0);
-    return code->buf;
-  }
-  return NULL;
+  assert(opr1->reg.size == REG64);
+  W_ADRP(opr1->reg.no, 0);
+  return code->buf;
 }
 
 static unsigned char *asm_cset(Inst *inst, Code *code) {
@@ -409,11 +407,9 @@ static unsigned char *asm_b(Inst *inst, Code *code) {
 
 static unsigned char *asm_br(Inst *inst, Code *code) {
   Operand *opr1 = &inst->opr[0];
-  if (opr1->reg.size == REG64) {
-    W_BR(opr1->reg.no);
-    return code->buf;
-  }
-  return NULL;
+  assert(opr1->reg.size == REG64);
+  W_BR(opr1->reg.no);
+  return code->buf;
 }
 
 void asm_bcc_with_offset(Inst *inst, Code *code, int64_t offset) {
@@ -465,11 +461,9 @@ static unsigned char *asm_bl(Inst *inst, Code *code) {
 
 static unsigned char *asm_blr(Inst *inst, Code *code) {
   Operand *opr1 = &inst->opr[0];
-  if (opr1->reg.size == REG64) {
-    W_BLR(opr1->reg.no);
-    return code->buf;
-  }
-  return NULL;
+  assert(opr1->reg.size == REG64);
+  W_BLR(opr1->reg.no);
+  return code->buf;
 }
 
 static unsigned char *asm_ret(Inst *inst, Code *code) {
