@@ -215,6 +215,7 @@ function test_error() {
   compile_error 'unreachable after while(1)' 'int main(){ int x=0; while (1) {++x;} return x; }'
   compile_error 'unreachable inner while(0)' 'int main(){ int x=0; while (0) {++x;} return x; }'
   compile_error 'unreachable after do-while(1)' 'int main(){ int x=0; do {++x;} while (1); return x; }'
+  compile_error 'unreachable after do-while if returns in body' 'int main(){ do {return 1;} while (0); return 0; }'
   try 'allow switch break after block' 21 'int x=21; switch (x) {case 1: {return -1;} break; case 2: {break;} break;} return x;'
   try 'use goto to skip first' 54 'int acc=0, i=1; goto inner; for (; i<=10;) {acc += i; inner: ++i;} return acc;  //-WCC'
   compile_error 'after noreturn function' '#include <stdlib.h>\nint main(){ exit(0); return 1; }'

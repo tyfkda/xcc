@@ -745,6 +745,7 @@ static void check_reachability_stmt(Stmt *stmt) {
     if (is_const_truthy(stmt->while_.cond))
       stmt->reach |= REACH_STOP;
     check_reachability_stmt(stmt->while_.body);
+    stmt->reach |= stmt->while_.body->reach;
     break;
   case ST_FOR:
     if (stmt->for_.cond != NULL && is_const_falsy(stmt->for_.cond)) {
