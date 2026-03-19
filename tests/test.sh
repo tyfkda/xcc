@@ -252,7 +252,7 @@ function test_error() {
   compile_error 'while void' 'int main(){while ((void)1) {}}'
   compile_error 'do-while void' 'int main(){do {} while ((void)-2);}'
   compile_error 'for void' 'int main(){for (; (void)3; ) {}}'
-  compile_error 'switch void' 'int main(){switch ((void)4) {}}'
+  compile_error 'switch non-int' 'int main(){switch (3.14) {}}'
   compile_error 'assign const' 'const int G = 0; int main(){G=1;}'
   compile_error 'assign const struct' 'const struct S {int x;} s = {100}; int main(){s.x = 1; return s.x;}'
   # flonum

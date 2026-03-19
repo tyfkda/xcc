@@ -350,7 +350,10 @@ static Stmt *parse_switch(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
   Expr *value = parse_expr();
   value = used_as_value(value);
-  not_void(value->type, value->token);
+  if (!is_fixnum(value->type)) {
+    parse_error(PE_NOFATAL, value->token, "must be integer");
+    value = new_expr_fixlit(&tyInt, value->token, 0);  // Dummy.
+  }
   consume(TK_RPAR, "`)' expected");
 
   Stmt *stmt = new_stmt_switch(tok, value);
