@@ -381,9 +381,9 @@ static void gen_return(Stmt *stmt, bool is_last) {
   Expr *val = stmt->return_.val;
   if (val != NULL) {
     const Type *type = val->type;
-    if (is_prim_type(type) || type->kind == TY_VOID) {
+    if (is_prim_type(type)) {
       gen_expr(val, true);
-    } else if (is_phantom_struct(type)) {
+    } else if (is_phantom_struct(type) || type->kind == TY_VOID) {
       gen_expr(val, false);
     } else {
       assert(type->kind == TY_STRUCT);
@@ -688,7 +688,8 @@ static inline void assign_variable_index_or_offsets(
 static inline uint32_t allocate_local_variables(Function *func, DataStorage *data) {
   const Type *functype = func->type;
   const Type *rettype = functype->func.ret;
-  unsigned int ret_param = rettype->kind == TY_STRUCT && !is_small_struct(rettype) ? 1 : 0;
+  unsigned int ret_param = rettype->kind == TY_STRUCT && !is_small_struct(rettype) &&
+                           !is_phantom_struct(rettype);
 
   unsigned int local_counts[4];  // I32, I64, F32, F64
   memset(local_counts, 0, sizeof(local_counts));

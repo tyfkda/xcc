@@ -28,7 +28,7 @@ bool is_stack_param(const Type *type) {
 static void wasm_func_type(const Type *type, DataStorage *ds) {
   const Type *rettype = type->func.ret;
   bool ret_small_struct = is_small_struct(rettype);
-  bool ret_param = rettype->kind == TY_STRUCT && !ret_small_struct;
+  bool ret_param = rettype->kind == TY_STRUCT && !ret_small_struct && !is_phantom_struct(rettype);
   const Vector *params = type->func.params;
   int param_count = 0;
   if (params != NULL) {
@@ -38,7 +38,7 @@ static void wasm_func_type(const Type *type, DataStorage *ds) {
   data_init(ds);
   data_reserve(ds, 3 + param_count + 3);
 
-  data_uleb128(ds, -1, (int)ret_param + param_count + (type->func.vaargs ? 1 : 0));  // num params
+  data_uleb128(ds, -1, ret_param + param_count + type->func.vaargs);  // num params
   if (ret_param)
     data_push(ds, to_wtype(&tyVoidPtr));
   if (params != NULL) {
@@ -57,7 +57,7 @@ static void wasm_func_type(const Type *type, DataStorage *ds) {
   if (type->func.vaargs)
     data_push(ds, to_wtype(&tyVoidPtr));  // vaarg pointer.
 
-  if (rettype->kind == TY_VOID || ret_param) {
+  if (rettype->kind == TY_VOID || ret_param || is_phantom_struct(rettype)) {
     data_push(ds, 0);  // num results
   } else {
     data_push(ds, 1);  // num results
@@ -232,7 +232,7 @@ static void te_funcall(Expr **pexpr, bool needval) {
     return;
   }
   Type *rettype = functype->func.ret;
-  if (rettype->kind != TY_VOID && !is_prim_type(rettype)) {
+  if (rettype->kind != TY_VOID && !is_prim_type(rettype) && !is_phantom_struct(rettype)) {
     // Allocate local variable for return value.
     assert(curfunc != NULL);
     assert(curfunc->scopes != NULL);

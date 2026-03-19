@@ -358,7 +358,8 @@ static inline void gen_funargs(Expr *expr) {
   work.indirect_offset = work_size;
 
   const Type *rettype = functype->func.ret;
-  bool ret_param = rettype->kind != TY_VOID && !is_prim_type(rettype) && !is_small_struct(rettype);
+  bool ret_param = rettype->kind != TY_VOID && !is_prim_type(rettype) &&
+                   !is_small_struct(rettype) && !is_phantom_struct(rettype);
   if (ret_param)
     gen_fun_ret_buf(expr);
 
