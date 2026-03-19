@@ -175,10 +175,15 @@ static inline void move_params_to_assigned(Function *func) {
       MOV(kRegSizeTable[3][ArchRegParamMapping[i]], OFFSET_INDIRECT(offset, RBP, NULL, 1));
     }
 #ifndef __NO_FLONUM
+    // If no value passed by FP registers, then skip saving them.
+    const Name *skip_fp_save = alloc_label();
+    TEST(AL, AL);
+    JE(fmt_name(skip_fp_save));
     for (int i = reg_index[FPREG]; i < MAX_FREG_ARGS; ++i) {
       int offset = (i - MAX_FREG_ARGS) * TARGET_POINTER_SIZE;
       MOVSD(kFRegParam64s[i], OFFSET_INDIRECT(offset, RBP, NULL, 1));
     }
+    EMIT_LABEL(fmt_name(skip_fp_save));
 #endif
   }
 #undef kFRegParam64s
