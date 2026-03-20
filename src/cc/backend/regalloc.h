@@ -56,7 +56,7 @@ RegAlloc *new_reg_alloc(const RegAllocSettings *settings);
 VReg *reg_alloc_spawn_raw(enum VRegSize vsize, int vflag);
 VReg *reg_alloc_spawn(RegAlloc *ra, enum VRegSize vsize, int vflag);
 VReg *reg_alloc_with_original(RegAlloc *ra, VReg *original);
-VReg *reg_alloc_spawn_const(RegAlloc *ra, int64_t value, enum VRegSize vsize);
+VReg *reg_alloc_spawn_const(RegAlloc *ra, int64_t value, enum VRegSize vsize, int vflag);
 #ifndef __NO_FLONUM
 VReg *reg_alloc_spawn_fconst(RegAlloc *ra, double value, enum VRegSize vsize);
 #endif

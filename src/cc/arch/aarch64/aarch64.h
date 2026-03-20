@@ -239,7 +239,7 @@
 #define LSR(o1, o2, o3)       EMIT_ASM("lsr", o1, o2, o3)
 #define ASR(o1, o2, o3)       EMIT_ASM("asr", o1, o2, o3)
 #define BRANCH(o1)            EMIT_ASM("b", o1)
-#define Bcc(c, o1)            EMIT_ASM("b" c, o1)
+#define Bcc(c, o1)            EMIT_ASM(fmt("b%s", c), o1)
 #define CBZ(o1, o2)           EMIT_ASM("cbz", o1, o2)
 #define CBNZ(o1, o2)          EMIT_ASM("cbnz", o1, o2)
 #define BR(o1)                EMIT_ASM("br", o1)

@@ -99,14 +99,13 @@ static void dump_ir(FILE *fp, IR *ir, RegAlloc *ra) {
   static char *kCond[] = {NULL, "MP", "EQ", "NE", "LT", "LE", "GE", "GT", NULL, "MP", "EQ", "NE", "ULT", "ULE", "UGE", "UGT"};
   static char *kCond2[] = {NULL, "MP", "==", "!=", "<", "<=", ">=", ">", NULL, "MP", "==", "!=", "<", "<=", ">=", ">"};
 
-  const char *us = ir->flag & IRF_UNSIGNED ? "U" : "";
   switch (ir->kind) {
   case IR_DIV:
   case IR_MOD:
-    fprintf(fp, "%s%s\t", kOps[ir->kind], us);
+    fprintf(fp, "%s\t", kOps[ir->kind]);
     break;
   case IR_JMP:
-    fprintf(fp, "J%s%s\t", kCond[ir->jmp.cond], us);
+    fprintf(fp, "J%s\t", kCond[ir->jmp.cond]);
     break;
   case IR_RESULT:
     if (ir->opr1 == NULL)  // No effect: suppress output.
@@ -114,7 +113,7 @@ static void dump_ir(FILE *fp, IR *ir, RegAlloc *ra) {
     // Fallthrough
   default:
     assert(0 <= ir->kind && ir->kind <= IR_ASM);
-    fprintf(fp, "%s%s\t", kOps[ir->kind], us);
+    fprintf(fp, "%s\t", kOps[ir->kind]);
     break;
   }
 

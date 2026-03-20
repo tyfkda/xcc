@@ -418,14 +418,15 @@ static void ei_load(IR *ir) {
     assert(0 <= pow && pow < 4);
     const char **regs = kRegSizeTable[pow];
     dst = regs[ir->dst->phys];
+    int u = ir->dst->flag & VRF_UNSIGNED;
     switch (pow) {
     case 0:
-      if (ir->flag & IRF_UNSIGNED) LDRB(dst, src);
-      else                         LDRSB(dst, src);
+      if (u)  LDRB(dst, src);
+      else    LDRSB(dst, src);
       break;
     case 1:
-      if (ir->flag & IRF_UNSIGNED) LDRH(dst, src);
-      else                         LDRSH(dst, src);
+      if (u)  LDRH(dst, src);
+      else    LDRSH(dst, src);
       break;
     case 2: case 3:
       LDR(dst, src);
@@ -452,7 +453,7 @@ static void ei_store(IR *ir) {
       src = kZeroRegTable[pow];
     else
       mov_immediate(src = kTmpRegTable[pow], ir->opr1->fixnum, pow >= 3,
-                    ir->flag & IRF_UNSIGNED);
+                    ir->opr1->flag & VRF_UNSIGNED);
   } else {
     src = kRegSizeTable[pow][ir->opr1->phys];
   }
@@ -558,7 +559,7 @@ static void ei_div(IR *ir) {
     int pow = ir->dst->vsize;
     assert(0 <= pow && pow < 4);
     const char **regs = kRegSizeTable[pow];
-    if (!(ir->flag & IRF_UNSIGNED))
+    if (!(ir->opr1->flag & VRF_UNSIGNED))
       SDIV(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
     else
       UDIV(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
@@ -573,7 +574,7 @@ static void ei_mod(IR *ir) {
   const char *num = regs[ir->opr1->phys];
   const char *div = regs[ir->opr2->phys];
   const char *tmp = kTmpRegTable[pow];
-  if (!(ir->flag & IRF_UNSIGNED))
+  if (!(ir->opr1->flag & VRF_UNSIGNED))
     SDIV(tmp, num, div);
   else
     UDIV(tmp, num, div);
@@ -620,25 +621,26 @@ static void ei_lshift(IR *ir) {
 }
 
 static void ei_rshift(IR *ir) {
-#define RSHIFT_INST(a, b, c)  do  { if (ir->flag & IRF_UNSIGNED) LSR(a, b, c); else ASR(a, b, c); } while (0)
+#define RSHIFT_INST(a, b, c)  do  { if (ir->dst->flag & VRF_UNSIGNED) LSR(a, b, c); else ASR(a, b, c); } while (0)
   assert(!(ir->opr1->flag & VRF_CONST));
   int pow = ir->dst->vsize;
   assert(0 <= pow && pow < 4);
   const char **regs = kRegSizeTable[pow];
+  const char *dst = regs[ir->dst->phys], *opr1 = regs[ir->opr1->phys];
   if (ir->opr2->flag & VRF_CONST) {
-    if (ir->flag & IRF_UNSIGNED) {
+    if (ir->opr1->flag & VRF_UNSIGNED) {
       if ((uint64_t)ir->opr2->fixnum >= (pow < 3 ? 32 : 64))
-        mov_immediate(regs[ir->dst->phys], 0, pow >= 3, true);
+        mov_immediate(dst, 0, pow >= 3, true);
       else
-        RSHIFT_INST(regs[ir->dst->phys], regs[ir->opr1->phys], IM(ir->opr2->fixnum));
+        RSHIFT_INST(dst, opr1, IM(ir->opr2->fixnum));
     } else {
       uint64_t shift = ir->opr2->fixnum;
       shift &= pow < 3 ? 31 : 63;
       const char *opr2 = IM(shift);
-      RSHIFT_INST(regs[ir->dst->phys], regs[ir->opr1->phys], opr2);
+      RSHIFT_INST(dst, opr1, opr2);
     }
   } else {
-    RSHIFT_INST(regs[ir->dst->phys], regs[ir->opr1->phys], regs[ir->opr2->phys]);
+    RSHIFT_INST(dst, opr1, regs[ir->opr2->phys]);
   }
 #undef RSHIFT_INST
 }
@@ -697,14 +699,14 @@ static void ei_cast(IR *ir) {
       default: assert(false); break;
       }
       const char *src = kRegSizeTable[pows][ir->opr1->phys];
-      if (ir->cast.src_unsigned)  UCVTF(dst, src);
-      else                        SCVTF(dst, src);
+      if (ir->opr1->flag & VRF_UNSIGNED)  UCVTF(dst, src);
+      else                                SCVTF(dst, src);
     }
   } else if (ir->opr1->flag & VRF_FLONUM) {
     assert(!(ir->opr1->flag & VRF_CONST));
     // flonum->fix
     int powd = ir->dst->vsize;
-    if (ir->flag & IRF_UNSIGNED) {
+    if (ir->dst->flag & VRF_UNSIGNED) {
       switch (ir->opr1->vsize) {
       case SZ_FLOAT:   FCVTZU(kRegSizeTable[powd][ir->dst->phys], kFReg32s[ir->opr1->phys]); break;
       case SZ_DOUBLE:  FCVTZU(kRegSizeTable[powd][ir->dst->phys], kFReg64s[ir->opr1->phys]); break;
@@ -731,7 +733,7 @@ static void ei_cast(IR *ir) {
       int powd = ir->dst->vsize;
       assert(0 <= pows && pows < 4);
       assert(0 <= powd && powd < 4);
-      if (ir->cast.src_unsigned) {
+      if (ir->opr1->flag & VRF_UNSIGNED) {
         switch (pows) {
         case 0:  UXTB(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
         case 1:  UXTH(kRegSizeTable[powd][ir->dst->phys], kRegSizeTable[pows][ir->opr1->phys]); break;
@@ -776,7 +778,7 @@ static void emit_mov(int dstphys, VReg *opr1, bool is_unsigned) {
 }
 
 static void ei_mov(IR *ir) {
-  emit_mov(ir->dst->phys, ir->opr1, ir->flag & IRF_UNSIGNED);
+  emit_mov(ir->dst->phys, ir->opr1, ir->dst->flag & VRF_UNSIGNED);
 }
 
 static void ei_result(IR *ir) {
@@ -790,8 +792,19 @@ static void ei_result(IR *ir) {
   bool is_flo = ir->opr1->flag & VRF_FLONUM;
   assert((size_t)ir->result.index < ARRAY_SIZE(kRegIndices[is_flo]));
   int dstphys = kRegIndices[is_flo][ir->result.index];
-  emit_mov(dstphys, ir->opr1, ir->flag & IRF_UNSIGNED);
+  emit_mov(dstphys, ir->opr1, ir->opr1->flag & VRF_UNSIGNED);
 }
+
+static const char *kCondTable[][8] = {
+  {  // Signed.
+    [COND_EQ] = CEQ, [COND_NE] = CNE,
+    [COND_LT] = CLT, [COND_GT] = CGT, [COND_LE] = CLE, [COND_GE] = CGE,
+  },
+  {  // Unsigned.
+    [COND_EQ] = CEQ, [COND_NE] = CNE,
+    [COND_LT] = CLO, [COND_GT] = CHI, [COND_LE] = CLS, [COND_GE] = CHS,
+  },
+};
 
 static void ei_cond(IR *ir) {
   cmp_vregs(ir->opr1, ir->opr2);
@@ -801,7 +814,6 @@ static void ei_cond(IR *ir) {
   int cond = ir->cond.kind;
   // On aarch64, flag for comparing flonum is signed.
   if (ir->opr1->flag & VRF_FLONUM) {
-    assert((cond & ~COND_MASK) == 0);
     switch (cond) {
     case COND_LT:  CSET(dst, CMI); return;
     case COND_LE:  CSET(dst, CLS); return;
@@ -809,24 +821,7 @@ static void ei_cond(IR *ir) {
     }
   }
 
-  switch (cond) {
-  case COND_EQ | COND_UNSIGNED:  // Fallthrough
-  case COND_EQ:  CSET(dst, CEQ); break;
-
-  case COND_NE | COND_UNSIGNED:  // Fallthrough
-  case COND_NE:  CSET(dst, CNE); break;
-
-  case COND_LT:  CSET(dst, CLT); break;
-  case COND_GT:  CSET(dst, CGT); break;
-  case COND_LE:  CSET(dst, CLE); break;
-  case COND_GE:  CSET(dst, CGE); break;
-
-  case COND_LT | COND_UNSIGNED:  CSET(dst, CLO); break;
-  case COND_GT | COND_UNSIGNED:  CSET(dst, CHI); break;
-  case COND_LE | COND_UNSIGNED:  CSET(dst, CLS); break;
-  case COND_GE | COND_UNSIGNED:  CSET(dst, CHS); break;
-  default: assert(false); break;
-  }
+  CSET(dst, kCondTable[ir->opr1->flag & VRF_UNSIGNED ? 1 : 0][cond]);
 }
 
 static void ei_jmp(IR *ir) {
@@ -843,7 +838,7 @@ static void ei_jmp(IR *ir) {
     assert(0 <= pow && pow < 4);
     const char **regs = kRegSizeTable[pow];
     const char *opr1 = regs[ir->opr1->phys];
-    switch (cond & COND_MASK) {
+    switch (cond) {
     case COND_EQ:  CBZ(opr1, label); return;
     case COND_NE:  CBNZ(opr1, label); return;
     default: break;
@@ -853,7 +848,6 @@ static void ei_jmp(IR *ir) {
   cmp_vregs(ir->opr1, ir->opr2);
 
   if (ir->opr1->flag & VRF_FLONUM) {
-    assert((cond & ~COND_MASK) == 0);
     switch (cond) {
     case COND_LT:  Bcc(CMI, label); return;
     case COND_LE:  Bcc(CLS, label); return;
@@ -862,24 +856,7 @@ static void ei_jmp(IR *ir) {
   }
 
   // On aarch64, flag for comparing flonum is signed.
-  switch (cond) {
-  case COND_EQ | COND_UNSIGNED:  // Fallthrough
-  case COND_EQ:  Bcc(CEQ, label); break;
-
-  case COND_NE | COND_UNSIGNED:  // Fallthrough
-  case COND_NE:  Bcc(CNE, label); break;
-
-  case COND_LT:  Bcc(CLT, label); break;
-  case COND_GT:  Bcc(CGT, label); break;
-  case COND_LE:  Bcc(CLE, label); break;
-  case COND_GE:  Bcc(CGE, label); break;
-
-  case COND_LT | COND_UNSIGNED:  Bcc(CLO, label); break;
-  case COND_GT | COND_UNSIGNED:  Bcc(CHI, label); break;
-  case COND_LE | COND_UNSIGNED:  Bcc(CLS, label); break;
-  case COND_GE | COND_UNSIGNED:  Bcc(CHS, label); break;
-  default: assert(false); break;
-  }
+  Bcc(kCondTable[ir->opr1->flag & VRF_UNSIGNED ? 1 : 0][cond], label);
 }
 
 static void ei_tjmp(IR *ir) {
@@ -930,7 +907,7 @@ static void ei_pusharg(IR *ir) {
 #endif
     const char *dst = kRegSizeTable[pow][index];
     if (ir->opr1->flag & VRF_CONST)
-      mov_immediate(dst, ir->opr1->fixnum, pow >= 3, ir->flag & IRF_UNSIGNED);
+      mov_immediate(dst, ir->opr1->fixnum, pow >= 3, ir->opr1->flag & VRF_UNSIGNED);
     else if (ir->pusharg.index != ir->opr1->phys)
       MOV(dst, kRegSizeTable[pow][ir->opr1->phys]);
   }
@@ -1082,8 +1059,7 @@ void tweak_irs(FuncBackend *fnbe) {
           if (ir->opr2->fixnum < 0) {
             ir->kind = IR_SUB;
             VReg *old = ir->opr2;
-            ir->opr2 = reg_alloc_spawn_const(ra, -old->fixnum, old->vsize);
-            ir->opr2->flag = old->flag;
+            ir->opr2 = reg_alloc_spawn_const(ra, -old->fixnum, old->vsize, old->flag);
           }
           if (!is_im13_addsubimm(ir->opr2->fixnum))
             insert_tmp_mov(&ir->opr2, irs, j++);
@@ -1104,8 +1080,7 @@ void tweak_irs(FuncBackend *fnbe) {
           if (ir->opr2->fixnum < 0) {
             ir->kind = IR_ADD;
             VReg *old = ir->opr2;
-            ir->opr2 = reg_alloc_spawn_const(ra, -old->fixnum, old->vsize);
-            ir->opr2->flag = old->flag;
+            ir->opr2 = reg_alloc_spawn_const(ra, -old->fixnum, old->vsize, old->flag);
           }
           if (!is_im13_addsubimm(ir->opr2->fixnum))
             insert_tmp_mov(&ir->opr2, irs, j++);
@@ -1140,7 +1115,7 @@ void tweak_irs(FuncBackend *fnbe) {
         {
           assert(!(ir->opr1->flag & VRF_CONST));
           // Allocate temporary register to use calculation.
-          VReg *tmp = reg_alloc_spawn(ra, VRegSize8, 0);
+          VReg *tmp = reg_alloc_spawn(ra, VRegSize8, VRF_UNSIGNED);
           IR *keep = new_ir_keep(tmp, NULL, NULL);  // Notify the register begins to be used.
           vec_insert(irs, j++, keep);
 

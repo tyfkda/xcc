@@ -275,44 +275,36 @@ static bool calc_const_cond(enum ConditionKind cond, VReg *opr1, VReg *opr2) {
   assert(opr1->flag & VRF_CONST);
   assert(opr2->flag & VRF_CONST);
 
+#define JUDGE(cond, v1, v2) \
+    do { \
+      switch (cond) { \
+      case COND_EQ:  return v1 == v2; \
+      case COND_NE:  return v1 != v2; \
+      case COND_LT:  return v1 < v2; \
+      case COND_GT:  return v1 > v2; \
+      case COND_LE:  return v1 <= v2; \
+      case COND_GE:  return v1 >= v2; \
+      default: assert(false); return false; \
+      } \
+    } while (0)
+
 #ifndef __NO_FLONUM
   if (opr1->flag & VRF_FLONUM) {
     double f1 = opr1->flonum.value;
     double f2 = opr2->flonum.value;
-    switch ((int)cond) {
-    case COND_EQ:  return f1 == f2;
-    case COND_NE:  return f1 != f2;
-    case COND_LT:  return f1 < f2;
-    case COND_GT:  return f1 > f2;
-    case COND_LE:  return f1 <= f2;
-    case COND_GE:  return f1 >= f2;
-    default: assert(false); return false;
-    }
+    JUDGE(cond, f1, f2);
   } else
 #endif
-  {
-    bool is_unsigned = (cond & COND_UNSIGNED) != 0;
-    int64_t n1 = wrap_value(opr1->fixnum, 1 << opr1->vsize, is_unsigned);
-    int64_t n2 = wrap_value(opr2->fixnum, 1 << opr2->vsize, is_unsigned);
-    switch ((int)cond) {
-    case COND_EQ | COND_UNSIGNED:  // Fallthrough
-    case COND_EQ:  return n1 == n2;
-
-    case COND_NE | COND_UNSIGNED:  // Fallthrough
-    case COND_NE:  return n1 != n2;
-
-    case COND_LT:  return n1 < n2;
-    case COND_GT:  return n1 > n2;
-    case COND_LE:  return n1 <= n2;
-    case COND_GE:  return n1 >= n2;
-
-    case COND_LT | COND_UNSIGNED:  return (uint64_t)n1 < (uint64_t)n2;
-    case COND_GT | COND_UNSIGNED:  return (uint64_t)n1 > (uint64_t)n2;
-    case COND_LE | COND_UNSIGNED:  return (uint64_t)n1 <= (uint64_t)n2;
-    case COND_GE | COND_UNSIGNED:  return (uint64_t)n1 >= (uint64_t)n2;
-    default: assert(false); return false;
-    }
+  if (opr1->flag & VRF_UNSIGNED) {
+    uint64_t u1 = wrap_value(opr1->fixnum, 1 << opr1->vsize, true);
+    uint64_t u2 = wrap_value(opr2->fixnum, 1 << opr2->vsize, true);
+    JUDGE(cond, u1, u2);
+  } else {
+    int64_t s1 = wrap_value(opr1->fixnum, 1 << opr1->vsize, false);
+    int64_t s2 = wrap_value(opr2->fixnum, 1 << opr2->vsize, false);
+    JUDGE(cond, s1, s2);
   }
+#undef JUDGE
 }
 
 static bool replace_const_jmp(IR *ir) {
@@ -325,7 +317,7 @@ static bool replace_const_jmp(IR *ir) {
       ir->opr1 = ir->opr2 = NULL;
       return true;
     } else {
-      ir->jmp.cond = swap_cond(ir->jmp.cond & COND_MASK) | (ir->jmp.cond & ~COND_MASK);
+      ir->jmp.cond = swap_cond(ir->jmp.cond);
       VReg *tmp = ir->opr1;
       ir->opr1 = ir->opr2;
       ir->opr2 = tmp;
@@ -343,11 +335,11 @@ static bool replace_const_cond(RegAlloc *ra, IR *ir) {
       // Replace COND to MOV.
       bool result = calc_const_cond(ir->cond.kind, ir->opr1, ir->opr2);
       ir->kind = IR_MOV;
-      ir->opr1 = reg_alloc_spawn_const(ra, result, ir->dst->vsize);
+      ir->opr1 = reg_alloc_spawn_const(ra, result, ir->dst->vsize, ir->dst->flag & VRF_MASK);
       ir->opr2 = NULL;
       return true;
     } else {
-      ir->cond.kind = swap_cond(ir->cond.kind & COND_MASK) | (ir->cond.kind & ~COND_MASK);
+      ir->cond.kind = swap_cond(ir->cond.kind);
       VReg *tmp = ir->opr1;
       ir->opr1 = ir->opr2;
       ir->opr2 = tmp;
@@ -378,7 +370,7 @@ static int64_t calc_const_expr(IR *ir) {
   }
 
   int64_t value = 0;
-  if (ir->flag & IRF_UNSIGNED) {
+  if (ir->opr1->flag & VRF_UNSIGNED) {
     uint64_t opr1 = ir->opr1->fixnum;
     uint64_t opr2 = ir->opr2 != NULL ? ir->opr2->fixnum : 0;
     CALC_CONST(ir->kind);
@@ -442,10 +434,10 @@ static bool constant_folding(RegAlloc *ra, IR *ir) {
 #endif
       {
         int64_t value = wrap_value(calc_const_expr(ir), 1 << ir->dst->vsize,
-                                   ir->flag & IRF_UNSIGNED);
+                                   ir->opr1->flag & VRF_UNSIGNED);
         // Replace to MOV.
         ir->kind = IR_MOV;
-        ir->opr1 = reg_alloc_spawn_const(ra, value, ir->dst->vsize);
+        ir->opr1 = reg_alloc_spawn_const(ra, value, ir->dst->vsize, ir->dst->flag & VRF_MASK);
         ir->opr2 = NULL;
       }
       return true;
@@ -460,8 +452,8 @@ static bool constant_folding(RegAlloc *ra, IR *ir) {
       if (ir->dst->flag & VRF_FLONUM) {
         double value;
         if (!(ir->opr1->flag & VRF_FLONUM)) {
-          value = (ir->cast.src_unsigned) ? (double)(uint64_t)ir->opr1->fixnum
-                                          : (double)ir->opr1->fixnum;
+          value = (ir->opr1->flag & VRF_UNSIGNED) ? (double)(uint64_t)ir->opr1->fixnum
+                                                  : (double)ir->opr1->fixnum;
         } else {
           value = ir->opr1->flonum.value;
         }
@@ -475,18 +467,19 @@ static bool constant_folding(RegAlloc *ra, IR *ir) {
 #ifndef __NO_FLONUM
         if (ir->opr1->flag & VRF_FLONUM) {
           double d = ir->opr1->flonum.value;
-          value = !(ir->flag & IRF_UNSIGNED) ? (int64_t)d : (int64_t)(uint64_t)d;
-          value = wrap_value(value, 1 << ir->dst->vsize, ir->flag & IRF_UNSIGNED);
+          bool u = ir->opr1->flag & VRF_UNSIGNED;
+          value = u ? (int64_t)(uint64_t)d : (int64_t)d;
+          value = wrap_value(value, 1 << ir->dst->vsize, u);
         } else
 #endif
         {
           value = ir->opr1->fixnum;
           if (ir->dst->vsize > ir->opr1->vsize)
-            value = wrap_value(value, 1 << ir->opr1->vsize, ir->cast.src_unsigned);
+            value = wrap_value(value, 1 << ir->opr1->vsize, ir->opr1->flag & VRF_UNSIGNED);
         }
         // Replace to MOV.
         ir->kind = IR_MOV;
-        ir->opr1 = reg_alloc_spawn_const(ra, value, ir->dst->vsize);
+        ir->opr1 = reg_alloc_spawn_const(ra, value, ir->dst->vsize, ir->dst->flag & VRF_MASK);
       }
       return true;
     }
@@ -563,7 +556,7 @@ static inline void fold_addition(RegAlloc *ra, BB *bb, int i) {
       *next = *ir;
       next->kind = IR_ADD;
       next->dst = dst;
-      next->opr2 = reg_alloc_spawn_const(ra, value1 + value2, opr2->vsize);
+      next->opr2 = reg_alloc_spawn_const(ra, value1 + value2, opr2->vsize, opr2->flag & VRF_MASK);
     }
   }
 }
@@ -573,25 +566,29 @@ static inline int muldiv_to_shift(RegAlloc *ra, BB *bb, int i) {
   if ((ir->opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_CONST &&
       IS_POWER_OF_2(ir->opr2->fixnum)) {
     int shift = most_significant_bit(ir->opr2->fixnum);
-    if (ir->kind == IR_DIV && !(ir->flag & IRF_UNSIGNED)) {
+    if (ir->kind == IR_DIV && !(ir->opr1->flag & VRF_UNSIGNED)) {
       // Patch for signed right shift:
       enum VRegSize vsize = ir->opr1->vsize;
       int bits = TARGET_CHAR_BIT << vsize;
-      VReg *tmp = reg_alloc_spawn(ra, vsize, ir->opr1->flag & VRF_MASK);
-      IR *mov = new_ir_mov(tmp, ir->opr1, ir->flag);
-      IR *sign_bit = new_ir_bop_raw(IR_RSHIFT, tmp, tmp,
-                                    reg_alloc_spawn_const(ra, bits - 1, vsize), ir->flag);
-      IR *addend = new_ir_bop_raw(IR_RSHIFT, tmp, tmp,
-                                  reg_alloc_spawn_const(ra, bits - shift, vsize), IRF_UNSIGNED);
-      IR *add = new_ir_bop_raw(IR_ADD, tmp, tmp, ir->opr1, 0);
-      vec_insert(bb->irs, i++, mov);
+      VReg *tmps = reg_alloc_spawn(ra, vsize, ir->opr1->flag & VRF_MASK);
+      IR *mov_to_tmps = new_ir_mov(tmps, ir->opr1);
+      IR *sign_bit = new_ir_bop_raw(IR_RSHIFT, tmps, tmps,
+                                    reg_alloc_spawn_const(ra, bits - 1, vsize, tmps->flag & VRF_MASK));
+      IR *mov_to_tmpu = new_ir_cast(tmps, tmps->vsize, (tmps->flag & VRF_MASK) | VRF_UNSIGNED);
+      VReg *tmpu = mov_to_tmpu->dst;
+      IR *addend = new_ir_bop_raw(IR_RSHIFT, tmpu, tmpu,
+                                  reg_alloc_spawn_const(ra, bits - shift, vsize, tmpu->flag & VRF_MASK));
+      VReg *patched = reg_alloc_spawn(ra, vsize, ir->opr1->flag & VRF_MASK);
+      IR *add = new_ir_bop_raw(IR_ADD, patched, ir->opr1, tmpu);
+      vec_insert(bb->irs, i++, mov_to_tmps);
       vec_insert(bb->irs, i++, sign_bit);
+      vec_insert(bb->irs, i++, mov_to_tmpu);
       vec_insert(bb->irs, i++, addend);
       vec_insert(bb->irs, i++, add);
-      ir->opr1 = tmp;
+      ir->opr1 = patched;
     }
     ir->kind = ir->kind + (IR_LSHIFT - IR_MUL);
-    ir->opr2 = reg_alloc_spawn_const(ra, shift, ir->opr2->vsize);
+    ir->opr2 = reg_alloc_spawn_const(ra, shift, ir->opr2->vsize, ir->opr2->flag & VRF_MASK);
   }
   return i;
 }
@@ -676,7 +673,7 @@ static void copy_propagation(RegAlloc *ra, BBContainer *bbcon) {
               break;
           }
           if (i >= n) {  // All values are same.
-            IR *ir = new_ir_mov(dst, value, 0);
+            IR *ir = new_ir_mov(dst, value);
             vec_insert(bb->irs, 0, ir);
             vec_remove_at(phis, iphi--);
           }

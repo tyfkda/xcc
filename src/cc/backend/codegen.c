@@ -272,28 +272,28 @@ void gen_memcpy(const Type *type, VReg *dst, VReg *src) {
   size_t count = size >> elem_vsize;
   assert(count > 0);
   if (count == 1) {
-    VReg *tmp = new_ir_load(src, 0, elem_vsize, to_vflag(type), 0)->dst;
-    new_ir_store(dst, 0, tmp, 0);
+    VReg *tmp = new_ir_load(src, 0, elem_vsize, to_vflag(type))->dst;
+    new_ir_store(dst, 0, tmp);
   } else {
     VReg *srcp = add_new_vreg(&tyVoidPtr);
-    new_ir_mov(srcp, src, IRF_UNSIGNED);
+    new_ir_mov(srcp, src);
     VReg *dstp = add_new_vreg(&tyVoidPtr);
-    new_ir_mov(dstp, dst, IRF_UNSIGNED);
+    new_ir_mov(dstp, dst);
 
     enum VRegSize vsSize = to_vsize(&tySize);
     VReg *vcount = add_new_vreg(&tySize);
-    new_ir_mov(vcount, new_const_vreg(count, vsSize), IRF_UNSIGNED);
-    VReg *vadd = new_const_vreg(1 << elem_vsize, vsSize);
+    new_ir_mov(vcount, new_const_vreg(count, vsSize, VRF_UNSIGNED));
+    VReg *vadd = new_const_vreg(1 << elem_vsize, vsSize, VRF_UNSIGNED);
 
     BB *loop_bb = new_bb();
     set_curbb(loop_bb);
-    VReg *tmp = new_ir_load(srcp, 0, elem_vsize, to_vflag(type), 0)->dst;
-    new_ir_mov(srcp, new_ir_bop(IR_ADD, srcp, vadd, srcp->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // srcp += elem_size
-    new_ir_store(dstp, 0, tmp, 0);
-    new_ir_mov(dstp, new_ir_bop(IR_ADD, dstp, vadd, dstp->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // dstp += elem_size
-    new_ir_mov(vcount, new_ir_bop(IR_SUB, vcount, new_const_vreg(1, vsSize),
-                                  vcount->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // vcount -= 1
-    new_ir_cjmp(vcount, new_const_vreg(0, vcount->vsize), COND_NE, loop_bb);
+    VReg *tmp = new_ir_load(srcp, 0, elem_vsize, to_vflag(type))->dst;
+    new_ir_mov(srcp, new_ir_bop(IR_ADD, srcp, vadd, srcp->vsize));  // srcp += elem_size
+    new_ir_store(dstp, 0, tmp);
+    new_ir_mov(dstp, new_ir_bop(IR_ADD, dstp, vadd, dstp->vsize));  // dstp += elem_size
+    new_ir_mov(vcount, new_ir_bop(IR_SUB, vcount, new_const_vreg(1, vsSize, VRF_UNSIGNED),
+                                  vcount->vsize));  // vcount -= 1
+    new_ir_cjmp(vcount, new_const_vreg(0, vcount->vsize, VRF_UNSIGNED), COND_NE, loop_bb);
     set_curbb(new_bb());
   }
 }
@@ -305,25 +305,25 @@ static void gen_clear(const Type *type, VReg *dst) {
   enum VRegSize elem_vtype = get_elem_vtype(type);
   size_t count = size >> elem_vtype;
   assert(count > 0);
-  VReg *vzero = new_const_vreg(0, elem_vtype);
+  VReg *vzero = new_const_vreg(0, elem_vtype, VRF_UNSIGNED);
   if (count == 1) {
-    new_ir_store(dst, 0, vzero, 0);
+    new_ir_store(dst, 0, vzero);
   } else {
     VReg *dstp = add_new_vreg(&tyVoidPtr);
-    new_ir_mov(dstp, dst, IRF_UNSIGNED);
+    new_ir_mov(dstp, dst);
 
     enum VRegSize vsSize = to_vsize(&tySize);
     VReg *vcount = add_new_vreg(&tySize);
-    new_ir_mov(vcount, new_const_vreg(count, vsSize), IRF_UNSIGNED);
-    VReg *vadd = new_const_vreg(1 << elem_vtype, vsSize);
+    new_ir_mov(vcount, new_const_vreg(count, vsSize, VRF_UNSIGNED));
+    VReg *vadd = new_const_vreg(1 << elem_vtype, vsSize, VRF_UNSIGNED);
 
     BB *loop_bb = new_bb();
     set_curbb(loop_bb);
-    new_ir_store(dstp, 0, vzero, 0);
-    new_ir_mov(dstp, new_ir_bop(IR_ADD, dstp, vadd, dstp->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // dstp += elem_size
-    new_ir_mov(vcount, new_ir_bop(IR_SUB, vcount, new_const_vreg(1, vsSize),
-                                  vcount->vsize, IRF_UNSIGNED), IRF_UNSIGNED);  // vcount -= 1
-    new_ir_cjmp(vcount, new_const_vreg(0, vcount->vsize), COND_NE, loop_bb);
+    new_ir_store(dstp, 0, vzero);
+    new_ir_mov(dstp, new_ir_bop(IR_ADD, dstp, vadd, dstp->vsize));  // dstp += elem_size
+    new_ir_mov(vcount, new_ir_bop(IR_SUB, vcount, new_const_vreg(1, vsSize, VRF_UNSIGNED),
+                                  vcount->vsize));  // vcount -= 1
+    new_ir_cjmp(vcount, new_const_vreg(0, vcount->vsize, VRF_UNSIGNED), COND_NE, loop_bb);
     set_curbb(new_bb());
   }
 }
@@ -397,8 +397,8 @@ static inline void gen_return_small_struct(const Type *type, VReg *vreg) {
     enum VRegSize vsize = size >= kMaxSize ? kMaxVSize :
         (enum VRegSize)(most_significant_bit(size) + (IS_POWER_OF_2(size) ? 0 : 1));
     size -= (size_t)1 << vsize;
-    VReg *loaded = new_ir_load(vreg, i * kMaxSize, vsize, 0, 0)->dst;
-    new_ir_result(loaded, 0, i);
+    VReg *loaded = new_ir_load(vreg, i * kMaxSize, vsize, VRF_UNSIGNED)->dst;
+    new_ir_result(loaded, i);
   }
 }
 
@@ -416,24 +416,22 @@ static inline void gen_return(Stmt *stmt) {
         if (is_small_struct(type)) {
           gen_return_small_struct(type, vreg);
         } else if (is_prim_type(type)) {
-          int flag = is_unsigned(type) ? IRF_UNSIGNED : 0;
-          new_ir_result(vreg, flag, 0);
+          new_ir_result(vreg, 0);
         } else if (type->kind != TY_VOID) {
           assert(fnbe->struct_retvar != NULL && is_local_storage(fnbe->struct_retvar));
           VReg *retval = fnbe->struct_retvar->local.vreg;
           assert(retval != NULL);
           gen_memcpy(type, retval, vreg);
-          new_ir_result(retval, IRF_UNSIGNED, 0);  // Pointer is unsigned.
+          new_ir_result(retval, 0);  // Pointer is unsigned.
         }
       } else {  // Inlining.
         // Primitive            : return its value
         // Non-primitive(struct): return its pointer
-        int flag = !is_prim_type(type) || is_unsigned(type) ? IRF_UNSIGNED : 0;
-        new_ir_mov(result_dst, vreg, flag);
+        new_ir_mov(result_dst, vreg);
       }
     }
   }
-  new_ir_result(NULL, 0, -1);  // Indicate result is done.
+  new_ir_result(NULL, -1);  // Indicate result is done.
   new_ir_jmp(fnbe->ret_bb);
   set_curbb(bb);
 }
@@ -466,8 +464,7 @@ static int compare_cases(const void *pa, const void *pb) {
   return d > 0 ? 1 : d < 0 ? -1 : 0;
 }
 
-static void gen_switch_cond_table_jump(Stmt *swtch, VReg *vreg, Stmt **cases, int len,
-                                       int cond_flag) {
+static void gen_switch_cond_table_jump(Stmt *swtch, VReg *vreg, Stmt **cases, int len) {
   Fixnum min = (cases[0])->case_.value->fixnum;
   Fixnum max = (cases[len - 1])->case_.value->fixnum;
   Fixnum range = max - min + 1;
@@ -484,22 +481,22 @@ static void gen_switch_cond_table_jump(Stmt *swtch, VReg *vreg, Stmt **cases, in
 
   BB *nextbb = new_bb();
   VReg *val = vreg;
-  if (min != 0) {
-    int flag = (cond_flag & COND_UNSIGNED) ? IRF_UNSIGNED : 0;
-    val = new_ir_bop(IR_SUB, vreg, new_const_vreg(min, vreg->vsize), vreg->vsize, flag);
-  }
-  new_ir_cjmp(val, new_const_vreg(max - min, val->vsize), COND_GT | COND_UNSIGNED, skip_bb);
+  if (min != 0)
+    val = new_ir_bop(IR_SUB, vreg, new_const_vreg(min, vreg->vsize, vreg->flag & VRF_MASK), vreg->vsize);
+  if (!(val->flag & VRF_UNSIGNED))
+    val = new_ir_cast(val, val->vsize, (val->flag & VRF_MASK) | VRF_UNSIGNED)->dst;
+  new_ir_cjmp(val, new_const_vreg(max - min, val->vsize, val->flag & VRF_MASK), COND_GT, skip_bb);
   set_curbb(nextbb);
   new_ir_tjmp(val, table, range);
 }
 
-static void gen_switch_cond_recur(Stmt *swtch, VReg *vreg, Stmt **cases, int len, int cond_flag) {
+static void gen_switch_cond_recur(Stmt *swtch, VReg *vreg, Stmt **cases, int len) {
   if (len <= 2) {
     for (int i = 0; i < len; ++i) {
       BB *nextbb = new_bb();
       Stmt *c = cases[i];
-      VReg *num = new_const_vreg(c->case_.value->fixnum, vreg->vsize);
-      new_ir_cjmp(vreg, num, COND_EQ | cond_flag, c->case_.bb);
+      VReg *num = new_const_vreg(c->case_.value->fixnum, vreg->vsize, vreg->flag & VRF_MASK);
+      new_ir_cjmp(vreg, num, COND_EQ, c->case_.bb);
       set_curbb(nextbb);
     }
     Stmt *def = swtch->switch_.default_;
@@ -509,24 +506,24 @@ static void gen_switch_cond_recur(Stmt *swtch, VReg *vreg, Stmt **cases, int len
     Stmt *max = cases[len - 1];
     Fixnum range = max->case_.value->fixnum - min->case_.value->fixnum + 1;
     if (range >= 4 && len > (range >> 1)) {
-      gen_switch_cond_table_jump(swtch, vreg, cases, len, cond_flag);
+      gen_switch_cond_table_jump(swtch, vreg, cases, len);
       return;
     }
 
     BB *bbne = new_bb();
     int m = len >> 1;
     Stmt *c = cases[m];
-    VReg *num = new_const_vreg(c->case_.value->fixnum, vreg->vsize);
-    new_ir_cjmp(vreg, num, COND_EQ | cond_flag, c->case_.bb);
+    VReg *num = new_const_vreg(c->case_.value->fixnum, vreg->vsize, vreg->flag & VRF_MASK);
+    new_ir_cjmp(vreg, num, COND_EQ, c->case_.bb);
     set_curbb(bbne);
 
     BB *bblt = new_bb();
     BB *bbgt = new_bb();
-    new_ir_cjmp(vreg, num, COND_GT | cond_flag, bbgt);
+    new_ir_cjmp(vreg, num, COND_GT, bbgt);
     set_curbb(bblt);
-    gen_switch_cond_recur(swtch, vreg, cases, m, cond_flag);
+    gen_switch_cond_recur(swtch, vreg, cases, m);
     set_curbb(bbgt);
-    gen_switch_cond_recur(swtch, vreg, cases + (m + 1), len - (m + 1), cond_flag);
+    gen_switch_cond_recur(swtch, vreg, cases + (m + 1), len - (m + 1));
   }
 }
 
@@ -558,8 +555,7 @@ static void gen_switch_cond(Stmt *stmt) {
 
       if (stmt->switch_.default_ != NULL)
         --len;  // Ignore default.
-      int cond_flag = is_unsigned(value->type) ? COND_UNSIGNED : 0;
-      gen_switch_cond_recur(stmt, vreg, (Stmt**)cases->data, len, cond_flag);
+      gen_switch_cond_recur(stmt, vreg, (Stmt**)cases->data, len);
     } else {
       Stmt *def = stmt->switch_.default_;
       new_ir_jmp(def != NULL ? def->case_.bb : stmt->switch_.break_bb);

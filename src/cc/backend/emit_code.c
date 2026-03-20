@@ -319,7 +319,7 @@ void swap_opr12(IR *ir) {
 void insert_tmp_mov(VReg **pvreg, Vector *irs, int i) {
   VReg *c = *pvreg;
   VReg *tmp = reg_alloc_spawn(curra, c->vsize, c->flag & VRF_MASK);
-  IR *mov = new_ir_mov(tmp, c, ((IR*)irs->data[i])->flag);
+  IR *mov = new_ir_mov(tmp, c);
   vec_insert(irs, i, mov);
   *pvreg = tmp;
 }
@@ -332,7 +332,7 @@ int insert_const_fload(VReg **pvreg, Vector *irs, int i) {
   IR *iofs = new_ir_iofs(c->flonum.label, false);
   vec_insert(irs, i++, iofs);
 
-  IR *load = new_ir_load(iofs->dst, 0, c->vsize, c->flag & VRF_MASK, 0);
+  IR *load = new_ir_load(iofs->dst, 0, c->vsize, c->flag & VRF_MASK);
   vec_insert(irs, i++, load);
   *pvreg = load->dst;
   return i;
