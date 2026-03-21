@@ -34,7 +34,7 @@ void gen_load(const Type *type) {
   case TY_FIXNUM:
   case TY_PTR:
     {
-      bool u = !is_fixnum(type) || type->fixnum.is_unsigned;
+      bool u = is_unsigned(type);
       switch (type_size(type)) {
       case 1:  ADD_CODE(u ? OP_I32_LOAD8_U : OP_I32_LOAD8_S, 0, 0); break;
       case 2:  ADD_CODE(u ? OP_I32_LOAD16_U : OP_I32_LOAD16_S, 1, 0); break;
@@ -79,7 +79,7 @@ void gen_store(const Type *type) {
 static void gen_arith(enum ExprKind kind, const Type *type) {
   assert(is_number(type) || ptr_or_array(type));
   int index = 0;
-  bool is_unsigned = is_fixnum(type) && type->fixnum.is_unsigned;
+  bool u = is_unsigned(type);
   if (is_flonum(type)) {
     assert(kind < EX_MOD);
     index = type->flonum.kind >= FL_DOUBLE ? 3 : 2;
@@ -103,8 +103,8 @@ static void gen_arith(enum ExprKind kind, const Type *type) {
   };
 
   assert(EX_ADD <= kind && kind <= EX_RSHIFT);
-  assert(kOpTable[is_unsigned][index][kind - EX_ADD] != OP_NOP);
-  ADD_CODE(kOpTable[is_unsigned][index][kind - EX_ADD]);
+  assert(kOpTable[u][index][kind - EX_ADD] != OP_NOP);
+  ADD_CODE(kOpTable[u][index][kind - EX_ADD]);
 }
 
 static void gen_cast_to_i(const Type *dst, Type *src) {
@@ -112,8 +112,8 @@ static void gen_cast_to_i(const Type *dst, Type *src) {
   case TY_FIXNUM: case TY_PTR: case TY_FUNC:
     {
       size_t d = type_size(dst), s = type_size(src);
-      bool du = dst->kind != TY_FIXNUM || dst->fixnum.is_unsigned;
-      bool su = src->kind != TY_FIXNUM || src->fixnum.is_unsigned;
+      bool du = dst->kind == TY_FUNC || is_unsigned(dst);
+      bool su = src->kind == TY_FUNC || is_unsigned(src);
       enum { I64TO32 = 1, I32TO64 = 2 };
       switch ((d > I32_SIZE ? 2 : 0) + (s > I32_SIZE ? 1 : 0)) {
       case I64TO32: ADD_CODE(OP_I32_WRAP_I64); break;
@@ -153,7 +153,7 @@ static void gen_cast_to_i(const Type *dst, Type *src) {
       };
       int d = type_size(dst);
       int index = (d > I32_SIZE ? 2 : 0) + (src->flonum.kind >= FL_DOUBLE ? 1 : 0);
-      bool du = !is_fixnum(dst) || dst->fixnum.is_unsigned;
+      bool du = is_unsigned(dst);
       ADD_CODE(OpTable[du][index]);
     }
     break;
@@ -171,7 +171,7 @@ static void gen_cast_to_f(const Type *dst, Type *src) {
       };
       int s = type_size(src);
       int index = (dst->flonum.kind >= FL_DOUBLE ? 2 : 0) + (s > I32_SIZE ? 1 : 0);
-      bool su = !is_fixnum(src) || src->fixnum.is_unsigned;
+      bool su = is_unsigned(src);
       ADD_CODE(OpTable[su][index]);
     }
     break;

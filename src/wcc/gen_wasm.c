@@ -37,8 +37,8 @@ static void gen_compare_expr(enum ExprKind kind, Expr *lhs, Expr *rhs, bool need
   if (is_flonum(lhs->type)) {
     index = lhs->type->flonum.kind >= FL_DOUBLE ? 5 : 4;
   } else {
-    index = (!is_fixnum(lhs->type) || lhs->type->fixnum.is_unsigned ? 2 : 0) +
-            (type_size(lhs->type) > I32_SIZE ? 1 : 0);
+    index = (is_unsigned(lhs->type) << 1) +
+            (type_size(lhs->type) > I32_SIZE);
   }
 
   static const unsigned char OpTable[][6] = {

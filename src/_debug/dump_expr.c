@@ -95,7 +95,7 @@ void dump_expr(FILE *fp, Expr *expr) {
   assert(expr != NULL);
   switch (expr->kind) {
   case EX_FIXNUM:
-    if (expr->type->kind != TY_FIXNUM || expr->type->fixnum.is_unsigned)
+    if (is_unsigned(expr->type))
       fprintf(fp, "%" PRIu64 "U", expr->fixnum);
     else
       fprintf(fp, "%" PRId64, expr->fixnum);

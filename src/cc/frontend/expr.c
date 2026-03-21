@@ -109,7 +109,7 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
       return sub;
     case EX_FIXNUM:
       if (type->kind == TY_FLONUM) {
-        Flonum flonum = (sub->type->kind != TY_FIXNUM || sub->type->fixnum.is_unsigned)
+        Flonum flonum = is_unsigned(sub->type)
                             ? (Flonum)(UFixnum)sub->fixnum
                             : (Flonum)sub->fixnum;
         return new_expr_flolit(type, sub->token, flonum);
@@ -138,8 +138,7 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
 #if XCC_TARGET_ARCH == XCC_ARCH_X64 && !defined(__NO_FLONUM)
   // On x64, cannot cast from double to uint64_t directly.
   size_t dst_size = type_size(type);
-  if (is_flonum(sub->type) &&
-      is_fixnum(type) && type->fixnum.is_unsigned && dst_size >= 8) {
+  if (is_flonum(sub->type) && is_unsigned(type) && dst_size >= 8) {
     // Transform from (uint64_t)flonum
     //   to: (flonum <= INT64_MAX) ? (int64_t)flonum
     //                             : ((int64_t)(flonum - (INT64_MAX + 1UL)) ^ (1L << 63))
@@ -203,8 +202,8 @@ static bool cast_numbers(Expr **pLhs, Expr **pRhs, bool make_int) {
     *pLhs = promote_to_int(lhs);
     *pRhs = promote_to_int(rhs);
   } else if (changed || !same_type_without_qualifier(ltype, rtype, true)) {
-    int l = (type_size(ltype) << 1) | (ltype->fixnum.is_unsigned ? 1 : 0);
-    int r = (type_size(rtype) << 1) | (rtype->fixnum.is_unsigned ? 1 : 0);
+    int l = (type_size(ltype) << 1) | ltype->fixnum.is_unsigned;
+    int r = (type_size(rtype) << 1) | rtype->fixnum.is_unsigned;
     Type *type = l >= r ? ltype : rtype;
     *pLhs = make_cast(type, lhs->token, lhs, false);
     *pRhs = make_cast(type, rhs->token, rhs, false);
