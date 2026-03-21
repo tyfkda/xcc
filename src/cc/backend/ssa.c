@@ -379,7 +379,7 @@ static void replace_phis(RegAlloc *ra, BB *bb, int ifb, Vector *phis) {
   for (int iphi = 0; iphi < phis->len; ++iphi) {
     Phi *phi = phis->data[iphi];
     VReg *src_vreg = phi->params->data[ifb];
-    IR *mov = new_ir_mov(phi->dst, src_vreg, 0);
+    IR *mov = new_ir_mov(phi->dst, src_vreg);
     vec_insert(from->irs, pos++, mov);
   }
 
@@ -400,12 +400,12 @@ static void replace_phis(RegAlloc *ra, BB *bb, int ifb, Vector *phis) {
       for (int j = 0; j < cyclic->len; ++j) {
         Phi *phi = cyclic->data[j];
         VReg *src_vreg = phi->params->data[ifb];
-        IR *mov = new_ir_mov(j == 0 ? tmp : phi->dst, src_vreg, 0);
+        IR *mov = new_ir_mov(j == 0 ? tmp : phi->dst, src_vreg);
         vec_insert(from->irs, pos++, mov);
         vec_push(phis, phi);  // Restore phi.
       }
 
-      IR *mov = new_ir_mov(first->dst, tmp, 0);
+      IR *mov = new_ir_mov(first->dst, tmp);
       vec_insert(from->irs, pos++, mov);
 
       free_vector(cyclic);

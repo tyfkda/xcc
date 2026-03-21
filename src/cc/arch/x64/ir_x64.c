@@ -219,7 +219,7 @@ static bool is_got(const Name *name) {
 static void cmp_vregs(VReg *opr1, VReg *opr2, int cond) {
   if (opr1->flag & VRF_FLONUM) {
     assert((opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_FLONUM);
-    if ((cond & COND_MASK) <= COND_NE) {
+    if (cond <= COND_NE) {
       switch (opr1->vsize) {
       case SZ_FLOAT: UCOMISS(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
       case SZ_DOUBLE: UCOMISD(kFReg64s[opr2->phys], kFReg64s[opr1->phys]); break;
@@ -437,7 +437,7 @@ static void ei_div(IR *ir) {
     assert(ir->dst->phys == ir->opr1->phys);
     assert(ir->opr2->phys != GET_AREG_INDEX());
     // Break %ax
-    if (!(ir->flag & IRF_UNSIGNED)) {
+    if (!(ir->opr1->flag & VRF_UNSIGNED)) {
       if (ir->opr1->phys != GET_AREG_INDEX())
         MOVSX(kReg8s[ir->opr1->phys], AX);
       IDIV(kReg8s[ir->opr2->phys]);
@@ -458,7 +458,7 @@ static void ei_div(IR *ir) {
     const char *a = regs[GET_AREG_INDEX()];
     if (ir->opr1->phys != GET_AREG_INDEX())
       MOV(regs[ir->opr1->phys], a);
-    if (!(ir->flag & IRF_UNSIGNED)) {
+    if (!(ir->opr1->flag & VRF_UNSIGNED)) {
       switch (pow) {
       case 1: CWTL(); break;
       case 2: CLTD(); break;
@@ -486,7 +486,7 @@ static void ei_mod(IR *ir) {
     assert(ir->dst->phys == ir->opr1->phys);
     assert(ir->opr2->phys != GET_AREG_INDEX());
     // Break %ax
-    if (!(ir->flag & IRF_UNSIGNED)) {
+    if (!(ir->opr1->flag & VRF_UNSIGNED)) {
       if (ir->opr1->phys != GET_AREG_INDEX())
         MOVSX(kReg8s[ir->opr1->phys], AX);
       IDIV(kReg8s[ir->opr2->phys]);
@@ -510,7 +510,7 @@ static void ei_mod(IR *ir) {
     const char *a = regs[GET_AREG_INDEX()];
     if (ir->opr1->phys != GET_AREG_INDEX())
       MOV(regs[ir->opr1->phys], a);
-    if (!(ir->flag & IRF_UNSIGNED)) {
+    if (!(ir->opr1->flag & VRF_UNSIGNED)) {
       switch (pow) {
       case 1: CWTL(); break;
       case 2: CLTD(); break;
@@ -587,7 +587,7 @@ static void ei_lshift(IR *ir) {
 }
 
 static void ei_rshift(IR *ir) {
-#define RSHIFT_INST(n, x)  do  { if (ir->flag & IRF_UNSIGNED) SHR(n, x); else SAR(n, x); } while (0)
+#define RSHIFT_INST(n, x)  do  { if (ir->dst->flag & VRF_UNSIGNED) SHR(n, x); else SAR(n, x); } while (0)
   assert(ir->dst->phys == ir->opr1->phys);
   assert(!(ir->opr1->flag & VRF_CONST));
   int pow = ir->dst->vsize;
@@ -678,7 +678,7 @@ static void ei_cast(IR *ir) {
       // fix->flonum
       int pows = ir->opr1->vsize;
       if (pows < 2) {
-        if (ir->cast.src_unsigned)
+        if (ir->opr1->flag & VRF_UNSIGNED)
           MOVZX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
         else
           MOVSX(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[2][ir->opr1->phys]);
@@ -686,7 +686,7 @@ static void ei_cast(IR *ir) {
       }
       const char *s = kRegSizeTable[pows][ir->opr1->phys];
       const char *d = kFReg64s[ir->dst->phys];
-      if (!(ir->cast.src_unsigned)) {
+      if (!(ir->opr1->flag & VRF_UNSIGNED)) {
         switch (ir->dst->vsize) {
         case SZ_FLOAT:   CVTSI2SS(s, d); break;
         case SZ_DOUBLE:  CVTSI2SD(s, d); break;
@@ -750,7 +750,7 @@ static void ei_cast(IR *ir) {
       int powd = ir->dst->vsize;
       assert(0 <= pows && pows < 4);
       assert(0 <= powd && powd < 4);
-      if (ir->cast.src_unsigned) {
+      if (ir->opr1->flag & VRF_UNSIGNED) {
         if (pows == 2) {
           // MOVZX %32bit, %64bit doesn't exist!
           MOV(kRegSizeTable[pows][ir->opr1->phys], kRegSizeTable[pows][ir->dst->phys]);
@@ -811,9 +811,9 @@ static void ei_cond(IR *ir) {
   assert(!(ir->dst->flag & VRF_CONST));
   const char *dst = kReg8s[ir->dst->phys];
   int cond = ir->cond.kind;
+  bool u = ir->opr1->flag & VRF_UNSIGNED;
   // On x64, flag for comparing flonum is same as unsigned.
   if (ir->opr1->flag & VRF_FLONUM) {
-    assert((cond & ~COND_MASK) == 0);
     if (cond == COND_LT || cond == COND_LE) {
       VReg *tmp = opr1;
       opr1 = opr2;
@@ -833,38 +833,38 @@ static void ei_cond(IR *ir) {
         JE(fmt_name(skip_label));
         MOV(IM(cond != COND_EQ ? 1 : 0), dst);
         EMIT_LABEL(fmt_name(skip_label));
-
-        MOVSX(dst, kReg32s[ir->dst->phys]);  // Assume bool is 4 byte.
       }
       return;
 
     default: break;
     }
 
-    cond |= COND_UNSIGNED;  // Turn on unsigned
+    u = true;  // Turn on unsigned
   }
 
   cmp_vregs(opr1, opr2, cond);
 
-  switch (cond) {
-  case COND_EQ | COND_UNSIGNED:  // Fallthrough
-  case COND_EQ:  SETE(dst); break;
-
-  case COND_NE | COND_UNSIGNED:   // Fallthrough
-  case COND_NE:  SETNE(dst); break;
-
-  case COND_LT:  SETL(dst); break;
-  case COND_GT:  SETG(dst); break;
-  case COND_LE:  SETLE(dst); break;
-  case COND_GE:  SETGE(dst); break;
-
-  case COND_LT | COND_UNSIGNED:  SETB(dst); break;
-  case COND_GT | COND_UNSIGNED:  SETA(dst); break;
-  case COND_LE | COND_UNSIGNED:  SETBE(dst); break;
-  case COND_GE | COND_UNSIGNED:  SETAE(dst); break;
-  default: assert(false); break;
+  if (u) {
+    switch (cond) {
+    case COND_EQ:  SETE(dst); break;
+    case COND_NE:  SETNE(dst); break;
+    case COND_LT:  SETB(dst); break;
+    case COND_GT:  SETA(dst); break;
+    case COND_LE:  SETBE(dst); break;
+    case COND_GE:  SETAE(dst); break;
+    default: assert(false); break;
+    }
+  } else {
+    switch (cond) {
+    case COND_EQ:  SETE(dst); break;
+    case COND_NE:  SETNE(dst); break;
+    case COND_LT:  SETL(dst); break;
+    case COND_GT:  SETG(dst); break;
+    case COND_LE:  SETLE(dst); break;
+    case COND_GE:  SETGE(dst); break;
+    default: assert(false); break;
+    }
   }
-  MOVSX(dst, kReg32s[ir->dst->phys]);  // Assume bool is 4 byte.
 }
 
 static void ei_jmp(IR *ir) {
@@ -879,9 +879,9 @@ static void ei_jmp(IR *ir) {
   VReg *opr1 = ir->opr1, *opr2 = ir->opr2;
   assert(opr1 != NULL && opr2 != NULL);
 
+  bool u = opr1->flag & VRF_UNSIGNED;
   // On x64, flag for comparing flonum is same as unsigned.
   if (opr1->flag & VRF_FLONUM) {
-    assert((cond & ~COND_MASK) == 0);
     // Special handling required for `==` and `!=`.
     switch (cond) {
     case COND_EQ:
@@ -911,28 +911,31 @@ static void ei_jmp(IR *ir) {
     default: break;
     }
 
-    cond |= COND_UNSIGNED;  // Turn on unsigned
+    u = true;  // Turn on unsigned
   }
 
   cmp_vregs(opr1, opr2, cond);
 
-  switch (cond) {
-  case COND_EQ | COND_UNSIGNED:  // Fallthrough
-  case COND_EQ:  JE(label); break;
-
-  case COND_NE | COND_UNSIGNED:  // Fallthrough
-  case COND_NE:  JNE(label); break;
-
-  case COND_LT:  JL(label); break;
-  case COND_GT:  JG(label); break;
-  case COND_LE:  JLE(label); break;
-  case COND_GE:  JGE(label); break;
-
-  case COND_LT | COND_UNSIGNED:  JB(label); break;
-  case COND_GT | COND_UNSIGNED:  JA(label); break;
-  case COND_LE | COND_UNSIGNED:  JBE(label); break;
-  case COND_GE | COND_UNSIGNED:  JAE(label); break;
-  default: assert(false); break;
+  if (u) {
+    switch (cond) {
+    case COND_EQ:  JE(label); break;
+    case COND_NE:  JNE(label); break;
+    case COND_LT:  JB(label); break;
+    case COND_GT:  JA(label); break;
+    case COND_LE:  JBE(label); break;
+    case COND_GE:  JAE(label); break;
+    default: assert(false); break;
+    }
+  } else {
+    switch (cond) {
+    case COND_EQ:  JE(label); break;
+    case COND_NE:  JNE(label); break;
+    case COND_LT:  JL(label); break;
+    case COND_GT:  JG(label); break;
+    case COND_LE:  JLE(label); break;
+    case COND_GE:  JGE(label); break;
+    default: assert(false); break;
+    }
   }
 }
 
@@ -1139,7 +1142,7 @@ static void convert_3to2(FuncBackend *fnbe) {
       case IR_BITNOT:
         if (ir->dst != ir->opr1) {
           assert(!(ir->dst->flag & VRF_CONST));
-          IR *mov = new_ir_mov(ir->dst, ir->opr1, ir->flag);
+          IR *mov = new_ir_mov(ir->dst, ir->opr1);
           vec_insert(irs, j++, mov);
           ir->opr1 = ir->dst;
         }
@@ -1194,7 +1197,7 @@ void tweak_irs(FuncBackend *fnbe) {
         {
           assert(!(ir->opr1->flag & VRF_CONST));
           // Allocate temporary register to use calculation.
-          VReg *tmp = reg_alloc_spawn(ra, VRegSize8, 0);
+          VReg *tmp = reg_alloc_spawn(ra, VRegSize8, VRF_UNSIGNED);
           IR *keep = new_ir_keep(tmp, NULL, NULL);  // Notify the register begins to be used.
           vec_insert(irs, j++, keep);
 

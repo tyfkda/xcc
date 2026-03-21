@@ -37,8 +37,9 @@ enum VRegSize {
 #define VRF_VOLATILE     (1 << 8)  // Volatile
 #define VRF_VOLATILEREG  (1 << 9)  // Volatile, but register
 #define VRF_FP_GP_PARAM  (1 << 10) // FP, but passed by GP register
+#define VRF_UNSIGNED     (1 << 11) // Unsigned
 
-#define VRF_MASK         (VRF_FLONUM)
+#define VRF_MASK         (VRF_FLONUM | VRF_UNSIGNED)
 #define VRF_FORCEMEMORY  (VRF_REF | VRF_SPILLED | VRF_VOLATILE)
 
 typedef struct VReg {
@@ -118,15 +119,9 @@ enum ConditionKind {
   COND_GE,
   COND_GT,
 };
-enum {
-  COND_MASK = 0x07,
-  COND_UNSIGNED = 1 << 3,
-};
 
 enum ConditionKind swap_cond(enum ConditionKind cond);
 enum ConditionKind invert_cond(enum ConditionKind cond);
-
-#define IRF_UNSIGNED  (1 << 0)
 
 typedef struct {
   // Precall
@@ -147,7 +142,6 @@ typedef struct {
 
 typedef struct IR {
   enum IrKind kind;
-  int flag;
   VReg *dst;
   VReg *opr1;
   VReg *opr2;
@@ -172,10 +166,6 @@ typedef struct IR {
     struct {
       enum ConditionKind kind;
     } cond;
-    struct {
-      // (ir->flag & IRF_UNSIGNED) indicates whether the destination value is unsigned.
-      bool src_unsigned;
-    } cast;
     struct {
       BB *bb;
       enum ConditionKind cond;
@@ -207,32 +197,32 @@ typedef struct {
 
 Phi *new_phi(VReg *dst, Vector *params);
 
-VReg *new_const_vreg(int64_t value, enum VRegSize vsize);
+VReg *new_const_vreg(int64_t value, enum VRegSize vsize, int vflag);
 #ifndef __NO_FLONUM
 VReg *new_const_vfreg(double value, enum VRegSize vsize);
 #endif
-VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, int flag);
-IR *new_ir_bop_raw(enum IrKind kind, VReg *dst, VReg *opr1, VReg *opr2, int flag);
-VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize, int flag);
-IR *new_ir_load(VReg *opr, int64_t offset, enum VRegSize vsize, int vflag, int irflag);
-IR *new_ir_mov(VReg *dst, VReg *src, int flag);
+VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize);
+IR *new_ir_bop_raw(enum IrKind kind, VReg *dst, VReg *opr1, VReg *opr2);
+VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize);
+IR *new_ir_load(VReg *opr, int64_t offset, enum VRegSize vsize, int vflag);
+IR *new_ir_mov(VReg *dst, VReg *src);
 IR *new_ir_bofs(FrameInfo *fi);
 IR *new_ir_iofs(const Name *label, bool global);
 IR *new_ir_sofs(VReg *offset);
-IR *new_ir_store(VReg *dst, int64_t offset, VReg *src, int flag);
+IR *new_ir_store(VReg *dst, int64_t offset, VReg *src);
 IR *new_ir_cond(VReg *opr1, VReg *opr2, enum ConditionKind cond);
 IR *new_ir_jmp(BB *bb);  // Non-conditional jump
 void new_ir_cjmp(VReg *opr1, VReg *opr2, enum ConditionKind cond, BB *bb);  // Conditional jump
 void new_ir_tjmp(VReg *val, BB **bbs, size_t len);
 IR *new_ir_pusharg(VReg *vreg, int index);
 IR *new_ir_call(IrCallInfo *info, VReg *dst, VReg *freg);
-void new_ir_result(VReg *vreg, int flag, int index);
+void new_ir_result(VReg *vreg, int index);
 void new_ir_subsp(VReg *value, VReg *dst);
-IR *new_ir_cast(VReg *vreg, bool src_unsigned, enum VRegSize dstsize, int vflag);
+IR *new_ir_cast(VReg *vreg, enum VRegSize dstsize, int vflag);
 IR *new_ir_keep(VReg *dst, VReg *opr1, VReg *opr2);
 void new_ir_asm(Vector *templates, VReg *dst, Vector *registers);
 
-IR *new_ir_load_spilled(VReg *vreg, VReg *src, int flag);
+IR *new_ir_load_spilled(VReg *vreg, VReg *src);
 IR *new_ir_store_spilled(VReg *dst, VReg *vreg);
 
 // Register allocator

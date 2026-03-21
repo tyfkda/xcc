@@ -9,7 +9,7 @@
 #include "util.h"
 
 static const enum VRegSize vtVoidPtr = VRegSize8;
-static const enum VRegSize vtBool = VRegSize4;
+static const enum VRegSize vtBool = VRegSize1;
 
 Phi *new_phi(VReg *dst, Vector *params) {
   Phi *phi = malloc_or_die(sizeof(*phi));
@@ -19,18 +19,17 @@ Phi *new_phi(VReg *dst, Vector *params) {
 }
 
 enum ConditionKind swap_cond(enum ConditionKind cond) {
-  assert((cond & ~COND_MASK) == 0);
   if (cond >= COND_LT)
     cond = (COND_GT + COND_LT) - cond;
   return cond;
 }
 
 enum ConditionKind invert_cond(enum ConditionKind cond) {
-  int c = cond & COND_MASK;
+  int c = cond;
   assert(COND_EQ <= c && c <= COND_GT);
   int ic = c <= COND_NE ? (COND_NE + COND_EQ) - c
                         : (assert((COND_LT & 3) == 0), c ^ 2);  // COND_LT + ((c - COND_LT) ^ 2)
-  return ic | (cond & ~COND_MASK);
+  return ic;
 }
 
 // Virtual register
@@ -49,7 +48,6 @@ RegAlloc *curra;
 static IR *new_ir(enum IrKind kind) {
   IR *ir = calloc_or_die(sizeof(*ir));
   ir->kind = kind;
-  ir->flag = 0;
   ir->dst = ir->opr1 = ir->opr2 = NULL;
   ir->additional_operands = NULL;
   if (curbb != NULL)
@@ -57,9 +55,9 @@ static IR *new_ir(enum IrKind kind) {
   return ir;
 }
 
-VReg *new_const_vreg(int64_t value, enum VRegSize vsize) {
+VReg *new_const_vreg(int64_t value, enum VRegSize vsize, int vflag) {
   assert(curra != NULL);
-  return reg_alloc_spawn_const(curra, value, vsize);
+  return reg_alloc_spawn_const(curra, value, vsize, vflag);
 }
 
 #ifndef __NO_FLONUM
@@ -69,16 +67,15 @@ VReg *new_const_vfreg(double value, enum VRegSize vsize) {
 }
 #endif
 
-IR *new_ir_bop_raw(enum IrKind kind, VReg *dst, VReg *opr1, VReg *opr2, int flag) {
+IR *new_ir_bop_raw(enum IrKind kind, VReg *dst, VReg *opr1, VReg *opr2) {
   IR *ir = new_ir(kind);
-  ir->flag = flag;
   ir->dst = dst;
   ir->opr1 = opr1;
   ir->opr2 = opr2;
   return ir;
 }
 
-VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, int flag) {
+VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize) {
   do {
     if ((opr2->flag & (VRF_FLONUM | VRF_CONST)) == VRF_CONST && opr2->fixnum == 0 &&
         (kind == IR_DIV || kind == IR_MOD)) {
@@ -96,13 +93,13 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, 
         case IR_SUB:     value = lval - rval; break;
         case IR_MUL:     value = lval * rval; break;
         case IR_DIV:
-          if (flag & IRF_UNSIGNED)
+          if (opr1->flag & VRF_UNSIGNED)
             value = (uint64_t)lval / (uint64_t)rval;
           else
             value = lval / rval;
           break;
         case IR_MOD:
-          if (flag & IRF_UNSIGNED)
+          if (opr1->flag & VRF_UNSIGNED)
             value = (uint64_t)lval % (uint64_t)rval;
           else
             value = lval % rval;
@@ -113,14 +110,14 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, 
         case IR_LSHIFT:  value = lval << rval; break;
         case IR_RSHIFT:
           // assert(opr1->type->kind == TY_FIXNUM);
-          if (flag & IRF_UNSIGNED)
+          if (opr1->flag & VRF_UNSIGNED)
             value = (uint64_t)lval >> rval;
           else
             value = lval >> rval;
           break;
         default: assert(false); break;
         }
-        return new_const_vreg(wrap_value(value, 1 << vsize, (flag & IRF_UNSIGNED) != 0), vsize);
+        return new_const_vreg(wrap_value(value, 1 << vsize, (opr1->flag & VRF_UNSIGNED) != 0), vsize, opr1->flag & VRF_MASK);
       } else {
         switch (kind) {
         case IR_ADD:
@@ -129,15 +126,15 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, 
           break;
         case IR_SUB:
           if (lval == 0)
-            return new_ir_unary(IR_NEG, opr2, opr2->vsize, flag);
+            return new_ir_unary(IR_NEG, opr2, opr2->vsize);
           break;
         case IR_MUL:
           switch (lval) {
           case 1:   return opr2;  // no effect.
           case 0:   return opr1;  // 0
           case -1:
-            if (!(flag & IRF_UNSIGNED))
-              return new_ir_unary(IR_NEG, opr2, opr2->vsize, flag);  // -opr2
+            if (!(opr2->flag & VRF_UNSIGNED))
+              return new_ir_unary(IR_NEG, opr2, opr2->vsize);  // -opr2
             break;
           default: break;
           }
@@ -183,8 +180,8 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, 
           case 1:   return opr1;  // no effect.
           case 0:   return opr2;  // 0
           case -1:
-            if (!(flag & IRF_UNSIGNED))
-              return new_ir_unary(IR_NEG, opr1, opr1->vsize, flag);  // -opr1
+            if (!(opr1->flag & VRF_UNSIGNED))
+              return new_ir_unary(IR_NEG, opr1, opr1->vsize);  // -opr1
             break;
           default: break;
           }
@@ -211,11 +208,11 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize, 
   } while (0);
 
   VReg *dst = reg_alloc_spawn(curra, vsize, opr1->flag & VRF_MASK);
-  new_ir_bop_raw(kind, dst, opr1, opr2, flag);
+  new_ir_bop_raw(kind, dst, opr1, opr2);
   return dst;
 }
 
-VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize, int flag) {
+VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize) {
   assert(kind != IR_LOAD);
   if (opr->flag & VRF_CONST) {
     int64_t value = 0;
@@ -224,7 +221,7 @@ VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize, int flag) {
     case IR_BITNOT:  value = ~opr->fixnum; break;
     default: assert(false); break;
     }
-    return new_const_vreg(wrap_value(value, 1 << vsize, (flag & IRF_UNSIGNED) != 0), vsize);
+    return new_const_vreg(wrap_value(value, 1 << vsize, (opr->flag & VRF_UNSIGNED) != 0), vsize, opr->flag & VRF_MASK);
   }
 
   IR *ir = new_ir(kind);
@@ -232,11 +229,10 @@ VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize, int flag) {
   return ir->dst = reg_alloc_spawn(curra, vsize, opr->flag & VRF_MASK);
 }
 
-IR *new_ir_load(VReg *opr, int64_t offset, enum VRegSize vsize, int vflag, int irflag) {
+IR *new_ir_load(VReg *opr, int64_t offset, enum VRegSize vsize, int vflag) {
   IR *ir = new_ir(IR_LOAD);
   ir->opr1 = opr;
   ir->load.offset = offset;
-  ir->flag = irflag;
   ir->dst = reg_alloc_spawn(curra, vsize, vflag);
   return ir;
 }
@@ -246,7 +242,7 @@ IR *new_ir_bofs(FrameInfo *fi) {
   IR *ir = new_ir(IR_BOFS);
   ir->bofs.frameinfo = fi;
   ir->bofs.offset = 0;
-  ir->dst = reg_alloc_spawn(curra, vtVoidPtr, 0);
+  ir->dst = reg_alloc_spawn(curra, vtVoidPtr, VRF_UNSIGNED);
   return ir;
 }
 
@@ -255,23 +251,22 @@ IR *new_ir_iofs(const Name *label, bool global) {
   ir->iofs.label = label;
   ir->iofs.global = global;
   ir->iofs.offset = 0;
-  ir->dst = reg_alloc_spawn(curra, vtVoidPtr, 0);
+  ir->dst = reg_alloc_spawn(curra, vtVoidPtr, VRF_UNSIGNED);
   return ir;
 }
 
 IR *new_ir_sofs(VReg *offset) {
   IR *ir = new_ir(IR_SOFS);
   ir->opr1 = offset;
-  ir->dst = reg_alloc_spawn(curra, vtVoidPtr, 0);
+  ir->dst = reg_alloc_spawn(curra, vtVoidPtr, VRF_UNSIGNED);
   return ir;
 }
 
-IR *new_ir_store(VReg *dst, int64_t offset, VReg *src, int flag) {
+IR *new_ir_store(VReg *dst, int64_t offset, VReg *src) {
   IR *ir = new_ir(IR_STORE);
   ir->opr1 = src;
   ir->opr2 = dst;  // `dst` is used by indirect, so it is not actually `dst`.
   ir->store.offset = offset;
-  ir->flag = flag;
   return ir;
 }
 
@@ -292,7 +287,7 @@ IR *new_ir_jmp(BB *bb) {
 }
 
 void new_ir_cjmp(VReg *opr1, VReg *opr2, enum ConditionKind cond, BB *bb) {
-  if ((cond & COND_MASK) == COND_NONE)
+  if (cond == COND_NONE)
     return;
   IR *ir = new_ir(IR_JMP);
   ir->opr1 = opr1;
@@ -328,10 +323,9 @@ IR *new_ir_call(IrCallInfo *info, VReg *dst, VReg *freg) {
   return ir;
 }
 
-void new_ir_result(VReg *vreg, int flag, int index) {
+void new_ir_result(VReg *vreg, int index) {
   IR *ir = new_ir(IR_RESULT);
   ir->opr1 = vreg;
-  ir->flag = flag;
   ir->result.index = index;
 }
 
@@ -341,19 +335,17 @@ void new_ir_subsp(VReg *value, VReg *dst) {
   ir->dst = dst;
 }
 
-IR *new_ir_cast(VReg *vreg, bool src_unsigned, enum VRegSize dstsize, int vflag) {
+IR *new_ir_cast(VReg *vreg, enum VRegSize dstsize, int vflag) {
   IR *ir = new_ir(IR_CAST);
   ir->opr1 = vreg;
-  ir->cast.src_unsigned = src_unsigned;
   ir->dst = reg_alloc_spawn(curra, dstsize, vflag);
   return ir;
 }
 
-IR *new_ir_mov(VReg *dst, VReg *src, int flag) {
+IR *new_ir_mov(VReg *dst, VReg *src) {
   IR *ir = new_ir(IR_MOV);
   ir->dst = dst;
   ir->opr1 = src;
-  ir->flag = flag;
   return ir;
 }
 
@@ -372,11 +364,10 @@ void new_ir_asm(Vector *templates, VReg *dst, Vector *registers) {
   ir->dst = dst;
 }
 
-IR *new_ir_load_spilled(VReg *vreg, VReg *src, int flag) {
+IR *new_ir_load_spilled(VReg *vreg, VReg *src) {
   IR *ir = new_ir(IR_LOAD_S);
   ir->dst = vreg;
   ir->opr1 = src;
-  ir->flag = flag;
   return ir;
 }
 

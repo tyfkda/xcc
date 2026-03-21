@@ -295,6 +295,9 @@ TEST(all) {
   {
     int32_t a = -1;
     EXPECT("cast from small signed to large unsigned", 0xffffffffffffffffULL, (uint64_t)a);
+
+    int8_t i8 = -71;
+    EXPECT_TRUE((uint16_t)65465 == (uint16_t)i8);  // i8->u16 without cast to i64
   }
   {
     int32_t a = 0xF3E141B6L;
@@ -305,6 +308,7 @@ TEST(all) {
   {
     uint8_t b = 0xff;
     EXPECT("uint8_t pre-inc overlapping", 0, ++b);
+    EXPECT("uint8_t pre-inc overlapping 2", 0, (b = 0xff, (int)++b));
     uint16_t s = 0x0;
     EXPECT("uint16_t post-dec overlapping", 0xffff, (s--, s));
     uint32_t i = 0x0;
@@ -823,6 +827,15 @@ TEST(all) {
   }
 
   {
+    uint16_t x = 0xfedc;
+    int32_t y = x;
+    unsigned short *p = &x;
+    *p += 1;  // Dummy.
+    EXPECT("reference and signedness", 0xfedc, y);
+  }
+
+  {
+    EXPECT("sizeof _Bool",  1, sizeof(_Bool));
     EXPECT("_Bool from int", true, ({int x = -123; (_Bool)x;}));
     EXPECT("_Bool from ulong", true, ({unsigned long x = 9876UL; (_Bool)x;}));
 #ifndef __NO_FLONUM
