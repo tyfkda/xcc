@@ -339,7 +339,11 @@ TEST(all) {
   {
     int8_t x = 0xe7;
     uint16_t y = 1;
+    EXPECT_TRUE(x < 0);
     EXPECT("cmp signed with unsigned under int", 0, x >= y);
+
+    int32_t z = -2469;
+    EXPECT("cmp signed with unsigned long long", 0, z < 4294967295ULL);
   }
   {
     // C implicitly cast to unsigned type if it handles mixed signed values.

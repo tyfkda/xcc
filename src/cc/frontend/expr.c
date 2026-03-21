@@ -1201,8 +1201,8 @@ Expr *make_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) 
           if (dst_type->qualifier & TQ_VOLATILE)
             dst_type = get_fixnum_type(ltype->fixnum.kind, ltype->fixnum.is_unsigned, 0);
           if (rtype->fixnum.is_unsigned && !ltype->fixnum.is_unsigned &&
-              ltype->fixnum.kind <= FX_LLONG && type_size(ltype) == type_size(rtype)) {
-            dst_type = get_fixnum_type(ltype->fixnum.kind, true, 0);
+              ltype->fixnum.kind <= FX_LLONG && type_size(ltype) <= type_size(rtype)) {
+            dst_type = rtype;
             *pLhs = make_cast(dst_type, (*pLhs)->token, *pLhs, false);
           }
           // Cast constant as non-const type.
