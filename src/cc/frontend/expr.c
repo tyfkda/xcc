@@ -1115,37 +1115,36 @@ static Expr *make_expr_cmp_check_range(enum ExprKind kind, const Token *tok, Exp
       } \
     } while (0)
 
-    size_t size = type_size(type);
+    size_t lsize = type_size(type), rsize = type_size(rhs->type);
+    size_t size = MAX(lsize, rsize);
     assert(size * TARGET_CHAR_BIT <= sizeof(Fixnum) * CHAR_BIT);
-    if (type->fixnum.is_unsigned || rhs->type->fixnum.is_unsigned) {
-      UFixnum min = 0;
-      UFixnum max = ((UFixnum)-1) >> (sizeof(UFixnum) * CHAR_BIT - size * TARGET_CHAR_BIT);
+    bool lu = type->fixnum.is_unsigned, ru = rhs->type->fixnum.is_unsigned;
+    Fixnum min_, max_;
+    if (type->fixnum.kind == FX_BOOL) {
+      min_ = 0;
+      max_ = 1;
+    } else if (lu) {
+      min_ = 0;
+      max_ = ((UFixnum)-1) >> (sizeof(UFixnum) * CHAR_BIT - lsize * TARGET_CHAR_BIT);
+    } else if (/*!lu &&*/ ru && rsize >= lsize) {
+      // Lhs is signed, so negative value will be maximum value of rhs type (unsigned).
+      min_ = 0;
+      max_ = ((UFixnum)-1) >> (sizeof(UFixnum) * CHAR_BIT - rsize * TARGET_CHAR_BIT);
+    } else {
+      min_ = (UFixnum)-1 << (lsize * TARGET_CHAR_BIT - 1);
+      max_ = ((UFixnum)-1) >> (sizeof(UFixnum) * CHAR_BIT - lsize * TARGET_CHAR_BIT + 1);
+    }
+    if ((lsize >= rsize && lu) || (lsize <= rsize && ru)) {
+      UFixnum min = min_, max = max_;
       UFixnum v = rhs->fixnum;
-      if (!rhs->type->fixnum.is_unsigned && (Fixnum)v < (Fixnum)min) {
-        if (size < type_size(&tyInt)) {
-          result = NEVER;
-          break;
-        }
+      if (!ru && (Fixnum)v < (Fixnum)min)
         v = wrap_value(v, size, true);
-      }
       JUDGE(result, v, min, max);
     } else {
-      Fixnum min, max;
-      if (type->fixnum.kind == FX_BOOL) {
-        min = 0;
-        max = 1;
-      } else {
-        min = (UFixnum)-1 << (size * TARGET_CHAR_BIT - 1);
-        max = ((UFixnum)-1) >> (sizeof(UFixnum) * CHAR_BIT - size * TARGET_CHAR_BIT + 1);
-      }
+      Fixnum min = min_, max = max_;
       Fixnum v = rhs->fixnum;
-      if (rhs->type->fixnum.is_unsigned && (UFixnum)v > (UFixnum)max) {
-        if (size < type_size(&tyInt)) {
-          result = NEVER;
-          break;
-        }
+      if (ru && (UFixnum)v > (UFixnum)max)
         v = wrap_value(v, size, false);
-      }
       JUDGE(result, v, min, max);
     }
 #undef JUDGE
