@@ -851,6 +851,11 @@ TEST(all) {
     _Bool t1 = true, t2 = true;
     EXPECT("_Bool + _Bool",  2, t1 + t2);
   }
+  {
+    int x = 3;
+    uint8_t y = 2;
+    EXPECT_FALSE((x != 0) == y);  // Comparing bool and unsigned.
+  }
 
 #ifndef __NO_WCHAR
   EXPECT("wide character", 0x1f600, L'😀');

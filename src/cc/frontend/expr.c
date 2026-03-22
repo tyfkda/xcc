@@ -1211,30 +1211,6 @@ Expr *make_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) 
           bool lu = lt->fixnum.is_unsigned;
           bool ru = rt->fixnum.is_unsigned;
           make_int = lu != ru;
-          if (lu != ru) {
-            size_t ls = type_size(lt), rs = type_size(rt);
-            if (MAX(ls, rs) >= type_size(&tyInt)) {
-              make_int = true;
-            } else {
-              // Avoid promote-to-int
-              // Cast to larger signed type.
-              if (ls >= rs) {
-                if (lt->fixnum.is_unsigned) {
-                  lt = get_fixnum_type_from_size(ls);
-                  lhs = make_cast(lt, lhs->token, lhs, false);
-                }
-                rhs = make_cast(lt, rhs->token, rhs, false);
-                rt = lt;
-              } else {
-                if (rt->fixnum.is_unsigned) {
-                  rt = get_fixnum_type_from_size(ls);
-                  rhs = make_cast(rt, rhs->token, rhs, false);
-                }
-                lhs = make_cast(rt, lhs->token, lhs, false);
-                lt = rt;
-              }
-            }
-          }
         }
       }
       if (!(is_fixnum(lt) && is_fixnum(rt)) || !(lc || rc)) {
