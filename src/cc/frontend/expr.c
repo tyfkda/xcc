@@ -1115,37 +1115,36 @@ static Expr *make_expr_cmp_check_range(enum ExprKind kind, const Token *tok, Exp
       } \
     } while (0)
 
-    size_t size = type_size(type);
+    size_t lsize = type_size(type), rsize = type_size(rhs->type);
+    size_t size = MAX(lsize, rsize);
     assert(size * TARGET_CHAR_BIT <= sizeof(Fixnum) * CHAR_BIT);
-    if (type->fixnum.is_unsigned || rhs->type->fixnum.is_unsigned) {
-      UFixnum min = 0;
-      UFixnum max = ((UFixnum)-1) >> (sizeof(UFixnum) * CHAR_BIT - size * TARGET_CHAR_BIT);
+    bool lu = type->fixnum.is_unsigned, ru = rhs->type->fixnum.is_unsigned;
+    Fixnum min_, max_;
+    if (type->fixnum.kind == FX_BOOL) {
+      min_ = 0;
+      max_ = 1;
+    } else if (lu) {
+      min_ = 0;
+      max_ = ((UFixnum)-1) >> (sizeof(UFixnum) * CHAR_BIT - lsize * TARGET_CHAR_BIT);
+    } else if (/*!lu &&*/ ru && rsize >= lsize) {
+      // Lhs is signed, so negative value will be maximum value of rhs type (unsigned).
+      min_ = 0;
+      max_ = ((UFixnum)-1) >> (sizeof(UFixnum) * CHAR_BIT - rsize * TARGET_CHAR_BIT);
+    } else {
+      min_ = (UFixnum)-1 << (lsize * TARGET_CHAR_BIT - 1);
+      max_ = ((UFixnum)-1) >> (sizeof(UFixnum) * CHAR_BIT - lsize * TARGET_CHAR_BIT + 1);
+    }
+    if ((lsize >= rsize && lu) || (lsize <= rsize && ru)) {
+      UFixnum min = min_, max = max_;
       UFixnum v = rhs->fixnum;
-      if (!rhs->type->fixnum.is_unsigned && (Fixnum)v < (Fixnum)min) {
-        if (size < type_size(&tyInt)) {
-          result = NEVER;
-          break;
-        }
+      if (!ru && (Fixnum)v < (Fixnum)min)
         v = wrap_value(v, size, true);
-      }
       JUDGE(result, v, min, max);
     } else {
-      Fixnum min, max;
-      if (type->fixnum.kind == FX_BOOL) {
-        min = 0;
-        max = 1;
-      } else {
-        min = (UFixnum)-1 << (size * TARGET_CHAR_BIT - 1);
-        max = ((UFixnum)-1) >> (sizeof(UFixnum) * CHAR_BIT - size * TARGET_CHAR_BIT + 1);
-      }
+      Fixnum min = min_, max = max_;
       Fixnum v = rhs->fixnum;
-      if (rhs->type->fixnum.is_unsigned && (UFixnum)v > (UFixnum)max) {
-        if (size < type_size(&tyInt)) {
-          result = NEVER;
-          break;
-        }
+      if (ru && (UFixnum)v > (UFixnum)max)
         v = wrap_value(v, size, false);
-      }
       JUDGE(result, v, min, max);
     }
 #undef JUDGE
@@ -1201,8 +1200,8 @@ Expr *make_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) 
           if (dst_type->qualifier & TQ_VOLATILE)
             dst_type = get_fixnum_type(ltype->fixnum.kind, ltype->fixnum.is_unsigned, 0);
           if (rtype->fixnum.is_unsigned && !ltype->fixnum.is_unsigned &&
-              ltype->fixnum.kind <= FX_LLONG && type_size(ltype) == type_size(rtype)) {
-            dst_type = get_fixnum_type(ltype->fixnum.kind, true, 0);
+              ltype->fixnum.kind <= FX_LLONG && type_size(ltype) <= type_size(rtype)) {
+            dst_type = rtype;
             *pLhs = make_cast(dst_type, (*pLhs)->token, *pLhs, false);
           }
           // Cast constant as non-const type.
@@ -1211,30 +1210,6 @@ Expr *make_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) 
           bool lu = lt->fixnum.is_unsigned;
           bool ru = rt->fixnum.is_unsigned;
           make_int = lu != ru;
-          if (lu != ru) {
-            size_t ls = type_size(lt), rs = type_size(rt);
-            if (MAX(ls, rs) >= type_size(&tyInt)) {
-              make_int = true;
-            } else {
-              // Avoid promote-to-int
-              // Cast to larger signed type.
-              if (ls >= rs) {
-                if (lt->fixnum.is_unsigned) {
-                  lt = get_fixnum_type_from_size(ls);
-                  lhs = make_cast(lt, lhs->token, lhs, false);
-                }
-                rhs = make_cast(lt, rhs->token, rhs, false);
-                rt = lt;
-              } else {
-                if (rt->fixnum.is_unsigned) {
-                  rt = get_fixnum_type_from_size(ls);
-                  rhs = make_cast(rt, rhs->token, rhs, false);
-                }
-                lhs = make_cast(rt, lhs->token, lhs, false);
-                lt = rt;
-              }
-            }
-          }
         }
       }
       if (!(is_fixnum(lt) && is_fixnum(rt)) || !(lc || rc)) {
