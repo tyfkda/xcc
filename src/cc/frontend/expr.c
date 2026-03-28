@@ -1209,7 +1209,7 @@ Expr *make_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) 
         } else {
           bool lu = lt->fixnum.is_unsigned;
           bool ru = rt->fixnum.is_unsigned;
-          make_int = lu != ru;
+          make_int = lu != ru && kind > EX_NE;
         }
       }
       if (!(is_fixnum(lt) && is_fixnum(rt)) || !(lc || rc)) {
