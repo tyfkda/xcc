@@ -1053,8 +1053,8 @@ static Expr *make_expr_cmp_check_range(enum ExprKind kind, const Token *tok, Exp
       if (kind == EX_EQ || kind == EX_NE) {
         double ipart;
         if (modf(f, &ipart) != 0.0 ||
-            ( u && (f < 0 || f > UINT64_MAX)) ||
-            (!u && (f < INT64_MIN || f > INT64_MAX))) {
+            ( u && (f < (Flonum)0 || f > (Flonum)UINT64_MAX)) ||
+            (!u && (f < (Flonum)INT64_MIN || f > (Flonum)INT64_MAX))) {
           result = kind == EX_NE;
           break;
         }
@@ -1064,8 +1064,8 @@ static Expr *make_expr_cmp_check_range(enum ExprKind kind, const Token *tok, Exp
               (!u && f <= INT64_MIN)) {
             result = kind == EX_GE;
             break;
-          } else if (( u && f > UINT64_MAX) ||
-                     (!u && f > INT64_MAX)) {
+          } else if (( u && f > (Flonum)UINT64_MAX) ||
+                     (!u && f > (Flonum)INT64_MAX)) {
             result = kind == EX_LT;
             break;
           }
@@ -1081,8 +1081,8 @@ static Expr *make_expr_cmp_check_range(enum ExprKind kind, const Token *tok, Exp
               (!u && f < INT64_MIN)) {
             result = kind == EX_GT;
             break;
-          } else if (( u && f >= UINT64_MAX) ||
-                     (!u && f >= INT64_MAX)) {
+          } else if (( u && f >= (Flonum)UINT64_MAX) ||
+                     (!u && f >= (Flonum)INT64_MAX)) {
             result = kind == EX_LE;
             break;
           }
