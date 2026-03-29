@@ -111,22 +111,6 @@ static Expr *parse_member_access(Expr *target, Token *acctok) {
   }
 }
 
-Type *parse_var_def(Type **prawType, int *pstorage, Token **pident) {
-  Type *rawType = prawType != NULL ? *prawType : NULL;
-  if (rawType == NULL) {
-    rawType = parse_raw_type(pstorage);
-    if (rawType == NULL)
-      return NULL;
-    if (prawType != NULL)
-      *prawType = rawType;
-  }
-
-  if (rawType->kind == TY_AUTO)
-    return parse_direct_declarator(rawType, pident);
-
-  return parse_declarator(rawType, pident);
-}
-
 static Expr *parse_compound_literal(Type *type) {
   Token *token = fetch_token();
   Initializer *init = parse_initializer();

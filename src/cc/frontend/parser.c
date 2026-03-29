@@ -169,6 +169,22 @@ static void def_type(Type *type, Token *ident) {
   }
 }
 
+Type *parse_var_def(Type **prawType, int *pstorage, Token **pident) {
+  Type *rawType = prawType != NULL ? *prawType : NULL;
+  if (rawType == NULL) {
+    rawType = parse_raw_type(pstorage);
+    if (rawType == NULL)
+      return NULL;
+    if (prawType != NULL)
+      *prawType = rawType;
+  }
+
+  if (rawType->kind == TY_AUTO)
+    return parse_direct_declarator(rawType, pident);
+
+  return parse_declarator(rawType, pident);
+}
+
 static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token *ident) {
   Vector *decls = NULL;
   bool first = true;
