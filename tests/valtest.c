@@ -2437,6 +2437,14 @@ TEST(vla) {
     int (*p)[2] = a;
     EXPECT("vla size", 2468, vla_funparam(2, a, p));
   }
+
+  {
+    typedef struct S S;
+    struct S { int x; };
+    volatile int n = 5;
+    S arr[n];
+    EXPECT("vla with forward declaration", sizeof(int) * n, sizeof(arr));
+  }
 }
 #endif
 
