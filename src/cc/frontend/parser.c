@@ -198,6 +198,9 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
 
     assert(!is_global_scope(curscope));
 
+    if (!(storage & (VS_EXTERN | VS_TYPEDEF)))
+      ensure_type_info(type, ident, curscope, true);
+
 #ifndef __NO_VLA
     if (type->kind == TY_ARRAY && type->pa.vla != NULL)
       type = array_to_ptr(type);

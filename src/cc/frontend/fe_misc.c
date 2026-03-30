@@ -236,25 +236,14 @@ bool ensure_type_info(Type *type, const Token *token, Scope *scope, bool raise_e
     }
     break;
   case TY_STRUCT:
-    {
-      if (type->struct_.info == NULL) {
-        StructInfo *sinfo = find_struct(scope, type->struct_.name, NULL);
-        if (sinfo == NULL) {
-          parse_error(raise_error ? PE_NOFATAL : PE_WARNING, token, "incomplete struct: `%.*s'",
-                      NAMES(type->struct_.name));
-          return false;
-        }
-        type->struct_.info = sinfo;
+    if (type->struct_.info == NULL) {
+      StructInfo *sinfo = find_struct(scope, type->struct_.name, NULL);
+      if (sinfo == NULL) {
+        parse_error(raise_error ? PE_NOFATAL : PE_WARNING, token, "incomplete struct: `%.*s'",
+                    NAMES(type->struct_.name));
+        return false;
       }
-
-      // Recursively.
-      StructInfo *sinfo = type->struct_.info;
-      for (int i = 0; i < sinfo->member_count; ++i) {
-        MemberInfo *minfo = &sinfo->members[i];
-        if (minfo->type->kind == TY_STRUCT &&
-            !ensure_type_info(minfo->type, token, scope, raise_error))
-          return false;
-      }
+      type->struct_.info = sinfo;
     }
     break;
   case TY_ARRAY:
@@ -312,6 +301,8 @@ const MemberInfo *search_from_anonymous(const Type *type, const Name *name, cons
 }
 
 static void mark_var_used_sub(Expr *expr, bool for_func) {
+  ensure_type_info(expr->type, expr->token, curscope, true);
+
   VarInfo *gvarinfo = NULL;
 
   switch (expr->kind) {
