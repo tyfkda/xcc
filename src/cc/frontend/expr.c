@@ -92,44 +92,54 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
     return sub;
   }
 
-  if (sub->kind == EX_FIXNUM || sub->kind == EX_FLONUM) {
+  switch (sub->kind) {
+  case EX_FIXNUM: case EX_FLONUM:
+    {
 #ifndef __NO_FLONUM
-    switch (sub->kind) {
-    case EX_FLONUM:
-      if (type->kind == TY_FIXNUM) {
-        Fixnum fixnum;
-        if (is_bool(type))
-          fixnum = sub->flonum != 0;
-        else
-          fixnum = wrap_value(sub->flonum, type_size(type), type->fixnum.is_unsigned);
-        return new_expr_fixlit(type, sub->token, fixnum);
+      switch (sub->kind) {
+      case EX_FLONUM:
+        if (type->kind == TY_FIXNUM) {
+          Fixnum fixnum;
+          if (is_bool(type))
+            fixnum = sub->flonum != 0;
+          else
+            fixnum = wrap_value(sub->flonum, type_size(type), type->fixnum.is_unsigned);
+          return new_expr_fixlit(type, sub->token, fixnum);
+        }
+        assert(type->kind == TY_FLONUM);
+        sub->type = type;
+        return sub;
+      case EX_FIXNUM:
+        if (type->kind == TY_FLONUM) {
+          Flonum flonum = is_unsigned(sub->type)
+                              ? (Flonum)(UFixnum)sub->fixnum
+                              : (Flonum)sub->fixnum;
+          return new_expr_flolit(type, sub->token, flonum);
+        }
+        break;
+      default:
+        break;
       }
-      assert(type->kind == TY_FLONUM);
-      sub->type = type;
-      return sub;
-    case EX_FIXNUM:
-      if (type->kind == TY_FLONUM) {
-        Flonum flonum = is_unsigned(sub->type)
-                            ? (Flonum)(UFixnum)sub->fixnum
-                            : (Flonum)sub->fixnum;
-        return new_expr_flolit(type, sub->token, flonum);
-      }
-      break;
-    default:
-      break;
-    }
 #endif
 
-    assert(sub->kind == EX_FIXNUM);
-    assert(!is_flonum(type));
-    Fixnum value;
-    if (is_bool(type))
-      value = sub->fixnum != 0;
-    else
-      value = wrap_value(sub->fixnum, type_size(type), type->fixnum.is_unsigned);
-    sub->fixnum = value;
+      assert(sub->kind == EX_FIXNUM);
+      assert(!is_flonum(type));
+      Fixnum value;
+      if (is_bool(type))
+        value = sub->fixnum != 0;
+      else
+        value = wrap_value(sub->fixnum, type_size(type), type->fixnum.is_unsigned);
+      sub->fixnum = value;
+      sub->type = type;
+      return sub;
+    }
+    break;
+
+  case EX_COMMA:
     sub->type = type;
+    sub->bop.rhs = make_cast(type, token, sub->bop.rhs, is_explicit);
     return sub;
+  default: break;
   }
 
   if (is_bool(type))
