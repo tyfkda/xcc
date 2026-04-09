@@ -325,7 +325,7 @@ void insert_tmp_mov(VReg **pvreg, Vector *irs, int i) {
 }
 
 #ifndef __NO_FLONUM
-int insert_const_fload(VReg **pvreg, Vector *irs, int i) {
+int insert_const_float(VReg **pvreg, Vector *irs, int i) {
   VReg *c = *pvreg;
   assert((c->flag & (VRF_FLONUM | VRF_CONST)) == (VRF_FLONUM | VRF_CONST));
 

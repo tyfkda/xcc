@@ -1171,7 +1171,7 @@ void tweak_irs(FuncBackend *fnbe) {
       for (int k = 0; k < 2; ++k) {
         VReg **pp = operands[k], *opr = *pp;
         if (opr != NULL && (opr->flag & (VRF_FLONUM | VRF_CONST)) == (VRF_FLONUM | VRF_CONST))
-          j = insert_const_fload(pp, irs, j);
+          j = insert_const_float(pp, irs, j);
       }
 #endif
 

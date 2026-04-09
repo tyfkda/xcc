@@ -90,7 +90,7 @@ bool is_weak_attr(Table *attributes);
 void swap_opr12(IR *ir);
 void insert_tmp_mov(VReg **pvreg, Vector *irs, int i);
 #ifndef __NO_FLONUM
-int insert_const_fload(VReg **pvreg, Vector *irs, int i);
+int insert_const_float(VReg **pvreg, Vector *irs, int i);
 #endif
 
 void emit_code(Vector *decls);
