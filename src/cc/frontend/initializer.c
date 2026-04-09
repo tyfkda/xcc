@@ -562,6 +562,8 @@ Initializer *flatten_initializer(Type *type, Initializer *init) {
       }
       if (init->multi->len != 1 || ((Initializer*)init->multi->data[0])->kind != IK_SINGLE) {
         parse_error(PE_NOFATAL, init->token, "requires scaler");
+        init->kind = IK_SINGLE;
+        init->single = new_expr_fixlit(type, init->token, 0);
         break;
       }
       init = init->multi->data[0];
@@ -618,10 +620,13 @@ static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
     break;
   case EX_ADD:
   case EX_SUB:
+  case EX_MUL:
+  case EX_DIV:
     {
       bool lhs_const = false, rhs_const = false;
       value->bop.lhs = check_global_initializer_fixnum(value->bop.lhs, &lhs_const);
       value->bop.rhs = check_global_initializer_fixnum(value->bop.rhs, &rhs_const);
+      // TODO: Check zero division?
       *isconst = lhs_const && rhs_const;
     }
     break;
@@ -634,12 +639,17 @@ static Expr *check_global_initializer_fixnum(Expr *value, bool *isconst) {
     value->unary.sub = check_global_initializer_fixnum(value->unary.sub, isconst);
     break;
   case EX_MEMBER:
-    value->member.target = check_global_initializer_fixnum(value->member.target, isconst);
-    if (value->token->kind != TK_DOT) {
-      parse_error(PE_NOFATAL, value->token, "allowed global reference only");
-      return NULL;
+    {
+      value = reduce_refer(value);
+      if (value->kind != EX_MEMBER)
+        return check_global_initializer_fixnum(value, isconst);
+      value->member.target = check_global_initializer_fixnum(value->member.target, isconst);
+      if (value->token->kind != TK_DOT) {
+        parse_error(PE_NOFATAL, value->token, "allowed global reference only");
+        return NULL;
+      }
+      *isconst = value->type->kind == TY_ARRAY;
     }
-    *isconst = value->type->kind == TY_ARRAY;
     break;
   default:
     *isconst = false;

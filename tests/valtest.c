@@ -1284,6 +1284,12 @@ SVec3 modify_struct_param(SVec3 v) {
   return v;
 }
 
+struct OffsetofIsConst {
+  uint32_t ts[2];
+};
+
+size_t g_offsetof_is_const = offsetof(struct OffsetofIsConst, ts[1]);
+
 extern struct ForwardDeclStruct g_forward_decl_struct;
 extern int forward_decl_struct_ptr(struct ForwardDeclStruct *p);
 
@@ -1460,10 +1466,7 @@ TEST(struct) {
   }
 
   {
-#undef NULL
-#define NULL  ((void*)0)
-#undef offsetof
-#define offsetof(S, m)  ((long)(&((S*)NULL)->m))
+    // TODO: Check these cases can be compiled even if VLA is disabled.
     struct X {char x[5]; char z; struct {char b;} s; struct {char c[3];} t[4]; };
     char a[offsetof(struct X, z)];
     EXPECT("offsetof is const", 5, sizeof(a));
@@ -1474,6 +1477,7 @@ TEST(struct) {
     char d[offsetof(struct X, t[3].c[2])];
     EXPECT("offsetof is const", 18, sizeof(d));
   }
+  EXPECT("offsetof is const", sizeof(uint32_t) * 1, g_offsetof_is_const);
 
   {
     StructArg s = return_struct();

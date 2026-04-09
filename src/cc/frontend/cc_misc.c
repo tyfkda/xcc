@@ -21,7 +21,8 @@ bool is_function_omitted(const VarInfo *funcvi) {
 }
 
 static void eval_initial_value(Expr *expr, Expr **pvar, int64_t *poffset) {
-  switch (expr->kind) {
+  enum ExprKind kind = expr->kind;
+  switch (kind) {
   case EX_FIXNUM:
     *poffset = expr->fixnum;
     break;
@@ -31,21 +32,42 @@ static void eval_initial_value(Expr *expr, Expr **pvar, int64_t *poffset) {
     break;
   case EX_ADD:
   case EX_SUB:
+  case EX_MUL:
+  case EX_DIV:
     {
       Expr *var1 = NULL, *var2 = NULL;
       int64_t offset1 = 0, offset2 = 0;
       eval_initial_value(expr->bop.lhs, &var1, &offset1);
       eval_initial_value(expr->bop.rhs, &var2, &offset2);
-      if (var1 != NULL) {
-        assert(var2 == NULL);
-        *pvar = var1;
-      } else if (var2 != NULL) {
-        assert(expr->kind == EX_ADD);
-        *pvar = var2;
+      if (var1 != NULL || var2 != NULL) {
+        assert(kind == EX_ADD || kind == EX_SUB);
+        if (var1 != NULL) {
+          assert(var2 == NULL);
+          *pvar = var1;
+        } else if (var2 != NULL) {
+          assert(kind == EX_ADD);
+          *pvar = var2;
+        }
       }
-      if (expr->kind == EX_SUB)
-        offset2 = -offset2;
-      *poffset = offset1 + offset2;
+
+#define CALC(kind, o1, o2) \
+  switch (kind) { \
+  default: assert(false); /* Fallthrough */ \
+  case EX_ADD:  result = o1 + o2; break; \
+  case EX_SUB:  result = o1 - o2; break; \
+  case EX_MUL:  result = o1 * o2; break; \
+  case EX_DIV:  result = o1 / o2; break; \
+  }
+      int64_t result = offset1;
+      if (is_unsigned(expr->type)) {
+        uint64_t o1 = offset1, o2 = offset2;
+        CALC(kind, o1, o2);
+      } else {
+        int64_t o1 = offset1, o2 = offset2;
+        CALC(kind, o1, o2);
+      }
+      *poffset = result;
+#undef result
     }
     break;
   case EX_REF:
