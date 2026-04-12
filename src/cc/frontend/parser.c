@@ -28,7 +28,7 @@ Token *consume(enum TokenKind kind, const char *error) {
   return tok;
 }
 
-static inline void add_func_goto_label(const Token *token, Stmt *goto_, Stmt *label) {
+static void add_func_goto_label(const Token *token, Stmt *goto_, Stmt *label) {
   assert(curfunc != NULL);
   Table *table = curfunc->label_table;
   if (table == NULL)
@@ -572,7 +572,7 @@ static inline Stmt *parse_goto(const Token *tok) {
   return stmt;
 }
 
-static Stmt *parse_label(const Token *tok) {
+static inline Stmt *parse_label(const Token *tok) {
   Stmt *next = parse_stmt();
   if (next == NULL) {
     parse_error(PE_NOFATAL, NULL, "statement expected");
@@ -584,7 +584,7 @@ static Stmt *parse_label(const Token *tok) {
   return stmt;
 }
 
-static Stmt *parse_return(const Token *tok) {
+static inline Stmt *parse_return(const Token *tok) {
   Expr *val = NULL;
   if (!match(TK_SEMICOL)) {
     val = parse_expr();
@@ -861,59 +861,8 @@ Table *parse_attributes(Table *attributes) {
   return attributes;
 }
 
-static Function *define_func(Type *functype, const Token *ident, const Vector *param_vars,
-                             int storage, Table *attributes) {
-  int flag = 0;
-  if (attributes != NULL) {
-    if (table_try_get(attributes, alloc_name("noreturn", NULL, false), NULL))
-      flag |= FUNCF_NORETURN;
-  }
-
-  Function *func = new_func(functype, ident, functype->func.param_vars, attributes, flag);
-  func->params = param_vars;
-  VarInfo *varinfo = scope_find(global_scope, func->ident->ident, NULL);
-  if (varinfo == NULL) {
-    varinfo = add_var_to_scope(global_scope, ident, functype, storage, false);
-  } else {
-    Declaration *predecl = varinfo->global.funcdecl;
-    if (predecl != NULL) {
-      assert(predecl->kind == DCL_DEFUN);
-      if (predecl->defun.func != NULL) {
-        int merge_flag = (flag | predecl->defun.func->flag) & FUNCF_NORETURN;
-        func->flag |= merge_flag;
-        predecl->defun.func->flag |= merge_flag;
-
-        if (attributes != NULL) {
-          if (predecl->defun.func->attributes != NULL) {
-            const Name *name;
-            Vector *params;
-            for (int it = 0; (it = table_iterate(predecl->defun.func->attributes, it, &name,
-                                                 (void**)&params)) != -1;) {
-              if (!table_try_get(attributes, name, NULL))
-                table_put(attributes, name, params);
-            }
-          }
-          predecl->defun.func->attributes = attributes;
-        }
-      }
-    }
-
-    if (varinfo->type->kind != TY_FUNC ||
-        !same_type(varinfo->type->func.ret, functype->func.ret) ||
-        (varinfo->type->func.params != NULL && !same_type(varinfo->type, functype))) {
-      parse_error(PE_NOFATAL, ident, "definition conflict: `%.*s'", NAMES(func->ident->ident));
-    } else {
-      if (varinfo->global.func == NULL) {
-        if (varinfo->type->func.params == NULL)  // Old-style prototype definition.
-          varinfo->type = functype;  // Overwrite with actual function type.
-      }
-    }
-  }
-  return func;
-}
-
 #ifndef __NO_VLA
-static void modify_funparam_vla_type(Type *type, Scope *scope) {
+static inline void modify_funparam_vla_type(Type *type, Scope *scope) {
   if (type->kind == TY_ARRAY && type->pa.vla != NULL) {
     type->kind = TY_PTR;  // array_to_ptr, but must apply the change to the original type.
   }
@@ -1146,160 +1095,6 @@ static Declaration *parse_declaration(Vector *decls) {
   return NULL;
 }
 
-#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE || XCC_TARGET_PLATFORM == XCC_PLATFORM_WASI
-static Function *generate_dtor_caller_func(Vector *dtors) {
-  // Generate function:
-  //  void dtor_caller(void*) {
-  //    dtor1();
-  //    ...
-  //  }
-
-  Vector *param_types = new_vector();
-  vec_push(param_types, &tyVoidPtr);
-  Type *functype = new_func_type(&tyVoid, param_types, false);
-
-  Vector *top_vars = new_vector();
-  var_add(top_vars, alloc_dummy_ident(), &tyVoidPtr, VS_PARAM);
-
-  const Token *functok = alloc_dummy_ident();
-  Table *attributes = NULL;
-  Function *func = define_func(functype, functok, top_vars, VS_STATIC | VS_USED, attributes);
-
-  assert(curfunc == NULL);
-  assert(is_global_scope(curscope));
-  curfunc = func;
-
-  func->scopes = new_vector();
-  Scope *scope = enter_scope(func);
-  scope->vars = top_vars;
-
-  // Construct function body: call destructors.
-  Stmt *block = func->body_block = new_stmt_block(NULL, scope);
-  Vector *stmts = block->block.stmts;
-  for (int i = 0; i < dtors->len; ++i) {
-    Function *dtor = dtors->data[i];
-    const Token *token = NULL;
-    Vector *args = new_vector();
-    Expr *func = new_expr_variable(dtor->ident->ident, dtor->type, token, global_scope);
-    Expr *call = new_expr_funcall(token, dtor->type, func, args);
-    vec_push(stmts, new_stmt_expr(call));
-  }
-
-  exit_scope();
-  curfunc = NULL;
-
-  return func;
-}
-
-static Function *generate_dtor_register_func(Function *dtor_caller_func) {
-  // Generate function:
-  //  __attribute__((constructor))
-  //  void dtor_register(void) {
-  //    __cxa_atexit(dtor_caller, NULL, &__dso_handle);
-  //  }
-
-  // Declare: extern void *__dso_handle;
-  const Name *dso_handle_name = alloc_name("__dso_handle", NULL, false);
-  scope_add(global_scope,
-            alloc_ident(dso_handle_name, NULL, dso_handle_name->chars,
-                        dso_handle_name->chars + dso_handle_name->bytes),
-            &tyVoidPtr, VS_EXTERN | VS_USED);
-
-  // Declare: extern int __cxa_atexit(void (*)(void*), void*, void*);
-  const Name *cxa_atexit_name = alloc_name("__cxa_atexit", NULL, false);
-  Type *cxa_atexit_functype;
-  {
-    Vector *cxa_atexit_param_types = new_vector();
-    vec_push(cxa_atexit_param_types, &tyVoidPtr);  // void (*func)(void*)
-    vec_push(cxa_atexit_param_types, &tyVoidPtr);
-    vec_push(cxa_atexit_param_types, &tyVoidPtr);
-
-    Vector *param_vars = new_vector();
-    var_add(param_vars, alloc_dummy_ident(), &tyVoidPtr, VS_PARAM);
-    var_add(param_vars, alloc_dummy_ident(), &tyVoidPtr, VS_PARAM);
-    var_add(param_vars, alloc_dummy_ident(), &tyVoidPtr, VS_PARAM);
-
-    cxa_atexit_functype = new_func_type(&tyInt, cxa_atexit_param_types, false);
-    define_func(cxa_atexit_functype,
-                alloc_ident(cxa_atexit_name, NULL, cxa_atexit_name->chars, NULL), param_vars,
-                VS_EXTERN | VS_USED, NULL);
-  }
-
-  Vector *param_types = new_vector();
-  Type *functype = new_func_type(&tyVoid, param_types, false);
-  Vector *top_vars = new_vector();
-
-  const Token *functok = alloc_dummy_ident();
-  Table *attributes = alloc_table();
-  assert(attributes != NULL);
-  table_put(attributes, alloc_name("constructor", NULL, false), NULL);
-  Function *func = define_func(functype, functok, top_vars, VS_STATIC | VS_USED, attributes);
-
-  assert(curfunc == NULL);
-  assert(is_global_scope(curscope));
-  curfunc = func;
-
-  func->scopes = new_vector();
-  Scope *scope = enter_scope(func);
-  scope->vars = top_vars;
-
-  Stmt *block = func->body_block = new_stmt_block(NULL, scope);
-  Vector *stmts = block->block.stmts;
-  const Token *token = NULL;
-  Vector *args = new_vector();
-  vec_push(args, make_refer(token, new_expr_variable(dtor_caller_func->ident->ident,
-                                                     dtor_caller_func->type, token, global_scope)));
-  vec_push(args, new_expr_fixlit(&tyVoidPtr, token, 0));
-  vec_push(args,
-           new_expr_unary(EX_REF, &tyVoidPtr, NULL,
-                          new_expr_variable(dso_handle_name, &tyVoidPtr, token, global_scope)));
-  // __cxa_atexit(dtor_caller, NULL, &__dso_handle);
-  Expr *funcall = new_expr_funcall(
-      token, cxa_atexit_functype,
-      new_expr_variable(cxa_atexit_name, cxa_atexit_functype, token, global_scope),
-      args);
-  vec_push(stmts, new_stmt_expr(funcall));
-
-  exit_scope();
-  curfunc = NULL;
-
-  return func;
-}
-
-static void modify_dtor_func(Vector *decls) {
-  const Name *destructor_name = alloc_name("destructor", NULL, false);
-  Vector *dtors = NULL;
-  for (int i = 0, len = decls->len; i < len; ++i) {
-    Declaration *decl = decls->data[i];
-    if (decl == NULL || decl->kind != DCL_DEFUN)
-      continue;
-    Function *func = decl->defun.func;
-    if (func->attributes != NULL) {
-      if (table_try_get(func->attributes, destructor_name, NULL)) {
-        const Type *type = func->type;
-        if (type->func.params == NULL || type->func.params->len > 0 ||
-            type->func.ret->kind != TY_VOID) {
-          parse_error(PE_NOFATAL, func->ident,
-                      "destructor must have no parameters and return void");
-        } else {
-          if (dtors == NULL)
-            dtors = new_vector();
-          vec_push(dtors, func);
-        }
-      }
-    }
-  }
-  if (dtors == NULL)
-    return;
-
-  Function *caller_func = generate_dtor_caller_func(dtors);
-  vec_push(decls, new_decl_defun(caller_func));
-
-  Function *register_func = generate_dtor_register_func(caller_func);
-  vec_push(decls, new_decl_defun(register_func));
-}
-#endif
-
 // <translation-unit> ::= {<external-declaration>}*
 void parse(Vector *decls) {
   curscope = global_scope;
@@ -1312,7 +1107,7 @@ void parse(Vector *decls) {
 
   propagate_var_used();
 
-#if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE || XCC_TARGET_PLATFORM == XCC_PLATFORM_WASI
+#ifdef NO_DESTRUCTOR
   modify_dtor_func(decls);
 #endif
 }

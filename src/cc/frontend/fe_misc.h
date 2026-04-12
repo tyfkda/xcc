@@ -8,6 +8,7 @@ typedef struct MemberInfo MemberInfo;
 typedef struct Name Name;
 typedef struct Scope Scope;
 typedef struct Stmt Stmt;
+typedef struct Table Table;
 typedef struct Token Token;
 typedef struct Type Type;
 typedef struct VarInfo VarInfo;
@@ -105,3 +106,10 @@ bool check_funcend_return(Stmt *stmt);
 
 bool satisfy_inline_criteria(const VarInfo *varinfo);
 Stmt *embed_inline_funcall(VarInfo *varinfo);
+
+Function *define_func(Type *functype, const Token *ident, const Vector *param_vars,
+                      int storage, Table *attributes);
+
+#ifdef NO_DESTRUCTOR
+void modify_dtor_func(Vector *decls);
+#endif
