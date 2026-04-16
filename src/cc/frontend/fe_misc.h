@@ -84,6 +84,7 @@ bool ensure_type_info(Type *type, const Token *token, Scope *scope, bool raise_e
 bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, const Token *token);
 const MemberInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
                                         Vector *stack);
+void mark_var_used(Expr *expr);
 Expr *used_as_value_for_func(Expr *expr, bool for_func);
 static inline Expr *used_as_value(Expr *expr)  { return used_as_value_for_func(expr, false); }
 void propagate_var_used(void);

@@ -334,10 +334,24 @@ static Expr *variable(Token *ident) {
 static Expr *unary(Token *tok) {
   Expr *expr = parse_precedence(PREC_POSTFIX);
   enum TokenKind kind = tok->kind;
-  if (kind == TK_INC || kind == TK_DEC) {
-    used_as_value(expr);  // Increment causes side effect, so it is not `use_as_value`.
+  switch (kind) {
+  case TK_INC: case TK_DEC:
+    mark_var_used(expr);  // Increment causes side effect, so it is not `use_as_value`.
     not_const(expr->type, tok);
     return incdec_of(kind + (EX_PREINC - TK_INC), expr, tok);
+
+  case TK_AND:
+    mark_var_used(expr);  // Taking reference does not use the value itself.
+#ifndef __NO_BITFIELD
+    if (expr->kind == EX_MEMBER) {
+      const MemberInfo *minfo = expr->member.info;
+      if (minfo->bitfield.active)
+        parse_error(PE_NOFATAL, tok, "cannot take reference for bitfield");
+    }
+#endif
+    expr = str_to_char_array_var(curscope, expr);
+    return make_refer(tok, expr);
+  default: break;
   }
 
   expr = used_as_value(expr);
@@ -406,16 +420,6 @@ static Expr *unary(Token *tok) {
       expr = str_to_char_array_var(curscope, expr);
       return new_expr_unary(EX_DEREF, type, tok, expr);
     }
-  case TK_AND:
-#ifndef __NO_BITFIELD
-    if (expr->kind == EX_MEMBER) {
-      const MemberInfo *minfo = expr->member.info;
-      if (minfo->bitfield.active)
-        parse_error(PE_NOFATAL, tok, "cannot take reference for bitfield");
-    }
-#endif
-    expr = str_to_char_array_var(curscope, expr);
-    return make_refer(tok, expr);
   default: assert(false); return NULL;  // Unreachable.
   }
 }
