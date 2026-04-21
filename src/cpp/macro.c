@@ -260,7 +260,13 @@ static inline int subst_ident(Vector *body, Table *param_table, Vector *args,
         Vector *arg = args->data[j];
         expanded = new_vector();
         vec_concat(expanded, arg);
+
+        // Expand just the given paramter only.
+        extern unsigned int pp_prevent_auto_next_line;
+        ++pp_prevent_auto_next_line;
         macro_expand(expanded);
+        --pp_prevent_auto_next_line;
+
         expanded_args[j] = expanded;
       }
       vec_concat(os, expanded);

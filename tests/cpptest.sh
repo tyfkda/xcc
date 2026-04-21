@@ -52,6 +52,8 @@ function test_basic() {
   try_pp 'hash only' '' "#\n/* */ #"
   try_pp 'through illegal char' '\`@$#🤔' '\\`@$#🤔'
 
+  try_pp '#undef macro parameter' 'x1' "#define A(m,a) m(a,1)\n#define M(b,c) b##c\nA(M,x)\n#undef M"
+
   end_test_suite
 }
 
