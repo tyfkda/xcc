@@ -156,12 +156,16 @@ static PpResult parse_defined(void) {
   return macro_get(alloc_name(start, end, false)) != NULL;
 }
 
+unsigned int pp_prevent_auto_next_line;
+
 static Token *match2(enum TokenKind kind) {
-  while (pp_match(TK_EOF)) {
-    const char *line = get_processed_next_line();
-    if (line == NULL)
-      return NULL;
-    set_source_string(line, pp_stream->filename, pp_stream->lineno);
+  if (pp_prevent_auto_next_line == 0) {
+    while (pp_match(TK_EOF)) {
+      const char *line = get_processed_next_line();
+      if (line == NULL)
+        return NULL;
+      set_source_string(line, pp_stream->filename, pp_stream->lineno);
+    }
   }
   return pp_match(kind);
 }
