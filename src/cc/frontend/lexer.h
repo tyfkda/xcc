@@ -31,7 +31,3 @@ const char *read_ident(const char *p);
 Token *alloc_dummy_ident(void);
 const char *get_lex_p(void);
 _Noreturn void lex_error(const char *p, const char *fmt, ...);
-
-typedef bool (*LexEofCallback)(void);
-LexEofCallback set_lex_eof_callback(LexEofCallback callback);
-bool lex_eof_continue(void);

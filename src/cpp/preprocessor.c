@@ -96,15 +96,9 @@ static const char *find_directive(const char *line) {
 static bool handle_block_comment(const char **pp, Stream *stream) {
   const char *p = *pp;
   const char *begin = p;
-  for (;;) {
-    p = skip_whitespaces(p);
-    if (*p != '\0')
-      break;
-    begin = p;
-    if (!lex_eof_continue())
-      return false;
-    *pp = begin = p = get_lex_p();
-  }
+  p = skip_whitespaces(p);
+  if (*p == '\0')
+    return false;
 
   p = block_comment_start(p);
   if (p == NULL)

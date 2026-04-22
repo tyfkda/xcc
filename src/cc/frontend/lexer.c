@@ -125,7 +125,6 @@ static const char kPunctMap[] = {  // enum TokenKind
 
 Lexer lexer;
 static Table reserved_word_table;
-static LexEofCallback lex_eof_callback;
 
 void lex_error(const char *p, const char *fmt, ...) {
   fprintf(stderr, "%s(%d): ", lexer.filename, lexer.lineno);
@@ -214,16 +213,6 @@ static int backslash(int c, bool is_wide, const char **pp) {
   }
 }
 
-LexEofCallback set_lex_eof_callback(LexEofCallback callback) {
-  LexEofCallback old = lex_eof_callback;
-  lex_eof_callback = callback;
-  return old;
-}
-
-bool lex_eof_continue(void) {
-  return (lex_eof_callback != NULL && (*lex_eof_callback)());
-}
-
 static void init_lexer_with_flag(bool for_preprocess_) {
   for_preprocess = for_preprocess_;
   init_reserved_word_table();
@@ -304,16 +293,13 @@ static int scan_linemarker(const char *line, long *pnum, char **pfn, int *pflag)
 
 static bool read_next_line(void) {
   if (lexer.fp == NULL || feof(lexer.fp))
-    return lex_eof_continue();
+    return false;
 
   char *line = NULL;
   size_t capa = 0;
   for (;;) {
     ssize_t len = getline_cont(&line, &capa, lexer.fp, &lexer.lineno);
     if (len == -1) {
-      if (lex_eof_continue())
-        continue;
-
       return false;
     }
 

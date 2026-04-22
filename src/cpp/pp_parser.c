@@ -50,53 +50,10 @@ void pp_parse_error(const Token *token, const char *fmt, ...) {
 
 //
 
-extern Lexer lexer;
-
-typedef struct {
-  Lexer lexer;
-  LexEofCallback parent_callback;
-  const Name *ident;
-  void (*user_callback)(void);
-} LexStackElem;
-
-typedef struct {
-  LexStackElem *buf;
-  int capacity, sp;
-} LexStack;
-
-static LexStack lex_stack;
 static Table macro_hideset;
 
 Macro *can_expand_ident(const Name *ident) {
   return table_try_get(&macro_hideset, ident, NULL) ? NULL : macro_get(ident);
-}
-
-static bool on_process_line_eof(void) {
-  assert(lex_stack.sp > 0);
-  LexStackElem *p = &lex_stack.buf[--lex_stack.sp];
-  lexer = p->lexer;
-  set_lex_eof_callback(p->parent_callback);
-  table_delete(&macro_hideset, p->ident);
-
-  if (p->user_callback != NULL) {
-    (*p->user_callback)();
-  }
-  return true;
-}
-
-void push_lex(const Name *ident, void (*callback)(void)) {
-  if (lex_stack.sp >= lex_stack.capacity) {
-    lex_stack.capacity += 1;
-    lex_stack.buf = realloc_or_die(lex_stack.buf, sizeof(*lex_stack.buf) * lex_stack.capacity);
-  }
-
-  LexStackElem *p = &lex_stack.buf[lex_stack.sp++];
-  p->lexer = lexer;
-  p->ident = ident;
-  p->parent_callback = set_lex_eof_callback(on_process_line_eof);
-  p->user_callback = callback;
-
-  table_put(&macro_hideset, ident, (void*)ident);
 }
 
 //

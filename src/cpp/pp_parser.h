@@ -26,4 +26,3 @@ Token *pp_consume(enum TokenKind kind, const char *error);
 _Noreturn void pp_parse_error(const Token *token, const char *fmt, ...);
 
 Macro *can_expand_ident(const Name *ident);
-void push_lex(const Name *ident, void (*callback)(void));
