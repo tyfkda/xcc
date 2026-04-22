@@ -568,9 +568,10 @@ static void traverse_varinfo(VarInfo *varinfo) {
     register_func_info(varinfo->ident->ident, NULL, varinfo, 0);
   } else if (varinfo->storage & VS_EXTERN) {
     assert(!is_global_scope(curscope));
-    if (scope_find(global_scope, varinfo->ident->ident, NULL) == NULL) {
+    const Name *name = varinfo->ident->ident;
+    if (get_gvar_info_from_name(name) == NULL) {
       // Register into global to output linking information.
-      GVarInfo *info = register_gvar_info(varinfo->ident->ident, varinfo);
+      GVarInfo *info = register_gvar_info(name, varinfo);
       if (info != NULL)
         info->flag |= GVF_UNRESOLVED;
     }
