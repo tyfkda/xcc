@@ -76,6 +76,12 @@ TEST(number) {
     uint64_t ul = (uint64_t)-1L;
     expecti64("from unsigned max", 1, (x = ul, x >= 0));
   }
+
+  {
+    int i;
+    Number f;
+    EXPECT("f=i=const", 11.0, (f = i = 1, f * 10 + i));
+  }
 }
 
 TEST(nan) {

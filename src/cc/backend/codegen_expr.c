@@ -204,7 +204,12 @@ static VReg *gen_cast(Expr *expr) {
     }
 
     enum VRegSize vsize = to_vsize(dst_type);
-    return new_const_vreg(value, vsize, to_vflag(dst_type));
+    int flag = to_vflag(dst_type);
+#ifndef __NO_FLONUM
+    if (flag & VRF_FLONUM)
+      return new_const_vfreg(value, vsize);
+#endif
+    return new_const_vreg(value, vsize, flag);
   }
 
   size_t src_size = 1U << vreg->vsize;
@@ -745,9 +750,10 @@ static VReg *gen_fixnum(Expr *expr) {
 
 static VReg *gen_flonum(Expr *expr) {
 #ifndef __NO_FLONUM
-  VReg *vreg = new_const_vfreg(expr->flonum, to_vsize(expr->type));
-  if (expr->type->qualifier & TQ_VOLATILE) {
-    VReg *var = add_new_vreg(expr->type);
+  const Type *type = expr->type;
+  VReg *vreg = new_const_vfreg(expr->flonum, to_vsize(type));
+  if (type->qualifier & TQ_VOLATILE) {
+    VReg *var = add_new_vreg(type);
     new_ir_mov(var, vreg);
     vreg = var;
   }

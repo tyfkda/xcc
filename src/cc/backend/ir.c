@@ -57,6 +57,7 @@ static IR *new_ir(enum IrKind kind) {
 
 VReg *new_const_vreg(int64_t value, enum VRegSize vsize, int vflag) {
   assert(curra != NULL);
+  assert(!(vflag & VRF_FLONUM));
   return reg_alloc_spawn_const(curra, value, vsize, vflag);
 }
 
