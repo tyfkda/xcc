@@ -18,6 +18,6 @@ xcc_opt="\
     -isystem $SYS_INCLUDE_DIR \
     -D__signed__="
 
-CC="$xcc $xcc_opt -D_GNU_SOURCE"
+CC="$xcc $xcc_opt"
 
 $CC "$@"
