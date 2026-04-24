@@ -1284,6 +1284,9 @@ SVec3 modify_struct_param(SVec3 v) {
   return v;
 }
 
+extern struct ForwardDeclStruct g_forward_decl_struct;
+extern int forward_decl_struct_ptr(struct ForwardDeclStruct *p);
+
 TEST(struct) {
   EXPECT("global struct initializer: int", 42, g_struct.x);
   EXPECT("global struct initializer: ptr", (intptr_t)&g_struct_target, (intptr_t)g_struct.p);
@@ -1562,7 +1565,12 @@ TEST(struct) {
            sizeof(struct FlexibleArrayMember), sizeof(local));
 #endif
   }
+
+  EXPECT("forward-decl struct pointer", 198, forward_decl_struct_ptr(&g_forward_decl_struct));
 }
+
+struct ForwardDeclStruct { int x; } g_forward_decl_struct = {99};
+int forward_decl_struct_ptr(struct ForwardDeclStruct *p) { return p->x * 2; }
 
 //
 

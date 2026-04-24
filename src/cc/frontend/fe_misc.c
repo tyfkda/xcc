@@ -301,8 +301,6 @@ const MemberInfo *search_from_anonymous(const Type *type, const Name *name, cons
 }
 
 static void mark_var_used_sub(Expr *expr, bool for_func) {
-  ensure_type_info(expr->type, expr->token, curscope, true);
-
   VarInfo *gvarinfo = NULL;
 
   switch (expr->kind) {
@@ -346,12 +344,10 @@ void mark_var_used(Expr *expr) {
   mark_var_used_sub(expr, false);
 }
 
-void mark_var_used_for_func(Expr *expr) {
-  mark_var_used_sub(expr, true);
-}
+Expr *used_as_value_for_func(Expr *expr, bool for_func) {
+  ensure_type_info(expr->type, expr->token, curscope, true);
 
-Expr *used_as_value(Expr *expr) {
-  mark_var_used(expr);
+  mark_var_used_sub(expr, for_func);
 #ifndef __NO_BITFIELD
   switch (expr->kind) {
   case EX_MEMBER:

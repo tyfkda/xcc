@@ -85,8 +85,8 @@ bool check_cast(const Type *dst, const Type *src, bool zero, bool is_explicit, c
 const MemberInfo *search_from_anonymous(const Type *type, const Name *name, const Token *ident,
                                         Vector *stack);
 void mark_var_used(Expr *expr);
-void mark_var_used_for_func(Expr *expr);
-Expr *used_as_value(Expr *expr);
+Expr *used_as_value_for_func(Expr *expr, bool for_func);
+static inline Expr *used_as_value(Expr *expr)  { return used_as_value_for_func(expr, false); }
 void propagate_var_used(void);
 void check_lval(const Token *tok, Expr *expr, const char *error);
 #ifndef __NO_BITFIELD
