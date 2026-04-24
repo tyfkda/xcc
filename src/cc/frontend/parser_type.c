@@ -524,7 +524,7 @@ static ssize_t parse_array_size(Expr **pvla) {
   default:
     if (is_fixnum(expr->type)) {
       *pvla = expr;
-      mark_var_used(expr);
+      used_as_value(expr);
       length = LEN_VLA;
     } else {
       parse_error(PE_NOFATAL, expr->token, kConstIntExpected);

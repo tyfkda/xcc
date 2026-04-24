@@ -137,7 +137,7 @@ static Expr *parse_compound_literal(Type *type) {
 static Expr *parse_generic(void) {
   consume(TK_LPAR, "`(' expected");
   Expr *target = parse_assign();
-  mark_var_used(target);
+  used_as_value(target);
   consume(TK_COMMA, "`,' expected");
 
   Vector *types = new_vector();
@@ -335,7 +335,7 @@ static Expr *unary(Token *tok) {
   Expr *expr = parse_precedence(PREC_POSTFIX);
   enum TokenKind kind = tok->kind;
   if (kind == TK_INC || kind == TK_DEC) {
-    mark_var_used(expr);  // Increment causes side effect, so it is not `use_as_value`.
+    used_as_value(expr);  // Increment causes side effect, so it is not `use_as_value`.
     not_const(expr->type, tok);
     return incdec_of(kind + (EX_PREINC - TK_INC), expr, tok);
   }
@@ -526,14 +526,14 @@ static Expr *assign(Expr *lhs, Token *tok) {
     return new_expr_bop(EX_ASSIGN, lhs->type, tok, lhs, rhs);
   }
 
-  mark_var_used(lhs);
+  used_as_value(lhs);
   return transform_assign_with(tok, lhs, rhs);
 }
 
 static Expr *postfix(Expr *expr, Token *tok) {
   switch (tok->kind) {
   case TK_INC: case TK_DEC:
-    mark_var_used(expr);
+    used_as_value(expr);
     not_const(expr->type, tok);
     return incdec_of(tok->kind + (EX_POSTINC - TK_INC), expr, tok);
   case TK_DOT: case TK_ARROW:
@@ -626,7 +626,7 @@ static Expr *funcall(Expr *func, Token *tok) {
   Token *dummy;
   Vector *args = parse_args(&dummy);
 
-  mark_var_used_for_func(func);  // `used_as_value` cannot use for function.
+  used_as_value_for_func(func, true);
   for (int i = 0; i < args->len; ++i)
     args->data[i] = used_as_value(args->data[i]);
 
@@ -672,7 +672,7 @@ static Expr *size_align_of(Token *token) {
     } else {
       unget_token((Token*)tok);
       Expr *expr = parse_precedence(PREC_POSTFIX);
-      mark_var_used(expr);
+      used_as_value(expr);
       not_bitfield_member(expr);
       type = expr->type;
       tok = expr->token;

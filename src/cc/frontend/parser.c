@@ -628,7 +628,7 @@ static Vector *parse_asm_arg(void) {
       AsmArg *arg = calloc_or_die(sizeof(*arg));
       arg->constraint = constraint;
       arg->expr = expr;
-      mark_var_used(expr);
+      used_as_value(expr);
       vec_push(result, arg);
     }
 
