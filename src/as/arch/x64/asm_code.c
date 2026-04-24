@@ -215,8 +215,10 @@ static unsigned char *asm_mov_iir(Inst *inst, Code *code) {
     Expr *scale_expr = inst->opr[0].indirect_with_index.scale;
     char scale_bit = 0;
     if (scale_expr != NULL) {
-      scale_bit = most_significant_bit(scale_expr->fixnum);
-      assert(IS_POWER_OF_2(scale_expr->fixnum) && scale_bit < 4);
+      int s = scale_expr->fixnum;
+      if (s <= 0 || s > 8 || !IS_POWER_OF_2(s))
+        return NULL;
+      scale_bit = most_significant_bit(s);
     }
     short x = ((bno & 8) >> 3) | ((ino & 8) >> 2) | ((dno & 8) >> 1);
     short prefix = size == REG16 ? 0x66 : size == REG64 || x != 0 ? 0x48 | x : -1;
@@ -734,7 +736,6 @@ static unsigned char *asm_lea_iir(Inst *inst, Code *code) {
       int dreg = opr_regno(&inst->opr[1].reg);
       bool noofs = offset == 0 && breg != RBP - RAX;
       int pow = most_significant_bit(scale);
-      assert(IS_POWER_OF_2(scale) && pow < 4);
       short buf[] = {
         0x48 | ((breg & 8) >> 3) | ((ireg & 8) >> 2) | ((dreg & 8) >> 1),
         0x8d,
@@ -819,11 +820,13 @@ static unsigned char *asm_add_ir(Inst *inst, Code *code) {
 static unsigned char *asm_add_iir(Inst *inst, Code *code) {
   assert(inst->opr[0].indirect_with_index.offset->kind == EX_FIXNUM && inst->opr[0].indirect_with_index.offset->fixnum == 0);  // TODO
   unsigned char scale = 0;
-  if (inst->opr[0].indirect_with_index.scale != NULL) {
-    assert(inst->opr[0].indirect_with_index.scale->kind == EX_FIXNUM);
-    int s = inst->opr[0].indirect_with_index.scale->fixnum;
+  Expr *scale_expr = inst->opr[0].indirect_with_index.scale;
+  if (scale_expr != NULL) {
+    assert(scale_expr->kind == EX_FIXNUM);
+    int s = scale_expr->fixnum;
+    if (s <= 0 || s > 8 || !IS_POWER_OF_2(s))
+      return NULL;
     scale = most_significant_bit(s);
-    assert(IS_POWER_OF_2(scale) && scale < 4);
   }
 
   unsigned char bno = inst->opr[0].indirect_with_index.base_reg.no;
@@ -937,11 +940,13 @@ static unsigned char *asm_sub_ir(Inst *inst, Code *code) {
 static unsigned char *asm_sub_iir(Inst *inst, Code *code) {
   assert(inst->opr[0].indirect_with_index.offset->kind == EX_FIXNUM && inst->opr[0].indirect_with_index.offset->fixnum == 0);  // TODO
   unsigned char scale = 0;
-  if (inst->opr[0].indirect_with_index.scale != NULL) {
-    assert(inst->opr[0].indirect_with_index.scale->kind == EX_FIXNUM);
-    int s = inst->opr[0].indirect_with_index.scale->fixnum;
+  Expr *scale_expr = inst->opr[0].indirect_with_index.scale;
+  if (scale_expr != NULL) {
+    assert(scale_expr->kind == EX_FIXNUM);
+    int s = scale_expr->fixnum;
+    if (s <= 0 || s > 8 || !IS_POWER_OF_2(s))
+      return NULL;
     scale = most_significant_bit(s);
-    assert(IS_POWER_OF_2(scale) && scale < 4);
   }
 
   unsigned char bno = inst->opr[0].indirect_with_index.base_reg.no;
@@ -1513,7 +1518,6 @@ static unsigned char *asm_jmp_deii(Inst *inst, Code *code) {
     if (is_im32(offset) && 1 <= scale && scale <= 8 && IS_POWER_OF_2(scale)) {
       short b = inst->opr[0].indirect_with_index.base_reg.no;
       short scale_bit = most_significant_bit(scale);
-      assert(IS_POWER_OF_2(scale) && scale_bit < 4);
       short i = inst->opr[0].indirect_with_index.index_reg.no;
       short prefix = inst->opr[0].indirect_with_index.base_reg.x | (inst->opr[0].indirect_with_index.index_reg.x << 1);
       short offset_bit = offset == 0 && b != RBP - RAX ? 0x20 : is_im8(offset) ? 0x60 : 0xa0;
