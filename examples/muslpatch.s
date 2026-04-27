@@ -28,26 +28,19 @@
 // .globl __init_array_end
 .globl __libc_start_init
 .globl __init_tls
-.globl __syscall_cp
+// .globl __syscall_cp
+.globl __lock
+.globl __unlock
 
     .text
 // __init_array_start:
 // __init_array_end:
 __libc_start_init:
 __init_tls:
-__syscall_cp:
+// __syscall_cp:
+__lock:
+__unlock:
     ret
-
-// crti.s
-.section .init
-.globl _init
-_init:
-    push %rax
-
-.section .fini
-.globl _fini
-_fini:
-    push %rax
 
 //// crtn.s
 //.section .init
