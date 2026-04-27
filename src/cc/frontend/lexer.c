@@ -62,7 +62,7 @@ static const struct {
   {"_Noreturn", TK_NORETURN},
   {"_Generic", TK_GENERIC},
   {"__auto_type", TK_AUTO_TYPE},
-  {"typeof", TK_TYPEOF}, {"__typeof__", TK_TYPEOF},
+  {"typeof", TK_TYPEOF}, {"__typeof", TK_TYPEOF}, {"__typeof__", TK_TYPEOF},
 };
 
 static const struct {

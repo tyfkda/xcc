@@ -1031,7 +1031,9 @@ typedef struct {
 } ElemData;
 
 static const ElemData kCodeSectionNames[] = {
+  {.kind = LEK_SECTION, .section = {.name = ".init"}},
   {.kind = LEK_SECTION, .section = {.name = ".text"}},
+  {.kind = LEK_SECTION, .section = {.name = ".fini"}},
   {.kind = LEK_SECTION, .section = {.name = ".rodata"}},
   {.kind = -1},
 };
