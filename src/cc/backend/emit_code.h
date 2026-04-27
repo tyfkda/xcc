@@ -85,7 +85,6 @@ bool function_not_returned(FuncBackend *fnbe);
 
 bool is_fall_path_only(BBContainer *bbcon, int i);
 char *format_func_name(const Name *funcname, bool global);
-bool is_weak_attr(Table *attributes);
 
 void swap_opr12(IR *ir);
 void insert_tmp_mov(VReg **pvreg, Vector *irs, int i);

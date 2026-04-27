@@ -357,12 +357,6 @@ char *format_func_name(const Name *funcname, bool global) {
   return label;
 }
 
-bool is_weak_attr(Table *attributes) {
-  return attributes != NULL &&
-         (table_try_get(attributes, alloc_cname("weak"), NULL) ||
-          table_try_get(attributes, alloc_cname("__weak__"), NULL));
-}
-
 static void emit_asm(const Asm *asm_) {
   assert(asm_->templates->len == 1);
   const char *str = asm_->templates->data[0];

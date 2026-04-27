@@ -871,6 +871,17 @@ static inline void modify_funparam_vla_type(Type *type, Scope *scope) {
 }
 #endif
 
+static bool is_weak_attr(Table *attributes) {
+  return /*attributes != NULL &&*/
+         (table_try_get(attributes, alloc_cname("weak"), NULL) ||
+          table_try_get(attributes, alloc_cname("__weak__"), NULL));
+}
+
+static void handle_attribute(VarInfo *varinfo, Table *attributes) {
+  if (is_weak_attr(attributes))
+    varinfo->storage |= VS_WEAK;
+}
+
 // <function-definition> ::= {<declaration-specifier>}* <declarator> {<declaration>}* <compound-statement>
 static Declaration *parse_defun(Type *functype, int storage, Token *ident, const Token *tok,
                                 Table *attributes) {
@@ -892,6 +903,8 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
   } else {
     varinfo->global.func = func;
   }
+  if (attributes != NULL)
+    handle_attribute(varinfo, attributes);
 
   assert(curfunc == NULL);
   assert(is_global_scope(curscope));
@@ -973,17 +986,19 @@ static void parse_global_var_decl(ParsedTypeInfo *tinfo, Type *type, Vector *dec
 #endif
         def_type(type, tinfo->ident);
       }
+    } else if (type->kind == TY_VOID) {
+      if (tinfo->ident != NULL)
+        parse_error(PE_NOFATAL, tinfo->ident, "`void' not allowed");
     } else {
-      if (type->kind == TY_VOID) {
-        if (tinfo->ident != NULL)
-          parse_error(PE_NOFATAL, tinfo->ident, "`void' not allowed");
-      } else if (type->kind == TY_FUNC) {
+      Initializer *init = NULL;
+      VarInfo *varinfo = NULL;
+      if (type->kind == TY_FUNC) {
         // Prototype declaration.
         if (tinfo->ident == NULL) {
           parse_error(PE_NOFATAL, NULL, "ident expected");
         } else {
           Function *func = define_func(type, tinfo->ident, type->func.param_vars, tinfo->storage, attributes);
-          VarInfo *varinfo = scope_find(global_scope, tinfo->ident->ident, NULL);
+          varinfo = scope_find(global_scope, tinfo->ident->ident, NULL);
           assert(varinfo != NULL);
 
           Declaration *decl = new_decl_defun(func);
@@ -991,9 +1006,7 @@ static void parse_global_var_decl(ParsedTypeInfo *tinfo, Type *type, Vector *dec
 
           if ((tinfo->storage & (VS_INLINE | VS_EXTERN)) == (VS_INLINE | VS_EXTERN)) {
             // To make inline function output, add to declarations.
-            VarInfo *varinfo = scope_find(global_scope, tinfo->ident->ident, NULL);
-            if (varinfo != NULL && varinfo->type->kind == TY_FUNC &&
-                (varinfo->storage & (VS_INLINE | VS_STATIC | VS_EXTERN)) == VS_INLINE) {
+            if ((varinfo->storage & (VS_INLINE | VS_STATIC | VS_EXTERN)) == VS_INLINE) {
               varinfo->storage |= VS_EXTERN;
             }
           }
@@ -1001,8 +1014,6 @@ static void parse_global_var_decl(ParsedTypeInfo *tinfo, Type *type, Vector *dec
         // Check LBRACE?
       } else {
         bool has_initializer = match(TK_ASSIGN) != NULL;
-        VarInfo *varinfo = NULL;
-        Initializer *init = NULL;
         if (tinfo->ident != NULL) {
           varinfo = add_var_to_scope(global_scope, tinfo->ident, type, tinfo->storage, !has_initializer);
           if (same_type(type, varinfo->type))
@@ -1023,6 +1034,9 @@ static void parse_global_var_decl(ParsedTypeInfo *tinfo, Type *type, Vector *dec
         }
         curvarinfo = NULL;
       }
+
+      if (varinfo != NULL && attributes != NULL)
+        handle_attribute(varinfo, attributes);
     }
 
     if (!match(TK_COMMA))

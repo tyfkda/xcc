@@ -31,6 +31,7 @@ enum {
   VS_PARAM = 1 << 8,  // Function parameter
   VS_USED = 1 << 9,  // used.
   VS_STRING = 1 << 10,  // string.
+  VS_WEAK = 1 << 11,  // weak.
 };
 
 typedef struct VarInfo {

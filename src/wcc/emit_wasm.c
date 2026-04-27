@@ -585,7 +585,7 @@ static void emit_linking_symtab_function_sub(
     flags |= WASM_SYM_UNDEFINED;
   if (finfo->varinfo->storage & VS_STATIC)
     flags |= WASM_SYM_BINDING_LOCAL | WASM_SYM_VISIBILITY_HIDDEN;
-  if (finfo->flag & FF_WEAK)
+  if (finfo->varinfo->storage & VS_WEAK)
     flags |= WASM_SYM_BINDING_WEAK;
   if (finfo->flag & FF_IMPORT_NAME) {
     // __attribute((import_name("..."))) is specified:

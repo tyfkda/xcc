@@ -251,7 +251,7 @@ void emit_defun_body(Function *func) {
 
   {
     char *label = format_func_name(name, global);
-    if (is_weak_attr(func->attributes))
+    if (varinfo->storage & VS_WEAK)
       _WEAK(label);
 #if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE  // Specify weak and global/local on Apple/Mach-O, but not on other platforms.
     else

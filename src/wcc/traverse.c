@@ -127,8 +127,6 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, VarInf
         parse_error(PE_NOFATAL, expr != NULL ? expr->token : NULL, "import_name: string expected");
       }
     }
-    if (table_try_get(attributes, alloc_cname("weak"), (void**)&params))
-      finfo->flag |= FF_WEAK;
   }
 
   if (func != NULL) {
