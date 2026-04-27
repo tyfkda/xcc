@@ -358,7 +358,9 @@ char *format_func_name(const Name *funcname, bool global) {
 }
 
 bool is_weak_attr(Table *attributes) {
-  return attributes != NULL && table_try_get(attributes, alloc_name("weak", NULL, false), NULL);
+  return attributes != NULL &&
+         (table_try_get(attributes, alloc_name("weak", NULL, false), NULL) ||
+          table_try_get(attributes, alloc_name("__weak__", NULL, false), NULL));
 }
 
 static void emit_asm(const Asm *asm_) {
@@ -536,9 +538,39 @@ static inline void emit_const_floats(Function *func) {
 #endif
 }
 
+static void emit_alias_defun(Function *func) {
+  Table *attributes = func->attributes;
+  if (attributes != NULL) {
+    const Name *alias_name = alloc_name("__alias__", NULL, false);
+    Vector *tokens;
+    if (table_try_get(attributes, alias_name, (void**)&tokens)) {
+      assert(tokens->len == 1);
+      const Token *target = tokens->data[0];
+      assert(target->kind == TK_STR && target->str.kind == STR_CHAR);
+
+      bool global = true;
+      const Name *name = func->ident->ident;
+      const VarInfo *varinfo = scope_find(global_scope, name, NULL);
+      if (varinfo != NULL) {
+        global = (varinfo->storage & VS_STATIC) == 0;
+      }
+
+      char *label = format_func_name(name, global);
+      emit_comment(NULL);
+      if (is_weak_attr(func->attributes))
+        _WEAK(label);
+      EMIT_ASM(".set", fmt("%.*s,%s", NAMES(name), target->str.buf));
+    }
+  }
+}
+
 static void emit_defun(Function *func) {
-  bool emit = !(func->scopes == NULL ||  // Prototype definition.
-                func->extra == NULL);    // Code emission is omitted.
+  if (func->scopes == NULL) {  // Prototype definition.
+    emit_alias_defun(func);
+    return;
+  }
+
+  bool emit = !(func->extra == NULL);    // Code emission is omitted.
 
   if (emit) {
     emit_defun_body(func);

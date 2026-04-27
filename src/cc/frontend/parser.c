@@ -961,10 +961,44 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
   return decl;
 }
 
+static void handle_alias_attribute(
+    VarInfo *varinfo, Table *attributes, Initializer *init, const Token *err_token) {
+  assert(varinfo != NULL);
+  assert(attributes != NULL);
+  const Name *alias_name = alloc_name("__alias__", NULL, false);
+  Vector *tokens;
+  if (!table_try_get(attributes, alias_name, (void**)&tokens))
+    return;
+
+  const Token *target;
+  if (init != NULL) {
+    parse_error(PE_NOFATAL, init->token, "__alias__ with initializer");
+    return;
+  }
+  if (tokens->len != 1 ||
+      (target = tokens->data[0], target->kind != TK_STR || target->str.kind != STR_CHAR)) {
+    const Token *tok = tokens->len > 0 ? tokens->data[0] : err_token;
+    parse_error(PE_NOFATAL, tok, "string expected for `__alias__'");
+    return;
+  }
+
+  const Name *target_name = alloc_name(target->str.buf, NULL, false);
+  const VarInfo *target_varinfo = scope_find(global_scope, target_name, NULL);
+  if (target_varinfo == NULL) {
+    parse_error(PE_NOFATAL, target, "`%.*s' undefined", NAMES(target_name));
+    return;
+  }
+
+  // Add referred.
+  Vector *refs = varinfo->global.referred_globals;
+  if (refs == NULL)
+    varinfo->global.referred_globals = refs = new_vector();
+  vec_push(refs, target_varinfo);
+}
+
 // <declaration> ::=  {<declaration-specifier>}+ {<init-declarator>}* ;
 static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token *ident,
                                   Table *attributes, Vector *decls) {
-  UNUSED(decls);
   for (;;) {
     attributes = parse_attributes(attributes);
 
@@ -981,27 +1015,28 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
 #endif
         def_type(type, ident);
       }
+    } else if (type->kind == TY_VOID) {
+      if (ident != NULL)
+        parse_error(PE_NOFATAL, ident, "`void' not allowed");
     } else {
-      if (type->kind == TY_VOID) {
-        if (ident != NULL)
-          parse_error(PE_NOFATAL, ident, "`void' not allowed");
-      } else if (type->kind == TY_FUNC) {
+      Initializer *init = NULL;
+      VarInfo *varinfo = NULL;
+      if (type->kind == TY_FUNC) {
         // Prototype declaration.
         if (ident == NULL) {
           parse_error(PE_NOFATAL, NULL, "ident expected");
         } else {
           Function *func = define_func(type, ident, type->func.param_vars, storage, attributes);
-          VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
+          varinfo = scope_find(global_scope, ident->ident, NULL);
           assert(varinfo != NULL);
 
           Declaration *decl = new_decl_defun(func);
           varinfo->global.funcdecl = decl;
+          vec_push(decls, decl);
 
           if ((storage & (VS_INLINE | VS_EXTERN)) == (VS_INLINE | VS_EXTERN)) {
             // To make inline function output, add to declarations.
-            VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
-            if (varinfo != NULL && varinfo->type->kind == TY_FUNC &&
-                (varinfo->storage & (VS_INLINE | VS_STATIC | VS_EXTERN)) == VS_INLINE) {
+            if ((varinfo->storage & (VS_INLINE | VS_STATIC | VS_EXTERN)) == VS_INLINE) {
               varinfo->storage |= VS_EXTERN;
             }
           }
@@ -1009,11 +1044,10 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
         // Check LBRACE?
       } else {
         bool has_initializer = match(TK_ASSIGN) != NULL;
-        VarInfo *varinfo = NULL;
         if (ident != NULL)
           varinfo = add_var_to_scope(global_scope, ident, type, storage, !has_initializer);
 
-        Initializer *init = varinfo->global.init;
+        init = varinfo->global.init;
         assert(curvarinfo == NULL);
         if (has_initializer) {
           curvarinfo = varinfo;
@@ -1026,6 +1060,9 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
         }
         curvarinfo = NULL;
       }
+
+      if (varinfo != NULL && attributes != NULL)
+        handle_alias_attribute(varinfo, attributes, init, ident);
     }
 
     if (!match(TK_COMMA))
