@@ -65,7 +65,7 @@ float fabsf(float);
 
 int finite(double x);
 
-inline int signbit(double x) {
+static inline int signbit(double x) {
 #if defined(__APPLE__) || defined(__riscv)
   extern int __signbitd(double);
   return __signbitd(x);
@@ -77,7 +77,7 @@ inline int signbit(double x) {
 
 double copysign(double x, double f);
 
-inline int fpclassify(double x) {
+static inline int fpclassify(double x) {
 #if defined(__APPLE__) || defined(__riscv)
   extern int __fpclassifyd(double);
   return __fpclassifyd(x);
@@ -87,7 +87,7 @@ inline int fpclassify(double x) {
 #endif
 }
 
-inline int isfinite(double x) {
+static inline int isfinite(double x) {
 #if defined(__APPLE__)
   extern int __isfinited(double);
   return __isfinited(x);
@@ -99,7 +99,7 @@ inline int isfinite(double x) {
 #endif
 }
 
-inline int isnan(double x) {
+static inline int isnan(double x) {
 #if defined(__APPLE__)
   extern int __isnand(double);
   return __isnand(x);
@@ -111,7 +111,7 @@ inline int isnan(double x) {
 #endif
 }
 
-inline int isinf(double x) {
+static inline int isinf(double x) {
 #if defined(__APPLE__)
   extern int __isinfd(double);
   return __isinfd(x);
