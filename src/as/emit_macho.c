@@ -306,7 +306,6 @@ static inline uint64_t arrange_section_offsets(Work *work, int section_count) {
       off_p += size;
     } else {
       section->offset = 0;
-      addr += size;
     }
     addr += size;
   }
