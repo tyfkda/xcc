@@ -48,6 +48,7 @@ typedef struct {
   Strtab strtab;
   Table indices;
   struct nlist_64 *buf;
+  int ilocalsym, iextdefsym, iundefsym;  // for dysymtab.
   int count;
 } Symtab;
 
@@ -86,41 +87,68 @@ struct nlist_64 *symtab_add(Symtab *symtab, const Name *name) {
 
 //
 
-static int construct_symtab(Symtab *symtab, Table *label_table, uint64_t start_address) {
+static void construct_symtab(Symtab *symtab, Table *label_table, uint64_t start_address) {
   symtab_init(symtab);
 
   // NUL
   strtab_add(&symtab->strtab, alloc_name("", NULL, false));
 
-  const Name *name;
-  LabelInfo *info;
-  for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&info)) != -1; ) {
-    uint8_t type = 0;
-    bool sect = false;
-    if (info->flag & LF_GLOBAL) {
-      type = N_EXT;
-      sect = (info->flag & LF_DEFINED) != 0;
-    } else if (info->flag & LF_REFERRED) {
-      sect = true;
-    } else {
-      continue;
-    }
-    struct nlist_64 *sym = symtab_add(symtab, name);
-    if (info->section != NULL && info->flag & LF_COMM) {
-      // .comm
-      assert(info->align > 0 && IS_POWER_OF_2(info->align));
-      SET_COMM_ALIGN(sym->n_desc, most_significant_bit(info->align));
-      sym->n_value = info->size;
-    } else if (sect) {
-      type |= N_SECT;
-      sym->n_sect = info->section->index;
-      sym->n_desc = info->flag & LF_WEAK ? N_WEAK_DEF : 0;
-      sym->n_value = (info->flag & LF_DEFINED) ? info->address - start_address : 0;
-    }
-    sym->n_type = type;
-  }
+  enum SymbolKind {
+    LOCAL,     // Local.
+    EXTERNAL,  // External defined.
+    UNDEF,     // Undefined (including common).
+  };
+  int *pcounts[3] = {
+    &symtab->ilocalsym,
+    &symtab->iextdefsym,
+    &symtab->iundefsym,
+  };
+  for (enum SymbolKind sk = 0; sk < (int)ARRAY_SIZE(pcounts); ++sk) {
+    const Name *name;
+    LabelInfo *info;
+    *pcounts[sk] = symtab->count;
+    for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&info)) != -1; ) {
+      switch (sk) {
+      case LOCAL:
+        if (!(!(info->flag & LF_GLOBAL) && (info->flag & LF_REFERRED)))
+          continue;
+        break;
+      case EXTERNAL:
+        if (!((info->flag & LF_GLOBAL) && (info->flag & LF_DEFINED) && !(info->flag & LF_COMM)))
+          continue;
+        break;
+      case UNDEF:
+        if (!((info->flag & LF_GLOBAL) && (!(info->flag & LF_DEFINED) || (info->flag & LF_COMM))))
+          continue;
+        break;
+      }
 
-  return symtab->count;
+      struct nlist_64 *sym = symtab_add(symtab, name);
+      uint8_t type = 0;
+      bool sect = false;
+      if (info->flag & LF_GLOBAL) {
+        type = N_EXT;
+        sect = (info->flag & LF_DEFINED) != 0;
+      } else if (info->flag & LF_REFERRED || info->flag & LF_DEFINED) {
+        sect = true;
+      } else {
+        assert(false);
+      }
+
+      if (info->section != NULL && info->flag & LF_COMM) {
+        // .comm
+        assert(info->align > 0 && IS_POWER_OF_2(info->align));
+        SET_COMM_ALIGN(sym->n_desc, most_significant_bit(info->align));
+        sym->n_value = info->size;
+      } else if (sect) {
+        type |= N_SECT;
+        sym->n_sect = info->section->index;
+        sym->n_desc = info->flag & LF_WEAK ? N_WEAK_DEF : 0;
+        sym->n_value = (info->flag & LF_DEFINED) ? info->address - start_address : 0;
+      }
+      sym->n_type = type;
+    }
+  }
 }
 
 static inline void construct_rela_element_abs64(
@@ -243,6 +271,7 @@ typedef struct {
   struct segment_command_64 segmentcmd;
   struct build_version_command buildversioncmd;
   struct symtab_command symtabcmd;
+  struct dysymtab_command dysymtabcmd;
 
   Vector *sections;
   uint64_t start_address;
@@ -287,7 +316,8 @@ static inline uint64_t arrange_section_offsets(Work *work, int section_count) {
       sizeof(struct segment_command_64) +
       sizeof(struct section_64) * section_count +
       sizeof(struct build_version_command) +
-      sizeof(struct symtab_command);
+      sizeof(struct symtab_command) +
+      sizeof(struct dysymtab_command);
   work->size_of_cmds = size_of_cmds;
   const uint64_t section_start_off = sizeof(struct mach_header_64) + size_of_cmds;
   work->section_start_off = section_start_off;
@@ -339,7 +369,7 @@ static inline void construct_load_commands(
 # error "Unsupported architecture"
 #endif
     .filetype = MH_OBJECT,
-    .ncmds = 3,
+    .ncmds = 4,
     .sizeofcmds = work->size_of_cmds,
     .flags = MH_SUBSECTIONS_VIA_SYMBOLS,  // TODO: Handle this flag.
   };
@@ -380,14 +410,25 @@ static inline void construct_load_commands(
     .sdk = 0x000e0500,    // 14.5.0
     .ntools = 0,
   };
-  const uint64_t str_start_off = symbol_start_off + sizeof(*work->symtab.buf) * work->symtab.count;
+  const Symtab *symtab = &work->symtab;
+  const uint64_t str_start_off = symbol_start_off + sizeof(*symtab->buf) * symtab->count;
   work->symtabcmd = (struct symtab_command){
     .cmd = LC_SYMTAB,
     .cmdsize = sizeof(work->symtabcmd),
     .symoff = symbol_start_off,
-    .nsyms = work->symtab.count,
+    .nsyms = symtab->count,
     .stroff = str_start_off,
-    .strsize = work->symtab.strtab.size,
+    .strsize = symtab->strtab.size,
+  };
+  work->dysymtabcmd = (struct dysymtab_command){
+    .cmd = LC_DYSYMTAB,
+    .cmdsize = sizeof(work->dysymtabcmd),
+    .ilocalsym = symtab->ilocalsym,
+    .nlocalsym = symtab->iextdefsym - symtab->ilocalsym,
+    .iextdefsym = symtab->iextdefsym,
+    .nextdefsym = symtab->iundefsym - symtab->iextdefsym,
+    .iundefsym = symtab->iundefsym,
+    .nundefsym = symtab->count - symtab->iundefsym,
   };
 }
 
@@ -437,6 +478,7 @@ static inline int output_to_file(const char *ofn, const Work *work) {
   }
   fwrite(&work->buildversioncmd, sizeof(work->buildversioncmd), 1, ofp);
   fwrite(&work->symtabcmd, sizeof(work->symtabcmd), 1, ofp);
+  fwrite(&work->dysymtabcmd, sizeof(work->dysymtabcmd), 1, ofp);
 
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
