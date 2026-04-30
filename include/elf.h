@@ -156,6 +156,7 @@ typedef struct {
 #define R_X86_64_64     (1)        /* Direct 64 bit  */
 #define R_X86_64_PC32   (2)        /* PC relative 32 bit signed */
 #define R_X86_64_PLT32  (4)        /* 32 bit PLT address */
+#define R_X86_64_GOTPCREL (9)      /* 32 bit GOT relative offset */
 
 #define R_AARCH64_ABS64                257
 #define R_AARCH64_ADR_PREL_PG_HI21     275  /* Page(S+A)-Page(P) */

@@ -185,15 +185,30 @@ static inline void construct_rela_element(
       assert(symidx >= 0);
 
       rela->r_offset = u->offset;
-      rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_EXTERN_PC32 ? R_X86_64_PC32
-                                                                       : R_X86_64_PLT32);
+      rela->r_info = ELF64_R_INFO(symidx, R_X86_64_PC32);
       rela->r_addend = u->add;
     }
     break;
+  case UNRES_CALL:
+    {
+      int symidx = symtab_find(symtab, u->label);
+      assert(symidx >= 0);
 
-  // case UNRES_X64_GOT_LOAD:
-  //   assert(!"TODO");
-  //   break;
+      rela->r_offset = u->offset;
+      rela->r_info = ELF64_R_INFO(symidx, R_X86_64_PLT32);
+      rela->r_addend = u->add;
+    }
+    break;
+  case UNRES_X64_GOT_LOAD:
+    {
+      int symidx = symtab_find(symtab, u->label);
+      assert(symidx >= 0);
+
+      rela->r_offset = u->offset;
+      rela->r_info = ELF64_R_INFO(symidx, R_X86_64_GOTPCREL);
+      rela->r_addend = u->add;
+    }
+    break;
   }
 }
 

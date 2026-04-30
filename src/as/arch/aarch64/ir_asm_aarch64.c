@@ -244,7 +244,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                     }
 
                     UnresolvedInfo *info = malloc_or_die(sizeof(*info));
-                    info->kind = UNRES_EXTERN_PC32;
+                    info->kind = UNRES_CALL;
                     info->label = value.label;
                     info->src_section = section;
                     info->offset = address - start_address;

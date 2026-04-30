@@ -176,8 +176,13 @@ static inline void construct_rela_element(
     {
       int symidx = symtab_find(symtab, u->label);
       assert(symidx >= 0);
-
-      // assert(u->add == 0);
+      SET_RELOCATION_INFO(rela, u->offset, symidx, 1, 2, 1, X86_64_RELOC_SIGNED);
+    }
+    break;
+  case UNRES_CALL:
+    {
+      int symidx = symtab_find(symtab, u->label);
+      assert(symidx >= 0);
       SET_RELOCATION_INFO(rela, u->offset, symidx, 1, 2, 1, X86_64_RELOC_BRANCH);
     }
     break;
