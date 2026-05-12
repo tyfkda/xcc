@@ -19,10 +19,11 @@
 
 static const char kDefaultEntryName[] = "_start";
 
-#define PROG_START      (0x100)
-#define START_ADDRESS   (0x01000000 + PROG_START)
-#define LOAD_ADDRESS    START_ADDRESS
-#define DATA_ALIGN      (0x1000)
+#define PROG_START          (0x100)
+#define CODE_START_ADDRESS  (0x01000000 + PROG_START)
+#define DATA_START_ADDRESS  (0x10000000)
+#define TEXT_ALIGN          (4)
+#define DATA_ALIGN          (0x1000)
 
 #define SECTION_COUNT  (2)
 
@@ -627,16 +628,23 @@ static void ld_collect_sections(LinkEditor *ld, const char *name, Vector *seclis
   }
 }
 
-static void ld_calc_address(SectionGroup section_groups[SECTION_COUNT],
-                            Vector *section_lists[SECTION_COUNT], uint64_t start_address) {
-  uint64_t address = start_address;
+static bool ld_calc_address(SectionGroup section_groups[SECTION_COUNT],
+                            Vector *section_lists[SECTION_COUNT]) {
+  uint64_t address = 0;
   for (int secno = 0; secno < SECTION_COUNT; ++secno) {
     Vector *v = section_lists[secno];
     if (v->len <= 0)
       continue;
 
     SectionGroup *secgroup = &section_groups[secno];
-    secgroup->start_address = address = ALIGN(address, secgroup->align);
+    uint64_t next_address = secgroup->start_address;
+    if (address > next_address) {
+      fprintf(stderr, "Address ovelapped in section group %d: %" PRIu64 " > %" PRIu64 "\n",
+              secno, address, next_address);
+      return false;
+    }
+    address = next_address;
+
     for (int i = 0; i < v->len; ++i) {
       LinkElem *elem = v->data[i];
       switch (elem->kind) {
@@ -669,6 +677,7 @@ static void ld_calc_address(SectionGroup section_groups[SECTION_COUNT],
       }
     }
   }
+  return true;
 }
 
 static void ld_load_elf_objects(Vector *section_lists[SECTION_COUNT]) {
@@ -714,18 +723,16 @@ static void ld_load_elf_objects(Vector *section_lists[SECTION_COUNT]) {
   }
 }
 
-static void output_section(FILE *fp, SectionGroup *secgroup) {
+static void output_section(FILE *fp, const SectionGroup *secgroup) {
   if (secgroup->ds == NULL)
     return;
-  DataStorage *ds = secgroup->ds;
+  const DataStorage *ds = secgroup->ds;
   const void *buf = ds->buf;
   fwrite(buf, ds->len, 1, fp);
 }
 
 static bool output_exe(const char *ofn, uint64_t entry_address,
                        SectionGroup section_groups[SECTION_COUNT]) {
-  int phnum = section_groups[SEC_DATA].ds->len > 0 || section_groups[SEC_DATA].bss_size > 0 ? 2 : 1;
-
   FILE *fp;
   if (ofn == NULL) {
     fp = stdout;
@@ -741,32 +748,46 @@ static bool output_exe(const char *ofn, uint64_t entry_address,
     assert(fp != NULL);
   }
 
-  size_t code_rodata_sz = section_groups[SEC_TEXT].ds->len;
+  // Count program header.
+  int phnum = 0;
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    const SectionGroup *p = &section_groups[sec];
+    if (p->ds->len > 0 || p->bss_size > 0)
+      ++phnum;
+  }
+
 #if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
   const int flags = EF_RISCV_RVC | EF_RISCV_FLOAT_ABI_DOUBLE;
 #else
   const int flags = 0;
 #endif
   out_elf_header(fp, entry_address, phnum, 0, flags, 0);
-  out_program_header(fp, 0, PROG_START, section_groups[SEC_TEXT].start_address, code_rodata_sz,
-                     code_rodata_sz);
-  if (phnum > 1) {
-    size_t datamemsz = section_groups[SEC_DATA].ds->len + section_groups[SEC_DATA].bss_size;
-    uint64_t offset = PROG_START + code_rodata_sz;
-    if (section_groups[SEC_DATA].ds->len > 0)
-      offset = ALIGN(offset, DATA_ALIGN);
-    out_program_header(fp, 1, offset, section_groups[SEC_DATA].start_address,
-                       section_groups[SEC_DATA].ds->len, datamemsz);
+
+  static const int kPhdrFlags[] = {
+    PF_R | PF_X,  // code
+    PF_R | PF_W,  // rwdata
+  };
+
+  uint64_t offset = PROG_START;
+  for (int sec = 0; sec < SECTION_COUNT; ++sec) {
+    const SectionGroup *p = &section_groups[sec];
+    size_t file_sz = p->ds->len, mem_sz = p->bss_size;
+    if (file_sz == 0 && mem_sz == 0)
+      continue;
+    offset = ALIGN(offset, p->align);
+    out_program_header(fp, offset, p->start_address, file_sz, file_sz + mem_sz, kPhdrFlags[sec]);
+    offset += file_sz;
   }
 
   uint64_t addr = PROG_START;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
-    addr = ALIGN(addr, section_groups[sec].align);
-    size_t size = section_groups[sec].ds->len;
+    const SectionGroup *p = &section_groups[sec];
+    addr = ALIGN(addr, p->align);
+    size_t size = p->ds->len;
     if (size <= 0)
       continue;
     put_padding(fp, addr);
-    output_section(fp, &section_groups[sec]);
+    output_section(fp, p);
     addr += size;
   }
   fclose(fp);
@@ -886,7 +907,6 @@ static bool output_map_file(LinkEditor *ld, const char *outmapfn, uint64_t entry
   }
 
   fprintf(mapfp, "### Symbols\n");
-  fprintf(mapfp, "%9lx:  (start address)\n", (long)LOAD_ADDRESS);
 
   for (int i = 0; i < symbols->len; ++i) {
     DumpSymbol *ds = symbols->data[i];
@@ -1030,39 +1050,48 @@ typedef struct {
   };
 } ElemData;
 
-static const ElemData kCodeSectionNames[] = {
-  {.kind = LEK_SECTION, .section = {.name = ".text"}},
-  {.kind = LEK_SECTION, .section = {.name = ".rodata"}},
-  {.kind = -1},
-};
-static const ElemData kDataSectionNames[] = {
-  {.kind = LEK_SECTION, .section = {.name = ".data"}},
-  {.kind = LEK_SECTION, .section = {.name = ".data.*"}},
+typedef struct {
+  uint64_t start_address;
+  const ElemData *elems;
+} SectionGroupData;
 
-  {.kind = LEK_ALIGN, .align = 8},
-  {.kind = LEK_SYMBOL, .symbol = {.name = "__init_array_start"}},
-  {.kind = LEK_SECTION, .section = {.name = ".init_array.*"}},
-  {.kind = LEK_SECTION, .section = {.name = ".init_array"}},
-  {.kind = LEK_SYMBOL, .symbol = {.name = "__init_array_end"}},
+static const SectionGroupData kSectionGroups[] = {
+  [SEC_TEXT] = {
+    .start_address = CODE_START_ADDRESS,
+    .elems = (ElemData[]) {
+      {.kind = LEK_SECTION, .section = {.name = ".text"}},
+      {.kind = LEK_SECTION, .section = {.name = ".rodata"}},
+      {.kind = -1},
+    },
+  },
+  [SEC_DATA] = {
+    .start_address = DATA_START_ADDRESS,
+    .elems = (ElemData[]) {
+      {.kind = LEK_SECTION, .section = {.name = ".data"}},
+      {.kind = LEK_SECTION, .section = {.name = ".data.*"}},
 
-  {.kind = LEK_SYMBOL, .symbol = {.name = "__fini_array_start"}},
-  {.kind = LEK_SECTION, .section = {.name = ".fini_array"}},
-  {.kind = LEK_SECTION, .section = {.name = ".fini_array.*"}},
-  {.kind = LEK_SYMBOL, .symbol = {.name = "__fini_array_end"}},
+      {.kind = LEK_ALIGN, .align = TARGET_POINTER_SIZE},
+      {.kind = LEK_SYMBOL, .symbol = {.name = "__init_array_start"}},
+      {.kind = LEK_SECTION, .section = {.name = ".init_array.*"}},
+      {.kind = LEK_SECTION, .section = {.name = ".init_array"}},
+      {.kind = LEK_SYMBOL, .symbol = {.name = "__init_array_end"}},
 
-  {.kind = LEK_SECTION, .section = {.name = ".bss"}},
-  {.kind = -1},
-};
-static const ElemData *kSectionNames[] = {
-  [SEC_TEXT] = kCodeSectionNames,
-  [SEC_DATA] = kDataSectionNames,
+      {.kind = LEK_SYMBOL, .symbol = {.name = "__fini_array_start"}},
+      {.kind = LEK_SECTION, .section = {.name = ".fini_array"}},
+      {.kind = LEK_SECTION, .section = {.name = ".fini_array.*"}},
+      {.kind = LEK_SYMBOL, .symbol = {.name = "__fini_array_end"}},
+
+      {.kind = LEK_SECTION, .section = {.name = ".bss"}},
+      {.kind = -1},
+    },
+  },
 };
 
 static void prepare_section_lists(LinkEditor *ld, Vector *section_lists[SECTION_COUNT]) {
   for (int secno = 0; secno < SECTION_COUNT; ++secno) {
     Vector *seclist = new_vector();
     section_lists[secno] = seclist;
-    for (const ElemData *p = kSectionNames[secno]; (int)p->kind >= 0; ++p) {
+    for (const ElemData *p = kSectionGroups[secno].elems; (int)p->kind >= 0; ++p) {
       LinkElem *elem = NULL;
       switch (p->kind) {
       case LEK_SECTION:
@@ -1107,14 +1136,14 @@ static void prepare_section_groups(Vector *section_lists[SECTION_COUNT],
                                    SectionGroup section_groups[SECTION_COUNT]) {
   for (int secno = 0; secno < SECTION_COUNT; ++secno) {
     SectionGroup *secgroup = &section_groups[secno];
-    secgroup->align = secno == SEC_DATA ? DATA_ALIGN : 1;
-    secgroup->start_address = 0;
+    secgroup->start_address = kSectionGroups[secno].start_address;
     secgroup->ds = NULL;
     secgroup->bss_size = 0;
     secgroup->ds = calloc_or_die(sizeof(*secgroup->ds));
     data_init(secgroup->ds);
 
     Vector *seclist = section_lists[secno];
+    size_t max_align = secno == SEC_TEXT ? TEXT_ALIGN : DATA_ALIGN;
     for (int i = 0; i < seclist->len; ++i) {
       LinkElem *elem = seclist->data[i];
       switch (elem->kind) {
@@ -1124,8 +1153,8 @@ static void prepare_section_groups(Vector *section_lists[SECTION_COUNT],
           for (int j = 0; j < list->len; ++j) {
             ElfSectionInfo *p = list->data[j];
             Elf64_Xword align = p->shdr->sh_addralign;
-            if (align > secgroup->align)
-              secgroup->align = align;
+            if (align > max_align)
+              max_align = align;
           }
         }
         break;
@@ -1134,12 +1163,13 @@ static void prepare_section_groups(Vector *section_lists[SECTION_COUNT],
       case LEK_ALIGN:
         {
           Elf64_Xword align = elem->align;
-          if (align > secgroup->align)
-            secgroup->align = align;
+          if (align > max_align)
+            max_align = align;
         }
         break;
       }
     }
+    secgroup->align = max_align;
   }
 }
 
@@ -1204,7 +1234,8 @@ static int do_link(Vector *sources, const Options *opts) {
   SectionGroup section_groups[SECTION_COUNT];
   prepare_section_groups(section_lists, section_groups);
 
-  ld_calc_address(section_groups, section_lists, LOAD_ADDRESS);
+  if (!ld_calc_address(section_groups, section_lists))
+    return 1;
   ld_load_elf_objects(section_lists);
 
   int error_count = ld_resolve_relas(ld);

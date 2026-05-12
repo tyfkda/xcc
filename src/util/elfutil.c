@@ -24,13 +24,8 @@ void out_elf_header(FILE *fp, uintptr_t entry, int phnum, int shnum, int flags, 
   fwrite(&ehdr, sizeof(Elf64_Ehdr), 1, fp);
 }
 
-void out_program_header(FILE *fp, int sec, uintptr_t offset, uintptr_t vaddr, size_t filesz,
-                        size_t memsz) {
-  static const int kFlags[] = {
-    PF_R | PF_X,  // code
-    PF_R | PF_W,  // rwdata
-  };
-
+void out_program_header(FILE *fp, uintptr_t offset, uintptr_t vaddr, size_t filesz, size_t memsz,
+                        int flags) {
   Elf64_Phdr phdr = {
     .p_type   = PT_LOAD,
     .p_offset = offset,
@@ -38,7 +33,7 @@ void out_program_header(FILE *fp, int sec, uintptr_t offset, uintptr_t vaddr, si
     .p_paddr  = vaddr, // dummy
     .p_filesz = filesz,
     .p_memsz  = memsz,
-    .p_flags  = kFlags[sec],
+    .p_flags  = flags,
     .p_align  = 0x1000,
   };
 

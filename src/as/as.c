@@ -14,7 +14,6 @@
 #define PROG_START      (0x100)
 #define START_ADDRESS   (0x01000000 + PROG_START)
 #define LOAD_ADDRESS    START_ADDRESS
-#define DATA_ALIGN      (0x1000)
 
 static bool read_line_comment_skip(FILE *fp, ParseInfo *info) {
   bool block_comment = false;
