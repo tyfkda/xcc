@@ -144,7 +144,7 @@ static void compilec(FILE *ppin, const char *filename, Vector *toplevel) {
     exit(1);
 }
 
-static const char *output_wasm_obj(const char *src, const char *ofn, Options *opts) {
+static const char *output_wasm_obj(const char *src, const char *ofn, Options *opts, Vector *decls) {
   Table *exports = NULL;
   enum OutType out_type = opts->out_type;
   if (out_type < OutExecutable) {
@@ -183,7 +183,7 @@ static const char *output_wasm_obj(const char *src, const char *ofn, Options *op
   if (ofp == NULL) {
     error("Cannot open output file");
   } else {
-    emit_wasm(ofp, opts->linker_opts.import_module_name, exports);
+    emit_wasm(ofp, opts->linker_opts.import_module_name, exports, decls);
     assert(compile_error_count == 0);
     fclose(ofp);
   }
@@ -235,7 +235,7 @@ int compile_csource(const char *src, const char *ofn, Vector *obj_files, Options
   if (cc_flags.warn_as_error && compile_warning_count != 0)
     return 2;
 
-  const char *outfn = output_wasm_obj(src, ofn, opts);
+  const char *outfn = output_wasm_obj(src, ofn, opts, toplevel);
   if (outfn == NULL)
     return 3;
 

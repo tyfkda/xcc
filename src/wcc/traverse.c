@@ -127,6 +127,12 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, VarInf
       finfo->flag |= FF_WEAK;
   }
 
+  if (func != NULL) {
+    FuncExtra *extra = func->extra;
+    assert(extra != NULL);
+    extra->finfo = finfo;
+  }
+
   return finfo;
 }
 
@@ -1038,21 +1044,36 @@ static inline void assign_symbol_index(void) {
   }
 }
 
-static inline void assign_function_index(void) {
+static inline void assign_function_index(Vector *decls) {
   // Enumerate functions.
   VERBOSES("### Functions\n");
-  const Name *name;
-  FuncInfo *finfo;
   int32_t index = 0;
-  for (int k = 0; k < 2; ++k) {  // 0: import, 1: defined-and-referred
+
+  { // Put external function first.
+    const Name *name;
+    FuncInfo *finfo;
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&finfo)) != -1; ) {
-      if ((k == 0 && (finfo->func != NULL || finfo->flag == 0)) ||  // Put external function first.
-          (k == 1 && finfo->func == NULL))                          // Defined function later.
-        continue;
-      if (is_function_omitted(finfo->varinfo))
+      if (finfo->func != NULL || finfo->flag == 0 || is_function_omitted(finfo->varinfo))
         continue;
       finfo->index = index++;
-      VERBOSE("%2d: %.*s%s\n", finfo->index, NAMES(name), k == 0 ? "  (import)" : "");
+      VERBOSE("%2d: %.*s  (import)\n", finfo->index, NAMES(name));
+    }
+  }
+  { // Defined function later.
+    for (int i = 0, len = decls->len; i < len; ++i) {
+      Declaration *decl = decls->data[i];
+      if (decl->kind != DCL_DEFUN)
+        continue;
+      Function *func = decl->defun.func;
+      FuncExtra *extra = func->extra;
+      if (extra == NULL)
+        continue;
+      FuncInfo *finfo = extra->finfo;
+      if (finfo == NULL || is_function_omitted(finfo->varinfo))
+        continue;
+      finfo->index = index++;
+      const Name *name = func->ident->ident;
+      VERBOSE("%2d: %.*s\n", finfo->index, NAMES(name));
     }
   }
   VERBOSES("\n");
@@ -1137,6 +1158,6 @@ void traverse_ast(Vector *decls) {
 
   assign_indirect_function_index();
   assign_symbol_index();
-  assign_function_index();
+  assign_function_index(decls);
   assign_data_address();
 }

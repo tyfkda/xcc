@@ -352,10 +352,17 @@ static void emit_function_section(EmitWasm *ew) {
   data_open_chunk(&functions_section);
   uint32_t function_count = 0;
   {
-    const Name *name;
-    FuncInfo *finfo;
-    for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&finfo)) != -1; ) {
-      if (finfo->func == NULL || is_function_omitted(finfo->varinfo))
+    Vector *decls = ew->decls;
+    for (int i = 0, len = decls->len; i < len; ++i) {
+      Declaration *decl = decls->data[i];
+      if (decl->kind != DCL_DEFUN)
+        continue;
+      Function *func = decl->defun.func;
+      FuncExtra *extra = func->extra;
+      if (extra == NULL)
+        continue;
+      FuncInfo *finfo = extra->finfo;
+      if (is_function_omitted(finfo->varinfo))
         continue;
       ++function_count;
       int type_index = finfo->type_index;
@@ -496,15 +503,20 @@ static void emit_code_section(EmitWasm *ew) {
   data_open_chunk(&codesec);
   data_uleb128(&codesec, -1, ew->function_count);  // num functions
   {
-    const Name *name;
-    FuncInfo *finfo;
     size_t offset = codesec.len;
-    for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&finfo)) != -1; ) {
-      Function *func = finfo->func;
-      if (func == NULL || is_function_omitted(finfo->varinfo))
+    Vector *decls = ew->decls;
+    for (int i = 0, len = decls->len; i < len; ++i) {
+      Declaration *decl = decls->data[i];
+      if (decl->kind != DCL_DEFUN)
+        continue;
+      Function *func = decl->defun.func;
+      FuncExtra *extra = func->extra;
+      if (extra == NULL)
+        continue;
+      FuncInfo *finfo = extra->finfo;
+      if (is_function_omitted(finfo->varinfo))
         continue;
 
-      FuncExtra *extra = func->extra;
       DataStorage *code = extra->code;
       data_concat(&codesec, code);
 
@@ -567,38 +579,57 @@ static Vector *emit_data_section(EmitWasm *ew) {
   return reloc_data;
 }
 
-static inline uint32_t emit_linking_symtab_function(DataStorage *linking_section) {
+static void emit_linking_symtab_function_sub(
+    DataStorage *linking_section, FuncInfo *finfo, const Name *name) {
+  int flags = 0;
+  if (finfo->func == NULL)
+    flags |= WASM_SYM_UNDEFINED;
+  if (finfo->varinfo->storage & VS_STATIC)
+    flags |= WASM_SYM_BINDING_LOCAL | WASM_SYM_VISIBILITY_HIDDEN;
+  if (finfo->flag & FF_WEAK)
+    flags |= WASM_SYM_BINDING_WEAK;
+  if (finfo->flag & FF_IMPORT_NAME) {
+    // __attribute((import_name("..."))) is specified:
+    flags |= WASM_SYM_EXPLICIT_NAME;
+  }
+
+  data_push(linking_section, SIK_SYMTAB_FUNCTION);  // kind
+  data_uleb128(linking_section, -1, flags);
+  data_uleb128(linking_section, -1, finfo->index);
+
+  if (finfo->func != NULL ||  // Defined function: put name. otherwise not required.
+      flags & WASM_SYM_EXPLICIT_NAME) {
+    data_string(linking_section, name->chars, name->bytes);
+  }
+}
+
+static inline uint32_t emit_linking_symtab_function(DataStorage *linking_section, Vector *decls) {
   uint32_t count = 0;
-  for (int k = 0; k < 2; ++k) {  // To match function index and linking order, do twice.
+  // To match function index and linking order, do twice.
+  { // Put external function first.
     const Name *name;
     FuncInfo *finfo;
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&finfo)) != -1; ) {
-      if ((k == 0 && (finfo->func != NULL || finfo->flag == 0)) ||  // Put external function first.
-          (k == 1 && finfo->func == NULL))                         // Defined function later.
+      if (finfo->func != NULL || finfo->flag == 0 || is_function_omitted(finfo->varinfo))
         continue;
+      emit_linking_symtab_function_sub(linking_section, finfo, name);
+      ++count;
+    }
+  }
+  { // Defined function later.
+    for (int i = 0, len = decls->len; i < len; ++i) {
+      Declaration *decl = decls->data[i];
+      if (decl->kind != DCL_DEFUN)
+        continue;
+      Function *func = decl->defun.func;
+      FuncExtra *extra = func->extra;
+      if (extra == NULL)
+        continue;
+      FuncInfo *finfo = extra->finfo;
       if (is_function_omitted(finfo->varinfo))
         continue;
-
-      int flags = 0;
-      if (finfo->func == NULL)
-        flags |= WASM_SYM_UNDEFINED;
-      if (finfo->varinfo->storage & VS_STATIC)
-        flags |= WASM_SYM_BINDING_LOCAL | WASM_SYM_VISIBILITY_HIDDEN;
-      if (finfo->flag & FF_WEAK)
-        flags |= WASM_SYM_BINDING_WEAK;
-      if (finfo->flag & FF_IMPORT_NAME) {
-        // __attribute((import_name("..."))) is specified:
-        flags |= WASM_SYM_EXPLICIT_NAME;
-      }
-
-      data_push(linking_section, SIK_SYMTAB_FUNCTION);  // kind
-      data_uleb128(linking_section, -1, flags);
-      data_uleb128(linking_section, -1, finfo->index);
-
-      if (finfo->func != NULL ||  // Defined function: put name. otherwise not required.
-          flags & WASM_SYM_EXPLICIT_NAME) {
-        data_string(linking_section, name->chars, name->bytes);
-      }
+      const Name *name = func->ident->ident;
+      emit_linking_symtab_function_sub(linking_section, finfo, name);
       ++count;
     }
   }
@@ -694,7 +725,7 @@ static inline void emit_linking_symbol_table(EmitWasm *ew, DataStorage *linking_
   data_open_chunk(linking_section);
   uint32_t count = 0;
 
-  count += emit_linking_symtab_function(linking_section);
+  count += emit_linking_symtab_function(linking_section, ew->decls);
   count += emit_linking_symtab_global(ew, linking_section);
   count += emit_linking_symtab_table(linking_section);
   count += emit_linking_symtab_event(linking_section);
@@ -817,14 +848,19 @@ static void emit_reloc_code_section(EmitWasm *ew) {
 
   Vector *code_reloc_all = new_vector();
 
-  const Name *name;
-  FuncInfo *finfo;
-  for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&finfo)) != -1; ) {
-    Function *func = finfo->func;
-    if (func == NULL || is_function_omitted(finfo->varinfo))
+  Vector *decls = ew->decls;
+  for (int i = 0, len = decls->len; i < len; ++i) {
+    Declaration *decl = decls->data[i];
+    if (decl->kind != DCL_DEFUN)
+      continue;
+    Function *func = decl->defun.func;
+    FuncExtra *extra = func->extra;
+    if (extra == NULL)
+      continue;
+    FuncInfo *finfo = extra->finfo;
+    if (is_function_omitted(finfo->varinfo))
       continue;
 
-    FuncExtra *extra = func->extra;
     Vector *reloc_code = extra->reloc_code;
     for (int i = 0; i < reloc_code->len; ++i) {
       CodeReloc *cr = calloc_or_die(sizeof(*cr));
@@ -858,13 +894,14 @@ static void emit_reloc_data_section(EmitWasm *ew, Vector *reloc_data) {
   emit_reloc_section(ew, ew->data_section_index, reloc_data, kRelocData);
 }
 
-void emit_wasm(FILE *ofp, const char *import_module_name, Table *exports) {
+void emit_wasm(FILE *ofp, const char *import_module_name, Table *exports, Vector *decls) {
   write_wasm_header(ofp);
 
   EmitWasm ew_body = {
     .ofp = ofp,
     .import_module_name = import_module_name,
     .exports = exports,
+    .decls = decls,
   };
   EmitWasm *ew = &ew_body;
 

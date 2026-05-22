@@ -163,6 +163,7 @@ typedef struct {
   FILE *ofp;
   const char *import_module_name;
   Table *exports;
+  Vector *decls;
   Vector *data_segments;
   uint32_t section_index;
   uint32_t function_count;
@@ -171,7 +172,7 @@ typedef struct {
   uint32_t import_global_count;
 } EmitWasm;
 
-void emit_wasm(FILE *ofp, const char *import_module_name, Table *exports);
+void emit_wasm(FILE *ofp, const char *import_module_name, Table *exports, Vector *decls);
 
 void emit_type_section(EmitWasm *ew);
 void emit_tag_section(EmitWasm *ew);
@@ -213,6 +214,7 @@ TableInfo *getsert_indirect_function_table(void);
 void write_wasm_header(FILE *ofp);
 
 typedef struct FuncExtra {
+  FuncInfo *finfo;
   DataStorage *code;
   Vector *reloc_code;  // <RelocInfo*>
   int setjmp_count;
