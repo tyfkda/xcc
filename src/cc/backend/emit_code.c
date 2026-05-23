@@ -537,9 +537,7 @@ static inline void emit_const_floats(Function *func) {
 }
 
 static void emit_defun(Function *func) {
-  bool emit = !(func->scopes == NULL ||  // Prototype definition.
-                func->extra == NULL);    // Code emission is omitted.
-
+  bool emit = func->extra != NULL;    // Code emission is not omitted.
   if (emit) {
     emit_defun_body(func);
     emit_const_floats(func);

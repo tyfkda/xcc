@@ -773,8 +773,6 @@ static void traverse_gotos(Function *func) {
 }
 
 static void traverse_defun(Function *func) {
-  if (func->scopes == NULL)  // Prototype definition
-    return;
   VarInfo *funcvi = scope_find(global_scope, func->ident->ident, NULL);
   if (!(funcvi->storage & VS_USED) && is_function_omitted(funcvi))
     return;

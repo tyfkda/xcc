@@ -194,17 +194,13 @@ static void dump_ir(FILE *fp, IR *ir, RegAlloc *ra) {
 }
 
 static void dump_func_ir(Function *func) {
-  FILE *fp = stdout;
-
-  if (func->scopes == NULL)  // Prototype definition
-    return;
-
   FuncBackend *fnbe = func->extra;
   if (fnbe == NULL)
     return;
   BBContainer *bbcon = fnbe->bbcon;
   assert(bbcon != NULL);
 
+  FILE *fp = stdout;
   fprintf(fp, "### %.*s\n\n", NAMES(func->ident->ident));
 
   fprintf(fp, "params and locals:\n");

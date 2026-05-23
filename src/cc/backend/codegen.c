@@ -982,9 +982,6 @@ void alloc_stack_variables_onto_stack_frame(Function *func) {
 }
 
 bool gen_defun(Function *func) {
-  if (func->scopes == NULL)  // Prototype definition
-    return false;
-
   VarInfo *funcvi = scope_find(global_scope, func->ident->ident, NULL);
   if (is_function_omitted(funcvi)) {
     // Omit function: func->extra preserves the value (NULL).
