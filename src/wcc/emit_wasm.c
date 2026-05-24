@@ -190,7 +190,7 @@ static Vector *construct_data_segment(void) {  // <DataSegment*>
           (storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
         continue;
       if ((k == 0) == (varinfo->global.init == NULL) ||
-          !is_global_datsec_var(varinfo, global_scope))
+          !is_global_datasec_var(varinfo, global_scope))
         continue;
 
 #ifndef NDEBUG
@@ -319,7 +319,7 @@ static void emit_import_section(EmitWasm *ew) {
         continue;
       VarInfo *varinfo = info->varinfo;
       if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC ||
-          is_global_datsec_var(varinfo, global_scope))
+          is_global_datasec_var(varinfo, global_scope))
         continue;
 
       const Name *name = varinfo->ident->ident;
@@ -394,7 +394,7 @@ static void emit_global_section(EmitWasm *ew) {
       if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
         continue;
 
-      if ((info->flag & GVF_UNRESOLVED) || is_global_datsec_var(varinfo, global_scope) ||
+      if ((info->flag & GVF_UNRESOLVED) || is_global_datasec_var(varinfo, global_scope) ||
           (varinfo->global.init == NULL) == (k == 0))
         continue;
       unsigned char wt = to_wtype(varinfo->type);
@@ -662,7 +662,7 @@ static inline uint32_t emit_linking_symtab_global(EmitWasm *ew, DataStorage *lin
       if (varinfo->storage & VS_STATIC)
         flags |= WASM_SYM_BINDING_LOCAL | WASM_SYM_VISIBILITY_HIDDEN;
 
-      if (is_global_datsec_var(varinfo, global_scope)) {
+      if (is_global_datasec_var(varinfo, global_scope)) {
         data_push(linking_section, SIK_SYMTAB_DATA);  // kind
         data_uleb128(linking_section, -1, flags);
         const Name *name = varinfo->ident->ident;

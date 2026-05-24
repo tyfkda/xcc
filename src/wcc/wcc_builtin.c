@@ -149,7 +149,7 @@ static void gen_builtin_try_catch_longjmp(Expr *expr, enum BuiltinFunctionPhase 
         assert(var != NULL && var->kind == EX_VAR);
 
         const VarInfo *varinfo = scope_find(var->var.scope, var->var.name, NULL);
-        if (!(varinfo->storage & VS_REF_TAKEN) && !is_global_datsec_var(varinfo, var->var.scope)) {
+        if (!(varinfo->storage & VS_REF_TAKEN) && !is_global_datasec_var(varinfo, var->var.scope)) {
           gen_expr(env, true);
           ADD_CODE(OP_I32_LOAD, 2, 4);
           gen_set_to_var(var);

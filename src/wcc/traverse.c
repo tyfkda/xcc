@@ -382,7 +382,7 @@ static void te_incdec(Expr **pexpr, bool needval) {
     target = target->complit.var;
   if (target->kind == EX_VAR) {
     VarInfo *varinfo = scope_find(target->var.scope, target->var.name, NULL);
-    if (!(varinfo->storage & VS_REF_TAKEN) && !is_global_datsec_var(varinfo, target->var.scope))
+    if (!(varinfo->storage & VS_REF_TAKEN) && !is_global_datasec_var(varinfo, target->var.scope))
       return;
   }
 
@@ -955,7 +955,7 @@ static int detect_compile_unit_memory(void) {
     if ((varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
         (varinfo->storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
       continue;
-    if (is_global_datsec_var(varinfo, global_scope))
+    if (is_global_datasec_var(varinfo, global_scope))
       return CUF_LINEAR_MEMORY;
   }
   return 0;
@@ -1018,7 +1018,7 @@ static inline void assign_symbol_index(void) {
       if ((k == 0 && !(info->flag & GVF_UNRESOLVED)) ||
           (k != 0 && ((info->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
         continue;
-      if (!is_global_datsec_var(varinfo, global_scope)) {
+      if (!is_global_datasec_var(varinfo, global_scope)) {
         info->item_index = info->prim.index = global_index++;
       } else if (!(varinfo->storage & VS_EXTERN)) {
         info->item_index = data_index++;
@@ -1097,7 +1097,7 @@ static inline void assign_data_address(void) {
           (storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
         continue;
       if ((varinfo->global.init == NULL) == (k == 0) ||
-          !is_global_datsec_var(varinfo, global_scope))
+          !is_global_datasec_var(varinfo, global_scope))
         continue;
 
       // Mapped to memory

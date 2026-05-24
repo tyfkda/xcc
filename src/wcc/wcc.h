@@ -224,7 +224,7 @@ typedef struct FuncExtra {
 Expr *get_sp_var(void);
 unsigned char to_wtype(const Type *type);
 /// Whether this global variable put on data section.
-bool is_global_datsec_var(const VarInfo *varinfo, Scope *scope);
+bool is_global_datasec_var(const VarInfo *varinfo, Scope *scope);
 size_t calc_funcall_work_size(Expr *expr);
 const Type *get_small_struct_elem_type(const Type *type);
 
