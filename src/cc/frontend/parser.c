@@ -1010,17 +1010,22 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
       } else {
         bool has_initializer = match(TK_ASSIGN) != NULL;
         VarInfo *varinfo = NULL;
-        if (ident != NULL)
+        Initializer *init = NULL;
+        if (ident != NULL) {
           varinfo = add_var_to_scope(global_scope, ident, type, storage, !has_initializer);
+          if (same_type(type, varinfo->type))
+            init = varinfo->global.init;
+          else
+            varinfo = NULL;
+        }
 
-        Initializer *init = varinfo->global.init;
         assert(curvarinfo == NULL);
         if (has_initializer) {
           curvarinfo = varinfo;
           init = parse_initializer();
         }
 
-        if (ident != NULL) {
+        if (ident != NULL && varinfo != NULL) {
           varinfo->global.init = check_vardecl(&type, ident, storage, init);
           varinfo->type = type;  // type might be changed.
         }
