@@ -1,4 +1,4 @@
-#include "unistd.h"
+#include "signal.h"
 #include "_syscall.h"
 
 int kill(pid_t pid, int sig) {
