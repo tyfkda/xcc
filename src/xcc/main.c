@@ -30,8 +30,11 @@ static pid_t fork1(void) {
 
 static int wait_process(pid_t pid) {
   int status = -1;
-  if (waitpid(pid, &status, 0) < 0)
+  if (waitpid(pid, &status, 0) < 0) {
+    if (WIFSIGNALED(status))
+      raise(WTERMSIG(status));
     error("wait failed");
+  }
   return status;
 }
 
@@ -111,8 +114,9 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
   ++running;
 
   int res = 0;
+  int status = 0;
   for (; running > 0; --running) {
-    int status;
+    status = 0;
     pid_t done = wait_child(&status);  // cpp or cc1
     if (done > 0) {
       res |= status;
@@ -139,6 +143,8 @@ static int compile(const char *src, Vector *cpp_cmd, Vector *cc1_cmd, int ofd) {
       res |= 1;
     }
   }
+  if (WIFSIGNALED(status))
+    raise(WTERMSIG(status));
   return res;
 }
 

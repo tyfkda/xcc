@@ -164,6 +164,7 @@ function compile_error() {
   local exitcode="$?"
 
   local err=''; [[ "$exitcode" -ne 0 ]] || err="Compile error expected, but succeeded"
+  [[ "$exitcode" -lt 128 ]] || err="Compile error expected, but trapped"
   end_test "$err"
 }
 
@@ -298,8 +299,9 @@ function pp_error() {
   begin_test "$title"
 
   echo -e "$input" | $CPP $ppflags > /dev/null 2>&1 | tr -d '\n'
-  local result="$?"
+  local exitcode="$?"
 
-  local err=''; [[ "$result" -ne 0 ]] || err="Compile error expected, but succeeded"
+  local err=''; [[ "$exitcode" -ne 0 ]] || err="Preprocess error expected, but succeeded"
+  [[ "$exitcode" -lt 128 ]] || err="Compile error expected, but trapped"
   end_test "$err"
 }

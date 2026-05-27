@@ -52,4 +52,7 @@ pid_t fork(void);
 long clone3(struct clone_args *cl_args, size_t size);
 int execvp(const char *, char *const[]);
 int execve(const char *, char *const[], char *const[]);
+
+pid_t getpid(void);
+pid_t getppid(void);
 #endif

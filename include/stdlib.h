@@ -49,3 +49,7 @@ int mkstemp(char *tmpl);
 int mkstemps(char *tmpl, int suffixlen);
 
 char *getenv(const char *varname);
+
+#if !defined(__wasm)
+void abort(void);
+#endif

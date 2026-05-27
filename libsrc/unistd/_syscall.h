@@ -51,6 +51,7 @@
 #define __NR_ioctl   16
 #define __NR_pipe    22
 #define __NR_dup     32
+#define __NR_getpid  39
 #define __NR_fork    57
 #define __NR_execve  59
 #define __NR_exit    60
@@ -62,6 +63,7 @@
 #define __NR_rmdir   84
 #define __NR_unlink  87
 #define __NR_chmod   90
+#define __NR_getppid 110
 #define __NR_time    201
 #define __NR_clock_gettime  228
 #define __NR_mkdirat     258
@@ -120,6 +122,8 @@
 //#define __NR_ioctl   16
 #define __NR_pipe2    59
 #define __NR_dup     23
+#define __NR_getpid  172
+#define __NR_getppid 173
 //#define __NR_clone    220
 #define __NR_clone3    435
 #define __NR_execve  221
@@ -154,6 +158,8 @@
 
 #define __NR_getcwd    17
 #define __NR_dup       23
+#define __NR_getpid    172
+#define __NR_getppid   173
 #define __NR_chdir     49
 #define __NR_openat    56
 #define __NR_close     57
