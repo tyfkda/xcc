@@ -272,7 +272,7 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
     }
 
     switch (c) {
-    case 'd':
+    case 'd': case 'i':
       {
         long long x;
         if (sizez) {
@@ -289,6 +289,10 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
         if (negative || order > 0 || sign)
           o += sprintsign(fp, negative, sign, &order);
         char *p = snprintullong2(bufend, ux, 10, kHexDigits);
+        if (suborder > order) {
+          order = suborder;
+          padding = '0';
+        }
         o += snprintstr(fp, p, order, suborder, leftalign, padding);
       }
       break;
