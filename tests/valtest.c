@@ -2061,6 +2061,7 @@ MoreParamsReturnsStruct more_params_returns_struct(int a, int b, int c, int d, i
 MoreParamsReturnsStruct return_struct_by_funcall(int x) { return more_params_returns_struct(x, x+1, x+2, x+3, x+4, x+5, x+6, x+7, x+8, x+9); }
 int array_arg_wo_size(int arg[]) { return arg[1]; }
 long long long_immediate(unsigned long long x) { return x / 11; }
+int return_in_if_and_switch(int x) { if (x >= 0) return x * 2; else switch (x) {default: return x * x;} }
 
 static inline int inline_square(int x) { return x * x; }
 static int g_shadow = 55;
@@ -2172,6 +2173,7 @@ TEST(function) {
   }
 
   EXPECT("long immediate", 119251678860344574LL, long_immediate(0x123456789abcdef0));
+  EXPECT("return_in_if_and_switch", 3249, return_in_if_and_switch(-57));
   EXPECT("const typedef-ed type", 65, const_typedefed(66));
 
   EXPECT("inline", 1522756, inline_square(1234));

@@ -430,12 +430,16 @@ static void gen_if(Stmt *stmt, bool is_last) {
   }
 
   unsigned char wt = WT_VOID;
-  if (is_last && check_funcend_return(stmt)) {
-    FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
-    assert(finfo != NULL);
-    Expr *inlining = finfo->inlining;
-    const Type *rettype = inlining != NULL ? inlining->type : curfunc->type->func.ret;
-    wt = get_func_ret_wtype(rettype);
+  if (is_last) {
+    if (check_funcend_return(stmt)) {
+      FuncInfo *finfo = table_get(&func_info_table, curfunc->ident->ident);
+      assert(finfo != NULL);
+      Expr *inlining = finfo->inlining;
+      const Type *rettype = inlining != NULL ? inlining->type : curfunc->type->func.ret;
+      wt = get_func_ret_wtype(rettype);
+    } else {
+      is_last = false;
+    }
   }
 
   gen_cond(stmt->if_.cond, true, true);
