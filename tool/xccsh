@@ -7,8 +7,12 @@ ARCH=$(arch)
 
 if [[ "$UNAME" = "Darwin" ]]; then
     SYS_INCLUDE_DIR="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include"
+    CFLAGS2="-D __GNUC__=4 -D __GNUC_STDC_INLINE__ -D __arm64__ -D __builtin_va_list=void** -D '__uint128_t=struct {unsigned long long _x[2];}'"
+    CFLAGS2="$CFLAGS2 -D __FINITE_MATH_ONLY__ -D _Float16=float -D TARGET_CPU_ARM64 -D MAC_OS_X_VERSION_MIN_REQUIRED=260000"
+    CFLAGS2="$CFLAGS2 -D '__FLT_EPSILON__=1.1920928955078125e-07F'"
 else
     SYS_INCLUDE_DIR="/usr/include/$ARCH-linux-gnu"
+    CFLAGS2=""
 fi
 
 xcc_opt="\
@@ -16,8 +20,9 @@ xcc_opt="\
     -isystem /usr/include \
     -isystem /usr/local/include \
     -isystem $SYS_INCLUDE_DIR \
-    -D__signed__="
+    -D__signed__= \
+    $CFLAGS2"
 
 CC="$xcc $xcc_opt"
 
-$CC "$@"
+eval $CC "$@"

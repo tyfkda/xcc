@@ -632,7 +632,7 @@ static Vector *parse_asm_arg(void) {
   return result;
 }
 
-static Stmt *parse_asm(const Token *tok) {
+static Stmt *parse_asm0(const Token *tok) {
   int flag = 0;
   if (match(TK_VOLATILE))
     flag |= ASM_VOLATILE;
@@ -654,7 +654,6 @@ static Stmt *parse_asm(const Token *tok) {
   }
 
   consume(TK_RPAR, "`)' expected");
-  consume(TK_SEMICOL, "`;' expected");
 
   Vector *templates = new_vector();
   unsigned long param_count = 0;
@@ -698,6 +697,12 @@ static Stmt *parse_asm(const Token *tok) {
   }
 
   return new_stmt_asm(tok, templates, outputs, inputs, flag);
+}
+
+static Stmt *parse_asm(const Token *tok) {
+  Stmt *stmt = parse_asm0(tok);
+  consume(TK_SEMICOL, "`;' expected");
+  return stmt;
 }
 
 static inline const Token *parse_stmts(Stmt *parent, Vector *stmts) {
@@ -959,6 +964,12 @@ static void parse_global_var_decl(ParsedTypeInfo *tinfo, Type *type, Vector *dec
   Table *attributes = tinfo->attributes;
   for (;;) {
     attributes = parse_attributes(attributes);
+
+Token *tok_asm = match(TK_ASM);  // MacOSで標準のヘッダファイルを読むため
+if (tok_asm != NULL) {
+  Stmt *asm_ = parse_asm0(tok_asm);
+  UNUSED(asm_);
+}
 
 #ifndef __NO_VLA
     if (type->kind == TY_ARRAY && type->pa.vla != NULL)
