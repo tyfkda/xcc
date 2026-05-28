@@ -551,14 +551,14 @@ static Stmt *parse_for(const Token *tok) {
 
 static inline Stmt *parse_break_continue(enum StmtKind kind, const Token *tok) {
   consume(TK_SEMICOL, "`;' expected");
-  Stmt *parent = kind == ST_BREAK ? loop_scope.break_ : loop_scope.continu;
-  if (parent == NULL) {
+  Stmt *target = kind == ST_BREAK ? loop_scope.break_ : loop_scope.continu;
+  if (target == NULL) {
     parse_error(PE_NOFATAL, tok, "`%.*s' cannot be used outside of loop",
                 (int)(tok->end - tok->begin), tok->begin);
     return NULL;
   }
   Stmt *stmt = new_stmt(kind, tok);
-  stmt->break_.parent = parent;
+  stmt->break_.target = target;
   return stmt;
 }
 

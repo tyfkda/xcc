@@ -421,7 +421,7 @@ typedef struct Stmt {
       struct Stmt *body;
     } for_;
     struct {
-      struct Stmt *parent;
+      struct Stmt *target;  // Corresponding statement (for/while/do-while/switch).
     } break_;
     struct {
       const Token *label;

@@ -637,7 +637,7 @@ static int check_reachability_stmts(Vector *stmts) {
     if (reach & REACH_STOP) {
       for (; i < n - 1; ++i) {
         Stmt *next = stmts->data[i + 1];
-        if ((next->kind == ST_BREAK && next->break_.parent->kind == ST_SWITCH) &&
+        if ((next->kind == ST_BREAK && next->break_.target->kind == ST_SWITCH) &&
             (stmt->kind != ST_RETURN && stmt->kind != ST_BREAK))
           continue;
         switch (next->kind) {
@@ -757,7 +757,7 @@ static void check_reachability_stmt(Stmt *stmt) {
     stmt->reach |= REACH_RETURN | REACH_STOP;
     break;
   case ST_BREAK:
-    stmt->break_.parent->reach &= ~REACH_STOP;
+    stmt->break_.target->reach &= ~REACH_STOP;
     stmt->reach |= REACH_STOP;
     break;
   case ST_CASE:
@@ -1165,9 +1165,9 @@ static Stmt *dup_stmt_break(Function *targetfunc, Scope *targetscope, Stmt *stmt
   UNUSED(targetfunc);
   UNUSED(targetscope);
   Stmt *dup = new_stmt(stmt->kind, stmt->token);
-  Stmt *parent = stmt->kind == ST_BREAK ? loop_scope.break_ : loop_scope.continu;
-  assert(parent != NULL);
-  dup->break_.parent = parent;
+  Stmt *target = stmt->kind == ST_BREAK ? loop_scope.break_ : loop_scope.continu;
+  assert(target != NULL);
+  dup->break_.target = target;
   return dup;
 }
 #define dup_stmt_continue  dup_stmt_break
