@@ -86,6 +86,7 @@ void wasmobj_init(WasmObj *wasmobj) {
   wasmobj->import.globals = new_vector();
   wasmobj->import.tables = NULL;
   wasmobj->linking.symtab = new_vector();
+  wasmobj->linking.exists = false;
 }
 
 WasmSection *find_section(WasmObj *wasmobj, uint8_t secid) {
@@ -379,10 +380,6 @@ static inline void read_linking_symbol_table(WasmObj *wasmobj, unsigned char *p)
 }
 
 static inline void read_linking_segment_info(WasmObj *wasmobj, unsigned char *p) {
-  if (wasmobj->linking.symtab == NULL) {
-    error("segment info must be after symbol table");
-  }
-
   Vector *symtab = wasmobj->linking.symtab;
   uint32_t count = read_uleb128(p, &p);
   uint32_t index = 0;
@@ -426,6 +423,7 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
     error("unsupported linking version: %d\n", version);
   }
 
+  wasmobj->linking.exists = true;
   while (p < end) {
     enum LinkingType linking_type = *p++;
     uint32_t payload_len = read_uleb128(p, &p);
@@ -568,7 +566,7 @@ WasmObj *read_wasm(FILE *fp, const char *filename, size_t filesize) {
   wasmobj->section_count = 0;
   read_wasm_sections(wasmobj);
 
-  if (wasmobj->linking.symtab->len == 0) {
+  if (!wasmobj->linking.exists) {
     fprintf(stderr, "no linking symbol: %s\n", filename);
     return NULL;
   }

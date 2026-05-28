@@ -152,6 +152,7 @@ typedef struct WasmObj {
   struct {
     Vector *symtab;     // <SymbolInfo*>
     Vector *init_funcs;  // <SymbolInfo*>
+    bool exists;
   } linking;
   Vector *types;  // <int>
   struct {
