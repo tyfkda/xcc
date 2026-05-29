@@ -786,7 +786,7 @@ static void gen_bitnot(Expr *expr, bool needval) {
 #define IS_DEC(expr)   (((expr)->kind - EX_PREINC) & 1)
 static void gen_incdec_addend(Expr *expr, Expr *target) {
   Type *type = expr->type;
-  int addend = type->kind == TY_PTR ? type_size(type->pa.ptrof) : 1;
+  size_t addend = type->kind == TY_PTR ? type_size(type->pa.ptrof) : 1;
   unsigned char wtype = to_wtype(type);
   switch (wtype) {
   case WT_I32: case WT_I64:
@@ -796,7 +796,7 @@ static void gen_incdec_addend(Expr *expr, Expr *target) {
       int i1 = wtype == WT_I32 ? 0 : 1;
       int i2 = IS_DEC(expr) ? 2 : 0;
       ADD_CODE(CONST_OP[i1]);
-      ADD_ULEB128(addend);
+      ADD_LEB128(addend);
       ADD_CODE(ADDSUB_OP[i1 | i2]);
 
       if (type_size(type) < type_size(&tyInt))
