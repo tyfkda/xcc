@@ -10,7 +10,7 @@ typedef struct Vector Vector;
 
 typedef int64_t PpResult;
 
-typedef struct {
+typedef struct Stream {
   const char *filename;
   FILE *fp;
   int lineno;

@@ -113,6 +113,24 @@ static PpResult parse_defined(void) {
   return macro_get(alloc_name(start, end, false)) != NULL;
 }
 
+static PpResult parse_has_include(void) {
+  const char *start = skip_whitespaces(get_lex_p());
+  const char *p = start;
+
+  char *fn = NULL;
+  if (*p == '(') {
+    ++p;
+    fn = find_include_file(&p, pp_stream, false);
+    p = skip_whitespaces(p);
+    if (*p == ')')
+      ++p;
+    else
+      error("`)' expected");
+  }
+  set_source_string(p, pp_stream->filename, pp_stream->lineno);
+  return fn != NULL;
+}
+
 unsigned int pp_prevent_auto_next_line;
 
 static Token *match2(enum TokenKind kind) {
@@ -271,6 +289,8 @@ static PpResult literal(Token *tok) {
 static PpResult variable(Token *ident) {
   if (equal_name(ident->ident, alloc_cname("defined")))
     return parse_defined();
+  if (equal_name(ident->ident, alloc_name("__has_include", NULL, false)))
+    return parse_has_include();
   return 0;  // Undefined identifier is 0.
 }
 
