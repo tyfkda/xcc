@@ -229,13 +229,11 @@ static StructInfo *parse_struct(bool is_union, Table *attributes) {
       flag |= SIF_PACKED;
     Vector *v;
     if (table_try_get(attributes, alloc_name("aligned", NULL, false), (void**)&v)) {
-      // TODO: Calculate expression.
-      if (v->len != 1 || ((Token*)v->data[0])->kind != TK_INTLIT) {
-        parse_error(PE_NOFATAL, v->data[0], "constant integer expected");
-      } else {
-        const Token *tok = v->data[0];
-        aligned = tok->fixnum.value;
-      }
+      const Expr *expr = v->len > 0 ? v->data[0] : NULL;
+      if (v->len != 1 || expr->kind != EX_FIXNUM)
+        parse_error(PE_NOFATAL, expr != NULL ? expr->token : NULL, "constant integer expected");
+      else
+        aligned = expr->fixnum;
     }
   }
 
@@ -269,7 +267,7 @@ Type *parse_raw_type(ParsedTypeInfo *tinfo) {
   static const char ILLEGAL_TYPE_COMBINATION[] = "illegal type combination";
 
   Type *type = NULL;
-  Table *attributes = NULL;  // <Vector<Token*>>
+  Table *attributes = NULL;  // <Vector<Expr*>>
 
   TypeCombination tc = {0};
   Token *tok = NULL;

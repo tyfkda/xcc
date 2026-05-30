@@ -474,7 +474,7 @@ typedef struct Function {
   Stmt *body_block;  // NULL => Prototype definition.
   Table *label_table;  // <const Name*, GotoLabel*>
   void *extra;
-  Table *attributes;  // <Vector<Token*>>
+  Table *attributes;  // <Vector<Expr*>>
   int flag;
 } Function;
 

@@ -787,7 +787,7 @@ static Stmt *parse_stmt(void) {
   return new_stmt_expr(str_to_char_array_var(curscope, val));
 }
 
-static Table *parse_attribute(Table *attributes) {  // <Token*>
+static Table *parse_attribute(Table *attributes) {  // <Expr*>
   // __attribute__((name1, name2(p, q, ...), ...))
 
   if (consume(TK_LPAR, "`(' expected") == NULL || consume(TK_LPAR, "`(' expected") == NULL) {
@@ -809,15 +809,15 @@ static Table *parse_attribute(Table *attributes) {  // <Token*>
       params = new_vector();
       if (!match(TK_RPAR)) {
         for (;;) {
-          Token *token = match(-1);
-          if (token->kind == TK_EOF) {
-            parse_error(PE_NOFATAL, token, "`)' expected");
-            break;
-          }
-          vec_push(params, token);
+          Scope *bak_curscope = curscope;
+          curscope = NULL;
+          Expr *expr = parse_assign();
+          curscope = bak_curscope;
+          if (expr != NULL)
+            vec_push(params, expr);
           if (!match(TK_COMMA)) {
             if (!match(TK_RPAR))
-              parse_error(PE_NOFATAL, token, "`)' expected");
+              parse_error(PE_NOFATAL, NULL, "`)' expected");
             break;
           }
         }

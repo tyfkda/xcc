@@ -314,18 +314,19 @@ static Expr *variable(Token *ident) {
   BuiltinExprProc *proc = table_get(&builtin_expr_ident_table, name);
   if (proc != NULL)
     return (*proc)(ident);
-  Scope *scope;
-  VarInfo *varinfo = scope_find(curscope, name, &scope);
-  Type *type;
-  if (varinfo != NULL) {
-    if (varinfo->storage & VS_ENUM_MEMBER)
-      return new_expr_fixlit(varinfo->type, ident, varinfo->enum_member.value);
-    type = varinfo->type;
-  } else {
-    parse_error(PE_NOFATAL, ident, "`%.*s' undeclared", NAMES(ident->ident));
-    type = &tyInt;
-    scope = curscope;
-    add_var_to_scope(scope, ident, type, VS_USED, false);
+  Scope *scope = NULL;
+  Type *type = &tyInt;
+  if (curscope != NULL) {
+    VarInfo *varinfo = scope_find(curscope, name, &scope);
+    if (varinfo != NULL) {
+      if (varinfo->storage & VS_ENUM_MEMBER)
+        return new_expr_fixlit(varinfo->type, ident, varinfo->enum_member.value);
+      type = varinfo->type;
+    } else {
+      parse_error(PE_NOFATAL, ident, "`%.*s' undeclared", NAMES(ident->ident));
+      scope = curscope;
+      add_var_to_scope(scope, ident, type, VS_USED, false);
+    }
   }
   return new_expr_variable(name, type, ident, scope);
 }

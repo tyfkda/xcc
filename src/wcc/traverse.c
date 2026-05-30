@@ -108,18 +108,18 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, VarInf
   if (attributes != NULL) {
     const Vector *params;
     if (table_try_get(attributes, alloc_name("import_module", NULL, false), (void**)&params)) {
-      const Token *token = params->len > 0 ? params->data[0] : NULL;
-      if (params->len != 1 && token->kind != TK_STR)
-        parse_error(PE_NOFATAL, token, "import_module: string expected");
+      const Expr *expr = params->len > 0 ? params->data[0] : NULL;
+      if (params->len != 1 || expr->kind != EX_STR || expr->str.kind != STR_CHAR)
+        parse_error(PE_NOFATAL, expr != NULL ? expr->token : NULL, "import_module: string expected");
       else
-        finfo->module_name = alloc_name(token->str.buf, token->str.buf + token->str.len - 1, false);
+        finfo->module_name = alloc_name(expr->str.buf, expr->str.buf + (expr->str.len - 1), false);
     }
     if (table_try_get(attributes, alloc_name("import_name", NULL, false), (void**)&params)) {
-      const Token *token = params->len > 0 ? params->data[0] : NULL;
-      if (params->len != 1 && token->kind != TK_STR) {
-        parse_error(PE_NOFATAL, token, "import_name: string expected");
+      const Expr *expr = params->len > 0 ? params->data[0] : NULL;
+      if (params->len != 1 || expr->kind != EX_STR || expr->str.kind != STR_CHAR) {
+        parse_error(PE_NOFATAL, expr != NULL ? expr->token : NULL, "import_name: string expected");
       } else {
-        finfo->func_name = alloc_name(token->str.buf, token->str.buf + token->str.len - 1, false);
+        finfo->func_name = alloc_name(expr->str.buf, expr->str.buf + (expr->str.len - 1), false);
         finfo->flag |= FF_IMPORT_NAME;
       }
     }
