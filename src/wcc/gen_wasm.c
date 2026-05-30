@@ -841,7 +841,7 @@ static inline void epilogue(Function *func, uint32_t frame_size, Expr *bpvar, Ex
 
 static void gen_defun(Function *func) {
   VarInfo *funcvi = scope_find(global_scope, func->ident->ident, NULL);
-  if (is_function_omitted(funcvi))
+  if (is_function_omitted(funcvi, func->attributes))
     return;
 
   DataStorage *code = malloc_or_die(sizeof(*code));

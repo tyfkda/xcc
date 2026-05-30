@@ -361,7 +361,7 @@ static void emit_function_section(EmitWasm *ew) {
       if (extra == NULL)
         continue;
       FuncInfo *finfo = extra->finfo;
-      if (is_function_omitted(finfo->varinfo))
+      if (is_function_omitted(finfo->varinfo, func->attributes))
         continue;
       ++function_count;
       int type_index = finfo->type_index;
@@ -513,7 +513,7 @@ static void emit_code_section(EmitWasm *ew) {
       if (extra == NULL)
         continue;
       FuncInfo *finfo = extra->finfo;
-      if (is_function_omitted(finfo->varinfo))
+      if (is_function_omitted(finfo->varinfo, func->attributes))
         continue;
 
       DataStorage *code = extra->code;
@@ -609,7 +609,7 @@ static inline uint32_t emit_linking_symtab_function(DataStorage *linking_section
     const Name *name;
     FuncInfo *finfo;
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&finfo)) != -1; ) {
-      if (finfo->func != NULL || finfo->flag == 0 || is_function_omitted(finfo->varinfo))
+      if (finfo->func != NULL || finfo->flag == 0 || is_function_omitted(finfo->varinfo, NULL))
         continue;
       emit_linking_symtab_function_sub(linking_section, finfo, name);
       ++count;
@@ -625,7 +625,7 @@ static inline uint32_t emit_linking_symtab_function(DataStorage *linking_section
       if (extra == NULL)
         continue;
       FuncInfo *finfo = extra->finfo;
-      if (is_function_omitted(finfo->varinfo))
+      if (is_function_omitted(finfo->varinfo, func->attributes))
         continue;
       const Name *name = func->ident->ident;
       emit_linking_symtab_function_sub(linking_section, finfo, name);
@@ -857,7 +857,7 @@ static void emit_reloc_code_section(EmitWasm *ew) {
     if (extra == NULL)
       continue;
     FuncInfo *finfo = extra->finfo;
-    if (is_function_omitted(finfo->varinfo))
+    if (is_function_omitted(finfo->varinfo, func->attributes))
       continue;
 
     Vector *reloc_code = extra->reloc_code;

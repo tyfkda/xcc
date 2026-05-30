@@ -780,7 +780,7 @@ static void traverse_gotos(Function *func) {
 
 static void traverse_defun(Function *func) {
   VarInfo *funcvi = scope_find(global_scope, func->ident->ident, NULL);
-  if (!(funcvi->storage & VS_USED) && is_function_omitted(funcvi))
+  if (!(funcvi->storage & VS_USED) && is_function_omitted(funcvi, func->attributes))
     return;
 
   // Static variables.
@@ -971,7 +971,7 @@ static int detect_compile_unit_flags(Vector *decls) {
 
     Function *func = decl->defun.func;
     VarInfo *funcvi = scope_find(global_scope, func->ident->ident, NULL);
-    if (is_function_omitted(funcvi))
+    if (is_function_omitted(funcvi, func->attributes))
       continue;
 
     if (detect_compile_unit_sp(func)) {
@@ -999,7 +999,7 @@ static inline void assign_symbol_index(void) {
   for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&finfo)) != -1; ) {
     if (finfo->flag == 0 && finfo->func == NULL)
       continue;
-    if (is_function_omitted(finfo->varinfo))
+    if (is_function_omitted(finfo->varinfo, finfo->func != NULL ? finfo->func->attributes : NULL))
       continue;
     ++symbol_index;
   }
@@ -1053,7 +1053,7 @@ static inline void assign_function_index(Vector *decls) {
     const Name *name;
     FuncInfo *finfo;
     for (int it = 0; (it = table_iterate(&func_info_table, it, &name, (void**)&finfo)) != -1; ) {
-      if (finfo->func != NULL || finfo->flag == 0 || is_function_omitted(finfo->varinfo))
+      if (finfo->func != NULL || finfo->flag == 0 || is_function_omitted(finfo->varinfo, NULL))
         continue;
       finfo->index = index++;
       VERBOSE("%2d: %.*s  (import)\n", finfo->index, NAMES(name));
@@ -1069,7 +1069,7 @@ static inline void assign_function_index(Vector *decls) {
       if (extra == NULL)
         continue;
       FuncInfo *finfo = extra->finfo;
-      if (finfo == NULL || is_function_omitted(finfo->varinfo))
+      if (finfo == NULL || is_function_omitted(finfo->varinfo, func->attributes))
         continue;
       finfo->index = index++;
       const Name *name = func->ident->ident;
@@ -1146,7 +1146,7 @@ void traverse_ast(Vector *decls) {
       continue;
     Function *func = decl->defun.func;
     VarInfo *funcvi = scope_find(global_scope, func->ident->ident, NULL);
-    if (!(funcvi->storage & VS_USED) && is_function_omitted(funcvi))
+    if (!(funcvi->storage & VS_USED) && is_function_omitted(funcvi, func->attributes))
       continue;
     int count = ((FuncExtra*)func->extra)->setjmp_count;
     if (count > 0) {

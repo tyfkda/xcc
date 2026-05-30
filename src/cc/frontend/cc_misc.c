@@ -6,13 +6,20 @@
 #include "ast.h"
 #include "fe_misc.h"
 #include "initializer.h"
+#include "table.h"
 #include "type.h"
 #include "util.h"
 #include "var.h"
 
-bool is_function_omitted(const VarInfo *funcvi) {
+bool is_function_omitted(const VarInfo *funcvi, Table *attributes) {
   assert(funcvi != NULL);
   int storage = funcvi->storage;
+  if (attributes != NULL) {
+    if (table_try_get(attributes, alloc_name("__always_inline__", NULL, false), NULL) ||
+        table_try_get(attributes, alloc_name("__gnu_inline__", NULL, false), NULL))
+      return true;
+  }
+
   if ((storage & VS_REF_TAKEN) || ((storage & (VS_INLINE | VS_EXTERN)) == (VS_INLINE | VS_EXTERN)))
     return false;
   return (satisfy_inline_criteria(funcvi) ||

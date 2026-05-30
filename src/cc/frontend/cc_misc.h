@@ -6,10 +6,11 @@
 
 typedef struct Expr Expr;
 typedef struct Initializer Initializer;
+typedef struct Table Table;
 typedef struct Type Type;
 typedef struct VarInfo VarInfo;
 
-bool is_function_omitted(const VarInfo *funcvi);
+bool is_function_omitted(const VarInfo *funcvi, Table *attributes);
 
 typedef struct {
   void (*emit_align)(void *ud, int align);
