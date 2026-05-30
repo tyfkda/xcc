@@ -358,7 +358,9 @@ char *format_func_name(const Name *funcname, bool global) {
 }
 
 bool is_weak_attr(Table *attributes) {
-  return attributes != NULL && table_try_get(attributes, alloc_name("weak", NULL, false), NULL);
+  return attributes != NULL &&
+         (table_try_get(attributes, alloc_name("weak", NULL, false), NULL) ||
+          table_try_get(attributes, alloc_name("__weak__", NULL, false), NULL));
 }
 
 static void emit_asm(const Asm *asm_) {

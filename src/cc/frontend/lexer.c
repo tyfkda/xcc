@@ -39,7 +39,7 @@ static const struct {
   {"unsigned", TK_UNSIGNED},
   {"signed", TK_SIGNED},
   {"static", TK_STATIC},
-  {"inline", TK_INLINE},
+  {"inline", TK_INLINE}, {"__inline", TK_INLINE}, {"__inline__", TK_INLINE},
   {"extern", TK_EXTERN},
   {"volatile", TK_VOLATILE},
   {"restrict", TK_RESTRICT},
@@ -62,7 +62,7 @@ static const struct {
   {"_Noreturn", TK_NORETURN},
   {"_Generic", TK_GENERIC},
   {"__auto_type", TK_AUTO_TYPE},
-  {"typeof", TK_TYPEOF}, {"__typeof__", TK_TYPEOF},
+  {"typeof", TK_TYPEOF}, {"__typeof", TK_TYPEOF}, {"__typeof__", TK_TYPEOF},
 };
 
 static const struct {
