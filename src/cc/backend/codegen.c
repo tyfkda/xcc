@@ -2,7 +2,6 @@
 #include "codegen.h"
 
 #include <assert.h>
-#include <inttypes.h>
 #include <limits.h>  // CHAR_BIT
 #include <stdbool.h>
 #include <stdlib.h>  // qsort

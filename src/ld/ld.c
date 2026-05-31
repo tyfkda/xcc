@@ -3,7 +3,7 @@
 #include <ar.h>
 #include <assert.h>
 #include <fcntl.h>
-#include <inttypes.h>
+#include <inttypes.h>  // PRIx32, PRIx64, PRIu64
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>

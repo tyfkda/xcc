@@ -2,7 +2,6 @@
 #include "parser.h"
 
 #include <assert.h>
-#include <inttypes.h>  // PRId64
 #include <string.h>
 
 #include "ast.h"

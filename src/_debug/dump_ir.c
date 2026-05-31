@@ -1,5 +1,5 @@
 #include <assert.h>
-#include <inttypes.h>
+#include <inttypes.h>  // PRId64, PRIdPTR
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

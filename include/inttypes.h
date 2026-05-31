@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>  // inttypes.h includes stdint.h.
+
 #define PRId32   "d"
 #define PRIu32   "u"
 #define PRIo32   "o"

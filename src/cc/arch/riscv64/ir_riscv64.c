@@ -2,7 +2,7 @@
 #include "ir.h"
 
 #include <assert.h>
-#include <inttypes.h>
+#include <inttypes.h>  // PRId64
 #include <stdlib.h>
 #include <string.h>
 
@@ -221,9 +221,9 @@ static void ei_iofs(IR *ir) {
     label = MANGLE(label);
   label = quote_label(label);
   const char *dst = kReg64s[ir->dst->phys];
-  if (ir->iofs.offset == 0)
+  if (ir->iofs.offset == 0) {
     LA(dst, label);
-  else {
+  } else {
     int64_t offset = ir->iofs.offset;
     char op = '+';
     if (offset < 0) {

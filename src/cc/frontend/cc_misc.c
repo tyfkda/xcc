@@ -2,7 +2,6 @@
 #include "cc_misc.h"
 
 #include <assert.h>
-#include <inttypes.h>  // PRId64
 
 #include "ast.h"
 #include "fe_misc.h"
