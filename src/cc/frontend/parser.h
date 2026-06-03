@@ -21,6 +21,7 @@ typedef struct {
   Type *rawType;
   int storage;
   Token *ident;
+  Table *attributes;  // <Vector<Token*>>
 } ParsedTypeInfo;
 
 typedef Expr *(*BuiltinExprProc)(const Token*);

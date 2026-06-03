@@ -270,6 +270,7 @@ Type *parse_raw_type(ParsedTypeInfo *tinfo) {
   static const char ILLEGAL_TYPE_COMBINATION[] = "illegal type combination";
 
   Type *type = NULL;
+  Table *attributes = NULL;  // <Vector<Token*>>
 
   TypeCombination tc = {0};
   Token *tok = NULL;
@@ -278,6 +279,11 @@ Type *parse_raw_type(ParsedTypeInfo *tinfo) {
       check_type_combination(&tc, tok);  // Check for last token
     tok = match(-1);
     switch (tok->kind) {
+    case TK_ATTRIBUTE:
+    case TK_NORETURN:
+      unget_token(tok);
+      attributes = parse_attributes(attributes);
+      continue;
     case TK_UNSIGNED:
       ++tc.unsigned_num;
       continue;
@@ -341,7 +347,7 @@ Type *parse_raw_type(ParsedTypeInfo *tinfo) {
         if (!no_type_combination(&tc, 0, 0))
           parse_error(PE_NOFATAL, tok, ILLEGAL_TYPE_COMBINATION);
 
-        Table *attributes = parse_attributes(NULL);
+        attributes = parse_attributes(NULL);
         const Name *name = NULL;
         Token *ident;
         if ((ident = match(TK_IDENT)) != NULL)
@@ -433,6 +439,7 @@ Type *parse_raw_type(ParsedTypeInfo *tinfo) {
     tinfo->rawType = type;
     tinfo->storage = tc.storage;
     tinfo->ident = NULL;
+    tinfo->attributes = attributes;
   }
 
   return type;

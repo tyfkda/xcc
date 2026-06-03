@@ -954,9 +954,9 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
 }
 
 // <declaration> ::=  {<declaration-specifier>}+ {<init-declarator>}* ;
-static void parse_global_var_decl(ParsedTypeInfo *tinfo, Type *type,
-                                  Table *attributes, Vector *decls) {
+static void parse_global_var_decl(ParsedTypeInfo *tinfo, Type *type, Vector *decls) {
   UNUSED(decls);
+  Table *attributes = tinfo->attributes;
   for (;;) {
     attributes = parse_attributes(attributes);
 
@@ -1051,8 +1051,6 @@ static Declaration *parse_declaration(Vector *decls) {
     return new_decl_asm(tok, &asm_->asm_);
   }
 
-  Table *attributes = parse_attributes(NULL);
-
   ParsedTypeInfo tinfo;
   Type *type = parse_var_def(NULL, &tinfo);
   if (type != NULL) {
@@ -1077,12 +1075,12 @@ static Declaration *parse_declaration(Vector *decls) {
 
       const Token *tok = match(TK_LBRACE);
       if (tok != NULL)
-        return parse_defun(type, tinfo.storage, tinfo.ident, tok, attributes);
+        return parse_defun(type, tinfo.storage, tinfo.ident, tok, tinfo.attributes);
       // Function prototype declaration:
       // Join with global variable declaration to handle multiple prototype declarations.
     }
 
-    parse_global_var_decl(&tinfo, type, attributes, decls);
+    parse_global_var_decl(&tinfo, type, decls);
     return NULL;
   }
   parse_error(PE_NOFATAL, NULL, "unexpected token");
