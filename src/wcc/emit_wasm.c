@@ -143,7 +143,6 @@ static void emit_string(void *ud, Expr *str, size_t size) {
   size_t src_size = str->str.len * type_size(str->type->pa.ptrof);
   if (size > src_size) {
     unsigned char *buf = calloc_or_die(size);
-    assert(buf != NULL);
     memcpy(buf, str->str.buf, src_size);
     data_append(ds, buf, size);
     free(buf);

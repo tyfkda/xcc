@@ -620,7 +620,6 @@ Type *parse_direct_declarator(Type *type, Token **pident) {
   if (match(TK_LPAR)) {
     Type *ret = type;
     Type *placeholder = calloc_or_die(sizeof(*placeholder));
-    assert(placeholder != NULL);
     memcpy(placeholder, type, sizeof(*placeholder));
 
     type = parse_declarator(placeholder, &ident);
