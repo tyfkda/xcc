@@ -147,16 +147,15 @@ static Expr *parse_generic(void) {
     Token *tok = fetch_token();
     Type *type = NULL;
     if (!match(TK_DEFAULT)) {
-      int storage;
-      Token *ident;
-      type = parse_var_def(NULL, &storage, &ident);
+      ParsedTypeInfo tinfo;
+      type = parse_var_def(NULL, &tinfo);
       if (type == NULL) {
         parse_error(PE_NOFATAL, tok, "type expected");
         break;
       }
-      if (storage != 0)
+      if (tinfo.storage != 0)
         parse_error(PE_NOFATAL, tok, "storage class specifier not allowed");
-      if (ident != NULL)
+      if (tinfo.ident != NULL)
         parse_error(PE_NOFATAL, tok, "identifier not allowed");
     }
     consume(TK_COLON, "`:' expected");
@@ -578,9 +577,9 @@ static Expr *grouping(void) {
 }
 
 static Expr *lparen(Token *tok) {
-  int storage;
   Token *token = fetch_token();
-  Type *type = parse_var_def(NULL, &storage, NULL);
+  ParsedTypeInfo tinfo;
+  Type *type = parse_var_def(NULL, &tinfo);
   if (type == NULL) {
     if (!match(TK_LBRACE))
       return grouping();
@@ -600,7 +599,7 @@ static Expr *lparen(Token *tok) {
   // (type)
   consume(TK_RPAR, "`)' expected");
 
-  if (storage & (VS_EXTERN | VS_STATIC | VS_TYPEDEF | VS_INLINE))
+  if (tinfo.storage & (VS_EXTERN | VS_STATIC | VS_TYPEDEF | VS_INLINE))
     parse_error(PE_NOFATAL, token, "storage specifier not allowed");
   if (type->kind == TY_AUTO) {
     parse_error(PE_NOFATAL, token, "auto type not allowed");
@@ -665,7 +664,7 @@ static Expr *size_align_of(Token *token) {
   Type *type = NULL;
   const Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
-    type = parse_var_def(NULL, NULL, NULL);
+    type = parse_var_def(NULL, NULL);
     if (type != NULL) {
       consume(TK_RPAR, "`)' expected");
 #ifndef __NO_VLA

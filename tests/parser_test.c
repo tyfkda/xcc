@@ -18,9 +18,9 @@ bool expect_parse_type(const char *title, const Type *expected, const char *iden
 
   set_source_file(NULL, title);
   set_source_string(source, "*test*", 1);
-  int storage;
-  Token *ident;
-  const Type *actual = parse_var_def(NULL, &storage, &ident);
+  ParsedTypeInfo tinfo;
+  const Type *actual = parse_var_def(NULL, &tinfo);
+  const Token *ident = tinfo.ident;
   if (actual == NULL && expected != NULL) {
     return fail("parsing type failed");
   } else if (!same_type(expected, actual)) {
