@@ -121,11 +121,10 @@ static StructInfo *parse_struct(bool is_union, Table *attributes) {
       flex_arr_mem = NULL;
     }
 
-    Type *rawType = NULL;
+    ParsedTypeInfo tinfo;
+    tinfo.rawType = NULL;
     do {
-      int storage;
-      Token *ident;
-      Type *type = parse_var_def(&rawType, &storage, &ident);
+      Type *type = parse_var_def(tinfo.rawType, &tinfo);
       if (type == NULL) {
         parse_error(PE_NOFATAL, NULL, "type expected");
         break;
@@ -133,7 +132,7 @@ static StructInfo *parse_struct(bool is_union, Table *attributes) {
 
       if (!not_void(type, NULL))
         type = &tyInt;  // Deceive to continue compiling.
-      if (!ensure_type_info(type, ident, curscope, true))
+      if (!ensure_type_info(type, tinfo.ident, curscope, true))
         continue;
       Expr *bit = NULL;
 #ifndef __NO_BITFIELD
@@ -143,7 +142,7 @@ static StructInfo *parse_struct(bool is_union, Table *attributes) {
       }
 #endif
       // Allow ident to be null for anonymous struct member or bitfield, otherwise raise error.
-      if (ident == NULL && type->kind != TY_STRUCT && bit == NULL)
+      if (tinfo.ident == NULL && type->kind != TY_STRUCT && bit == NULL)
         parse_error(PE_NOFATAL, NULL, "ident expected");
 #ifndef __NO_BITFIELD
       if (bit != NULL) {
@@ -153,7 +152,7 @@ static StructInfo *parse_struct(bool is_union, Table *attributes) {
         } else if (bit->fixnum > (Fixnum)(type_size(type) * TARGET_CHAR_BIT)) {
           parse_error(PE_NOFATAL, bit->token, "bit width exceeds");
           bit = NULL;
-        } else if (bit->fixnum == 0 && ident != NULL) {
+        } else if (bit->fixnum == 0 && tinfo.ident != NULL) {
           parse_error(PE_NOFATAL, bit->token, "bit width zero with name");
         }
       }
@@ -163,38 +162,38 @@ static StructInfo *parse_struct(bool is_union, Table *attributes) {
       case TY_ARRAY:
 #ifndef __NO_VLA
         if (type->pa.vla != NULL) {
-          parse_error(PE_NOFATAL, ident, "VLA not allowed in struct/union");
+          parse_error(PE_NOFATAL, tinfo.ident, "VLA not allowed in struct/union");
           // To continue compile.
           type->pa.vla = NULL;
           type->pa.length = 1;
         }
 #endif
         if (type->pa.length == LEN_UND) {
-          assert(ident != NULL);
-          flex_arr_mem = ident;
+          assert(tinfo.ident != NULL);
+          flex_arr_mem = tinfo.ident;
           type->pa.length = LEN_FAM;
         }
         break;
       case TY_STRUCT:
         assert(type->struct_.info != NULL);
         if (type->struct_.info->flag & SIF_FLEXIBLE) {
-          assert(ident != NULL);
-          flex_arr_mem = ident;
+          assert(tinfo.ident != NULL);
+          flex_arr_mem = tinfo.ident;
         }
         break;
       case TY_AUTO:
-        parse_error(PE_NOFATAL, ident, "auto type not allowed in struct/union");
+        parse_error(PE_NOFATAL, tinfo.ident, "auto type not allowed in struct/union");
         type = &tyInt;
         break;
       default:  break;
       }
 
-      const Name *name = ident != NULL ? ident->ident : NULL;
+      const Name *name = tinfo.ident != NULL ? tinfo.ident->ident : NULL;
       if (name != NULL) {
         for (int i = 0; i < count; ++i) {
           const MemberInfo *minfo = &members[i];
           if (minfo->name != NULL && equal_name(minfo->name, name)) {
-            parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(name));
+            parse_error(PE_NOFATAL, tinfo.ident, "`%.*s' already defined", NAMES(name));
             name = NULL;  // Avoid conflict.
             break;
           }
@@ -246,7 +245,7 @@ static StructInfo *parse_struct(bool is_union, Table *attributes) {
 
 static Type *parse_typeof(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
-  Type *type = parse_var_def(NULL, NULL, NULL);
+  Type *type = parse_var_def(NULL, NULL);
   if (type == NULL) {
     Expr *e = parse_expr();
     if (e == NULL) {
@@ -265,12 +264,13 @@ static Type *parse_typeof(const Token *tok) {
 // <declaration-specifier> ::= <storage-class-specifier>
 //                           | <type-specifier>
 //                           | <type-qualifier>
-Type *parse_raw_type(int *pstorage) {
+Type *parse_raw_type(ParsedTypeInfo *tinfo) {
   static const char MULTIPLE_STORAGE_SPECIFIED[] = "multiple storage specified";
   static const char MULTIPLE_QUALIFIER_SPECIFIED[] = "multiple qualifier specified";
   static const char ILLEGAL_TYPE_COMBINATION[] = "illegal type combination";
 
   Type *type = NULL;
+  Table *attributes = NULL;  // <Vector<Token*>>
 
   TypeCombination tc = {0};
   Token *tok = NULL;
@@ -279,6 +279,11 @@ Type *parse_raw_type(int *pstorage) {
       check_type_combination(&tc, tok);  // Check for last token
     tok = match(-1);
     switch (tok->kind) {
+    case TK_ATTRIBUTE:
+    case TK_NORETURN:
+      unget_token(tok);
+      attributes = parse_attributes(attributes);
+      continue;
     case TK_UNSIGNED:
       ++tc.unsigned_num;
       continue;
@@ -342,7 +347,7 @@ Type *parse_raw_type(int *pstorage) {
         if (!no_type_combination(&tc, 0, 0))
           parse_error(PE_NOFATAL, tok, ILLEGAL_TYPE_COMBINATION);
 
-        Table *attributes = parse_attributes(NULL);
+        attributes = parse_attributes(NULL);
         const Name *name = NULL;
         Token *ident;
         if ((ident = match(TK_IDENT)) != NULL)
@@ -430,8 +435,12 @@ Type *parse_raw_type(int *pstorage) {
     }
   }
 
-  if (pstorage != NULL)
-    *pstorage = tc.storage;
+  if (tinfo != NULL) {
+    tinfo->rawType = type;
+    tinfo->storage = tc.storage;
+    tinfo->ident = NULL;
+    tinfo->attributes = attributes;
+  }
 
   return type;
 }
@@ -615,14 +624,16 @@ static Type *parse_direct_declarator_suffix(Type *type) {
   }
   return type;
 }
-Type *parse_direct_declarator(Type *type, Token **pident) {
+Type *parse_direct_declarator(Type *type, ParsedTypeInfo *tinfo) {
   Token *ident = NULL;
   if (match(TK_LPAR)) {
     Type *ret = type;
     Type *placeholder = calloc_or_die(sizeof(*placeholder));
     memcpy(placeholder, type, sizeof(*placeholder));
 
-    type = parse_declarator(placeholder, &ident);
+    ParsedTypeInfo tmp;
+    type = parse_declarator(placeholder, &tmp);
+    ident = tmp.ident;
     consume(TK_RPAR, "`)' expected");
 
     Type *inner = parse_direct_declarator_suffix(ret);
@@ -632,16 +643,16 @@ Type *parse_direct_declarator(Type *type, Token **pident) {
     type = parse_direct_declarator_suffix(type);
   }
 
-  if (pident != NULL)
-    *pident = ident;
+  if (tinfo != NULL)
+    tinfo->ident = ident;
 
   return type;
 }
 
 // <declarator> ::= {<pointer>}? <direct-declarator>
-Type *parse_declarator(Type *rawtype, Token **pident) {
+Type *parse_declarator(Type *rawtype, ParsedTypeInfo *tinfo) {
   Type *type = parse_pointer(rawtype);
-  return parse_direct_declarator(type, pident);
+  return parse_direct_declarator(type, tinfo);
 }
 
 // <parameter-type-list> ::= <parameter-list>
@@ -675,22 +686,21 @@ Vector *parse_funparams(bool *pvaargs) {
         break;
       }
 
-      int storage;
-      Token *ident;
-      Type *type = parse_var_def(NULL, &storage, &ident);
+      ParsedTypeInfo tinfo;
+      Type *type = parse_var_def(NULL, &tinfo);
       if (type == NULL) {
         parse_error(PE_NOFATAL, NULL, "type expected");
         type = &tyInt;
       } else {
-        if (storage & VS_STATIC)
-          parse_error(PE_NOFATAL, ident, "`static' for function parameter");
-        if (storage & VS_EXTERN)
-          parse_error(PE_NOFATAL, ident, "`extern' for function parameter");
-        if (storage & VS_TYPEDEF)
-          parse_error(PE_NOFATAL, ident, "`typedef' for function parameter");
+        if (tinfo.storage & VS_STATIC)
+          parse_error(PE_NOFATAL, tinfo.ident, "`static' for function parameter");
+        if (tinfo.storage & VS_EXTERN)
+          parse_error(PE_NOFATAL, tinfo.ident, "`extern' for function parameter");
+        if (tinfo.storage & VS_TYPEDEF)
+          parse_error(PE_NOFATAL, tinfo.ident, "`typedef' for function parameter");
 
         if (vars->len == 0 && type->kind == TY_VOID) {  // fun(void)
-          if (ident != NULL || !match(TK_RPAR))
+          if (tinfo.ident != NULL || !match(TK_RPAR))
             parse_error(PE_NOFATAL, NULL, "`)' expected");
           break;
         }
@@ -710,23 +720,23 @@ Vector *parse_funparams(bool *pvaargs) {
           break;
         case TY_FUNC:   type = ptrof(type); break;
         case TY_AUTO:
-          parse_error(PE_NOFATAL, ident, "auto type not allowed in function parameter");
+          parse_error(PE_NOFATAL, tinfo.ident, "auto type not allowed in function parameter");
           type = &tyInt;
           break;
         default: break;
         }
 
-        ensure_type_info(type, ident, curscope, false);
+        ensure_type_info(type, tinfo.ident, curscope, false);
 
         if (type->kind == TY_STRUCT) {
           if (type->struct_.info != NULL && type->struct_.info->flag & SIF_FLEXIBLE)
-            parse_error(PE_NOFATAL, ident, "using flexible array as a parameter not allowed");
+            parse_error(PE_NOFATAL, tinfo.ident, "using flexible array as a parameter not allowed");
         }
 
-        if (ident != NULL && var_find(vars, ident->ident) >= 0)
-          parse_error(PE_NOFATAL, ident, "`%.*s' already defined", NAMES(ident->ident));
+        if (tinfo.ident != NULL && var_find(vars, tinfo.ident->ident) >= 0)
+          parse_error(PE_NOFATAL, tinfo.ident, "`%.*s' already defined", NAMES(tinfo.ident->ident));
         else
-          var_add(vars, ident, type, storage | VS_PARAM);
+          var_add(vars, tinfo.ident, type, tinfo.storage | VS_PARAM);
       }
       if (match(TK_RPAR))
         break;

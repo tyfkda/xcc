@@ -169,30 +169,26 @@ static void def_type(Type *type, Token *ident) {
   }
 }
 
-Type *parse_var_def(Type **prawType, int *pstorage, Token **pident) {
-  Type *rawType = prawType != NULL ? *prawType : NULL;
+Type *parse_var_def(Type *rawType, ParsedTypeInfo *tinfo) {
   if (rawType == NULL) {
-    rawType = parse_raw_type(pstorage);
+    rawType = parse_raw_type(tinfo);
     if (rawType == NULL)
       return NULL;
-    if (prawType != NULL)
-      *prawType = rawType;
   }
 
   if (rawType->kind == TY_AUTO)
-    return parse_direct_declarator(rawType, pident);
+    return parse_direct_declarator(rawType, tinfo);
 
-  return parse_declarator(rawType, pident);
+  return parse_declarator(rawType, tinfo);
 }
 
-static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token *ident) {
+static Vector *parse_vardecl_cont(Type *type, ParsedTypeInfo *tinfo) {
   Vector *decls = NULL;
   bool first = true;
   do {
-    int tmp_storage = storage;
     if (!first) {
-      type = parse_var_def(&rawType, &tmp_storage, &ident);
-      if (type == NULL || ident == NULL) {
+      type = parse_var_def(tinfo->rawType, tinfo);
+      if (type == NULL || tinfo->ident == NULL) {
         parse_error(PE_NOFATAL, NULL, "ident expected");
         return decls;
       }
@@ -206,7 +202,7 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
       type = new_func_type(type, param_types, vaargs);
       type->func.param_vars = param_vars;
     } else {
-      if (!(tmp_storage & VS_TYPEDEF)) {
+      if (!(tinfo->storage & VS_TYPEDEF)) {
         if (!not_void(type, NULL))
           type = &tyInt;  // Deceive to continue compiling.
       }
@@ -214,15 +210,15 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
 
     assert(!is_global_scope(curscope));
 
-    if (!(storage & (VS_EXTERN | VS_TYPEDEF)))
-      ensure_type_info(type, ident, curscope, true);
+    if (!(tinfo->storage & (VS_EXTERN | VS_TYPEDEF)))
+      ensure_type_info(type, tinfo->ident, curscope, true);
 
 #ifndef __NO_VLA
     if (type->kind == TY_ARRAY && type->pa.vla != NULL)
       type = array_to_ptr(type);
 #endif
 
-    if (tmp_storage & VS_TYPEDEF) {
+    if (tinfo->storage & VS_TYPEDEF) {
 #ifndef __NO_VLA
       Expr *assign_sizevar = reserve_vla_type_size(type);
       if (assign_sizevar != NULL) {
@@ -242,7 +238,7 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
         vec_push(decls, decl);
       }
 #endif
-      def_type(type, ident);
+      def_type(type, tinfo->ident);
       continue;
     }
 
@@ -272,7 +268,7 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
     }
 #endif
 
-    VarInfo *varinfo = add_var_to_scope(curscope, ident, type, tmp_storage, false);
+    VarInfo *varinfo = add_var_to_scope(curscope, tinfo->ident, type, tinfo->storage, false);
     if (type->kind != TY_FUNC) {
       Initializer *init = match(TK_ASSIGN) ? parse_initializer() : NULL;
 
@@ -281,9 +277,9 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
         if (init != NULL && init->kind == IK_MULTI && init->multi->len == 1)
           init = init->multi->data[0];
         if (init == NULL) {
-          parse_error(PE_NOFATAL, ident, "auto type must have initializer");
+          parse_error(PE_NOFATAL, tinfo->ident, "auto type must have initializer");
         } else if (init->kind != IK_SINGLE) {
-          parse_error(PE_NOFATAL, ident, "auto type must have single initializer");
+          parse_error(PE_NOFATAL, tinfo->ident, "auto type must have single initializer");
         } else {
           type = init->single->type;
           switch (type->kind) {
@@ -301,9 +297,9 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
         }
       }
 
-      init = check_vardecl(&type, ident, tmp_storage, init);
+      init = check_vardecl(&type, tinfo->ident, tinfo->storage, init);
       varinfo->type = type;  // type might be changed.
-      if (init != NULL && !(tmp_storage & (VS_STATIC | VS_EXTERN))) {
+      if (init != NULL && !(tinfo->storage & (VS_STATIC | VS_EXTERN))) {
         VarDecl *decl = new_vardecl(varinfo);
         if (decls == NULL)
           decls = new_vector();
@@ -315,14 +311,12 @@ static Vector *parse_vardecl_cont(Type *rawType, Type *type, int storage, Token 
 }
 
 static bool parse_vardecl(Vector *stmts) {
-  Type *rawType = NULL;
-  int storage;
-  Token *ident;
-  Type *type = parse_var_def(&rawType, &storage, &ident);
+  ParsedTypeInfo tinfo;
+  Type *type = parse_var_def(NULL, &tinfo);
   if (type == NULL)
     return false;
 
-  if (ident == NULL) {
+  if (tinfo.ident == NULL) {
     if ((type->kind == TY_STRUCT ||
          (type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM)) &&
         match(TK_SEMICOL)) {
@@ -332,7 +326,7 @@ static bool parse_vardecl(Vector *stmts) {
       return false;
     }
   } else {
-    Vector *decls = parse_vardecl_cont(rawType, type, storage, ident);
+    Vector *decls = parse_vardecl_cont(type, &tinfo);
     if (consume(TK_SEMICOL, "`;' expected")) {
       if (decls != NULL) {
         if (!is_global_scope(curscope))
@@ -487,18 +481,16 @@ static Stmt *parse_for(const Token *tok) {
   Scope *scope = NULL;
   Stmt *block = NULL;  // Implicit block is created if variable declaration exists.
   if (!match(TK_SEMICOL)) {
-    Type *rawType = NULL;
-    int storage;
-    Token *ident;
-    Type *type = parse_var_def(&rawType, &storage, &ident);
+    ParsedTypeInfo tinfo;
+    Type *type = parse_var_def(NULL, &tinfo);
     if (type != NULL) {
-      if (ident == NULL) {
+      if (tinfo.ident == NULL) {
         parse_error(PE_NOFATAL, NULL, "ident expected");
       } else {
         scope = enter_scope(curfunc);
         block = new_stmt_block(tok, scope);
 
-        Vector *decls = parse_vardecl_cont(rawType, type, storage, ident);
+        Vector *decls = parse_vardecl_cont(type, &tinfo);
         if (decls != NULL) {
           Vector *stmts = block->block.stmts;
           construct_initializing_stmts(decls);
@@ -962,9 +954,9 @@ static Declaration *parse_defun(Type *functype, int storage, Token *ident, const
 }
 
 // <declaration> ::=  {<declaration-specifier>}+ {<init-declarator>}* ;
-static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token *ident,
-                                  Table *attributes, Vector *decls) {
+static void parse_global_var_decl(ParsedTypeInfo *tinfo, Type *type, Vector *decls) {
   UNUSED(decls);
+  Table *attributes = tinfo->attributes;
   for (;;) {
     attributes = parse_attributes(attributes);
 
@@ -973,33 +965,33 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
       type = array_to_ptr(type);
 #endif
 
-    if (storage & VS_TYPEDEF) {
-      if (ident != NULL) {
+    if (tinfo->storage & VS_TYPEDEF) {
+      if (tinfo->ident != NULL) {
 #ifndef __NO_VLA
         if (is_global_scope(curscope) && type->kind == TY_PTR && type->pa.vla != NULL)
-          parse_error(PE_NOFATAL, ident, "variable length array cannot use in global scope");
+          parse_error(PE_NOFATAL, tinfo->ident, "variable length array cannot use in global scope");
 #endif
-        def_type(type, ident);
+        def_type(type, tinfo->ident);
       }
     } else {
       if (type->kind == TY_VOID) {
-        if (ident != NULL)
-          parse_error(PE_NOFATAL, ident, "`void' not allowed");
+        if (tinfo->ident != NULL)
+          parse_error(PE_NOFATAL, tinfo->ident, "`void' not allowed");
       } else if (type->kind == TY_FUNC) {
         // Prototype declaration.
-        if (ident == NULL) {
+        if (tinfo->ident == NULL) {
           parse_error(PE_NOFATAL, NULL, "ident expected");
         } else {
-          Function *func = define_func(type, ident, type->func.param_vars, storage, attributes);
-          VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
+          Function *func = define_func(type, tinfo->ident, type->func.param_vars, tinfo->storage, attributes);
+          VarInfo *varinfo = scope_find(global_scope, tinfo->ident->ident, NULL);
           assert(varinfo != NULL);
 
           Declaration *decl = new_decl_defun(func);
           varinfo->global.funcdecl = decl;
 
-          if ((storage & (VS_INLINE | VS_EXTERN)) == (VS_INLINE | VS_EXTERN)) {
+          if ((tinfo->storage & (VS_INLINE | VS_EXTERN)) == (VS_INLINE | VS_EXTERN)) {
             // To make inline function output, add to declarations.
-            VarInfo *varinfo = scope_find(global_scope, ident->ident, NULL);
+            VarInfo *varinfo = scope_find(global_scope, tinfo->ident->ident, NULL);
             if (varinfo != NULL && varinfo->type->kind == TY_FUNC &&
                 (varinfo->storage & (VS_INLINE | VS_STATIC | VS_EXTERN)) == VS_INLINE) {
               varinfo->storage |= VS_EXTERN;
@@ -1011,8 +1003,8 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
         bool has_initializer = match(TK_ASSIGN) != NULL;
         VarInfo *varinfo = NULL;
         Initializer *init = NULL;
-        if (ident != NULL) {
-          varinfo = add_var_to_scope(global_scope, ident, type, storage, !has_initializer);
+        if (tinfo->ident != NULL) {
+          varinfo = add_var_to_scope(global_scope, tinfo->ident, type, tinfo->storage, !has_initializer);
           if (same_type(type, varinfo->type))
             init = varinfo->global.init;
           else
@@ -1025,8 +1017,8 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
           init = parse_initializer();
         }
 
-        if (ident != NULL && varinfo != NULL) {
-          varinfo->global.init = check_vardecl(&type, ident, storage, init);
+        if (tinfo->ident != NULL && varinfo != NULL) {
+          varinfo->global.init = check_vardecl(&type, tinfo->ident, tinfo->storage, init);
           varinfo->type = type;  // type might be changed.
         }
         curvarinfo = NULL;
@@ -1039,7 +1031,7 @@ static void parse_global_var_decl(Type *rawtype, int storage, Type *type, Token 
     attributes = NULL;  // TODO: Confirm.
 
     // Next declaration.
-    type = parse_declarator(rawtype, &ident);
+    type = parse_declarator(tinfo->rawType, tinfo);
   }
   consume(TK_SEMICOL, "`;' or `,' expected");
 }
@@ -1059,14 +1051,10 @@ static Declaration *parse_declaration(Vector *decls) {
     return new_decl_asm(tok, &asm_->asm_);
   }
 
-  Table *attributes = parse_attributes(NULL);
-
-  Type *rawtype = NULL;
-  int storage;
-  Token *ident;
-  Type *type = parse_var_def(&rawtype, &storage, &ident);
+  ParsedTypeInfo tinfo;
+  Type *type = parse_var_def(NULL, &tinfo);
   if (type != NULL) {
-    if (ident == NULL) {
+    if (tinfo.ident == NULL) {
       if ((type->kind == TY_STRUCT ||
            (type->kind == TY_FIXNUM && type->fixnum.kind == FX_ENUM)) &&
           match(TK_SEMICOL)) {
@@ -1078,21 +1066,21 @@ static Declaration *parse_declaration(Vector *decls) {
     }
 
     if (type->kind == TY_FUNC) {
-      if (storage & VS_TYPEDEF) {
+      if (tinfo.storage & VS_TYPEDEF) {
         consume(TK_SEMICOL, "`;' expected");
-        assert(ident != NULL);
-        def_type(type, ident);
+        assert(tinfo.ident != NULL);
+        def_type(type, tinfo.ident);
         return NULL;
       }
 
       const Token *tok = match(TK_LBRACE);
       if (tok != NULL)
-        return parse_defun(type, storage, ident, tok, attributes);
+        return parse_defun(type, tinfo.storage, tinfo.ident, tok, tinfo.attributes);
       // Function prototype declaration:
       // Join with global variable declaration to handle multiple prototype declarations.
     }
 
-    parse_global_var_decl(rawtype, storage, type, ident, attributes, decls);
+    parse_global_var_decl(&tinfo, type, decls);
     return NULL;
   }
   parse_error(PE_NOFATAL, NULL, "unexpected token");

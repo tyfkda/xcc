@@ -17,15 +17,22 @@ void parse(Vector *decls);  // <Declaration*>
 
 //
 
+typedef struct {
+  Type *rawType;
+  int storage;
+  Token *ident;
+  Table *attributes;  // <Vector<Token*>>
+} ParsedTypeInfo;
+
 typedef Expr *(*BuiltinExprProc)(const Token*);
 void add_builtin_expr_ident(const char *str, BuiltinExprProc *proc);
 
-Type *parse_raw_type(int *pstorage);
-Type *parse_declarator(Type *rawtype, Token **pident);
-Type *parse_direct_declarator(Type *type, Token **pident);
+Type *parse_raw_type(ParsedTypeInfo *tinfo);
+Type *parse_declarator(Type *rawtype, ParsedTypeInfo *tinfo);
+Type *parse_direct_declarator(Type *type, ParsedTypeInfo *tinfo);
 Vector *parse_args(Token **ptoken);
 Vector *parse_funparams(bool *pvaargs);  // Vector<VarInfo*>, NULL=>old style.
-Type *parse_var_def(Type **prawType, int *pstorage, Token **pident);
+Type *parse_var_def(Type *rawType, ParsedTypeInfo *tinfo);
 Expr *parse_const_fixnum(void);
 Expr *parse_assign(void);
 Expr *parse_expr(void);

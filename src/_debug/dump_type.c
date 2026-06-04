@@ -24,14 +24,13 @@ int main(int argc, char *argv[]) {
     char *source = argv[i];
     set_source_string(source, "*type*", 1);
 
-    int storage;
-    Token *ident;
-    const Type *type = parse_var_def(NULL, &storage, &ident);
+    ParsedTypeInfo tinfo;
+    const Type *type = parse_var_def(NULL, &tinfo);
 
     FILE *fp = stdout;
     print_type(fp, type);
-    if (ident != NULL) {
-      fprintf(fp, " %.*s", NAMES(ident->ident));
+    if (tinfo.ident != NULL) {
+      fprintf(fp, " %.*s", NAMES(tinfo.ident->ident));
     }
     fputs("\n", fp);
   }
