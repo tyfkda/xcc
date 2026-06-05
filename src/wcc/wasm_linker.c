@@ -105,7 +105,7 @@ static int resolve_symbols_archive(WasmLinker *linker, Archive *ar) {
 }
 
 static void resolve_symbols_auto_fill(WasmLinker *linker) {
-  const Name *call_ctors_name = alloc_name("__wasm_call_ctors", NULL, false);
+  const Name *call_ctors_name = alloc_cname("__wasm_call_ctors");
   WasmObj *obj = NULL;
   if (table_get(&linker->unresolved, call_ctors_name) != NULL) {
     // Prepare linker generated wasmobj.
@@ -995,9 +995,9 @@ void linker_init(WasmLinker *linker) {
   table_init(&linker->unresolved);
   linker->indirect_functions = new_vector();
 
-  linker->sp_name = alloc_name(SP_NAME, NULL, false);
-  linker->heapbase_name = alloc_name(HEAP_BASE_NAME, NULL, false);
-  linker->indirect_function_table_name = alloc_name(INDIRECT_FUNCALL_TABLE_NAME, NULL, false);
+  linker->sp_name = alloc_cname(SP_NAME);
+  linker->heapbase_name = alloc_cname(HEAP_BASE_NAME);
+  linker->indirect_function_table_name = alloc_cname(INDIRECT_FUNCALL_TABLE_NAME);
 }
 
 bool read_wasm_obj(WasmLinker *linker, const char *filename) {

@@ -107,14 +107,14 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, VarInf
   }
   if (attributes != NULL) {
     const Vector *params;
-    if (table_try_get(attributes, alloc_name("import_module", NULL, false), (void**)&params)) {
+    if (table_try_get(attributes, alloc_cname("import_module"), (void**)&params)) {
       const Expr *expr = params->len > 0 ? params->data[0] : NULL;
       if (params->len != 1 || expr->kind != EX_STR || expr->str.kind != STR_CHAR)
         parse_error(PE_NOFATAL, expr != NULL ? expr->token : NULL, "import_module: string expected");
       else
         finfo->module_name = alloc_name(expr->str.buf, expr->str.buf + (expr->str.len - 1), false);
     }
-    if (table_try_get(attributes, alloc_name("import_name", NULL, false), (void**)&params)) {
+    if (table_try_get(attributes, alloc_cname("import_name"), (void**)&params)) {
       const Expr *expr = params->len > 0 ? params->data[0] : NULL;
       if (params->len != 1 || expr->kind != EX_STR || expr->str.kind != STR_CHAR) {
         parse_error(PE_NOFATAL, expr != NULL ? expr->token : NULL, "import_name: string expected");
@@ -123,7 +123,7 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, VarInf
         finfo->flag |= FF_IMPORT_NAME;
       }
     }
-    if (table_try_get(attributes, alloc_name("weak", NULL, false), (void**)&params))
+    if (table_try_get(attributes, alloc_cname("weak"), (void**)&params))
       finfo->flag |= FF_WEAK;
   }
 
@@ -724,7 +724,7 @@ static void traverse_stmts(Vector *stmts) {
 static void modify_func_name(Function *func) {
   static const Name *main_name;
   if (main_name == NULL)
-    main_name = alloc_name("main", NULL, false);
+    main_name = alloc_cname("main");
   if (!equal_name(func->ident->ident, main_name))
     return;
 
@@ -733,10 +733,10 @@ static void modify_func_name(Function *func) {
   const Name *newname = NULL;
   switch (func->params->len) {
   case 0:
-    newname = alloc_name("__main_void", NULL, false);
+    newname = alloc_cname("__main_void");
     break;
   case 2:
-    newname = alloc_name("__main_argc_argv", NULL, false);
+    newname = alloc_cname("__main_argc_argv");
     break;
   default:
     error("main function must take no argument or two arguments");
@@ -811,10 +811,10 @@ static void traverse_defun(Function *func) {
 
   Type *functype = func->type;
   if (functype->func.vaargs) {
-    Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
+    Type *tyvalist = find_typedef(curscope, alloc_cname("__builtin_va_list"), NULL);
     assert(tyvalist != NULL);
 
-    const Name *name = alloc_name(VA_ARGS_NAME, NULL, false);
+    const Name *name = alloc_cname(VA_ARGS_NAME);
     const Token *ident = alloc_ident(name, NULL, name->chars, name->chars + name->bytes);
     scope_add(func->scopes->data[0], ident, tyvalist, VS_PARAM | VS_USED);
   }
@@ -831,7 +831,7 @@ static void traverse_defun(Function *func) {
   // Destructor is converted to constructor which register itself with atexit,
   // so it is not necessary to pick up destructor here.
   if (func->attributes != NULL) {
-    if (table_try_get(func->attributes, alloc_name("constructor", NULL, false), NULL)) {
+    if (table_try_get(func->attributes, alloc_cname("constructor"), NULL)) {
       // Ensure that the function has no parameters and returns void.
       const Type *type = func->type;
       if (type->func.params == NULL || type->func.params->len > 0 ||
@@ -863,7 +863,7 @@ static void traverse_decl(Declaration *decl) {
 
 static void add_builtins(int flag) {
   if (flag & CUF_USE_SP) {
-    const Name *name = alloc_name(SP_NAME, NULL, false);
+    const Name *name = alloc_cname(SP_NAME);
     VarInfo *varinfo = scope_find(global_scope, name, NULL);
     if (varinfo == NULL) {
       varinfo = add_global_var(&tyVoidPtr,

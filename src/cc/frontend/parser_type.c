@@ -225,10 +225,10 @@ static StructInfo *parse_struct(bool is_union, Table *attributes) {
     flag |= SIF_FLEXIBLE;
   size_t aligned = 0;
   if (attributes != NULL) {
-    if (table_try_get(attributes, alloc_name("packed", NULL, false), NULL))
+    if (table_try_get(attributes, alloc_cname("packed"), NULL))
       flag |= SIF_PACKED;
     Vector *v;
-    if (table_try_get(attributes, alloc_name("aligned", NULL, false), (void**)&v)) {
+    if (table_try_get(attributes, alloc_cname("aligned"), (void**)&v)) {
       const Expr *expr = v->len > 0 ? v->data[0] : NULL;
       if (v->len != 1 || expr->kind != EX_FIXNUM)
         parse_error(PE_NOFATAL, expr != NULL ? expr->token : NULL, "constant integer expected");

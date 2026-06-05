@@ -563,7 +563,7 @@ void install_builtins(Vector *decls) {
 #if VAARG_ON_STACK || XCC_TARGET_ARCH == XCC_ARCH_RISCV64
     Type *tyVaList = ptrof(&tyVoidPtr);
 #else
-    Type *tyVaElem = create_struct_type(NULL, alloc_name("__va_elem", NULL, false), 0);
+    Type *tyVaElem = create_struct_type(NULL, alloc_cname("__va_elem"), 0);
     Type *tyVaList = ptrof(tyVaElem);
 #endif
     static BuiltinFunctionProc p_va_start = &gen_builtin_va_start;

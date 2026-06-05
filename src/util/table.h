@@ -14,6 +14,7 @@ typedef struct Name {
 } Name;
 
 const Name *alloc_name(const char *begin, const char *end, bool make_copy);
+const Name *alloc_cname(const char *cstr);
 bool equal_name(const Name *name1, const Name *name2);
 
 // For printf, usage: printf("%.*s\n", NAMES(name))

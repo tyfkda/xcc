@@ -91,7 +91,7 @@ static void construct_symtab(Symtab *symtab, Table *label_table, uint64_t start_
   symtab_init(symtab);
 
   // NUL
-  strtab_add(&symtab->strtab, alloc_name("", NULL, false));
+  strtab_add(&symtab->strtab, alloc_cname(""));
 
   enum SymbolKind {
     LOCAL,     // Local.

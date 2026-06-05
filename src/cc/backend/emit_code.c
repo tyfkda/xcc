@@ -359,8 +359,8 @@ char *format_func_name(const Name *funcname, bool global) {
 
 bool is_weak_attr(Table *attributes) {
   return attributes != NULL &&
-         (table_try_get(attributes, alloc_name("weak", NULL, false), NULL) ||
-          table_try_get(attributes, alloc_name("__weak__", NULL, false), NULL));
+         (table_try_get(attributes, alloc_cname("weak"), NULL) ||
+          table_try_get(attributes, alloc_cname("__weak__"), NULL));
 }
 
 static void emit_asm(const Asm *asm_) {
@@ -450,8 +450,8 @@ static void emit_decls_ctor_dtor_priority(Vector *container, const char *section
 #endif
 
 static void emit_decls_ctor_dtor(Vector *decls) {
-  const Name *constructor_name = alloc_name("constructor", NULL, false);
-  const Name *destructor_name = alloc_name("destructor", NULL, false);
+  const Name *constructor_name = alloc_cname("constructor");
+  const Name *destructor_name = alloc_cname("destructor");
 
   Vector *ctors = new_vector();
   Vector *dtors = new_vector();

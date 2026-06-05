@@ -337,7 +337,7 @@ static Vector *subst(Macro *macro, Table *param_table, Vector *args, HideSet *hs
 
   static const Name *va_opt;
   if (va_opt == NULL && macro->vaargs_ident != NULL)
-    va_opt = alloc_name("__VA_OPT__", NULL, false);
+    va_opt = alloc_cname("__VA_OPT__");
 
   for (int i = 0; i < body->len; ++i) {
     const Token *tok = body->data[i];

@@ -562,7 +562,7 @@ static inline uint32_t calc_frame_size(
     Function *func, unsigned int local_counts[4], FuncInfo *finfo) {
   const Type *functype = func->type;
   unsigned int param_count = functype->func.params != NULL ? functype->func.params->len : 0;
-  const Name *va_args_name = functype->func.vaargs ? alloc_name(VA_ARGS_NAME, NULL, false) : NULL;
+  const Name *va_args_name = functype->func.vaargs ? alloc_cname(VA_ARGS_NAME) : NULL;
   uint32_t frame_size = 0;
   for (int i = 0; i < func->scopes->len; ++i) {
     Scope *scope = func->scopes->data[i];

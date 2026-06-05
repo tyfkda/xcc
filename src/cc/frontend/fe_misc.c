@@ -374,8 +374,8 @@ void propagate_var_used(void) {
   Vector unchecked;
   vec_init(&unchecked);
 
-  const Name *constructor_name = alloc_name("constructor", NULL, false);
-  const Name *destructor_name = alloc_name("destructor", NULL, false);
+  const Name *constructor_name = alloc_cname("constructor");
+  const Name *destructor_name = alloc_cname("destructor");
 
   // Collect public functions into unchecked.
   for (int i = 0; i < global_scope->vars->len; ++i) {
@@ -804,7 +804,7 @@ static bool check_func_return(Function *func) {
 
   static const Name *main_name;
   if (main_name == NULL)
-    main_name = alloc_name("main", NULL, false);
+    main_name = alloc_cname("main");
   if (equal_name(func->ident->ident, main_name)) {
     if (rettype->kind == TY_VOID) {
       // Force return type to `int' for `main' function.
@@ -1278,7 +1278,7 @@ Function *define_func(Type *functype, const Token *ident, const Vector *param_va
                       int storage, Table *attributes) {
   int flag = 0;
   if (attributes != NULL) {
-    if (table_try_get(attributes, alloc_name("noreturn", NULL, false), NULL))
+    if (table_try_get(attributes, alloc_cname("noreturn"), NULL))
       flag |= FUNCF_NORETURN;
   }
 
@@ -1378,14 +1378,14 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
   //  }
 
   // Declare: extern void *__dso_handle;
-  const Name *dso_handle_name = alloc_name("__dso_handle", NULL, false);
+  const Name *dso_handle_name = alloc_cname("__dso_handle");
   scope_add(global_scope,
             alloc_ident(dso_handle_name, NULL, dso_handle_name->chars,
                         dso_handle_name->chars + dso_handle_name->bytes),
             &tyVoidPtr, VS_EXTERN | VS_USED);
 
   // Declare: extern int __cxa_atexit(void (*)(void*), void*, void*);
-  const Name *cxa_atexit_name = alloc_name("__cxa_atexit", NULL, false);
+  const Name *cxa_atexit_name = alloc_cname("__cxa_atexit");
   Type *cxa_atexit_functype;
   {
     Vector *cxa_atexit_param_types = new_vector();
@@ -1411,7 +1411,7 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
   const Token *functok = alloc_dummy_ident();
   Table *attributes = alloc_table();
   assert(attributes != NULL);
-  table_put(attributes, alloc_name("constructor", NULL, false), NULL);
+  table_put(attributes, alloc_cname("constructor"), NULL);
   Function *func = define_func(functype, functok, top_vars, VS_STATIC | VS_USED, attributes);
 
   assert(curfunc == NULL);
@@ -1446,7 +1446,7 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
 }
 
 void modify_dtor_func(Vector *decls) {
-  const Name *destructor_name = alloc_name("destructor", NULL, false);
+  const Name *destructor_name = alloc_cname("destructor");
   Vector *dtors = NULL;
   for (int i = 0, len = decls->len; i < len; ++i) {
     Declaration *decl = decls->data[i];

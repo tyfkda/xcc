@@ -133,7 +133,7 @@ static void process_line(const char *line, Stream *stream) {
 
   const char *begin = get_lex_p();
 
-  const Name *defined = alloc_name("defined", NULL, false);
+  const Name *defined = alloc_cname("defined");
   for (;;) {
     const char *p = get_lex_p();
     if (p != NULL) {
@@ -482,8 +482,7 @@ static Vector *parse_macro_body(const char *p, Stream *stream) {
 }
 
 static void do_define_macro(const Name *name, Macro *macro) {
-  static const char kDefined[] = "defined";
-  if (equal_name(name, alloc_name(kDefined, NULL, false)))
+  if (equal_name(name, alloc_cname("defined")))
     error("overwrite `defined' is prohibited");
 
   macro_add(name, macro);
@@ -506,7 +505,7 @@ static void handle_define(const char *p, Stream *stream) {
     if (!match(TK_RPAR)) {
       for (;;) {
         if (match(TK_ELLIPSIS)) {
-          vaargs_ident = alloc_name("__VA_ARGS__", NULL, false);
+          vaargs_ident = alloc_cname("__VA_ARGS__");
           break;
         }
 
@@ -669,8 +668,8 @@ static void define_file_macro(const char *filename) {
 
 void init_preprocessor(FILE *ofp) {
   pp_ofp = ofp;
-  key_file = alloc_name("__FILE__", NULL, false);
-  key_line = alloc_name("__LINE__", NULL, false);
+  key_file = alloc_cname("__FILE__");
+  key_line = alloc_cname("__LINE__");
 
   // Keep sys_inc_paths.
 

@@ -1047,9 +1047,9 @@ static bool dir_section(ParseInfo *info, enum DirectiveType dir) {
     info->p = p + 1;
     const Name *modname = parse_section_name(info);
     if (modname != NULL) {
-      if (equal_name(modname, alloc_name("mod_init_funcs", NULL, false))) {
+      if (equal_name(modname, alloc_cname("mod_init_funcs"))) {
         flag |= SF_INIT_FUNCS;
-      } else if (equal_name(modname, alloc_name("cstring_literals", NULL, false))) {
+      } else if (equal_name(modname, alloc_cname("cstring_literals"))) {
         flag |= SF_CSTRLITERALS;
       }
     }

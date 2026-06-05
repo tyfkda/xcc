@@ -49,7 +49,7 @@ TEST(print_type) {
   check_print_type("int*[][3]", arrayof(arrayof(ptrof(&tyInt), 3), -1));
 
   {
-    Type *type = create_enum_type(NULL, alloc_name("Enum", NULL, false));
+    Type *type = create_enum_type(NULL, alloc_cname("Enum"));
     check_print_type("enum Enum", type);
   }
 
@@ -64,7 +64,7 @@ TEST(print_type) {
 
   {
     StructInfo *sinfo = create_struct_info(NULL, 0, 0, 0);
-    const Name *name = alloc_name("Foo", NULL, false);
+    const Name *name = alloc_cname("Foo");
     Type *type = create_struct_type(sinfo, name, 0);
     check_print_type("struct Foo", type);
     check_print_type("struct Foo*", ptrof(type));

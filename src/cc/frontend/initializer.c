@@ -971,8 +971,7 @@ Initializer *check_vardecl(Type **ptype, const Token *ident, int storage, Initia
       Vector *params = new_vector();
       vec_push(params, &tySize);
       Type *functype = new_func_type(&tyVoidPtr, params, false);
-      Expr *alloca_var = new_expr_variable(alloc_name("alloca", NULL, false), functype, tok,
-                                           global_scope);
+      Expr *alloca_var = new_expr_variable(alloc_cname("alloca"), functype, tok, global_scope);
       Vector *args = new_vector();
       vec_push(args, size_var);
       Expr *call_alloca = new_expr_funcall(tok, functype, alloca_var, args);

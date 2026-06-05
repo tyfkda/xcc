@@ -104,7 +104,7 @@ TableInfo *getsert_table(const Name *name, int type) {
 }
 
 TableInfo *getsert_indirect_function_table(void) {
-  return getsert_table(alloc_name(INDIRECT_FUNCALL_TABLE_NAME, NULL, false), WT_FUNCREF);
+  return getsert_table(alloc_cname(INDIRECT_FUNCALL_TABLE_NAME), WT_FUNCREF);
 }
 
 //
@@ -120,7 +120,7 @@ void write_wasm_header(FILE *ofp) {
 //
 
 Expr *get_sp_var(void) {
-  const Name *spname = alloc_name(SP_NAME, NULL, false);
+  const Name *spname = alloc_cname(SP_NAME);
   GVarInfo *info = get_gvar_info_from_name(spname);
   assert(info != NULL);
   return new_expr_variable(spname, info->varinfo->type, NULL, global_scope);
@@ -149,7 +149,7 @@ bool is_global_datasec_var(const VarInfo *varinfo, Scope *scope) {
     return false;
 #else
   // Special: Stack pointer.
-  if (equal_name(varinfo->ident->ident, alloc_name(SP_NAME, NULL, false)))
+  if (equal_name(varinfo->ident->ident, alloc_cname(SP_NAME)))
     return false;
 #endif
   return true;

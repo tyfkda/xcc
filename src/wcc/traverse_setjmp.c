@@ -202,7 +202,7 @@ static bool modify_if_setjmp(LexicalStack *lp, Expr *jmpbuf_env, Expr *var) {
   vec_push(args, var);
   vec_push(args, try_block_expr);
 
-  Expr *try_catch_fn = new_expr_variable(alloc_name("__builtin_try_catch_longjmp", NULL, false),
+  Expr *try_catch_fn = new_expr_variable(alloc_cname("__builtin_try_catch_longjmp"),
                                          functype, token, global_scope);
   Expr *try_catch_longjmp = new_expr_funcall(token, functype, try_catch_fn, args);
 
@@ -256,7 +256,7 @@ static bool mafscb_find_setjmp(LexicalStack *lstack, TraverseAstParam *param) {
   if (lstack->pexpr != NULL) {
     Expr *expr = *lstack->pexpr;
     if (expr->kind == EX_FUNCALL && expr->funcall.func->kind == EX_VAR &&
-        equal_name(expr->funcall.func->var.name, alloc_name("__builtin_setjmp", NULL, false))) {
+        equal_name(expr->funcall.func->var.name, alloc_cname("__builtin_setjmp"))) {
       if (lstack->parent->pexpr != NULL) {
         Expr *e = *lstack->parent->pexpr;
         if (e->kind == EX_ASSIGN && e->bop.lhs->kind == EX_VAR) {

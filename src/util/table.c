@@ -65,6 +65,10 @@ const Name *alloc_name(const char *begin, const char *end, bool make_copy) {
   return name;
 }
 
+const Name *alloc_cname(const char *cstr) {
+  return alloc_name(cstr, NULL, false);
+}
+
 bool equal_name(const Name *name1, const Name *name2) {
   return name1 == name2;  // All names are interned, so they can compare by pointers.
 }

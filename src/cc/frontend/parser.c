@@ -845,7 +845,7 @@ Table *parse_attributes(Table *attributes) {
     } else if (match(TK_NORETURN)) {
       if (attributes == NULL)
         attributes = alloc_table();
-      table_put(attributes, alloc_name("noreturn", NULL, false), NULL);
+      table_put(attributes, alloc_cname("noreturn"), NULL);
     } else {
       break;
     }

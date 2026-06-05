@@ -269,7 +269,7 @@ static PpResult literal(Token *tok) {
 }
 
 static PpResult variable(Token *ident) {
-  if (equal_name(ident->ident, alloc_name("defined", NULL, false)))
+  if (equal_name(ident->ident, alloc_cname("defined")))
     return parse_defined();
   return 0;  // Undefined identifier is 0.
 }

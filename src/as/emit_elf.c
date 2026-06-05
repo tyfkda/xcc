@@ -94,7 +94,7 @@ static int construct_symtab(Symtab *symtab, Vector *sections, Table *label_table
     [STB_WEAK] = &symtab_weak,
   };
 
-  const Name *nulname = alloc_name("", NULL, false);
+  const Name *nulname = alloc_cname("");
   // UND
   Elf64_Sym *sym;
   sym = symtab_add(symtab, nulname);
@@ -455,14 +455,14 @@ static inline void construct_section_headers(Work *work, uint64_t offset) {
   const int shnum = index + 2;  // symtab, shstrtab
 
   const Elf64_Shdr nulsec = {
-    .sh_name = strtab_add(&work->shstrtab, alloc_name("", NULL, false)),
+    .sh_name = strtab_add(&work->shstrtab, alloc_cname("")),
     .sh_type = SHT_NULL,
     .sh_addralign = 1,
   };
   data_append(section_headers, &nulsec, sizeof(nulsec));
 
-  const Name *init_array_name = alloc_name(".init_array", NULL, false);
-  const Name *fini_array_name = alloc_name(".fini_array", NULL, false);
+  const Name *init_array_name = alloc_cname(".init_array");
+  const Name *fini_array_name = alloc_cname(".fini_array");
   for (int sec = 0; sec < sections->len; ++sec) {
     SectionInfo *section = sections->data[sec];
     size_t size = section->ds != NULL ? section->ds->len : section->bss_size;
@@ -520,7 +520,7 @@ static inline void construct_section_headers(Work *work, uint64_t offset) {
 
 #if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
   const Elf64_Shdr riscv_attributes_sec = {
-    .sh_name = strtab_add(&work->shstrtab, alloc_name(".riscv.attributes", NULL, false)),
+    .sh_name = strtab_add(&work->shstrtab, alloc_cname(".riscv.attributes")),
     .sh_type = SHT_RISCV_ATTRIBUTES,
     .sh_offset = work->riscv_attributes_ofs,
     .sh_size = work->riscv_attributes_total_size,
@@ -530,7 +530,7 @@ static inline void construct_section_headers(Work *work, uint64_t offset) {
 #endif
 
   const Elf64_Shdr strtabsec = {
-    .sh_name = strtab_add(&work->shstrtab, alloc_name(".strtab", NULL, false)),
+    .sh_name = strtab_add(&work->shstrtab, alloc_cname(".strtab")),
     .sh_type = SHT_STRTAB,
     .sh_offset = work->strtab_ofs,
     .sh_size = work->symtab.strtab.size,
@@ -539,7 +539,7 @@ static inline void construct_section_headers(Work *work, uint64_t offset) {
   data_append(section_headers, &strtabsec, sizeof(strtabsec));
 
   const Elf64_Shdr symtabsec = {
-    .sh_name = strtab_add(&work->shstrtab, alloc_name(".symtab", NULL, false)),
+    .sh_name = strtab_add(&work->shstrtab, alloc_cname(".symtab")),
     .sh_type = SHT_SYMTAB,
     .sh_offset = work->symtab_ofs,
     .sh_size = sizeof(*work->symtab.buf) * work->symtab.count,
@@ -551,7 +551,7 @@ static inline void construct_section_headers(Work *work, uint64_t offset) {
   data_append(section_headers, &symtabsec, sizeof(symtabsec));
 
   const uint64_t shstrtab_ofs = offset;  // ALIGN(offset, 0x10);
-  const size_t shstrtab_name = strtab_add(&work->shstrtab, alloc_name(".shstrtab", NULL, false));
+  const size_t shstrtab_name = strtab_add(&work->shstrtab, alloc_cname(".shstrtab"));
   const Elf64_Shdr shstrtabsec = {
     .sh_name = shstrtab_name,
     .sh_type = SHT_STRTAB,

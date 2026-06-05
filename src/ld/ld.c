@@ -801,7 +801,7 @@ static bool output_exe(const char *ofn, uint64_t entry_address,
 
 typedef struct {
   const char *filename;
-  const char *name;
+  const char *label;
   uint64_t address;
   int flag;
 } DumpSymbol;
@@ -816,7 +816,7 @@ static void dump_map_elfobj(LinkEditor *ld, ElfObj *elfobj, File *file, ArConten
     if (sym->st_shndx == SHN_UNDEF)
       continue;
 
-    const char *name = &strbuf[sym->st_name];
+    const char *label = &strbuf[sym->st_name];
     uint64_t address = 0;
     int flag = 0;
     unsigned char bind = ELF64_ST_BIND(sym->st_info);
@@ -834,14 +834,14 @@ static void dump_map_elfobj(LinkEditor *ld, ElfObj *elfobj, File *file, ArConten
       }
       break;
     case STB_GLOBAL:
-      address = ld_symbol_address(ld, alloc_name(name, NULL, false));
+      address = ld_symbol_address(ld, alloc_name(label, NULL, false));
       break;
     default: assert(false); break;
     }
 
     DumpSymbol *ds = calloc_or_die(sizeof(*ds));
     ds->filename = content != NULL ? content->name : file->filename;  // TODO: Confirm nul-terminated.
-    ds->name = name;
+    ds->label = label;
     ds->address = address;
     ds->flag = flag;
     vec_push(symbols, ds);
@@ -857,7 +857,7 @@ static void dump_map_file(LinkEditor *ld, Vector *symbols) {
     uint64_t address = elem->symbol.address;
     DumpSymbol *ds = calloc_or_die(sizeof(*ds));
     ds->filename = "*generated*";
-    ds->name = name->chars;  // TODO: Confirm nul-terminated.
+    ds->label = name->chars;  // TODO: Confirm nul-terminated.
     ds->address = address;
     ds->flag = DSF_GENERATED;
     vec_push(symbols, ds);
@@ -917,7 +917,7 @@ static bool output_map_file(LinkEditor *ld, const char *outmapfn, uint64_t entry
     char fc = kFlagChars[ds->flag & (DSF_WEAK | DSF_LOCAL)];
     if (fc == '\0')
       fc = 'G';
-    fprintf(mapfp, "%9" PRIx64 ": %c %s  (%s)\n", ds->address, fc, ds->name, ds->filename);
+    fprintf(mapfp, "%9" PRIx64 ": %c %s  (%s)\n", ds->address, fc, ds->label, ds->filename);
   }
 
   fprintf(mapfp, "\n### Entry point\n");

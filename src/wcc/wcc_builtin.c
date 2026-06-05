@@ -29,7 +29,7 @@ static TagInfo *register_longjmp_tag(void) {
   vec_push(params, &tyVoidPtr);
   Type *functype = new_func_type(&tyVoid, params, false);
   int typeindex = getsert_func_type_index(functype, true);
-  const Name *name = alloc_name(kTagName, NULL, false);
+  const Name *name = alloc_cname(kTagName);
   return getsert_tag(name, typeindex);
 }
 
@@ -214,7 +214,7 @@ static Expr *proc_builtin_va_start(const Token *ident) {
     return NULL;
   }
 
-  Type *tyvalist = find_typedef(curscope, alloc_name("__builtin_va_list", NULL, false), NULL);
+  Type *tyvalist = find_typedef(curscope, alloc_cname("__builtin_va_list"), NULL);
   assert(tyvalist != NULL);
 
   Expr *ap = args->data[0];
@@ -239,7 +239,7 @@ static Expr *proc_builtin_va_start(const Token *ident) {
     top_scope = p;
 
   // (void)(ap = __va_args__)
-  const Name *name = alloc_name(VA_ARGS_NAME, NULL, false);
+  const Name *name = alloc_cname(VA_ARGS_NAME);
   Expr *va_args = new_expr_variable(name, tyvalist, param->token, top_scope);
   Expr *assign = new_expr_bop(EX_ASSIGN, ap->type, ap->token, ap, va_args);
   return new_expr_cast(&tyVoid, ident, assign);
@@ -477,7 +477,7 @@ void install_builtins(void) {
   // __builtin_va_list
   {
     Type *type = ptrof(&tyVoidPtr);
-    const Name *name = alloc_name("__builtin_va_list", NULL, false);
+    const Name *name = alloc_cname("__builtin_va_list");
     add_typedef(global_scope, name, type);
   }
 

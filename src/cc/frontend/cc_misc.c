@@ -15,8 +15,8 @@ bool is_function_omitted(const VarInfo *funcvi, Table *attributes) {
   assert(funcvi != NULL);
   int storage = funcvi->storage;
   if (attributes != NULL) {
-    if (table_try_get(attributes, alloc_name("__always_inline__", NULL, false), NULL) ||
-        table_try_get(attributes, alloc_name("__gnu_inline__", NULL, false), NULL))
+    if (table_try_get(attributes, alloc_cname("__always_inline__"), NULL) ||
+        table_try_get(attributes, alloc_cname("__gnu_inline__"), NULL))
       return true;
   }
 
