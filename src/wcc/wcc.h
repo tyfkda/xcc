@@ -115,6 +115,8 @@ static inline int get_func_type_index(const Type *type)  { return getsert_func_t
 void modify_ast_for_setjmp(int n);
 
 // gen_wasm
+extern DataStorage *curcodeds;
+
 void gen(Vector *decls);
 void gen_expr(Expr *expr, bool needval);
 void gen_expr_stmt(Expr *expr);
@@ -197,7 +199,6 @@ extern Table gvar_info_table;
 extern Table indirect_function_table;  // <FuncInfo*>
 extern Vector *tags;  // <TagInfo*>
 extern Vector *tables;  // <TableInfo*>
-extern Vector *init_funcs;  // <Function*>
 extern int compile_unit_flag;
 
 #define VERBOSES(str)  do { if (verbose) printf("%s", str); } while (0)
@@ -227,5 +228,3 @@ unsigned char to_wtype(const Type *type);
 bool is_global_datasec_var(const VarInfo *varinfo, Scope *scope);
 size_t calc_funcall_work_size(Expr *expr);
 const Type *get_small_struct_elem_type(const Type *type);
-
-extern DataStorage *curcodeds;

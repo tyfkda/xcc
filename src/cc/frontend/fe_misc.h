@@ -110,6 +110,9 @@ Stmt *embed_inline_funcall(VarInfo *varinfo);
 Function *define_func(Type *functype, const Token *ident, const Vector *param_vars,
                       int storage, Table *attributes);
 
+void enumerate_ctors(Vector *decls, Vector *ctors);  // ctors=<Function*>
+void enumerate_dtors(Vector *decls, Vector *dtors);  // dtors=<Function*>
+
 #ifdef NO_DESTRUCTOR
 void modify_dtor_func(Vector *decls);
 #endif

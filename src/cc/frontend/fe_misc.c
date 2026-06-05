@@ -1325,6 +1325,29 @@ Function *define_func(Type *functype, const Token *ident, const Vector *param_va
   return func;
 }
 
+static void enumerate_ctor_dtors(Vector *decls, Vector *container, const Name *attr_name) {
+  vec_init(container);
+  for (int i = 0, len = decls->len; i < len; ++i) {
+    Declaration *decl = decls->data[i];
+    if (decl == NULL || decl->kind != DCL_DEFUN)
+      continue;
+    Function *func = decl->defun.func;
+    if (func->attributes != NULL) {
+      Vector *params;
+      if (container != NULL && table_try_get(func->attributes, attr_name, (void*)&params))
+        vec_push(container, func);
+    }
+  }
+}
+
+void enumerate_ctors(Vector *decls, Vector *ctors) {
+  enumerate_ctor_dtors(decls, ctors, alloc_cname("constructor"));
+}
+
+void enumerate_dtors(Vector *decls, Vector *dtors) {
+  enumerate_ctor_dtors(decls, dtors, alloc_cname("destructor"));
+}
+
 #ifdef NO_DESTRUCTOR
 static Function *generate_dtor_caller_func(Vector *dtors) {
   // Generate function:
@@ -1446,32 +1469,22 @@ static Function *generate_dtor_register_func(Function *dtor_caller_func) {
 }
 
 void modify_dtor_func(Vector *decls) {
-  const Name *destructor_name = alloc_cname("destructor");
-  Vector *dtors = NULL;
-  for (int i = 0, len = decls->len; i < len; ++i) {
-    Declaration *decl = decls->data[i];
-    if (decl == NULL || decl->kind != DCL_DEFUN)
-      continue;
-    Function *func = decl->defun.func;
-    if (func->attributes != NULL) {
-      if (table_try_get(func->attributes, destructor_name, NULL)) {
-        const Type *type = func->type;
-        if (type->func.params == NULL || type->func.params->len > 0 ||
-            type->func.ret->kind != TY_VOID) {
-          parse_error(PE_NOFATAL, func->ident,
-                      "destructor must have no parameters and return void");
-        } else {
-          if (dtors == NULL)
-            dtors = new_vector();
-          vec_push(dtors, func);
-        }
-      }
-    }
-  }
-  if (dtors == NULL)
+  Vector dtors;
+  enumerate_dtors(decls, &dtors);
+  if (dtors.len == 0)
     return;
 
-  Function *caller_func = generate_dtor_caller_func(dtors);
+  for (int i = 0; i < dtors.len; ++i) {
+    Function *func = dtors.data[i];
+    const Type *type = func->type;
+    if (type->func.params == NULL || type->func.params->len > 0 ||
+        type->func.ret->kind != TY_VOID) {
+      parse_error(PE_NOFATAL, func->ident,
+                  "destructor must have no parameters and return void");
+    }
+  }
+
+  Function *caller_func = generate_dtor_caller_func(&dtors);
   vec_push(decls, new_decl_defun(caller_func));
 
   Function *register_func = generate_dtor_register_func(caller_func);
