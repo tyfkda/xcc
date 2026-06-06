@@ -572,7 +572,7 @@ static void traverse_varinfo(VarInfo *varinfo) {
   if (varinfo->type->kind == TY_FUNC) {
     // Local extern function declaration.
     register_func_info(varinfo->ident->ident, NULL, varinfo, 0);
-  } else if (varinfo->storage & VS_EXTERN) {
+  } else if ((varinfo->storage & (VS_EXTERN | VS_USED)) == (VS_EXTERN | VS_USED)) {
     assert(!is_global_scope(curscope));
     const Name *name = varinfo->ident->ident;
     if (get_gvar_info_from_name(name) == NULL) {
