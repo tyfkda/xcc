@@ -347,7 +347,7 @@ static inline void gen_funargs(Expr *expr) {
   FuncallWork work;
   work.lspvar = NULL;
   work.offset = 0;
-  work.vaargs = functype->func.vaargs;
+  work.vaargs = functype->func.vaargs && (functype->func.params != NULL || arg_count > 0);
 
   size_t work_size = calc_funcall_work_size(expr);
   if (work_size > 0) {
@@ -375,7 +375,7 @@ static inline void gen_funargs(Expr *expr) {
       gen_funarg_vaarg(arg, &work);
   }
 
-  if (functype->func.vaargs) {
+  if (work.vaargs) {
     // Top of vaargs.
     if (arg_count > param_count) {
       gen_expr(work.lspvar, true);

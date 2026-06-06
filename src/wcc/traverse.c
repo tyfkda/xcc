@@ -31,14 +31,16 @@ static void wasm_func_type(const Type *type, DataStorage *ds) {
   bool ret_param = rettype->kind == TY_STRUCT && !ret_small_struct && !is_phantom_struct(rettype);
   const Vector *params = type->func.params;
   int param_count = 0;
+  bool vaargs = false;
   if (params != NULL) {
     param_count = params->len;
+    vaargs = type->func.vaargs && type->func.params != NULL;
   }
 
   data_init(ds);
   data_reserve(ds, 3 + param_count + 3);
 
-  data_uleb128(ds, -1, ret_param + param_count + type->func.vaargs);  // num params
+  data_uleb128(ds, -1, ret_param + param_count + vaargs);  // num params
   if (ret_param)
     data_push(ds, to_wtype(&tyVoidPtr));
   if (params != NULL) {
@@ -54,7 +56,7 @@ static void wasm_func_type(const Type *type, DataStorage *ds) {
       data_push(ds, to_wtype(type));
     }
   }
-  if (type->func.vaargs)
+  if (vaargs)
     data_push(ds, to_wtype(&tyVoidPtr));  // vaarg pointer.
 
   if (rettype->kind == TY_VOID || ret_param || is_phantom_struct(rettype)) {
@@ -264,7 +266,7 @@ static void te_funcall(Expr **pexpr, bool needval) {
     }
 
     if (functype->func.params == NULL)
-      parse_error(PE_NOFATAL, func->token, "function's parameters must be known");
+      parse_error(PE_WARNING, func->token, "function's parameters must be known");
   }
 
   size_t work_size = calc_funcall_work_size(expr);
