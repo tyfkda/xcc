@@ -118,11 +118,13 @@ static FuncInfo *register_func_info(const Name *funcname, Function *func, VarInf
     }
     if (table_try_get(attributes, alloc_cname("import_name"), (void**)&params)) {
       const Expr *expr = params->len > 0 ? params->data[0] : NULL;
-      if (params->len != 1 || expr->kind != EX_STR || expr->str.kind != STR_CHAR) {
-        parse_error(PE_NOFATAL, expr != NULL ? expr->token : NULL, "import_name: string expected");
-      } else {
-        finfo->func_name = alloc_name(expr->str.buf, expr->str.buf + (expr->str.len - 1), false);
+      if (params->len == 0 ||
+          (params->len == 1 && expr->kind == EX_STR && expr->str.kind == STR_CHAR)) {
+        if (expr != NULL)
+          finfo->func_name = alloc_name(expr->str.buf, expr->str.buf + (expr->str.len - 1), false);
         finfo->flag |= FF_IMPORT_NAME;
+      } else {
+        parse_error(PE_NOFATAL, expr != NULL ? expr->token : NULL, "import_name: string expected");
       }
     }
     if (table_try_get(attributes, alloc_cname("weak"), (void**)&params))
