@@ -76,6 +76,12 @@ int vsprintf(char *buf, const char *fmt, va_list ap);
 int vfprintf(FILE *fp, const char *fmt, va_list ap);
 int vsnprintf(char *out, size_t n, const char *fmt_, va_list ap);
 
+int scanf(const char *restrict format, ...);
+int fscanf(FILE *restrict fp, const char *restrict format, ...);
+int vfscanf(FILE *restrict fp, const char *restrict format, va_list ap);
+int sscanf(const char *restrict buffer, const char *restrict format, ...);
+int vsscanf(const char *restrict buffer, const char *restrict format, va_list ap);
+
 void perror(const char*);
 
 int fileno(FILE *fp);

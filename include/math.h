@@ -62,6 +62,7 @@ double frexp(double x, int *p);
 double ldexp(double x, int exp);
 
 float fabsf(float);
+long double fabsl(long double x);
 
 int finite(double x);
 

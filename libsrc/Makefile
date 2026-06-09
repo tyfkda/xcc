@@ -78,19 +78,21 @@ $(foreach D, $(LIB_SRC_DIRS), $(eval $(call DEFINE_OBJ_TARGET,$(D))))
 ### Test
 
 .PHONY:	test
-test:	test-canonicalize_path test-printf test-file test-stdlib test-math test-longjmp
+test:	test-canonicalize_path test-printf test-scanf test-file test-stdlib test-math test-longjmp
 
 .PHONY: clean-test
 clean-test:
-	rm -rf canonicalize_path_test printf_test file_test stdlib_test math_test longjmp_test \
+	rm -rf canonicalize_path_test printf_test scanf_test file_test stdlib_test math_test longjmp_test \
 		a.out *.wasm tmp*
 
-TESTS=canonicalize_path printf file stdlib math longjmp
+TESTS=canonicalize_path printf scanf file stdlib math longjmp
 
 printf_SRCS:=$(wildcard stdio/*.c) \
-	math/finite.c math/signbit.c
+	misc/isdigit.c misc/isxdigit.c
+scanf_SRCS:=$(wildcard stdio/*.c) \
+	misc/isdigit.c misc/isxdigit.c
 file_SRCS:=$(wildcard stdio/*.c) \
-	math/finite.c math/signbit.c
+	misc/isdigit.c misc/isxdigit.c
 stdlib_SRCS:=$(wildcard stdlib/*.c)
 math_SRCS:=$(wildcard math/*.c)
 longjmp_SRCS:=misc/setjmp.c misc/longjmp.c

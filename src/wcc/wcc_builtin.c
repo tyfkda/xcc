@@ -321,6 +321,8 @@ static Expr *proc_builtin_va_copy(const Token *ident) {
   // (void)(dst = src)
   Expr *dst = args->data[0];
   Expr *src = args->data[1];
+  mark_var_used(dst);
+  mark_var_used(src);
   Expr *assign = new_expr_bop(EX_ASSIGN, dst->type, dst->token, dst, src);
   return new_expr_cast(&tyVoid, ident, assign);
 }

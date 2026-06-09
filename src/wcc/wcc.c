@@ -648,12 +648,12 @@ static bool do_compile1(char *src, Options *opts, Vector *obj_files) {
   switch (st) {
   case UnknownSource:
     fprintf(stderr, "Unknown source type: %s\n", src);
-    return 1;  // exit
+    return false;  // exit
   case Clanguage:
     {
       int res = compile_csource(src, outfn, obj_files, opts);
       if (res != 0)
-        return 1;  // exit
+        return false;  // exit
     }
     break;
   case ObjectFile:

@@ -51,9 +51,11 @@ static ssize_t _memwrite(void *cookie, const char *buf, size_t size) {
 }
 
 static int _memflush(FILE *fp) {
-  unsigned int wp = fp->wp;
-  if (wp < fp->wcapa) {
-    fp->wbuf[wp] = '\0';
+  if (fp->flag & FF_WRITE) {
+    unsigned int wp = fp->wp;
+    if (wp < fp->wcapa) {
+      fp->wbuf[wp] = '\0';
+    }
   }
   return 0;
 }
