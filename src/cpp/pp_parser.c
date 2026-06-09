@@ -17,6 +17,15 @@
 
 static Stream *pp_stream;
 
+typedef PpResult (*BuiltinPpExprProc)(const Token*);
+
+static Table builtin_pp_expr_ident_table;  // <BuiltinPpExprProc*>
+
+static inline void add_builtin_pp_expr_ident(const char *str, BuiltinPpExprProc *proc) {
+  const Name *name = alloc_name(str, NULL, false);
+  table_put(&builtin_pp_expr_ident_table, name, proc);
+}
+
 Stream *set_pp_stream(Stream *stream) {
   Stream *old = pp_stream;
   pp_stream = stream;
@@ -97,7 +106,8 @@ Token *pp_consume(enum TokenKind kind, const char *error) {
   return tok;
 }
 
-static PpResult parse_defined(void) {
+static PpResult parse_defined(const Token *token) {
+  UNUSED(token);
   bool lpar = pp_match(TK_LPAR) != NULL;
 
   const char *start = skip_whitespaces(get_lex_p());
@@ -113,7 +123,8 @@ static PpResult parse_defined(void) {
   return macro_get(alloc_name(start, end, false)) != NULL;
 }
 
-static PpResult parse_has_include(void) {
+static PpResult parse_has_include(const Token *token) {
+  UNUSED(token);
   const char *start = skip_whitespaces(get_lex_p());
   const char *p = start;
 
@@ -287,10 +298,11 @@ static PpResult literal(Token *tok) {
 }
 
 static PpResult variable(Token *ident) {
-  if (equal_name(ident->ident, alloc_cname("defined")))
-    return parse_defined();
-  if (equal_name(ident->ident, alloc_name("__has_include", NULL, false)))
-    return parse_has_include();
+  const Name *name = ident->ident;
+  BuiltinPpExprProc *proc = table_get(&builtin_pp_expr_ident_table, name);
+  if (proc != NULL)
+    return (*proc)(ident);
+
   return 0;  // Undefined identifier is 0.
 }
 
@@ -420,4 +432,14 @@ static const ParseRule *get_rule(enum TokenKind kind) {
 
 PpResult pp_expr(void) {
   return parse_precedence(PREC_COMMA);
+}
+
+void pp_parser_init(void) {
+  table_init(&builtin_pp_expr_ident_table);
+
+  static BuiltinPpExprProc p_parse_defined = &parse_defined;
+  add_builtin_pp_expr_ident("defined", &p_parse_defined);
+
+  static BuiltinPpExprProc p_parse_has_include = &parse_has_include;
+  add_builtin_pp_expr_ident("__has_include", &p_parse_has_include);
 }

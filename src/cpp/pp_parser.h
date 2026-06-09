@@ -16,6 +16,7 @@ typedef struct Stream {
   int lineno;
 } Stream;
 
+void pp_parser_init(void);
 Stream *set_pp_stream(Stream *stream);
 PpResult pp_expr(void);
 Vector *pp_funargs(Vector *tokens, int *pindex, int vaarg);  // <Vector*<Token*>>

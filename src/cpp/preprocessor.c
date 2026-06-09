@@ -681,6 +681,7 @@ void init_preprocessor(FILE *ofp) {
 
   macro_init();
   init_lexer_for_preprocessor();
+  pp_parser_init();
 }
 
 void set_preserve_comment(bool enable) {
