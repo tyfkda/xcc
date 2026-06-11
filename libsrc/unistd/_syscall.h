@@ -59,6 +59,7 @@
 #define __NR_kill    62
 #define __NR_getcwd  79
 #define __NR_chdir   80
+#define __NR_rename  82
 #define __NR_mkdir   83
 #define __NR_rmdir   84
 #define __NR_unlink  87
@@ -133,6 +134,7 @@
 #define __NR_kill    129
 #define __NR_getcwd  17
 #define __NR_chdir   49
+#define __NR_renameat  38
 #define __NR_unlinkat  35
 #define __NR_fchmodat   53
 #define __NR_clock_gettime  113
@@ -180,6 +182,7 @@
 #define __NR_clock_gettime  403
 #define __NR_mkdirat   34
 #define __NR_unlinkat  35
+#define __NR_renameat  38
 
 #else
 #error unknown

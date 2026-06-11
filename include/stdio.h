@@ -53,6 +53,8 @@ int fflush(FILE *fp);
 int fseek(FILE *fp, long offset, int origin);
 long ftell(FILE *fp);
 int feof(FILE *fp);
+int rename(const char *oldpath, const char *newpath);
+int renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath);
 int remove(const char *fn);
 
 int fgetc(FILE *fp);
