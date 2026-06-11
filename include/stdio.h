@@ -53,6 +53,7 @@ int fflush(FILE *fp);
 int fseek(FILE *fp, long offset, int origin);
 long ftell(FILE *fp);
 int feof(FILE *fp);
+int rename(const char *oldpath, const char *newpath);
 int remove(const char *fn);
 
 int fgetc(FILE *fp);
@@ -91,3 +92,7 @@ ssize_t getline(char **lineptr, size_t *n, FILE *stream);
 
 FILE *fmemopen(void *buf, size_t size, const char *mode);
 FILE *open_memstream(char **ptr, size_t *sizeloc);
+
+#if !defined(__wasm)
+int renameat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath);
+#endif
