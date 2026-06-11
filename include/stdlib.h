@@ -51,5 +51,6 @@ int mkstemps(char *tmpl, int suffixlen);
 char *getenv(const char *varname);
 
 #if !defined(__wasm)
+int system(const char *command);
 void abort(void);
 #endif

@@ -167,12 +167,17 @@
 #define __NR_read      63
 #define __NR_write     64
 #define __NR_exit      93
+#define __NR_exit_group  94
 #define __NR_kill      129
 #define __NR_brk       214
+#define __NR_pipe2    59
+#define __NR_clone3    435
 #define __NR_execve    221
 #define __NR_wait4     260
 #define __NR_fstat     80
 #define __NR_fstatat   79
+#define __NR_fchmodat   53
+#define __NR_clock_gettime  403
 #define __NR_mkdirat   34
 #define __NR_unlinkat  35
 
