@@ -53,17 +53,22 @@ libs: $(LIBS)
 clean:	clean-test
 	rm -rf $(OBJ_DIR) $(LIB_DIR) $(WCC_OBJ_DIR) $(WCC_LIB_DIR)
 
+$(CRT0_OBJS) $(LIBC_OBJC): | $(OBJ_DIR)
+$(OBJ_DIR):
+	mkdir $(OBJ_DIR)
+
+$(LIBS): | $(LIB_DIR)
+$(LIB_DIR):
+	mkdir $(LIB_DIR)
+
 $(LIB_DIR)/crt0.a:	$(CRT0_OBJS)
-	@mkdir -p $(LIB_DIR)
 	$(AR) rc $@ $^
 
 $(LIB_DIR)/libc.a:	$(LIBC_OBJS)
-	@mkdir -p $(LIB_DIR)
 	$(AR) rc $@ $^
 
 define DEFINE_OBJ_TARGET
 $(OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
-	@mkdir -p $(OBJ_DIR)
 	$(CC) -c -o $$@ -Wall -Werror -ffreestanding $(CFLAGS) $$<
 endef
 LIB_SRC_DIRS:=$(CRT0_DIR) $(MATH_DIR) $(MISC_DIR) $(STDIO_DIR) $(STDLIB_DIR) $(STRING_DIR) \
@@ -97,6 +102,7 @@ test-$(1):	$(1)_test
 	@$(RUN_EXE) ./$(1)_test
 
 $(1)_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $($(1)_SRCS:.c=.o)))
+$$($(1)_OBJS): | $(OBJ_DIR)
 
 $(1)_test:	tests/$(1)_test.c $$($(1)_OBJS)
 	$(CC) -o$$@ $(CFLAGS) -DUNIT_TEST -ffreestanding $$^
@@ -131,17 +137,24 @@ WCC_LIBC_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCC_LIBC_SRCS:.c=.o)))
 echo-wcc-libc-objs:
 	@echo $(WCC_LIBC_OBJS)
 
+$(WCC_CRT0_OBJS) $(WCC_LIBC_OBJC): | $(WCC_OBJ_DIR)
+$(WCC_OBJ_DIR):
+	mkdir -p $(WCC_OBJ_DIR)
+
+$(WCC_LIBS): | $(WCC_LIB_DIR)
+ifneq ("$(WCC_LIB_DIR)", "$(LIB_DIR)")
+$(WCC_LIB_DIR):
+	mkdir $(WCC_LIB_DIR)
+endif
+
 $(WCC_LIB_DIR)/wcrt0.a:	$(WCC_CRT0_OBJS)
-	@mkdir -p $(WCC_LIB_DIR)
 	$(AR) rc $@ $^
 
 $(WCC_LIB_DIR)/wlibc.a:	$(WCC_LIBC_OBJS)
-	@mkdir -p $(WCC_LIB_DIR)
 	$(AR) rc $@ $^
 
 define DEFINE_WCCOBJ_TARGET
 $(WCC_OBJ_DIR)/%.o: $(1)/%.c
-	@mkdir -p $(WCC_OBJ_DIR)
 	$(CC) -c -o $$@ -Wall -Werror $(WCC_CFLAGS) $$<
 endef
 WCC_SRC_DIRS:=$(MATH_DIR) $(MISC_DIR) $(STDIO_DIR) $(STDLIB_DIR) $(STRING_DIR) $(WASM_UNISTD_DIR) $(WASM_CRT0_DIR)

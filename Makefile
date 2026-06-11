@@ -112,6 +112,7 @@ exes:	$(foreach D, $(EXES), $(addprefix $(TARGET),$(D)))
 
 define DEFINE_EXE_TARGET
 $(1)_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $($(1)_SRCS:.c=.o)))
+$$($(1)_OBJS): | $(OBJ_DIR)
 $(TARGET)$(1):	$(PARENT_DEPS) $$($(1)_OBJS)
 	$(CC) -o $$@ $$($(1)_OBJS) $(LDFLAGS)
 endef
@@ -121,7 +122,6 @@ $(foreach D, $(EXES), $(eval $(call DEFINE_EXE_TARGET,$(D))))
 
 define DEFINE_OBJ_TARGET
 $(OBJ_DIR)/%.o: $(1)/%.c $(PARENT_DEPS)
-	@mkdir -p $(OBJ_DIR)
 	$(CC) $(CFLAGS) -DXCC_TARGET_ARCH=XCC_ARCH_$(ARCHTYPE_UPPER) \
 		$$($(subst /,_,$(1))_CFLAGS) \
 		-c -o $$@ $$<
@@ -129,6 +129,9 @@ endef
 XCC_SRC_DIRS:=$(XCC_DIR) $(CC1_FE_DIR) $(CC1_BE_DIR) $(CC1_DIR) $(CC1_ARCH_DIR) $(CPP_DIR) \
 	$(AS_DIR) $(AS_ARCH_DIR) $(LD_DIR) $(UTIL_DIR) $(DEBUG_DIR)
 $(foreach D, $(XCC_SRC_DIRS), $(eval $(call DEFINE_OBJ_TARGET,$(D))))
+
+$(OBJ_DIR):
+	mkdir $(OBJ_DIR)
 
 .PHONY: test
 test:	all
@@ -246,6 +249,10 @@ WCCLD_SRCS:=$(DEBUG_DIR)/wcc-ld.c $(WCC_DIR)/wasm_linker.c \
 	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c $(UTIL_DIR)/archive.c
 WCCLD_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCCLD_SRCS:.c=.o)))
 
+$(WCC_OBJS): | $(WCC_OBJ_DIR)
+$(WCC_OBJ_DIR):
+	mkdir -p $(WCC_OBJ_DIR)
+
 wcc-ld: $(WCCLD_OBJS)
 	$(CC) -o $@ $(WCCLD_OBJS) $(LDFLAGS)
 
@@ -253,7 +260,6 @@ wcc-ld: $(WCCLD_OBJS)
 
 define DEFINE_WCCOBJ_TARGET
 $(WCC_OBJ_DIR)/%.o: $(1)/%.c  # $(WCC_PARENT_DEPS)
-	@mkdir -p $(WCC_OBJ_DIR)
 	$(CC) $(WCC_CFLAGS) -DXCC_TARGET_ARCH=XCC_ARCH_WASM -c -o $$@ $$<
 endef
 WCC_SRC_DIRS:=$(WCC_DIR) $(DEBUG_DIR) $(CC1_FE_DIR) $(CC1_BE_DIR) $(CC1_DIR) $(CPP_DIR) $(UTIL_DIR)
