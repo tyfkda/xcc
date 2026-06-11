@@ -82,6 +82,9 @@ function test_if() {
   try_pp 'Line comment hide #else' '' '#if 0\nAAA\n//#else\nBBB\n#endif' '-C'
   try_pp 'Double quote in #if' '' "#if 0\n// \"str not closed, but in comment'\n#endif" '-C'
 
+  try_pp '__has_include 1' 'HAS' "#if __has_include(\"flotest.inc\")\nHAS\n#else\nNOT HAS\n#endif"
+  try_pp '__has_include 2' 'NOT HAS' "#if __has_include(\"non-exist-file.h\")\nHAS\n#else\nNOT HAS\n#endif"
+
   end_test_suite
 }
 

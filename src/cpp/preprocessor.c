@@ -245,10 +245,7 @@ static void register_pragma_once(const char *filename) {
 }
 
 // Search include file from system include paths.
-//   result!=NULL: Found (returns found path into *pfn)
-//   result==NULL, *pfn!=NULL: Found, but blocked because of pragma once.
-//   result==NULL, *pfn==NULL: Not found.
-static FILE *search_sysinc(const char *prevdir, const char *path, char **pfn) {
+static char *search_sysinc(const char *prevdir, const char *path) {
   for (int ord = 0; ord < INC_ORDERS; ++ord) {
     Vector *v = &sys_inc_paths[ord];
     for (int idx = 0; idx < v->len; ++idx) {
@@ -258,21 +255,17 @@ static FILE *search_sysinc(const char *prevdir, const char *path, char **pfn) {
         continue;
       }
 
-      FILE *fp = NULL;
       char *fn = cat_path_cwd(v->data[idx], path);
-      if (registered_pragma_once(fn) ||  // If pragma once hit, then fp keeps NULL.
-          (is_file(fn) && (fp = fopen(fn, "r")) != NULL)) {
-        *pfn = fn;
-        return fp;
-      }
+      if (is_file(fn))
+        return fn;
     }
   }
-  *pfn = NULL;
   return NULL;
 }
 
-static void handle_include(const char *p, Stream *stream, bool is_next) {
-  const char *orgp = p = skip_whitespaces(p);
+char *find_include_file(const char **pp, Stream *stream, bool is_next) {
+  const char *p = *pp;
+  const char *orgp = p;
 
   if (*p != '<')
     p = preprocess_one_line(p, stream, NULL);
@@ -325,9 +318,32 @@ static void handle_include(const char *p, Stream *stream, bool is_next) {
       error("not closed");
   }
 
+  char *path = strndup(p, q - p);
+  *pp = q + 1;
+  char *fn = NULL;
+  char *dir = strdup(dirname(strdup(stream->filename)));
+  // Search from current directory.
+  if (!is_next && !sys) {
+    fn = cat_path_cwd(dir, path);
+    if (!is_file(fn))
+      fn = NULL;
+  }
+  if (fn == NULL)
+    fn = search_sysinc(is_next ? dir : NULL, path);
+  return fn;
+}
+
+static void handle_include(const char *p, Stream *stream, bool is_next) {
+  const char *orgp = p = skip_whitespaces(p);
+  char *fn = find_include_file(&p, stream, is_next);
+  if (fn == NULL) {
+    error("Cannot open file: %.*s", (int)(p - orgp), orgp);
+    // unreachable.
+  }
+
   // Ensure line end after include.
   {
-    const char *after = q + 1;
+    const char *after = p;
     set_source_string(after, stream->filename, stream->lineno);
     bool err = false;
     for (;;) {
@@ -340,25 +356,13 @@ static void handle_include(const char *p, Stream *stream, bool is_next) {
     }
   }
 
-  char *path = strndup(p, q - p);
-  char *fn = NULL;
-  FILE *fp = NULL;
-  char *dir = strdup(dirname(strdup(stream->filename)));
-  // Search from current directory.
-  if (!is_next && !sys) {
-    fn = cat_path_cwd(dir, path);
-    if (registered_pragma_once(fn))
-      return;
-    if (is_file(fn))
-      fp = fopen(fn, "r");
-  }
+  if (registered_pragma_once(fn))
+    return;
+
+  FILE *fp = fopen(fn, "r");
   if (fp == NULL) {
-    fp = search_sysinc(is_next ? dir : NULL, path, &fn);
-    if (fp == NULL) {
-      if (fn == NULL)  // Raise error except pragma once.
-        error("Cannot open file: %s", path);
-      return;
-    }
+    error("Cannot open file: %.*s", (int)(p - orgp), orgp);
+    // unreachable.
   }
 
   preprocess(fp, fn);
@@ -677,6 +681,7 @@ void init_preprocessor(FILE *ofp) {
 
   macro_init();
   init_lexer_for_preprocessor();
+  pp_parser_init();
 }
 
 void set_preserve_comment(bool enable) {
