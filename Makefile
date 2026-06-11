@@ -150,7 +150,7 @@ test-libs:	all
 .PHONY: clean
 clean:
 	rm -rf $(EXES) $(OBJ_DIR) a.out gen2* gen3* tmp.s \
-		dump_expr* dump_ir* dump_type* \
+		dump_expr* dump_ir* dump_type* c2llvm* \
 		wcc cc.wasm a.wasm public release $(WCC_LIBS) $(WCC_OBJ_DIR) $(WCC_LIB_DIR)
 	@$(MAKE) -C libsrc clean
 	@$(MAKE) -C tests clean
@@ -324,7 +324,7 @@ release-wcc:	assets
 
 ### Debug
 
-DEBUG_EXES:=dump_expr dump_ir dump_type
+DEBUG_EXES:=dump_expr dump_ir dump_type c2llvm
 DEBUG_CFLAGS:=$(subst -MMD,,$(CFLAGS))
 
 dump_expr_SRCS:=$(DEBUG_DIR)/dump_expr.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \
@@ -346,6 +346,16 @@ dump_type_SRCS:=$(DEBUG_DIR)/dump_type.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DI
 	$(CC1_FE_DIR)/parser_type.c $(CC1_FE_DIR)/expr.c \
 	$(CC1_FE_DIR)/fe_misc.c $(CC1_FE_DIR)/initializer.c $(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c \
 	$(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c $(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
+
+c2llvm_SRCS:=$(DEBUG_DIR)/c2llvm.c $(CC1_FE_DIR)/parser_expr.c $(CC1_FE_DIR)/parser.c \
+	$(CC1_FE_DIR)/parser_type.c $(CC1_FE_DIR)/expr.c \
+	$(CC1_FE_DIR)/fe_misc.c $(CC1_FE_DIR)/initializer.c $(CC1_FE_DIR)/lexer.c $(CC1_FE_DIR)/type.c \
+	$(CC1_FE_DIR)/ast.c $(CC1_FE_DIR)/var.c $(CC1_FE_DIR)/cc_misc.c \
+	$(CC1_BE_DIR)/codegen_expr.c $(CC1_BE_DIR)/codegen.c $(CC1_BE_DIR)/ir.c \
+	$(CC1_BE_DIR)/optimize.c $(CC1_BE_DIR)/ssa.c $(CC1_BE_DIR)/regalloc.c \
+	$(CC1_DIR)/builtin.c $(CC1_ARCH_DIR)/emit_code.c \
+	$(CC1_ARCH_DIR)/ir_$(ARCHTYPE).c $(CC1_ARCH_DIR)/emit_$(ARCHTYPE).c \
+	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c
 
 define DEFINE_DEBUG_TARGET
 $(1)_OBJS:=$(addprefix $(OBJ_DIR)/,$(notdir $($(1)_SRCS:.c=.o)))
