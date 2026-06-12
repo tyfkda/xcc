@@ -60,7 +60,7 @@ static inline VarInfo *prepare_retvar(Function *func) {
   // Insert vreg for return value pointer into top of the function scope.
   static const char RETBUFPTR[] = ".._RETBUFPTR";
   Type *rettype = func->type->func.ret;
-  const Token *retval_token = alloc_token(TK_IDENT, 0, RETBUFPTR, NULL);
+  const Token *retval_token = alloc_ident(alloc_cname(RETBUFPTR), NULL, RETBUFPTR, NULL);
   Type *retptrtype = ptrof(rettype);
   Scope *top_scope = func->scopes->data[0];
   VarInfo *varinfo = scope_add(top_scope, retval_token, retptrtype, 0);
