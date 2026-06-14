@@ -576,8 +576,10 @@ static void apply_relocation_wasmobj(WasmLinker *linker, WasmObj *wasmobj) {
         error("illegal index for reloc: %d", p->index);
       SymbolInfo *sym = symtab->data[p->index];
       SymbolInfo *target = sym;
-      if (!table_try_get(&linker->defined, sym->name, (void**)&target))
-        table_try_get(&linker->unresolved, sym->name, (void**)&target);
+      if (!(sym->flags & WASM_SYM_BINDING_LOCAL)) {
+        if (!table_try_get(&linker->defined, sym->name, (void**)&target))
+          table_try_get(&linker->unresolved, sym->name, (void**)&target);
+      }
 
       enum ValueType { COMBIDX = 1, MEMADDR, FUNCIDX };
       enum DstType { VARU = 1, VARI, I32 };
