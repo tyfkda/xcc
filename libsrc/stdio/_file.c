@@ -112,14 +112,18 @@ int _fflush(FILE *fp) {
   return 0;
 }
 
-int _fseek(void *cookie, off_t *offset, int origin) {
+int _fseek(void *cookie, off_t *poffset, int origin) {
   FILE *fp = cookie;
-  off_t result = lseek(fp->fd, *offset, origin);
+  off_t offset = *poffset;
+  off_t result = lseek(fp->fd, offset, origin);
   if (result == -1)
     return -1;
-  fp->flag &= ~FF_EOF;
-  fp->rp = fp->rs = 0;
-  fp->unget_char = EOF;
-  *offset = result;
+  if (offset != 0 || origin != SEEK_CUR) {
+    fp->flag &= ~FF_EOF;
+    fp->rp = fp->rs = 0;
+    fp->wp = 0;
+    fp->unget_char = EOF;
+  }
+  *poffset = result;
   return 0;
 }

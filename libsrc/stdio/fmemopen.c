@@ -76,7 +76,12 @@ static int _memseek(void *cookie, off_t *offset, int origin) {
     fp->wp = fp->wcapa + *offset;
     break;
   }
-  fp->unget_char = EOF;
+  if (fp->unget_char != EOF) {
+    if (fp->wp > 0)
+      --fp->wp;
+    fp->unget_char = EOF;
+  }
+  *offset = 0;
   return 0;
 }
 

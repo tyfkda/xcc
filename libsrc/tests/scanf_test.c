@@ -60,6 +60,12 @@ TEST(sscanf) {
     int result = sscanf("auto-whiltespaces: \t\n 333", "auto-whiltespaces:%d", &i);
     EXPECT_TRUE(result == 1 && i == 333);
   }
+
+  {
+    int i = -1, n = -1;
+    int result = sscanf("pos: 123  ", "pos: %d%n", &i, &n);
+    EXPECT_TRUE(result == 1 && i == 123 && n == 8);
+  }
 }
 
 XTEST_MAIN();

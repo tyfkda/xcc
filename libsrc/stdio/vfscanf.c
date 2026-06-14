@@ -206,7 +206,7 @@ int vfscanf(FILE *restrict fp, const char *restrict format, va_list ap) {
   VaList va;
   va_copy(va.ap, ap);
   for (const unsigned char *p = (unsigned char*)format; (c = *p) != '\0'; ++p) {
-    if ((c == '%' && p[1] != '%') || isspace(c)) {
+    if ((c == '%' && (p[1] != '%' && p[1] != 'n')) || isspace(c)) {
       int c2;
       while (c2 = fgetc(fp), isspace(c2))
         ;
@@ -269,6 +269,19 @@ int vfscanf(FILE *restrict fp, const char *restrict format, va_list ap) {
           if (read_store_string(fp, order, &va)) {
             ++count;
             continue;
+          }
+          break;
+        case 'n':
+          {
+            long pos = ftell(fp);
+            if (pos == -1) {
+              // error
+            } else {
+              int *p = va_arg(va.ap, int*);
+              *p = pos;
+              // No need to increment the `count`.
+              continue;
+            }
           }
           break;
         default:  // Unsupported.

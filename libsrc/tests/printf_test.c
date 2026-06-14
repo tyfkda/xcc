@@ -45,12 +45,14 @@ TEST(fmemopen) {
   fp = fmemopen(buf, sizeof(buf), "w");
   if (EXPECT_NOT_NULL(fp)) {
     EXPECT_EQ(sizeof(str), fwrite(str, 1, sizeof(str), fp));
+    EXPECT_EQ(sizeof(str), ftell(fp));
     fclose(fp);
   }
 
   fp = fmemopen((void*)str, sizeof(str), "r");
   if (EXPECT_NOT_NULL(fp)) {
     EXPECT_EQ(sizeof(str), fread(buf, 1, sizeof(buf), fp));
+    EXPECT_EQ(sizeof(str), ftell(fp));
     fclose(fp);
     EXPECT_EQ(0, memcmp(buf, str, sizeof(str)));
   }
