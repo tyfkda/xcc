@@ -615,6 +615,8 @@ static int do_compile(Options *opts, const char *root) {
     pid_t ld_pid = exec_with_ofd((char**)opts->ld_cmd->data, -1);
     int status;
     waitpid(ld_pid, &status, 0);
+    if (WIFSIGNALED(status))
+      raise(WTERMSIG(status));
     res |= status;
   }
 
