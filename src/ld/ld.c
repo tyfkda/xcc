@@ -84,6 +84,9 @@ typedef struct {
   int nfiles;
   Table *symbol_table;  // <ElfObj*>
   Table *generated_symbol_table;  // <LinkElem*>
+
+  Vector *section_lists[SECTION_COUNT];  // <LinkElem*>
+  SectionGroup section_groups[SECTION_COUNT];
 } LinkEditor;
 
 void ld_init(LinkEditor *ld, int nfiles) {
@@ -614,7 +617,7 @@ static int ld_resolve_symbols(LinkEditor *ld, Table *unresolved) {
   return error_count;
 }
 
-static void ld_collect_sections(LinkEditor *ld, const char *name, Vector *seclist) {
+static void ld_collect_sections_sub(LinkEditor *ld, const char *name, Vector *seclist) {
   for (int i = 0; i < ld->nfiles; ++i) {
     File *file = &ld->files[i];
     switch (file->kind) {
@@ -628,8 +631,9 @@ static void ld_collect_sections(LinkEditor *ld, const char *name, Vector *seclis
   }
 }
 
-static bool ld_calc_address(SectionGroup section_groups[SECTION_COUNT],
-                            Vector *section_lists[SECTION_COUNT]) {
+static bool ld_calc_address(LinkEditor *ld) {
+  SectionGroup *section_groups = ld->section_groups;
+  Vector **section_lists = ld->section_lists;
   uint64_t address = 0;
   for (int secno = 0; secno < SECTION_COUNT; ++secno) {
     Vector *v = section_lists[secno];
@@ -680,7 +684,8 @@ static bool ld_calc_address(SectionGroup section_groups[SECTION_COUNT],
   return true;
 }
 
-static void ld_load_elf_objects(Vector *section_lists[SECTION_COUNT]) {
+static void ld_load_elf_objects(LinkEditor *ld) {
+  Vector **section_lists = ld->section_lists;
   for (int secno = 0; secno < SECTION_COUNT; ++secno) {
     Vector *v = section_lists[secno];
     if (v->len <= 0)
@@ -731,8 +736,8 @@ static void output_section(FILE *fp, const SectionGroup *secgroup) {
   fwrite(buf, ds->len, 1, fp);
 }
 
-static bool output_exe(const char *ofn, uint64_t entry_address,
-                       SectionGroup section_groups[SECTION_COUNT]) {
+static bool ld_output_exe(LinkEditor *ld, const char *ofn, uint64_t entry_address) {
+  SectionGroup *section_groups = ld->section_groups;
   FILE *fp;
   if (ofn == NULL) {
     fp = stdout;
@@ -1087,7 +1092,8 @@ static const SectionGroupData kSectionGroups[] = {
   },
 };
 
-static void prepare_section_lists(LinkEditor *ld, Vector *section_lists[SECTION_COUNT]) {
+static void ld_prepare_section_lists(LinkEditor *ld) {
+  Vector **section_lists = ld->section_lists;
   for (int secno = 0; secno < SECTION_COUNT; ++secno) {
     Vector *seclist = new_vector();
     section_lists[secno] = seclist;
@@ -1115,14 +1121,14 @@ static void prepare_section_lists(LinkEditor *ld, Vector *section_lists[SECTION_
   }
 }
 
-static void collect_sections(LinkEditor *ld, Vector *section_lists[SECTION_COUNT]) {
+static void ld_collect_sections(LinkEditor *ld) {
   for (int secno = 0; secno < SECTION_COUNT; ++secno) {
-    Vector *seclist = section_lists[secno];
+    Vector *seclist = ld->section_lists[secno];
     for (int i = 0; i < seclist->len; ++i) {
       LinkElem *elem = seclist->data[i];
       switch (elem->kind) {
       case LEK_SECTION:
-        ld_collect_sections(ld, elem->section.name, elem->section.list);
+        ld_collect_sections_sub(ld, elem->section.name, elem->section.list);
         break;
       case LEK_SYMBOL:
       case LEK_ALIGN:
@@ -1132,8 +1138,9 @@ static void collect_sections(LinkEditor *ld, Vector *section_lists[SECTION_COUNT
   }
 }
 
-static void prepare_section_groups(Vector *section_lists[SECTION_COUNT],
-                                   SectionGroup section_groups[SECTION_COUNT]) {
+static void ld_prepare_section_groups(LinkEditor *ld) {
+  Vector **section_lists = ld->section_lists;
+  SectionGroup *section_groups = ld->section_groups;
   for (int secno = 0; secno < SECTION_COUNT; ++secno) {
     SectionGroup *secgroup = &section_groups[secno];
     secgroup->start_address = kSectionGroups[secno].start_address;
@@ -1173,8 +1180,9 @@ static void prepare_section_groups(Vector *section_lists[SECTION_COUNT],
   }
 }
 
-static void collect_section_data(Vector *section_lists[SECTION_COUNT],
-                                 SectionGroup section_groups[SECTION_COUNT]) {
+static void ld_collect_section_data(LinkEditor *ld) {
+  Vector **section_lists = ld->section_lists;
+  SectionGroup *section_groups = ld->section_groups;
   for (int secno = 0; secno < SECTION_COUNT; ++secno) {
     Vector *v = section_lists[secno];
     for (int i = 0; i < v->len; ++i) {
@@ -1215,8 +1223,7 @@ static int do_link(Vector *sources, const Options *opts) {
   table_init(&unresolved);
   table_put(&unresolved, entry_name, (void*)entry_name);
 
-  Vector *section_lists[SECTION_COUNT];  // <LinkElem*>
-  prepare_section_lists(ld, section_lists);
+  ld_prepare_section_lists(ld);
 
   if (ld_resolve_symbols(ld, &unresolved) > 0)
     return 1;
@@ -1229,25 +1236,24 @@ static int do_link(Vector *sources, const Options *opts) {
     return 1;
   }
 
-  collect_sections(ld, section_lists);
+  ld_collect_sections(ld);
 
-  SectionGroup section_groups[SECTION_COUNT];
-  prepare_section_groups(section_lists, section_groups);
+  ld_prepare_section_groups(ld);
 
-  if (!ld_calc_address(section_groups, section_lists))
+  if (!ld_calc_address(ld))
     return 1;
-  ld_load_elf_objects(section_lists);
+  ld_load_elf_objects(ld);
 
   int error_count = ld_resolve_relas(ld);
   if (error_count > 0)
     return 1;
 
-  collect_section_data(section_lists, section_groups);
+  ld_collect_section_data(ld);
 
   uint64_t entry_address = ld_symbol_address(ld, entry_name);
   assert(entry_address != (uint64_t)-1);
 
-  bool result = output_exe(opts->ofn, entry_address, section_groups);
+  bool result = ld_output_exe(ld, opts->ofn, entry_address);
 
   if (opts->outmapfn != NULL && result)
     result = output_map_file(ld, opts->outmapfn, entry_address, entry_name);
