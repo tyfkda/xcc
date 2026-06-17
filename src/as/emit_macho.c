@@ -19,7 +19,7 @@
 #error "Unsupported architecture"
 #endif
 
-#include "as_util.h"
+#include "bin_util.h"
 #include "ir_asm.h"
 #include "parse_asm.h"
 #include "table.h"
@@ -43,47 +43,6 @@
                       (((ext) & 1U) << 27) | (((typ) & 0x0f) << 28));                             \
   } while (0)
 #endif
-
-typedef struct {
-  Strtab strtab;
-  Table indices;
-  struct nlist_64 *buf;
-  int ilocalsym, iextdefsym, iundefsym;  // for dysymtab.
-  int count;
-} Symtab;
-
-void symtab_init(Symtab *symtab) {
-  strtab_init(&symtab->strtab);
-  table_init(&symtab->indices);
-  symtab->buf = NULL;
-  symtab->count = 0;
-}
-
-int symtab_find(Symtab *symtab, const Name *name) {
-  intptr_t index;
-  if (table_try_get(&symtab->indices, name, (void**)&index))
-    return index;
-  return -1;
-}
-
-struct nlist_64 *symtab_add(Symtab *symtab, const Name *name) {
-  uint32_t offset = strtab_add(&symtab->strtab, name);
-  if (name->bytes > 0) {
-    int index = symtab_find(symtab, name);
-    if (index >= 0)
-      return &symtab->buf[index];
-  }
-
-  int old_count = symtab->count;
-  int new_count = old_count + 1;
-  symtab->buf = realloc_or_die(symtab->buf, sizeof(*symtab->buf) * new_count);
-  symtab->count = new_count;
-  struct nlist_64 *sym = &symtab->buf[old_count];
-  memset(sym, 0x00, sizeof(*sym));
-  sym->n_un.n_strx = offset;
-  table_put(&symtab->indices, name, INT2VOIDP(old_count));
-  return sym;
-}
 
 //
 
@@ -416,7 +375,7 @@ static inline void construct_load_commands(
     .ntools = 0,
   };
   const Symtab *symtab = &work->symtab;
-  const uint64_t str_start_off = symbol_start_off + sizeof(*symtab->buf) * symtab->count;
+  const uint64_t str_start_off = symbol_start_off + sizeof(struct nlist_64) * symtab->count;
   work->symtabcmd = (struct symtab_command){
     .cmd = LC_SYMTAB,
     .cmdsize = sizeof(work->symtabcmd),
@@ -502,7 +461,7 @@ static inline int output_to_file(const char *ofn, const Work *work) {
       fwrite(section->rela_buf, sizeof(struct relocation_info), rela_count, ofp);
     }
   }
-  fwrite(work->symtab.buf, sizeof(*work->symtab.buf), work->symtab.count, ofp);
+  fwrite(work->symtab.buf, sizeof(struct nlist_64), work->symtab.count, ofp);
   fwrite(strtab_dump(&work->symtab.strtab), work->symtab.strtab.size, 1, ofp);
 
   return 0;

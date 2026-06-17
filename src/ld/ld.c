@@ -13,7 +13,7 @@
 
 #include "archive.h"
 #include "elfobj.h"
-#include "elfutil.h"
+#include "bin_util.h"
 #include "table.h"
 #include "util.h"
 
