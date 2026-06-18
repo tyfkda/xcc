@@ -23,16 +23,22 @@ static const char kDefaultEntryName[] = "_start";
 #define CODE_START_ADDRESS  (0x01000000 + PROG_START)
 #define DATA_START_ADDRESS  (0x10000000)
 #define TEXT_ALIGN          (4)
+#define RODATA_ALIGN        (0x1000)
 #define DATA_ALIGN          (0x1000)
-
-#define SECTION_COUNT  (2)
 
 #define ELF_MIN_ALIGN  0x08
 
+#define SECTION_COUNT  (3)
+
 enum SectionType {
   SEC_TEXT,
-  SEC_DATA,
+  SEC_RODATA,
+  SEC_DATA,    // .data, .bss
 };
+
+static const char *kSectionNames[] = {".text", ".rodata", ".data"};
+
+static const size_t kSectionMaxAlign[] = {TEXT_ALIGN, RODATA_ALIGN, DATA_ALIGN};
 
 //
 
@@ -645,12 +651,17 @@ static bool ld_calc_address(LinkEditor *ld) {
 
     SectionGroup *secgroup = &section_groups[secno];
     uint64_t next_address = secgroup->start_address;
-    if (address > next_address) {
-      fprintf(stderr, "Address ovelapped in section group %d: %" PRIu64 " > %" PRIu64 "\n",
-              secno, address, next_address);
-      return false;
+    if (next_address == (uint64_t)-1) {
+      address = ALIGN(address, secgroup->align);
+      secgroup->start_address = address;
+    } else {
+      if (address > next_address) {
+        fprintf(stderr, "Address ovelapped in section group %d: %" PRIx64 " > %" PRIx64 "\n",
+                secno, address, next_address);
+        return false;
+      }
+      address = next_address;
     }
-    address = next_address;
 
     for (int i = 0; i < v->len; ++i) {
       LinkElem *elem = v->data[i];
@@ -764,7 +775,6 @@ static bool ld_output_exe(LinkEditor *ld, const char *ofn, uint64_t entry_addres
   int phnum = 0;
   uint64_t offset = PROG_START;
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
-    static const char *kSectionNames[] = {".text", ".data"};
     SectionGroup *p = &section_groups[sec];
     size_t file_sz = p->ds->len, mem_sz = p->bss_size;
     if (file_sz == 0 && mem_sz == 0)
@@ -796,7 +806,8 @@ static bool ld_output_exe(LinkEditor *ld, const char *ofn, uint64_t entry_addres
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     static const int kPhdrFlags[] = {
       PF_R | PF_X,  // code
-      PF_R | PF_W,  // rwdata
+      PF_R,         // rodata
+      PF_R | PF_W,  // data (r/w)
     };
 
     const SectionGroup *p = &section_groups[sec];
@@ -845,6 +856,7 @@ static bool ld_output_exe(LinkEditor *ld, const char *ofn, uint64_t entry_addres
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
     static const Elf64_Xword kFlags[] = {
       SHF_ALLOC | SHF_EXECINSTR,
+      SHF_ALLOC,
       SHF_ALLOC | SHF_WRITE,
     };
 
@@ -1050,7 +1062,6 @@ static Symtab *generate_symbol_table(LinkEditor *ld, Vector *symbols) {
   }
   // SECTION
   for (int sec = 0; sec < SECTION_COUNT; ++sec) {
-    static const char *kSectionNames[] = {".text", ".data"};
     SectionGroup *p = &ld->section_groups[sec];
     size_t file_sz = p->ds->len, mem_sz = p->bss_size;
     if (file_sz == 0 && mem_sz == 0)
@@ -1216,6 +1227,12 @@ static const SectionGroupData kSectionGroups[] = {
       {.kind = LEK_SECTION, .section = {.name = ".init"}},
       {.kind = LEK_SECTION, .section = {.name = ".text"}},
       {.kind = LEK_SECTION, .section = {.name = ".fini"}},
+      {.kind = -1},
+    },
+  },
+  [SEC_RODATA] = {
+    .start_address = -1,
+    .elems = (ElemData[]) {
       {.kind = LEK_SECTION, .section = {.name = ".rodata"}},
       {.kind = -1},
     },
@@ -1301,7 +1318,7 @@ static void ld_prepare_section_groups(LinkEditor *ld) {
     data_init(secgroup->ds);
 
     Vector *seclist = section_lists[secno];
-    size_t max_align = secno == SEC_TEXT ? TEXT_ALIGN : DATA_ALIGN;
+    size_t max_align = kSectionMaxAlign[secno];
     for (int i = 0; i < seclist->len; ++i) {
       LinkElem *elem = seclist->data[i];
       switch (elem->kind) {
