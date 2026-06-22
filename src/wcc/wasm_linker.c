@@ -300,6 +300,7 @@ static void renumber_symbols_wasmobj(WasmObj *wasmobj, uint32_t *defined_count) 
   import_count[SIK_SYMTAB_FUNCTION] = wasmobj->import.functions->len;
   import_count[SIK_SYMTAB_DATA] = 0;
   import_count[SIK_SYMTAB_TABLE] = wasmobj->import.tables != NULL ? wasmobj->import.tables->len : 0;
+  uint32_t data_count = 0;
   for (int i = 0; i < symtab->len; ++i) {
     SymbolInfo *sym = symtab->data[i];
     if (sym->flags & WASM_SYM_UNDEFINED)
@@ -307,9 +308,17 @@ static void renumber_symbols_wasmobj(WasmObj *wasmobj, uint32_t *defined_count) 
     switch (sym->kind) {
     default: assert(false); // Fallthrough to suppress warning.
     case SIK_SYMTAB_FUNCTION:
-    case SIK_SYMTAB_DATA:
     case SIK_SYMTAB_TABLE:
       sym->combined_index = sym->local_index + defined_count[sym->kind] - import_count[sym->kind];
+      break;
+    case SIK_SYMTAB_DATA:
+      {
+        DataSegmentForLink *segment = &wasmobj->data.segments[sym->local_index];
+        if (segment->is_bss)
+          continue;
+        sym->combined_index = data_count + defined_count[sym->kind] - import_count[sym->kind];
+        ++data_count;
+      }
       break;
     case SIK_SYMTAB_GLOBAL:
       // Handled differently (just below).
@@ -330,7 +339,7 @@ static void renumber_symbols_wasmobj(WasmObj *wasmobj, uint32_t *defined_count) 
 
   // Increment count_table according to defined counts.
   defined_count[0] += wasmobj->func.count;
-  defined_count[1] += wasmobj->data.count;
+  defined_count[1] += data_count;
   // Assume table is not defined in wasmobj.
 }
 
@@ -834,6 +843,7 @@ static void out_export_section(WasmLinker *linker, Table *exports) {
       data_uleb128(&exports_section, -1,
                    sym->kind == SIK_SYMTAB_FUNCTION ? IMPORT_FUNC : IMPORT_GLOBAL);  // export kind
       data_uleb128(&exports_section, -1, sym->combined_index);  // export func index
+      sym->flags |= WASM_SYM_EXPORTED;
       break;
     default:
       if (!linker->options.export_all)
@@ -936,15 +946,9 @@ static uint32_t out_data_section_wasmobj(WasmObj *wasmobj, DataStorage *datasec)
   uint32_t data_count = 0;
   for (uint32_t j = 0, count = wasmobj->data.count; j < count; ++j) {
     DataSegmentForLink *segment = &segments[j];
-    uint32_t size = segment->size;
-    const unsigned char *content = segment->content;
-    uint32_t non_zero_size;
-    for (non_zero_size = size; non_zero_size > 0; --non_zero_size) {
-      if (content[non_zero_size - 1] != 0x00)
-        break;
-    }
-    if (non_zero_size == 0)  // BSS
+    if (segment->is_bss)
       continue;
+    uint32_t size = segment->size;
 
     data_push(datasec, 0);  // flags
     // Init (address).
@@ -953,8 +957,8 @@ static uint32_t out_data_section_wasmobj(WasmObj *wasmobj, DataStorage *datasec)
     data_leb128(datasec, -1, address);
     data_push(datasec, OP_END);
     // Content
-    data_uleb128(datasec, -1, non_zero_size);
-    data_append(datasec, segment->content, non_zero_size);
+    data_uleb128(datasec, -1, size);
+    data_append(datasec, segment->content, size);
     ++data_count;
   }
   return data_count;
@@ -985,6 +989,92 @@ static void out_data_section(WasmLinker *linker) {
 
   fputc(SEC_DATA, linker->ofp);
   fwrite(datasec.buf, datasec.len, 1, linker->ofp);
+}
+
+enum CustomNameType {
+  CN_MODULE,
+  CN_FUNCTION,
+  CN_LOCAL,
+  CN_LABEL,
+  CN_TYPE,
+  CN_TABLE,
+  CN_MEMORY,
+  CN_GLOBAL,
+  CN_ELEMENT,
+  CN_DATASEG,
+};
+
+static void out_custom_name_wasmobj(WasmObj *wasmobj, DataStorage *ds) {
+  Vector *symtab = wasmobj->linking.symtab;
+  Vector *funcs = new_vector();
+  Vector *datas = new_vector();
+  for (int j = 0; j < symtab->len; ++j) {
+    SymbolInfo *sym = symtab->data[j];
+    if (sym->flags & (WASM_SYM_UNDEFINED | WASM_SYM_EXPORTED))
+      continue;
+    switch (sym->kind) {
+    case SIK_SYMTAB_FUNCTION: vec_push(funcs, sym); break;
+    case SIK_SYMTAB_DATA:
+      if (sym->data.offset == 0) {
+        DataSegmentForLink *segment = &wasmobj->data.segments[sym->local_index];
+        if (!segment->is_bss) {
+          vec_push(datas, sym);
+        }
+      }
+      break;
+    default: break;
+    }
+  }
+  if (funcs->len != 0) {
+    data_push(ds, CN_FUNCTION);
+    data_open_chunk(ds);
+    data_uleb128(ds, -1, funcs->len);
+    for (int j = 0; j < funcs->len; ++j) {
+      SymbolInfo *sym = funcs->data[j];
+      data_uleb128(ds, -1, sym->combined_index);
+      data_string(ds, sym->name->chars, sym->name->bytes);
+    }
+    data_close_chunk(ds, -1);
+  }
+  if (datas->len != 0) {
+    data_push(ds, CN_DATASEG);
+    data_open_chunk(ds);
+    data_uleb128(ds, -1, datas->len);
+    for (int j = 0; j < datas->len; ++j) {
+      SymbolInfo *sym = datas->data[j];
+      data_uleb128(ds, -1, sym->combined_index);
+      data_string(ds, sym->name->chars, sym->name->bytes);
+    }
+    data_close_chunk(ds, -1);
+  }
+  free_vector(funcs);
+  free_vector(datas);
+}
+
+static void out_custom_section(WasmLinker *linker) {
+  DataStorage name_section;
+  static const char kName[] = "name";
+  data_init(&name_section);
+  data_open_chunk(&name_section);
+  data_string(&name_section, kName, sizeof(kName) - 1);
+
+  for (int i = 0; i < linker->files->len; ++i) {
+    File *file = linker->files->data[i];
+    switch (file->kind) {
+    case FK_WASMOBJ:
+      out_custom_name_wasmobj(file->wasmobj, &name_section);
+      break;
+    case FK_ARCHIVE:
+      FOREACH_FILE_ARCONTENT(file->archive, content, {
+        out_custom_name_wasmobj(content->obj, &name_section);
+      });
+      break;
+    }
+  }
+
+  data_close_chunk(&name_section, -1);
+  fputc(SEC_CUSTOM, linker->ofp);
+  fwrite(name_section.buf, name_section.len, 1, linker->ofp);
 }
 
 //
@@ -1196,6 +1286,9 @@ bool linker_emit_wasm(WasmLinker *linker, const char *ofn, Table *exports) {
 
   // Data.
   out_data_section(linker);
+
+  // Debug info
+  out_custom_section(linker);
 
   fclose(ofp);
 

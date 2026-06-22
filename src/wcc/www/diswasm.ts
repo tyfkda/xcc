@@ -1554,7 +1554,12 @@ export class DisWasm {
       const count = this.bufferReader.readUleb128()
       const elements = [...Array(count)].map(_ => {
         const index = this.bufferReader.readUleb128()
-        return this.getCustomName(CustomNameType.FUNCTION, index) ?? `${index}`
+        let customName = this.getCustomName(CustomNameType.FUNCTION, index)
+        if (customName == null && this.funcs.has(index)) {
+          const [_mod, name] = this.funcs.get(index)!
+          customName = `\$${name}`
+        }
+        return customName ?? `${index}`
       })
       this.log(`(elem (i32.const ${start}) func ${elements.join(' ')})  ;; ${i}`)
     }

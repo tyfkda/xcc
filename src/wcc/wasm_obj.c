@@ -218,7 +218,16 @@ static void read_tag_section(WasmObj *wasmobj, unsigned char *p) {
   wasmobj->tag.count = num;
 }
 
+inline static bool is_data_empty(const unsigned char *content, uint32_t size) {
+  for (size_t i = 0; i < size; ++i) {
+    if (content[i] != 0x00)
+      return false;
+  }
+  return true;
+}
+
 static void read_data_section(WasmObj *wasmobj, unsigned char *p) {
+  unsigned char *top = p;
   DataSegmentForLink *segments = NULL;
   uint32_t count = read_uleb128(p, &p);
   segments = calloc_or_die(sizeof(*segments) * count);
@@ -229,8 +238,11 @@ static void read_data_section(WasmObj *wasmobj, unsigned char *p) {
       error("malformed data section");
     }
     uint32_t size = read_uleb128(p, &p);
+    unsigned char *content = p;
     segment->size = size;
-    segment->content = p;
+    segment->content = content;
+    segment->offset = content - top;
+    segment->is_bss = is_data_empty(content, size);
 
     p += segment->size;
   }
@@ -449,6 +461,24 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
   }
 }
 
+static DataSegmentForLink *find_target_data_segment(DataSegmentForLink *data_segments, uint32_t count, uint32_t offset) {
+  int lo = -1, hi = count;
+  while (hi - lo > 1) {
+    const int m = lo + ((hi - lo) >> 1);
+    DataSegmentForLink *p = &data_segments[m];
+    if (p->offset + p->size < offset)
+      lo = m;
+    else
+      hi = m;
+  }
+  if (hi >= (int)count)
+    return NULL;
+  DataSegmentForLink *p = &data_segments[hi];
+  assert(offset >= p->offset);
+  assert(offset < p->offset + p->size);
+  return offset < p->offset + p->size ? p : NULL;
+}
+
 static void read_reloc(WasmObj *wasmobj, unsigned char *p, int is_data) {
   uint32_t section_index = read_uleb128(p, &p);
   uint32_t count = read_uleb128(p, &p);
@@ -457,6 +487,10 @@ static void read_reloc(WasmObj *wasmobj, unsigned char *p, int is_data) {
       wasmobj->sections[section_index].id != (is_data ? SEC_DATA : SEC_CODE)) {
     error("invalid section for relocation: section index=%d", section_index);
   }
+
+  DataSegmentForLink *data_segments = wasmobj->data.segments;
+  uint32_t data_segment_count = wasmobj->data.count;
+  assert(!is_data || data_segments != NULL);
 
   RelocInfo *relocs = NULL;
   if (count > 0) {
@@ -486,6 +520,12 @@ static void read_reloc(WasmObj *wasmobj, unsigned char *p, int is_data) {
       p->offset = offset;
       p->index = index;
       p->addend = addend;
+
+      if (is_data) {  // Relocation is exist, so the correspoinding segment is not bss.
+        DataSegmentForLink *ds = find_target_data_segment(data_segments, data_segment_count, offset);
+        assert(ds != NULL);
+        ds->is_bss = false;
+      }
     }
   }
 

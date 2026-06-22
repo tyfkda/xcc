@@ -123,6 +123,8 @@ typedef struct DataSegmentForLink {
   unsigned char *content;
   uint32_t start;
   uint32_t size;
+  uint32_t offset;
+  bool is_bss;
 } DataSegmentForLink;
 
 typedef struct TagData {
