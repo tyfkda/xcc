@@ -151,7 +151,7 @@ test-libs:	all
 clean:
 	rm -rf $(EXES) $(OBJ_DIR) a.out gen2* gen3* tmp.s \
 		dump_expr* dump_ir* dump_type* \
-		wcc wcc-ld cc.wasm a.wasm public release $(WCC_LIBS) $(WCC_OBJ_DIR) $(WCC_LIB_DIR)
+		wcc cc.wasm a.wasm public release $(WCC_LIBS) $(WCC_OBJ_DIR) $(WCC_LIB_DIR)
 	@$(MAKE) -C libsrc clean
 	@$(MAKE) -C tests clean
 
@@ -242,19 +242,9 @@ wcc: $(WCC_OBJS)
 wcc-libs:
 	$(MAKE) CC=../wcc AR=llvm-ar -C libsrc wcc-libs
 
-WCCLD_SRCS:=$(DEBUG_DIR)/wcc-ld.c $(WCC_DIR)/wasm_linker.c \
-	$(WCC_DIR)/wcc_util.c $(WCC_DIR)/emit_wasm.c $(WCC_DIR)/gen_wasm.c $(WCC_DIR)/gen_wasm_expr.c \
-	$(WCC_DIR)/traverse.c $(WCC_DIR)/traverse_setjmp.c $(WCC_DIR)/wasm_obj.c \
-	$(wildcard $(CC1_FE_DIR)/*.c) \
-	$(UTIL_DIR)/util.c $(UTIL_DIR)/table.c $(UTIL_DIR)/archive.c
-WCCLD_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCCLD_SRCS:.c=.o)))
-
 $(WCC_OBJS): | $(WCC_OBJ_DIR)
 $(WCC_OBJ_DIR):
 	mkdir -p $(WCC_OBJ_DIR)
-
-wcc-ld: $(WCCLD_OBJS)
-	$(CC) -o $@ $(WCCLD_OBJS) $(LDFLAGS)
 
 -include $(WCC_OBJ_DIR)/*.d
 
