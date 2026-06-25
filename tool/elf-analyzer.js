@@ -20,7 +20,7 @@ const StructDefinition = {
     {name: 'e_shstrndx', type: 'ushort'},
   ],
   proghdr: [
-    {name: 'p_type', type: 'uint32'},
+    {name: 'p_type', type: 'Elf64_ProgType'},
     {name: 'p_flags', type: 'uint32'},
     {name: 'p_offset', type: 'uint64'},
     {name: 'p_vaddr', type: 'uint64'},
@@ -76,6 +76,22 @@ const SHT_LOPROC        = 0x70000000
 const SHT_HIPROC        = 0x7fffffff
 const SHT_RISCV_ATTRIBUTES = SHT_LOPROC + 3
 
+const PT_NULL           = 0
+const PT_LOAD           = 1
+const PT_DYNAMIC        = 2
+const PT_INTERP         = 3
+const PT_NOTE           = 4
+const PT_SHLIB          = 5
+const PT_PHDR           = 6
+const PT_TLS            = 7
+const PT_NUM            = 8
+const PT_LOOS           = 0x60000000
+const PT_GNU_EH_FRAME   = 0x6474e550
+const PT_GNU_STACK      = 0x6474e551
+const PT_GNU_RELRO      = 0x6474e552
+const PT_GNU_PROPERTY   = 0x6474e553
+const PT_GNU_SFRAME	    = 0x6474e554
+
 const CommandNameTable = {
   [SHT_SYMTAB]: 'SHT_SYMTAB',
 }
@@ -109,6 +125,8 @@ const TypeInfos = {
 
   Elf64_Section: {size: 2, unsigned: true},
 
+  Elf64_ProgType: {size: 4, unsigned: true},
+
   cmd_t: {size: 4, unsigned: true},
   RINFO: {size: 8, unsigned: true},
 }
@@ -130,6 +148,23 @@ const SectionTypeNames = new Map([
   [SHT_FINI_ARRAY, 'SHT_FINI_ARRAY'],
   [SHT_PREINIT_ARRAY, 'SHT_PREINIT_ARRAY'],
   [SHT_RISCV_ATTRIBUTES, 'SHT_RISCV_ATTRIBUTES'],
+])
+
+const ProgTypeNames = new Map([
+  [PT_NULL, 'PT_NULL'],
+  [PT_LOAD, 'PT_LOAD'],
+  [PT_DYNAMIC, 'PT_DYNAMIC'],
+  [PT_INTERP, 'PT_INTERP'],
+  [PT_NOTE, 'PT_NOTE'],
+  [PT_SHLIB, 'PT_SHLIB'],
+  [PT_PHDR, 'PT_PHDR'],
+  [PT_TLS, 'PT_TLS'],
+  [PT_NUM, 'PT_NUM'],
+  [PT_GNU_EH_FRAME, 'PT_GNU_EH_FRAME'],
+  [PT_GNU_STACK, 'PT_GNU_STACK'],
+  [PT_GNU_RELRO, 'PT_GNU_RELRO'],
+  [PT_GNU_PROPERTY, 'PT_GNU_PROPERTY'],
+  [PT_GNU_SFRAME, 'PT_GNU_SFRAME'],
 ])
 
 function bigIntToNumber(v) {
@@ -277,7 +312,17 @@ class ElfAnalyzer {
         case 'Elf64_SectionType':
           {
             const n = SectionTypeNames.get(value)
-            value = n ? `${n}(${value})` : value.toString()
+            value = `0x${value.toString(16).padStart('0', 8)}`
+            if (n != null)
+              value = `${n}(${value})`
+          }
+          break
+        case 'Elf64_ProgType':
+          {
+            const n = ProgTypeNames.get(value)
+            value = `0x${value.toString(16).padStart('0', 8)}`
+            if (n != null)
+              value = `${n}(${value})`
           }
           break
         case 'stroff':

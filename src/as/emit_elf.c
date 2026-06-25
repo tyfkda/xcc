@@ -6,8 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "as_util.h"
-#include "elfutil.h"
+#include "bin_util.h"
 #include "ir_asm.h"
 #include "parse_asm.h"
 #include "table.h"
@@ -18,64 +17,6 @@
 #if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
 bool isa_zbb = false;
 #endif
-
-typedef struct {
-  Strtab strtab;
-  Table indices;
-  Elf64_Sym *buf;
-  int count;
-} Symtab;
-
-void symtab_init(Symtab *symtab) {
-  strtab_init(&symtab->strtab);
-  table_init(&symtab->indices);
-  symtab->buf = NULL;
-  symtab->count = 0;
-}
-
-int symtab_find(Symtab *symtab, const Name *name) {
-  intptr_t index;
-  if (table_try_get(&symtab->indices, name, (void**)&index))
-    return index;
-  return -1;
-}
-
-Elf64_Sym *symtab_add(Symtab *symtab, const Name *name) {
-  uint32_t offset = strtab_add(&symtab->strtab, name);
-  if (name->bytes > 0) {
-    int index = symtab_find(symtab, name);
-    if (index >= 0)
-      return &symtab->buf[index];
-  }
-
-  int old_count = symtab->count;
-  int new_count = old_count + 1;
-  symtab->buf = realloc_or_die(symtab->buf, sizeof(*symtab->buf) * new_count);
-  symtab->count = new_count;
-  Elf64_Sym *sym = &symtab->buf[old_count];
-  memset(sym, 0x00, sizeof(*sym));
-  sym->st_name = offset;
-  table_put(&symtab->indices, name, INT2VOIDP(old_count));
-  return sym;
-}
-
-void symtab_concat(Symtab *dest, Symtab *src) {
-  int n = src->count;
-  const Name **names = alloca(sizeof(*names) * n);
-  const Name *name;
-  intptr_t index;
-  for (int it = 0; (it = table_iterate(&src->indices, it, &name, (void**)&index)) != -1; ) {
-    assert(index < n);
-    names[index] = name;
-  }
-  for (int i = 0; i < n; ++i) {
-    const Name *name = names[i];
-    Elf64_Sym *p = symtab_add(dest, name);
-    Elf64_Word st_name_bak = p->st_name;
-    memcpy(p, &src->buf[i], sizeof(*p));
-    p->st_name = st_name_bak;
-  }
-}
 
 //
 
@@ -313,7 +254,7 @@ static inline void construct_rela_element(
   case UNRES_RISCV_RVC_BRANCH:
     {
       Elf64_Sym *sym = symtab_add(symtab, u->label);
-      size_t index = sym - symtab->buf;
+      size_t index = sym - (Elf64_Sym*)symtab->buf;
 
       rela->r_offset = u->offset;
       rela->r_info = ELF64_R_INFO(index, u->kind == UNRES_RISCV_RVC_BRANCH ? R_RISCV_RVC_BRANCH
@@ -418,7 +359,7 @@ static inline uint64_t arrange_section_offsets(Work *work) {
   }
 
   work->symtab_ofs = offset = ALIGN(offset, ELF_MIN_ALIGN);
-  offset += sizeof(*work->symtab.buf) * work->symtab.count;
+  offset += sizeof(Elf64_Sym) * work->symtab.count;
   work->strtab_ofs = offset;
   offset += work->symtab.strtab.size;
 
@@ -542,7 +483,7 @@ static inline void construct_section_headers(Work *work, uint64_t offset) {
     .sh_name = strtab_add(&work->shstrtab, alloc_cname(".symtab")),
     .sh_type = SHT_SYMTAB,
     .sh_offset = work->symtab_ofs,
-    .sh_size = sizeof(*work->symtab.buf) * work->symtab.count,
+    .sh_size = sizeof(Elf64_Sym) * work->symtab.count,
     .sh_link = strtab_index,
     .sh_info = work->local_symbol_count,  // Number of local symbols
     .sh_addralign = 8,
@@ -612,7 +553,7 @@ static inline int output_to_file(const char *ofn, const Work *work) {
 
   put_padding(ofp, work->symtab_ofs);
   const Symtab *symtab = &work->symtab;
-  fwrite(symtab->buf, sizeof(*symtab->buf), symtab->count, ofp);
+  fwrite(symtab->buf, sizeof(Elf64_Sym), symtab->count, ofp);
   fwrite(strtab_dump(&symtab->strtab), symtab->strtab.size, 1, ofp);
 
 #if XCC_TARGET_ARCH == XCC_ARCH_RISCV64
