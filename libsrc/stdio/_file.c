@@ -124,6 +124,10 @@ int _fseek(void *cookie, off_t *poffset, int origin) {
     fp->wp = 0;
     fp->unget_char = EOF;
   }
+  if (fp->unget_char != EOF) {
+    if (fp->rp > 0)
+      --fp->rp;
+  }
   *poffset = result;
   return 0;
 }

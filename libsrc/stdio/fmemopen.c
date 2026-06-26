@@ -25,7 +25,7 @@ static bool _growmem(FILE *fp) {
 static ssize_t _memread(void *cookie, char *buf, size_t size) {
   FILE *fp = cookie;
   unsigned char *p = (unsigned char*)buf;
-  unsigned int sz = fp->wcapa - fp->wp;
+  unsigned int sz = fp->rs - fp->rp;
   if (sz <= 0) {
     fp->flag |= FF_EOF;
     return 0;
@@ -33,8 +33,8 @@ static ssize_t _memread(void *cookie, char *buf, size_t size) {
   if (sz > size)
     sz = size;
 
-  memcpy(p, &fp->wbuf[fp->wp], sz);
-  fp->wp += sz;
+  memcpy(p, &fp->wbuf[fp->rp], sz);
+  fp->rp += sz;
   return sz;
 }
 
@@ -77,8 +77,9 @@ static int _memseek(void *cookie, off_t *offset, int origin) {
     break;
   }
   if (fp->unget_char != EOF) {
-    if (fp->wp > 0)
-      --fp->wp;
+fprintf(stderr, "_memseek: unget_char=%d, rp=%d, rs=%d, wp=%d\n", fp->unget_char, fp->rp, fp->rs, fp->wp);
+    if (fp->rp > 0)
+      --fp->rp;
     fp->unget_char = EOF;
   }
   *offset = 0;
@@ -104,7 +105,8 @@ void _fmemopen2(void *buf, size_t size, const char *mode, FILE *fp) {
   fp->iof = &kMemVTable;
   fp->flush = _memflush;
   fp->fd = -1;
-  fp->rp = fp->rs = 0;
+  fp->rp = 0;
+  fp->rs = fp->rcapa = size;
   fp->wp = 0;
   fp->wbuf = buf;
   fp->wcapa = size;
