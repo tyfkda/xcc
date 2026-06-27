@@ -771,19 +771,22 @@ static void out_memory_section(WasmLinker *linker) {
   fwrite(memory_section.buf, memory_section.len, 1, linker->ofp);
 }
 
-static void out_global_section(WasmLinker *linker) {
+static Vector *out_global_section(WasmLinker *linker) {
   DataStorage globals_section;
   data_init(&globals_section);
   data_open_chunk(&globals_section);
   data_open_chunk(&globals_section);
-  uint32_t globals_count = 0;
+
+  Vector *globals = NULL;
   {
     const Name *name;
     SymbolInfo *sym;
     for (int it = 0; (it = table_iterate(&linker->defined, it, &name, (void**)&sym)) != -1; ) {
       if (sym->kind != SIK_SYMTAB_GLOBAL)
         continue;
-      assert(sym->combined_index == globals_count);
+      if (globals == NULL)
+        globals = new_vector();
+      assert(sym->combined_index == (uint32_t)globals->len);
 
       uint8_t wtype = sym->global.wtype;
       data_push(&globals_section, wtype);
@@ -810,16 +813,18 @@ static void out_global_section(WasmLinker *linker) {
 #endif
       default: assert(false); break;
       }
-      ++globals_count;
+      vec_push(globals, sym);
     }
   }
-  if (globals_count > 0) {
-    data_close_chunk(&globals_section, globals_count);  // num functions
+  if (globals != NULL) {
+    assert(globals->len > 0);
+    data_close_chunk(&globals_section, globals->len);  // num functions
     data_close_chunk(&globals_section, -1);
 
     fputc(SEC_GLOBAL, linker->ofp);
     fwrite(globals_section.buf, globals_section.len, 1, linker->ofp);
   }
+  return globals;
 }
 
 static void out_export_section(WasmLinker *linker, Table *exports) {
@@ -1004,10 +1009,8 @@ enum CustomNameType {
   CN_DATASEG,
 };
 
-static void out_custom_name_wasmobj(WasmObj *wasmobj, DataStorage *ds) {
+static void collect_custom_name_wasmobj(WasmObj *wasmobj, Vector *funcs, Vector *datas) {
   Vector *symtab = wasmobj->linking.symtab;
-  Vector *funcs = new_vector();
-  Vector *datas = new_vector();
   for (int j = 0; j < symtab->len; ++j) {
     SymbolInfo *sym = symtab->data[j];
     if (sym->flags & (WASM_SYM_UNDEFINED | WASM_SYM_EXPORTED))
@@ -1025,56 +1028,78 @@ static void out_custom_name_wasmobj(WasmObj *wasmobj, DataStorage *ds) {
     default: break;
     }
   }
-  if (funcs->len != 0) {
-    data_push(ds, CN_FUNCTION);
-    data_open_chunk(ds);
-    data_uleb128(ds, -1, funcs->len);
-    for (int j = 0; j < funcs->len; ++j) {
-      SymbolInfo *sym = funcs->data[j];
-      data_uleb128(ds, -1, sym->combined_index);
-      data_string(ds, sym->name->chars, sym->name->bytes);
-    }
-    data_close_chunk(ds, -1);
-  }
-  if (datas->len != 0) {
-    data_push(ds, CN_DATASEG);
-    data_open_chunk(ds);
-    data_uleb128(ds, -1, datas->len);
-    for (int j = 0; j < datas->len; ++j) {
-      SymbolInfo *sym = datas->data[j];
-      data_uleb128(ds, -1, sym->combined_index);
-      data_string(ds, sym->name->chars, sym->name->bytes);
-    }
-    data_close_chunk(ds, -1);
-  }
-  free_vector(funcs);
-  free_vector(datas);
 }
 
-static void out_custom_section(WasmLinker *linker) {
-  DataStorage name_section;
-  static const char kName[] = "name";
-  data_init(&name_section);
-  data_open_chunk(&name_section);
-  data_string(&name_section, kName, sizeof(kName) - 1);
-
+static void out_custom_section(WasmLinker *linker, const char *ofn, Vector *globals) {
+  Vector *funcs = new_vector();
+  Vector *datas = new_vector();
   for (int i = 0; i < linker->files->len; ++i) {
     File *file = linker->files->data[i];
     switch (file->kind) {
     case FK_WASMOBJ:
-      out_custom_name_wasmobj(file->wasmobj, &name_section);
+      collect_custom_name_wasmobj(file->wasmobj, funcs, datas);
       break;
     case FK_ARCHIVE:
       FOREACH_FILE_ARCONTENT(file->archive, content, {
-        out_custom_name_wasmobj(content->obj, &name_section);
+        collect_custom_name_wasmobj(content->obj, funcs, datas);
       });
       break;
     }
   }
 
-  data_close_chunk(&name_section, -1);
-  fputc(SEC_CUSTOM, linker->ofp);
-  fwrite(name_section.buf, name_section.len, 1, linker->ofp);
+  if (funcs->len > 0 || datas->len > 0 || (globals != NULL && globals->len > 0)) {
+    DataStorage name_section;
+    static const char kName[] = "name";
+    data_init(&name_section);
+    data_open_chunk(&name_section);
+    data_string(&name_section, kName, sizeof(kName) - 1);
+
+    data_push(&name_section, CN_MODULE);
+    data_open_chunk(&name_section);
+    data_string(&name_section, ofn, strlen(ofn));
+    data_close_chunk(&name_section, -1);
+
+    DataStorage *ds = &name_section;
+    if (funcs->len != 0) {
+      data_push(ds, CN_FUNCTION);
+      data_open_chunk(ds);
+      data_uleb128(ds, -1, funcs->len);
+      for (int j = 0; j < funcs->len; ++j) {
+        SymbolInfo *sym = funcs->data[j];
+        data_uleb128(ds, -1, sym->combined_index);
+        data_string(ds, sym->name->chars, sym->name->bytes);
+      }
+      data_close_chunk(ds, -1);
+    }
+    if (globals != NULL && globals->len != 0) {
+      data_push(ds, CN_GLOBAL);
+      data_open_chunk(ds);
+      data_uleb128(ds, -1, globals->len);
+      for (int j = 0; j < globals->len; ++j) {
+        SymbolInfo *sym = globals->data[j];
+        data_uleb128(ds, -1, sym->combined_index);
+        data_string(ds, sym->name->chars, sym->name->bytes);
+      }
+      data_close_chunk(ds, -1);
+    }
+    if (datas->len != 0) {
+      data_push(ds, CN_DATASEG);
+      data_open_chunk(ds);
+      data_uleb128(ds, -1, datas->len);
+      for (int j = 0; j < datas->len; ++j) {
+        SymbolInfo *sym = datas->data[j];
+        data_uleb128(ds, -1, sym->combined_index);
+        data_string(ds, sym->name->chars, sym->name->bytes);
+      }
+      data_close_chunk(ds, -1);
+    }
+
+    data_close_chunk(&name_section, -1);
+    fputc(SEC_CUSTOM, linker->ofp);
+    fwrite(name_section.buf, name_section.len, 1, linker->ofp);
+  }
+  free_vector(funcs);
+  free_vector(datas);
 }
 
 //
@@ -1273,7 +1298,7 @@ bool linker_emit_wasm(WasmLinker *linker, const char *ofn, Table *exports) {
   emit_tag_section(ew);
 
   // Globals.
-  out_global_section(linker);
+  Vector *globals = out_global_section(linker);
 
   // Exports.
   out_export_section(linker, exports);
@@ -1288,8 +1313,10 @@ bool linker_emit_wasm(WasmLinker *linker, const char *ofn, Table *exports) {
   out_data_section(linker);
 
   // Debug info
-  out_custom_section(linker);
+  out_custom_section(linker, ofn, globals);
 
+  if (globals != NULL)
+    free_vector(globals);
   fclose(ofp);
 
   return true;

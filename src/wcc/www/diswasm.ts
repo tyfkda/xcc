@@ -1362,6 +1362,15 @@ export class DisWasm {
 
           switch (nametype) {
           case CustomNameType.MODULE:
+            {
+              const offset = this.bufferReader.getOffset()
+              const name = this.bufferReader.readString()
+              const tname = kNameTypeNames[nametype as CustomNameType]
+              this.log(`${this.addr(offset)};;   (${tname} "${name}")`)
+              const index = 0
+              this.names.set(nametype + index * 100, name)
+            }
+            break
           case CustomNameType.FUNCTION:
           case CustomNameType.LOCAL:
           case CustomNameType.LABEL:
@@ -1405,7 +1414,7 @@ export class DisWasm {
       const offset = this.bufferReader.getOffset()
       const type = readType(this.bufferReader)
       this.types.push(type)
-      this.log(`${this.addr(offset)}(type ${type.toString()})  ;; ${i}`)
+      this.log(`${this.addr(offset)}(type (;${i};) ${type.toString()})`)
     }
   }
 
@@ -1421,7 +1430,7 @@ export class DisWasm {
         {
           const typeIndex = this.bufferReader.readUleb128()
           const index = this.funcs.size
-          this.log(`${this.addr(offset)}(import "${modName}" "${name}" (func $${name} (type ${typeIndex})))  ;; ${index}`)
+          this.log(`${this.addr(offset)}(import "${modName}" "${name}" (func $${name} (;${index};) (type ${typeIndex})))`)
           this.funcs.set(index, [modName, name])
         }
         break
@@ -1571,15 +1580,27 @@ export class DisWasm {
       const offset = this.bufferReader.getOffset()
       const typeIndex = this.functions[i]
       const funcNo = i + this.importFuncCount
-      let funcComment = `(;${funcNo};)`
+      let funcName = `(;${funcNo};)`
+      let funcComment = ''
       const customName = this.getCustomName(CustomNameType.FUNCTION, funcNo)
       if (customName != null) {
-        funcComment = `${customName} ${funcComment}`
+        funcName = `${customName}`
+        funcComment = `  ;; ${funcNo}`
       } else if (this.funcs.has(funcNo)) {
         const [_mod, name] = this.funcs.get(funcNo)!
-        funcComment = `$${name} ${funcComment}`
+        funcName = `$${name}`
+        funcComment = `  ;; ${funcNo}`
       }
-      this.log(`${this.addr(offset)}(func ${funcComment} (type ${typeIndex})`)
+
+      const functype = this.types[typeIndex].getType() as FuncTypeInfo  // TODO:
+      let typeAnnotation = ''
+      if (functype.params.length > 0 || functype.results.length > 0) {
+        const params = functype.params.length === 0 ? null : `(param ${functype.params.map(param => `${param}`).join(' ')})`
+        const results = functype.results.length === 0 ? null : `(result ${functype.results.map(param => `${param}`).join(' ')})`
+        typeAnnotation = ` ${[params, results].filter(x => x).join(' ')}`
+      }
+
+      this.log(`${this.addr(offset)}(func ${funcName} (type ${typeIndex})${typeAnnotation}${funcComment}`)
       const code = this.readCode()
       this.codes.push(code)
     }
