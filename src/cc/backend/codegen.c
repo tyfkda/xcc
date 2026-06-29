@@ -858,7 +858,7 @@ static size_t alloc_params_onto_stack_frame(Function *func, bool *prequire_stack
   const int arg_start = 0;
 #else
   const Type *rettype = func->type->func.ret;
-  const int arg_start = is_prim_type(rettype) || is_small_struct(rettype) ? 0 : 1;
+  const int arg_start = rettype->kind == TY_STRUCT && !is_small_struct(rettype) ? 1 : 0;
 #endif
   int reg_index[2] = {arg_start, 0};  // [0]=gp-reg, [1]=fp-reg
 
