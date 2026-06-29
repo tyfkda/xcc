@@ -24,7 +24,8 @@
 
 static Expr *proc_builtin_classify_type(const Token *ident) {
   consume(TK_LPAR, "`(' expected");
-  const Type *type = parse_var_def(NULL, NULL);
+  ParsedTypeInfo tinfo;
+  const Type *type = parse_var_def(NULL, &tinfo);
   if (type == NULL) {
     Expr *expr = parse_assign();
     type = expr->type;

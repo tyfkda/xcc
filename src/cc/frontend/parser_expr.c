@@ -231,7 +231,7 @@ static Expr *parse_precedence(Precedence precedence) {
   if (prefixRule == NULL) {
     parse_error(PE_NOFATAL, previous, "expression expected");
     unget_token(previous);
-    return NULL;
+    return new_expr_fixlit(&tyInt, alloc_token(TK_INTLIT, NULL, "0", NULL), 0);  // Returns dummy.
   }
 
   Expr *expr = prefixRule(previous);
@@ -665,7 +665,8 @@ static Expr *size_align_of(Token *token) {
   Type *type = NULL;
   const Token *tok;
   if ((tok = match(TK_LPAR)) != NULL) {
-    type = parse_var_def(NULL, NULL);
+    ParsedTypeInfo tinfo;
+    type = parse_var_def(NULL, &tinfo);
     if (type != NULL) {
       consume(TK_RPAR, "`)' expected");
 #ifndef __NO_VLA

@@ -242,7 +242,8 @@ static StructInfo *parse_struct(bool is_union, Table *attributes) {
 
 static Type *parse_typeof(const Token *tok) {
   consume(TK_LPAR, "`(' expected");
-  Type *type = parse_var_def(NULL, NULL);
+  ParsedTypeInfo tinfo;
+  Type *type = parse_var_def(NULL, &tinfo);
   if (type == NULL) {
     Expr *e = parse_expr();
     if (e == NULL) {
@@ -266,6 +267,7 @@ Type *parse_raw_type(ParsedTypeInfo *tinfo) {
   static const char MULTIPLE_QUALIFIER_SPECIFIED[] = "multiple qualifier specified";
   static const char ILLEGAL_TYPE_COMBINATION[] = "illegal type combination";
 
+  assert(tinfo != NULL);
   Type *type = NULL;
   Table *attributes = NULL;  // <Vector<Expr*>>
 
@@ -624,6 +626,8 @@ static Type *parse_direct_declarator_suffix(Type *type) {
 Type *parse_direct_declarator(Type *type, ParsedTypeInfo *tinfo) {
   Token *ident = NULL;
   if (match(TK_LPAR)) {
+    tinfo->attributes = parse_attributes(tinfo->attributes);
+
     Type *ret = type;
     Type *placeholder = calloc_or_die(sizeof(*placeholder));
     memcpy(placeholder, type, sizeof(*placeholder));

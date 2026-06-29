@@ -266,7 +266,8 @@ static Expr *proc_builtin_va_arg(const Token *ident) {
   consume(TK_LPAR, "`(' expected");
   Expr *ap = parse_assign();
   consume(TK_COMMA, "`,' expected");
-  Type *type = parse_var_def(NULL, NULL);
+  ParsedTypeInfo tinfo;
+  Type *type = parse_var_def(NULL, &tinfo);
   consume(TK_RPAR, "`)' expected");
 
   used_as_value(ap);
