@@ -154,7 +154,7 @@ Expr *make_cast(Type *type, const Token *token, Expr *sub, bool is_explicit) {
     //                             : ((int64_t)(flonum - (INT64_MAX + 1UL)) ^ (1L << 63))
     Type *i64t = get_fixnum_type_from_size(dst_size);
     Expr *cond = new_expr_bop(EX_LE, &tyBool, token, sub,
-                              new_expr_flolit(sub->type, sub->token, INT64_MAX));
+                              new_expr_flolit(sub->type, sub->token, (double)INT64_MAX));
     Expr *offsetted = make_expr_num_bop(
         EX_SUB, token, sub,
         new_expr_flolit(sub->type, sub->token, (uint64_t)INT64_MAX + 1UL));
