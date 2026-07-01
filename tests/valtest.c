@@ -2468,7 +2468,7 @@ int func_for_auto(void) {return 432;}
 
 TEST(extension) {
   {
-#define GENERIC_FUNC(x) _Generic((x), int: 1, long: 2, uint64_t: 3, char*: 10, const char*: 11, void*: 12, default: 99)
+#define GENERIC_FUNC(x) _Generic((x), int: 1, long: 2, uint64_t: 3, bool: 9, char*: 10, const char*: 11, void*: 12, default: 99)
     EXPECT("generic int",         1, GENERIC_FUNC(123));
     EXPECT("generic const ignored", 1, _Generic((const int)123, const int: 2, int: 1, default: 3));
     EXPECT("generic long",        2, GENERIC_FUNC(456L));
@@ -2480,6 +2480,12 @@ TEST(extension) {
     int a[] = {1, 2, 3};
     EXPECT("generic pointer",     99, GENERIC_FUNC(a));
     EXPECT("generic pointer",     99, GENERIC_FUNC((char)'x'));
+    EXPECT("generic bool",        9, GENERIC_FUNC((bool)true));
+    {
+      int x = 1, y = 2;
+      EXPECT("generic comparison",  1, GENERIC_FUNC(x < y));
+      EXPECT("generic not",         1, GENERIC_FUNC(!x));
+    }
 
 #ifndef __NO_FLONUM
 #define GENERIC_FLONUM(x) _Generic((x), int: 1, float: 2, double: 3, long double: 4, default: 99)
