@@ -81,14 +81,14 @@ void gen_cond(Expr *cond, bool tf, bool needval) {
     {
       bool logand = ck == EX_LOGAND;
       gen_cond(cond->bop.lhs, logand, true);
-      ADD_CODE(OP_IF, needval ? WT_I32 : WT_VOID);
-      ++cur_depth;
-      gen_cond(cond->bop.rhs, tf, needval);
-      if (needval) {
-        ADD_CODE(OP_ELSE);
-        ADD_CODE(OP_I32_CONST, tf ^ logand);
-      }
-      ADD_CODE(OP_END);
+      ADD_CODE(OP_IF, needval ? WT_I32 : WT_VOID); {
+        ++cur_depth;
+        gen_cond(cond->bop.rhs, tf, needval);
+        if (needval) {
+          ADD_CODE(OP_ELSE);
+          ADD_CODE(OP_I32_CONST, tf ^ logand);
+        }
+      } ADD_CODE(OP_END);
       --cur_depth;
     }
     break;
@@ -210,35 +210,34 @@ static void gen_switch(Stmt *stmt) {
   int save_depth = break_depth;
   break_depth = cur_depth;
 
-  ADD_CODE(OP_BLOCK, WT_VOID);
-  Vector *cases = stmt->switch_.cases;
-  squash_cases(cases);
-  int case_count = cases->len;
-  int block_count = 0;
-  for (int i = 0; i < case_count; ++i) {
-    Stmt *c = cases->data[i];
-    if (c->case_.block_index >= 0) {
-      ADD_CODE(OP_BLOCK, WT_VOID);
-      ++block_count;
+  ADD_CODE(OP_BLOCK, WT_VOID); {
+    Vector *cases = stmt->switch_.cases;
+    squash_cases(cases);
+    int case_count = cases->len;
+    int block_count = 0;
+    for (int i = 0; i < case_count; ++i) {
+      Stmt *c = cases->data[i];
+      if (c->case_.block_index >= 0) {
+        ADD_CODE(OP_BLOCK, WT_VOID);
+        ++block_count;
+      }
     }
-  }
-  cur_depth += block_count + 1;
+    cur_depth += block_count + 1;
 
-  Expr *value = stmt->switch_.value;
-  if (value->kind == EX_COMMA) {
-    gen_expr(value, false);
-    value = value->bop.rhs;
-  }
-  // Must be simple expression, because this is evaluated multiple times.
-  assert(is_const(value) || value->kind == EX_VAR);
-  assert(is_fixnum(value->type));
+    Expr *value = stmt->switch_.value;
+    if (value->kind == EX_COMMA) {
+      gen_expr(value, false);
+      value = value->bop.rhs;
+    }
+    // Must be simple expression, because this is evaluated multiple times.
+    assert(is_const(value) || value->kind == EX_VAR);
+    assert(is_fixnum(value->type));
 
-  gen_switch_dispatching(stmt, value, cases, block_count);
+    gen_switch_dispatching(stmt, value, cases, block_count);
 
-  // Body.
-  gen_stmt(stmt->switch_.body, false);
-
-  ADD_CODE(OP_END);
+    // Body.
+    gen_stmt(stmt->switch_.body, false);
+  } ADD_CODE(OP_END);
   --cur_depth;
   assert(cur_depth == break_depth);
   break_depth = save_depth;
@@ -267,15 +266,15 @@ static void gen_while(Stmt *stmt) {
   break_depth = cur_depth;
   continue_depth = cur_depth + 1;
 
-  ADD_CODE(OP_BLOCK, WT_VOID);
-  ADD_CODE(OP_LOOP, WT_VOID);
-  cur_depth += 2;
-  if (!infinite_loop)
-    gen_cond_jmp(cond, false, 1);
-  gen_stmt(stmt->while_.body, false);
-  ADD_CODE(OP_BR, 0);
-  ADD_CODE(OP_END);
-  ADD_CODE(OP_END);
+  ADD_CODE(OP_BLOCK, WT_VOID); {
+    ADD_CODE(OP_LOOP, WT_VOID); {
+      cur_depth += 2;
+      if (!infinite_loop)
+        gen_cond_jmp(cond, false, 1);
+      gen_stmt(stmt->while_.body, false);
+      ADD_CODE(OP_BR, 0);
+    } ADD_CODE(OP_END);
+  } ADD_CODE(OP_END);
   cur_depth -= 2;
   break_depth = save_break;
   continue_depth = save_continue;
@@ -296,21 +295,21 @@ static void gen_do_while(Stmt *stmt) {
   break_depth = cur_depth;
   continue_depth = cur_depth + 2;
 
-  ADD_CODE(OP_BLOCK, WT_VOID);
-  ADD_CODE(OP_LOOP, WT_VOID);
-  ADD_CODE(OP_BLOCK, WT_VOID);
-  cur_depth += 3;
-  gen_stmt(stmt->while_.body, false);
-  ADD_CODE(OP_END);
-  --cur_depth;
-  if (no_loop)
-    ADD_CODE(OP_BR, 1);
-  else if (infinite_loop)
-    ADD_CODE(OP_BR, 0);
-  else
-    gen_cond_jmp(cond, true, 0);
-  ADD_CODE(OP_END);
-  ADD_CODE(OP_END);
+  ADD_CODE(OP_BLOCK, WT_VOID); {
+    ADD_CODE(OP_LOOP, WT_VOID); {
+      ADD_CODE(OP_BLOCK, WT_VOID); {
+        cur_depth += 3;
+        gen_stmt(stmt->while_.body, false);
+      } ADD_CODE(OP_END);
+      --cur_depth;
+      if (no_loop)
+        ADD_CODE(OP_BR, 1);
+      else if (infinite_loop)
+        ADD_CODE(OP_BR, 0);
+      else
+        gen_cond_jmp(cond, true, 0);
+    } ADD_CODE(OP_END);
+  } ADD_CODE(OP_END);
   cur_depth -= 2;
   break_depth = save_break;
   continue_depth = save_continue;
@@ -335,20 +334,20 @@ static void gen_for(Stmt *stmt) {
   break_depth = cur_depth;
   continue_depth = cur_depth + 2;
 
-  ADD_CODE(OP_BLOCK, WT_VOID);
-  ADD_CODE(OP_LOOP, WT_VOID);
-  ADD_CODE(OP_BLOCK, WT_VOID);
-  cur_depth += 3;
-  if (!infinite_loop)
-    gen_cond_jmp(cond, false, 2);
-  gen_stmt(stmt->for_.body, false);
-  ADD_CODE(OP_END);
-  --cur_depth;
-  if (stmt->for_.post != NULL)
-    gen_expr_stmt(stmt->for_.post);
-  ADD_CODE(OP_BR, 0);
-  ADD_CODE(OP_END);
-  ADD_CODE(OP_END);
+  ADD_CODE(OP_BLOCK, WT_VOID); {
+    ADD_CODE(OP_LOOP, WT_VOID); {
+      ADD_CODE(OP_BLOCK, WT_VOID); {
+        cur_depth += 3;
+        if (!infinite_loop)
+          gen_cond_jmp(cond, false, 2);
+        gen_stmt(stmt->for_.body, false);
+      } ADD_CODE(OP_END);
+      --cur_depth;
+      if (stmt->for_.post != NULL)
+        gen_expr_stmt(stmt->for_.post);
+      ADD_CODE(OP_BR, 0);
+    } ADD_CODE(OP_END);
+  } ADD_CODE(OP_END);
   cur_depth -= 2;
   break_depth = save_break;
   continue_depth = save_continue;
@@ -443,14 +442,14 @@ static void gen_if(Stmt *stmt, bool is_last) {
   }
 
   gen_cond(stmt->if_.cond, true, true);
-  ADD_CODE(OP_IF, wt);
-  ++cur_depth;
-  gen_stmt(stmt->if_.tblock, is_last);
-  if (stmt->if_.fblock != NULL) {
-    ADD_CODE(OP_ELSE);
-    gen_stmt(stmt->if_.fblock, is_last);
-  }
-  ADD_CODE(OP_END);
+  ADD_CODE(OP_IF, wt); {
+    ++cur_depth;
+    gen_stmt(stmt->if_.tblock, is_last);
+    if (stmt->if_.fblock != NULL) {
+      ADD_CODE(OP_ELSE);
+      gen_stmt(stmt->if_.fblock, is_last);
+    }
+  } ADD_CODE(OP_END);
   --cur_depth;
 }
 
@@ -497,9 +496,9 @@ static void gen_block_for_label(Stmt *stmt, bool is_last) {
   goto_label->depth = cur_depth;
 
   ++cur_depth;
-  ADD_CODE(OP_BLOCK, WT_VOID);
-  gen_stmts(stmt->block_for_label.stmts, is_last);
-  ADD_CODE(OP_END);
+  ADD_CODE(OP_BLOCK, WT_VOID); {
+    gen_stmts(stmt->block_for_label.stmts, is_last);
+  } ADD_CODE(OP_END);
   --cur_depth;
 }
 
