@@ -48,7 +48,13 @@ static Expr *proc_builtin_expect(const Token *ident) {
 
   Expr *value = args->data[0];
   Expr *expect = args->data[1];
-  while (value->kind == EX_EXPECT)
+  if (!check_cast(value->type, expect->type, is_zero(expect), false, expect->token) ||
+      !is_const(expect)) {
+    // Silently ignore expectation when `expect` is not constant.
+    return value;
+  }
+
+  while (value->kind == EX_EXPECT)  // Strip nested expects.
     value = value->bop.lhs;
   used_as_value(value);
 
