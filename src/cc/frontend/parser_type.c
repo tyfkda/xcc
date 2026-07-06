@@ -259,72 +259,88 @@ static Type *parse_typeof(const Token *tok) {
 
 #define ASSERT_PARSE_ERROR(cond, tok, ...)  do { if (!(cond)) parse_error(PE_NOFATAL, tok, __VA_ARGS__); } while (0)
 
+static void parse_storage_qualifier(TypeCombination *tc) {
+  static const char MULTIPLE_STORAGE_SPECIFIED[] = "multiple storage specified";
+  static const char MULTIPLE_QUALIFIER_SPECIFIED[] = "multiple qualifier specified";
+
+  for (;;) {
+    Token *tok = match(-1);
+    switch (tok->kind) {
+    case TK_UNSIGNED:
+      ++tc->unsigned_num;
+      continue;
+    case TK_SIGNED:
+      ++tc->signed_num;
+      continue;
+    case TK_STATIC:
+      ASSERT_PARSE_ERROR((tc->storage & ~VS_INLINE) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
+      tc->storage |= VS_STATIC;
+      continue;
+    case TK_INLINE:
+      ASSERT_PARSE_ERROR((tc->storage & ~(VS_STATIC | VS_EXTERN)) == 0, tok,
+                         MULTIPLE_STORAGE_SPECIFIED);
+      tc->storage |= VS_INLINE;
+      continue;
+    case TK_EXTERN:
+      ASSERT_PARSE_ERROR((tc->storage & ~VS_INLINE) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
+      tc->storage |= VS_EXTERN;
+      continue;
+    case TK_TYPEDEF:
+      ASSERT_PARSE_ERROR(tc->storage == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
+      tc->storage |= VS_TYPEDEF;
+      continue;
+    case TK_AUTO:
+      ASSERT_PARSE_ERROR((tc->storage & ~VS_REGISTER) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
+      tc->storage |= VS_AUTO;
+      continue;
+    case TK_REGISTER:
+      ASSERT_PARSE_ERROR((tc->storage & ~VS_AUTO) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
+      tc->storage |= VS_REGISTER;
+      continue;
+    case TK_CONST:
+      ASSERT_PARSE_ERROR((tc->qualifier & TQ_CONST) == 0, tok, MULTIPLE_QUALIFIER_SPECIFIED);
+      tc->qualifier |= TQ_CONST;
+      continue;
+    case TK_VOLATILE:
+      ASSERT_PARSE_ERROR((tc->qualifier & TQ_VOLATILE) == 0, tok, MULTIPLE_QUALIFIER_SPECIFIED);
+      tc->qualifier |= TQ_VOLATILE;
+      continue;
+    case TK_RESTRICT:
+      ASSERT_PARSE_ERROR((tc->qualifier & TQ_RESTRICT) == 0, tok, MULTIPLE_QUALIFIER_SPECIFIED);
+      tc->qualifier |= TQ_RESTRICT;
+      continue;
+    default:
+      unget_token(tok);
+      return;
+    }
+  }
+}
+
 // <declaration-specifier> ::= <storage-class-specifier>
 //                           | <type-specifier>
 //                           | <type-qualifier>
 Type *parse_raw_type(ParsedTypeInfo *tinfo) {
-  static const char MULTIPLE_STORAGE_SPECIFIED[] = "multiple storage specified";
-  static const char MULTIPLE_QUALIFIER_SPECIFIED[] = "multiple qualifier specified";
   static const char ILLEGAL_TYPE_COMBINATION[] = "illegal type combination";
 
   assert(tinfo != NULL);
+
+  TypeCombination tc;
+  memset(&tc, 0, sizeof(tc));
+
   Type *type = NULL;
   Table *attributes = NULL;  // <Vector<Expr*>>
-
-  TypeCombination tc = {0};
   Token *tok = NULL;
   for (;;) {
     if (tok != NULL)
       check_type_combination(&tc, tok);  // Check for last token
+    parse_storage_qualifier(&tc);
+
     tok = match(-1);
     switch (tok->kind) {
     case TK_ATTRIBUTE:
     case TK_NORETURN:
       unget_token(tok);
       attributes = parse_attributes(attributes);
-      continue;
-    case TK_UNSIGNED:
-      ++tc.unsigned_num;
-      continue;
-    case TK_SIGNED:
-      ++tc.signed_num;
-      continue;
-    case TK_STATIC:
-      ASSERT_PARSE_ERROR((tc.storage & ~VS_INLINE) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
-      tc.storage |= VS_STATIC;
-      continue;
-    case TK_INLINE:
-      ASSERT_PARSE_ERROR((tc.storage & ~(VS_STATIC | VS_EXTERN)) == 0, tok,
-                         MULTIPLE_STORAGE_SPECIFIED);
-      tc.storage |= VS_INLINE;
-      continue;
-    case TK_EXTERN:
-      ASSERT_PARSE_ERROR((tc.storage & ~VS_INLINE) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
-      tc.storage |= VS_EXTERN;
-      continue;
-    case TK_TYPEDEF:
-      ASSERT_PARSE_ERROR(tc.storage == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
-      tc.storage |= VS_TYPEDEF;
-      continue;
-    case TK_AUTO:
-      ASSERT_PARSE_ERROR((tc.storage & ~VS_REGISTER) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
-      tc.storage |= VS_AUTO;
-      continue;
-    case TK_REGISTER:
-      ASSERT_PARSE_ERROR((tc.storage & ~VS_AUTO) == 0, tok, MULTIPLE_STORAGE_SPECIFIED);
-      tc.storage |= VS_REGISTER;
-      continue;
-    case TK_CONST:
-      ASSERT_PARSE_ERROR((tc.qualifier & TQ_CONST) == 0, tok, MULTIPLE_QUALIFIER_SPECIFIED);
-      tc.qualifier |= TQ_CONST;
-      continue;
-    case TK_VOLATILE:
-      ASSERT_PARSE_ERROR((tc.qualifier & TQ_VOLATILE) == 0, tok, MULTIPLE_QUALIFIER_SPECIFIED);
-      tc.qualifier |= TQ_VOLATILE;
-      continue;
-    case TK_RESTRICT:
-      ASSERT_PARSE_ERROR((tc.qualifier & TQ_RESTRICT) == 0, tok, MULTIPLE_QUALIFIER_SPECIFIED);
-      tc.qualifier |= TQ_RESTRICT;
       continue;
     case TK_CHAR: ++tc.char_num; continue;
     case TK_SHORT: ++tc.short_num; continue;
