@@ -841,6 +841,8 @@ TEST(all) {
 
   {
     EXPECT("sizeof _Bool",  1, sizeof(_Bool));
+    { int x = 1, y = 2; EXPECT("sizeof comparison",  4, sizeof(x == y)); }
+    { int x = 1; EXPECT("sizeof not",  4, sizeof(!x)); }
     EXPECT("_Bool from int", true, ({int x = -123; (_Bool)x;}));
     EXPECT("_Bool from ulong", true, ({unsigned long x = 9876UL; (_Bool)x;}));
 #ifndef __NO_FLONUM
