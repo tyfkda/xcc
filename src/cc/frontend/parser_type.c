@@ -502,63 +502,73 @@ static const char kConstIntExpected[] = "constant integer expected";
 static ssize_t parse_array_size(Expr **pvla) {
   ssize_t length = LEN_UND;
 
-  Expr *expr = parse_expr();
-  switch (expr->kind) {
-  case EX_FIXNUM:
-    length = expr->fixnum;
-    break;
-  case EX_VAR:
-    {
-      VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, NULL);
-      assert(varinfo != NULL);
-      if (expr->type->qualifier & TQ_CONST) {
-        switch (expr->type->kind) {
-        case TY_FLONUM:
-          parse_error(PE_WARNING, expr->token, kConstIntExpected);
-          // Fallthrough
-        case TY_FIXNUM:
-          {
-            Initializer *init = is_global_scope(expr->var.scope) ? varinfo->global.init
-                                                                 : varinfo->local.init;
-            assert(init != NULL);
-            assert(init->kind == IK_SINGLE);
-            switch (init->single->kind) {
-            case EX_FIXNUM:
-              length = init->single->fixnum;
-              break;
+  TypeCombination tc;
+  parse_storage_qualifier(&tc);
+
+  const Token *token = match(TK_MUL);
+  if (token != NULL) {
+    *pvla = new_expr_fixlit(&tyInt, token, -'*');  // Indicates '*'
+    length = LEN_VLA;
+  } else {
+    Expr *expr = parse_expr();
+    switch (expr->kind) {
+    case EX_FIXNUM:
+      length = expr->fixnum;
+      break;
+    case EX_VAR:
+      {
+        VarInfo *varinfo = scope_find(expr->var.scope, expr->var.name, NULL);
+        assert(varinfo != NULL);
+        if (expr->type->qualifier & TQ_CONST) {
+          switch (expr->type->kind) {
+          case TY_FLONUM:
+            parse_error(PE_WARNING, expr->token, kConstIntExpected);
+            // Fallthrough
+          case TY_FIXNUM:
+            {
+              Initializer *init = is_global_scope(expr->var.scope) ? varinfo->global.init
+                                                                  : varinfo->local.init;
+              assert(init != NULL);
+              assert(init->kind == IK_SINGLE);
+              switch (init->single->kind) {
+              case EX_FIXNUM:
+                length = init->single->fixnum;
+                break;
 #ifndef __NO_FLONUM
-            case EX_FLONUM:
-              length = init->single->flonum;
-              break;
+              case EX_FLONUM:
+                length = init->single->flonum;
+                break;
 #endif
-            // TODO: Compound literal?
-            default:  assert(false); break;
+              // TODO: Compound literal?
+              default:  assert(false); break;
+              }
             }
+            break;
+          default:
+            parse_error(PE_NOFATAL, expr->token, kConstIntExpected);
+            length = 1;
+            break;
           }
           break;
-        default:
-          parse_error(PE_NOFATAL, expr->token, kConstIntExpected);
-          length = 1;
-          break;
         }
-        break;
       }
+      // Fallthrough
+    default:
+      if (is_fixnum(expr->type)) {
+        *pvla = expr;
+        used_as_value(expr);
+        length = LEN_VLA;
+      } else {
+        parse_error(PE_NOFATAL, expr->token, kConstIntExpected);
+        length = 1;
+      }
+      break;
     }
-    // Fallthrough
-  default:
-    if (is_fixnum(expr->type)) {
-      *pvla = expr;
-      used_as_value(expr);
-      length = LEN_VLA;
-    } else {
-      parse_error(PE_NOFATAL, expr->token, kConstIntExpected);
-      length = 1;
-    }
-    break;
+    token = expr->token;
   }
 
   if (length < 0 && *pvla == NULL) {
-    parse_error(PE_NOFATAL, expr->token, "array size must be greater than 0, but %zd", length);
+    parse_error(PE_NOFATAL, token, "array size must be greater than 0, but %zd", length);
     length = 1;
   }
   return length;

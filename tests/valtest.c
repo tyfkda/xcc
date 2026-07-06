@@ -11,13 +11,15 @@
 #include "./xtest.h"
 
 #if defined(__GNUC__)
-#pragma GCC diagnostic ignored "-Wbitfield-constant-conversion"
-#pragma GCC diagnostic ignored "-Wbitwise-op-parentheses"
-#pragma GCC diagnostic ignored "-Wdeprecated-non-prototype"
-#pragma GCC diagnostic ignored "-Wgnu-folding-constant"
+// #pragma GCC diagnostic ignored "-Wbitfield-constant-conversion"
+// #pragma GCC diagnostic ignored "-Wbitwise-op-parentheses"
+// #pragma GCC diagnostic ignored "-Wdeprecated-non-prototype"
+// #pragma GCC diagnostic ignored "-Wgnu-folding-constant"
 #pragma GCC diagnostic ignored "-Wimplicit-int"
-#pragma GCC diagnostic ignored "-Wshift-op-parentheses"
-#pragma GCC diagnostic ignored "-Wstring-plus-int"
+#pragma GCC diagnostic ignored "-Woverflow"
+// #pragma GCC diagnostic ignored "-Wshift-op-parentheses"
+// #pragma GCC diagnostic ignored "-Wstring-plus-int"
+#pragma GCC diagnostic ignored "-Wswitch-unreachable"
 #pragma GCC diagnostic ignored "-Wunused-value"
 #endif
 
@@ -2388,6 +2390,14 @@ int vla_funparam(int n, int a[n][n], int (*p)[n]) {
   return acc;
 }
 
+int vla_proto_star(int n, int x[const *]);
+int vla_proto_star(int n, int x[const n]) {
+  int acc = 0;
+  for (int i = 0; i < n; ++i)
+    acc += x[i];
+  return acc * 100 + sizeof(x);
+}
+
 TEST(vla) {
   {
     int n = 3;
@@ -2450,6 +2460,11 @@ TEST(vla) {
     int a[2][2] = {{1000, 200}, {30, 4}};
     int (*p)[2] = a;
     EXPECT("vla size", 2468, vla_funparam(2, a, p));
+  }
+
+  {
+    int a[5] = {1, 2, 3, 4, 5};
+    EXPECT("vla size", 1500 + sizeof(&a[0]), vla_proto_star(5, a));
   }
 
   {
