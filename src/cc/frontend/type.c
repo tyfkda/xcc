@@ -14,7 +14,7 @@ Type tyInt =           {.kind=TY_FIXNUM, .fixnum={.kind=FX_INT,   .is_unsigned=f
 Type tyVoid =          {.kind=TY_VOID};
 Type tyConstVoid =     {.kind=TY_VOID, .qualifier=TQ_CONST};
 Type tyVoidPtr =       {.kind=TY_PTR, .pa={.ptrof=&tyVoid}};
-Type tyBool =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_BOOL,  .is_unsigned=false}};
+Type tyBool =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_CHAR,  .is_unsigned=false, .is_tf=true}};
 Type tySize =          {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=true}};
 Type tySSize =         {.kind=TY_FIXNUM, .fixnum={.kind=FX_LONG,  .is_unsigned=false}};
 Type tyFloat =         {.kind=TY_FLONUM, .flonum={.kind=FL_FLOAT}};
@@ -40,8 +40,8 @@ static Type kFixnumTypeTable[2][4][FX_LLONG + 1] = {
 };
 #undef FIXNUM_TABLE
 
-size_t fixnum_size_table[]  = {1, 2, 4, 8, 8, 4, 1};
-int    fixnum_align_table[] = {1, 2, 4, 8, 8, 4, 1};
+size_t fixnum_size_table[]  = {1, 2, 4, 8, 8, 4};
+int    fixnum_align_table[] = {1, 2, 4, 8, 8, 4};
 
 size_t flonum_size_table[]  = {4, 8, 8};
 int    flonum_align_table[] = {4, 8, 8};
@@ -375,11 +375,12 @@ int find_struct_member(const StructInfo *sinfo, const Name *name) {
 // Enum
 
 Type *create_enum_type(EnumInfo *einfo, const Name *tagname) {
-  Type *type = malloc_or_die(sizeof(*type));
+  Type *type = calloc_or_die(sizeof(*type));
   type->kind = TY_FIXNUM;
   type->qualifier = 0;
   type->fixnum.kind = FX_ENUM;
   type->fixnum.is_unsigned = false;
+  type->fixnum.is_tf = false;
   type->fixnum.enum_.tagname = tagname;
   type->fixnum.enum_.info = einfo;
   return type;
@@ -401,6 +402,8 @@ bool same_type_without_qualifier(const Type *type1, const Type *type2, bool igno
     case TY_VOID:
       return true;
     case TY_FIXNUM:
+      if (type1->fixnum.is_tf && type2->fixnum.is_tf)
+        return true;
       return type1->fixnum.kind == type2->fixnum.kind &&
           type1->fixnum.is_unsigned == type2->fixnum.is_unsigned;
     case TY_FLONUM:
@@ -627,26 +630,18 @@ void print_type_recur(FILE *fp, const Type *type, PrintTypeChain *parent) {
   case TY_FIXNUM:
     {
       enum FixnumKind kind = type->fixnum.kind;
-      switch (kind) {
-      case FX_ENUM:
-        {
-          if (type->fixnum.enum_.tagname != NULL)
-            fprintf(fp, "enum %.*s", NAMES(type->fixnum.enum_.tagname));
-          else
-            fprintf(fp, "enum (anonymous)");
-        }
-        break;
-      case FX_BOOL:
+      if (kind == FX_ENUM) {
+        if (type->fixnum.enum_.tagname != NULL)
+          fprintf(fp, "enum %.*s", NAMES(type->fixnum.enum_.tagname));
+        else
+          fprintf(fp, "enum (anonymous)");
+      } else if (type->fixnum.is_tf) {
         fprintf(fp, "bool");
-        break;
-      default:
-        {
-          static const char *names[] = {"char", "short", "int", "long", "long long"};
-          assert(kind >= 0 && kind < (int)ARRAY_SIZE(names));
-          const char *sign = type->fixnum.is_unsigned ? "unsigned " : "";
-          fprintf(fp, "%s%s", sign, names[kind]);
-        }
-        break;
+      } else {
+        static const char *names[] = {"char", "short", "int", "long", "long long"};
+        assert(kind >= 0 && kind < (int)ARRAY_SIZE(names));
+        const char *sign = type->fixnum.is_unsigned ? "unsigned " : "";
+        fprintf(fp, "%s%s", sign, names[kind]);
       }
       call_print_type_chain(parent, fp);
     }

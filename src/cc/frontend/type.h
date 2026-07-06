@@ -21,7 +21,6 @@ enum FixnumKind {
   FX_LONG,
   FX_LLONG,
   FX_ENUM,
-  FX_BOOL,
 };
 
 // Flonum
@@ -99,6 +98,7 @@ typedef struct Type {
     struct {
       enum FixnumKind kind;
       bool is_unsigned;
+      bool is_tf;  // true or false.
       struct {
         const Name *tagname;
         EnumInfo *info;
@@ -153,7 +153,7 @@ static inline bool is_flonum(const Type *type)  {
   return false;
 #endif
 }
-static inline bool is_bool(const Type *type)  { return type->kind == TY_FIXNUM && type->fixnum.kind == FX_BOOL; }
+static inline bool is_bool(const Type *type)  { return type->kind == TY_FIXNUM && type->fixnum.is_tf; }
 bool is_number(const Type *type);
 bool is_unsigned(const Type *type);
 bool is_char_type(const Type *type, /*enum StrKind*/int str_kind);

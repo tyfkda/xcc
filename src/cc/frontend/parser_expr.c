@@ -621,7 +621,7 @@ static Expr *lparen(Token *tok) {
 
   if (type->kind != TY_VOID && is_const(sub))
     return make_cast(type, token, sub, true);
-  if (is_fixnum(type) && type->fixnum.kind == FX_BOOL)
+  if (is_fixnum(type) && type->fixnum.is_tf)
     return make_cond(sub);
   return sub->type->kind != TY_VOID ? new_expr_cast(type, token, sub) : sub;
 }

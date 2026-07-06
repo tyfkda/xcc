@@ -1130,7 +1130,7 @@ static Expr *make_expr_cmp_check_range(enum ExprKind kind, const Token *tok, Exp
     assert(size * TARGET_CHAR_BIT <= sizeof(Fixnum) * CHAR_BIT);
     bool lu = type->fixnum.is_unsigned, ru = rhs->type->fixnum.is_unsigned;
     Fixnum min_, max_;
-    if (type->fixnum.kind == FX_BOOL) {
+    if (type->fixnum.is_tf) {
       min_ = 0;
       max_ = 1;
     } else if (lu) {

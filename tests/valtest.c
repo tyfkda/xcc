@@ -840,6 +840,8 @@ TEST(all) {
 
   {
     EXPECT("sizeof _Bool",  1, sizeof(_Bool));
+    { int x = 1, y = 2; EXPECT("sizeof comparison",  4, sizeof(x == y)); }
+    { int x = 1; EXPECT("sizeof not",  4, sizeof(!x)); }
     EXPECT("_Bool from int", true, ({int x = -123; (_Bool)x;}));
     EXPECT("_Bool from ulong", true, ({unsigned long x = 9876UL; (_Bool)x;}));
 #ifndef __NO_FLONUM
@@ -2479,7 +2481,7 @@ TEST(extension) {
     EXPECT("generic char array2", 10, _Generic((char*)str, const char*: 11, char*: 10));
     int a[] = {1, 2, 3};
     EXPECT("generic pointer",     99, GENERIC_FUNC(a));
-    EXPECT("generic pointer",     99, GENERIC_FUNC((char)'x'));
+    EXPECT("generic char",        99, GENERIC_FUNC((char)'x'));
     EXPECT("generic bool",        9, GENERIC_FUNC((bool)true));
     {
       int x = 1, y = 2;
