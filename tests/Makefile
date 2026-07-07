@@ -12,7 +12,7 @@ CFLAGS:=-ansi -std=c11 -Wall -Wextra -Werror \
 	-Wno-empty-body
 CFLAGS+=-Wno-char-subscripts  # for RISC-V, suppress error on isXXXX(char)
 CFLAGS+=-I$(CC1_FE_DIR) -I$(UTIL_DIR)
-CFLAGS+=-D_POSIX_C_SOURCE=200809L  # for getline
+CFLAGS+=-D_DEFAULT_SOURCE  # for strdup
 
 PREFIX:=
 XCC:=../$(PREFIX)xcc
