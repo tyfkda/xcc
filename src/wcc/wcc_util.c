@@ -55,7 +55,7 @@ int getsert_func_type(unsigned char *buf, size_t size, bool reg) {
   }
   if (reg) {
     int index = functypes->len;
-    DataStorage *p = malloc_or_die(sizeof(*p));
+    DataStorage *p = calloc_or_die(sizeof(*p));
     p->buf = buf;  // Warning: `buf` is moved!
     p->len = size;
     vec_push(functypes, p);

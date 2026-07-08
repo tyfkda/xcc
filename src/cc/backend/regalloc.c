@@ -497,8 +497,8 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
   assert(ra->settings->regset[FPREG].phys_max < (int)(sizeof(ra->used_reg_bits[FPREG]) * CHAR_BIT));
 
   int vreg_count = ra->vregs->len;
-  LiveInterval *intervals = malloc_or_die(sizeof(LiveInterval) * vreg_count);
-  LiveInterval **sorted_intervals = malloc_or_die(sizeof(LiveInterval*) * vreg_count);
+  LiveInterval *intervals = calloc_or_die(sizeof(LiveInterval) * vreg_count);
+  LiveInterval **sorted_intervals = calloc_or_die(sizeof(LiveInterval*) * vreg_count);
 
   for (;;) {
     check_live_interval(bbcon, vreg_count, intervals);
@@ -548,8 +548,8 @@ void alloc_physical_registers(RegAlloc *ra, BBContainer *bbcon) {
       vreg_count = ra->vregs->len;
       free(intervals);
       free(sorted_intervals);
-      intervals = malloc_or_die(sizeof(LiveInterval) * vreg_count);
-      sorted_intervals = malloc_or_die(sizeof(LiveInterval*) * vreg_count);
+      intervals = calloc_or_die(sizeof(LiveInterval) * vreg_count);
+      sorted_intervals = calloc_or_die(sizeof(LiveInterval*) * vreg_count);
     }
   }
 

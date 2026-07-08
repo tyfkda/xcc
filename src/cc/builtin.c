@@ -355,7 +355,7 @@ static VReg *gen_builtin_va_start(Expr *expr) {
         IR_ADD, ap,
         new_const_vreg(type_size(&tyInt) + type_size(&tyInt) + type_size(&tyVoidPtr), vsize, VRF_UNSIGNED),
         vsize);
-    FrameInfo *fi = malloc_or_die(sizeof(*fi));
+    FrameInfo *fi = calloc_or_die(sizeof(*fi));
     fi->offset = -(MAX_REG_ARGS[GPREG] + MAX_REG_ARGS[FPREG]) * TARGET_POINTER_SIZE;
     VReg *p = new_ir_bofs(fi)->dst;
     new_ir_store(reg_save_area, 0, p);

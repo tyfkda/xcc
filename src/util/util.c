@@ -391,7 +391,7 @@ int64_t wrap_value(int64_t value, int size, bool is_unsigned) {
 // Container
 
 Vector *new_vector(void) {
-  Vector *vec = malloc_or_die(sizeof(Vector));
+  Vector *vec = calloc_or_die(sizeof(Vector));
   vec_init(vec);
   return vec;
 }

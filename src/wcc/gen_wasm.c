@@ -864,7 +864,7 @@ static void gen_defun(Function *func) {
   if (is_function_omitted(funcvi, func->attributes))
     return;
 
-  DataStorage *code = malloc_or_die(sizeof(*code));
+  DataStorage *code = calloc_or_die(sizeof(*code));
   data_init(code);
   data_open_chunk(code);
 

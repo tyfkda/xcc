@@ -138,7 +138,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
                 if (label_info == NULL) {
-                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                  UnresolvedInfo *info = calloc_or_die(sizeof(*info));
                   info->kind = UNRES_X64_GOT_LOAD;
                   info->label = value.label;
                   info->src_section = section;
@@ -156,7 +156,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                 inst->opr[0].indirect.offset.expr->kind != EX_FIXNUM) {
               Value value = calc_expr(label_table, inst->opr[0].indirect.offset.expr);
               if (value.label != NULL) {
-                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                UnresolvedInfo *info = calloc_or_die(sizeof(*info));
                 info->kind = UNRES_EXTERN_PC32;
                 info->label = value.label;
                 info->src_section = section;
@@ -185,7 +185,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                   // Make unresolved label jmp to long.
                   size_upgraded |= make_jmp_long(ir);
 
-                  UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                  UnresolvedInfo *info = calloc_or_die(sizeof(*info));
                   info->kind = UNRES_CALL;
                   info->label = value.label;
                   info->src_section = section;
@@ -219,7 +219,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
             if (inst->opr[0].type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr[0].direct.expr);
               if (value.label != NULL) {
-                UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+                UnresolvedInfo *info = calloc_or_die(sizeof(*info));
                 info->kind = UNRES_CALL;
                 info->label = value.label;
                 info->src_section = section;
@@ -244,7 +244,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
         {
           Value value = calc_expr(label_table, ir->expr.expr);
           assert(value.label != NULL);
-          UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+          UnresolvedInfo *info = calloc_or_die(sizeof(*info));
           info->kind = UNRES_ABS64;  // TODO:
           info->label = value.label;
           info->src_section = section;

@@ -372,7 +372,7 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
         {
           Value value = calc_expr(label_table, ir->expr.expr);
           assert(value.label != NULL);
-          UnresolvedInfo *info = malloc_or_die(sizeof(*info));
+          UnresolvedInfo *info = calloc_or_die(sizeof(*info));
           info->kind = UNRES_ABS64;  // TODO:
           info->label = value.label;
           info->src_section = section;

@@ -12,7 +12,7 @@ static const enum VRegSize vtVoidPtr = VRegSize8;
 static const enum VRegSize vtBool = VRegSize1;
 
 Phi *new_phi(VReg *dst, Vector *params) {
-  Phi *phi = malloc_or_die(sizeof(*phi));
+  Phi *phi = calloc_or_die(sizeof(*phi));
   phi->dst = dst;
   phi->params = params;
   return phi;
@@ -384,7 +384,7 @@ IR *new_ir_store_spilled(VReg *dst, VReg *vreg) {
 BB *curbb;
 
 BB *new_bb(void) {
-  BB *bb = malloc_or_die(sizeof(*bb));
+  BB *bb = calloc_or_die(sizeof(*bb));
   bb->next = NULL;
   bb->from_bbs = new_vector();
   bb->label = alloc_label();

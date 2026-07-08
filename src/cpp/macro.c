@@ -12,7 +12,7 @@
 #include "util.h"
 
 Macro *new_macro(Vector *params, const Name *vaargs_ident, Vector *body) {
-  Macro *macro = malloc_or_die(sizeof(*macro));
+  Macro *macro = calloc_or_die(sizeof(*macro));
   int len = params != NULL ? params->len : -1;
   macro->params_len = len;
   macro->vaargs_ident = vaargs_ident;

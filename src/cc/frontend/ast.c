@@ -13,7 +13,7 @@ Token *alloc_token(enum TokenKind kind, Line *line, const char *begin, const cha
     assert(begin != NULL);
     end = begin + strlen(begin);
   }
-  Token *token = malloc_or_die(sizeof(*token));
+  Token *token = calloc_or_die(sizeof(*token));
   token->kind = kind;
   token->line = line;
   token->begin = begin;
@@ -313,7 +313,7 @@ Stmt *new_stmt_asm(const Token *token, Vector *templates, Vector *outputs, Vecto
 //
 
 static Declaration *new_decl(enum DeclKind kind) {
-  Declaration *decl = malloc_or_die(sizeof(*decl));
+  Declaration *decl = calloc_or_die(sizeof(*decl));
   decl->kind = kind;
   return decl;
 }

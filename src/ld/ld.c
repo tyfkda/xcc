@@ -1360,7 +1360,7 @@ static void ld_collect_section_data(LinkEditor *ld) {
 }
 
 static int do_link(Vector *sources, const Options *opts) {
-  LinkEditor *ld = malloc_or_die(sizeof(*ld));
+  LinkEditor *ld = calloc_or_die(sizeof(*ld));
   ld_init(ld, sources->len);
   for (int i = 0; i < sources->len; ++i) {
     char *src = sources->data[i];
