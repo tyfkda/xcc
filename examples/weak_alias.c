@@ -10,7 +10,11 @@ static int sub(void) {
 }
 
 weak_alias(sub, foobar);
+// static int foobar(void) {
+//   return 123;
+// }
 
 int main(void) {
-  return foobar();
+  int (*p)(void) = foobar;
+  return (*p)();
 }
