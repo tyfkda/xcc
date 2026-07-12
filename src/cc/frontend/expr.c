@@ -265,11 +265,11 @@ Expr *reduce_refer(Expr *expr) {
         target = target->unary.sub;
       }
 
-      const MemberInfo *minfo = expr->member.info;
-      Type *ptype = minfo->type;
+      const MemberInfo *member = expr->member.info;
+      Type *ptype = member->type;
       ptype = ptrof(ptype->kind == TY_ARRAY ? array_to_ptr(ptype) : ptype);
       // target->field => *(target + offset(field))
-      Expr *result = reduce_refer_deref_add(expr, ptype, target, minfo->offset);
+      Expr *result = reduce_refer_deref_add(expr, ptype, target, member->offset);
       if (result != NULL)
         return result;
 
@@ -285,13 +285,13 @@ Expr *reduce_refer(Expr *expr) {
             target = new_expr_unary(EX_REF, ptrof(type), target->token, target);
           }
           Expr *p;
-          Type *ptype = ptrof(minfo->type);
-          if (minfo->offset == 0)
+          Type *ptype = ptrof(member->type);
+          if (member->offset == 0)
             p = make_cast(ptype, expr->token, target, true);
           else
             p = new_expr_bop(EX_ADD, ptype, expr->token, target,
-                             new_expr_fixlit(&tySize, expr->token, minfo->offset));
-          return new_expr_unary(EX_DEREF, minfo->type, expr->token, p);
+                             new_expr_fixlit(&tySize, expr->token, member->offset));
+          return new_expr_unary(EX_DEREF, member->type, expr->token, p);
         }
       default:
         // ex. funcall().x cannot be taken its reference, so keep the expression.
@@ -705,19 +705,19 @@ Expr *make_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *r
 }
 
 #ifndef __NO_BITFIELD
-Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo) {
+Expr *extract_bitfield_value(Expr *src, const MemberInfo *member) {
   Type *type = src->type;
   bool is_unsigned = type->fixnum.is_unsigned;
-  if (minfo->type->fixnum.kind == FX_ENUM) {
-    is_unsigned = minfo->type->fixnum.enum_.info->non_negative;
+  if (member->type->fixnum.kind == FX_ENUM) {
+    is_unsigned = member->type->fixnum.enum_.info->non_negative;
   }
   Expr *result;
   if (is_unsigned) {
     Expr *tmp = src;
-    if (minfo->bitfield.position > 0)
+    if (member->bitfield.position > 0)
       tmp = new_expr_bop(EX_RSHIFT, tmp->type, tmp->token, tmp,
-                         new_expr_fixlit(tmp->type, tmp->token, minfo->bitfield.position));
-    UFixnum mask = ((UFixnum)1 << minfo->bitfield.width) - 1;
+                         new_expr_fixlit(tmp->type, tmp->token, member->bitfield.position));
+    UFixnum mask = ((UFixnum)1 << member->bitfield.width) - 1;
     result = new_expr_bop(EX_BITAND, tmp->type, tmp->token, tmp,
                           new_expr_fixlit(tmp->type, tmp->token, mask));
   } else {
@@ -733,47 +733,47 @@ Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo) {
       s = MINREGSIZE;
     }
     int w = s * TARGET_CHAR_BIT;
-    int l = w - (minfo->bitfield.position + minfo->bitfield.width);
+    int l = w - (member->bitfield.position + member->bitfield.width);
     Expr *tmp = var;
     if (l > 0)
       tmp = new_expr_bop(EX_LSHIFT, tmp->type, tmp->token, tmp,
                          new_expr_fixlit(tmp->type, tmp->token, l));
-    if (minfo->bitfield.width < w)
+    if (member->bitfield.width < w)
       tmp = new_expr_bop(EX_RSHIFT, tmp->type, tmp->token, tmp,
-                         new_expr_fixlit(tmp->type, tmp->token, w - minfo->bitfield.width));
+                         new_expr_fixlit(tmp->type, tmp->token, w - member->bitfield.width));
     result = tmp;
     if (comma != NULL)
       result = new_expr_bop(EX_COMMA, result->type, comma->token, comma, result);
   }
-  Type *mtype = minfo->type;
+  Type *mtype = member->type;
   if (mtype->fixnum.is_unsigned &&
-      (size_t)minfo->bitfield.width < type_size(mtype) * TARGET_CHAR_BIT) {
+      (size_t)member->bitfield.width < type_size(mtype) * TARGET_CHAR_BIT) {
     mtype = get_fixnum_type(mtype->fixnum.kind, false, mtype->qualifier);
   }
   return make_cast(mtype, src->token, result, false);
 }
 
 static Expr *assign_bitfield_member(const Token *tok, Expr *dst, Expr *src, Expr *val,
-                                    const MemberInfo *minfo) {
+                                    const MemberInfo *member) {
   Type *type = dst->type;
   val = make_cast(type, val->token, val, false);
 
-  UFixnum mask = ((UFixnum)1 << minfo->bitfield.width) - 1;
+  UFixnum mask = ((UFixnum)1 << member->bitfield.width) - 1;
   Expr *val_masked = make_expr_num_bop(EX_BITAND, tok, val, new_expr_fixlit(type, tok, mask));
   val_masked = make_cast(type, tok, val_masked, false);
-  if (minfo->bitfield.position > 0)
+  if (member->bitfield.position > 0)
     val_masked = make_expr_num_bop(EX_LSHIFT, tok, val_masked,
-                                  new_expr_fixlit(type, tok, minfo->bitfield.position));
-  Expr *src_mask = new_expr_fixlit(type, tok, ~(mask << minfo->bitfield.position));
+                                  new_expr_fixlit(type, tok, member->bitfield.position));
+  Expr *src_mask = new_expr_fixlit(type, tok, ~(mask << member->bitfield.position));
   Expr *src_masked = make_expr_num_bop(EX_BITAND, tok, src, src_mask);
   return new_expr_bop(EX_ASSIGN, type, tok, dst,
                       new_expr_bop(EX_BITOR, type, tok, val_masked, src_masked));
 }
 
-Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInfo *minfo) {
+Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInfo *member) {
   // Transform expression to (ptr = &lhs, val = rhs, *ptr = (*ptr & ~(mask << bitpos)) | ((val & mask) << bitpos), val)
 
-  Type *type = get_fixnum_type(minfo->bitfield.base_kind, minfo->type->fixnum.is_unsigned, 0);
+  Type *type = get_fixnum_type(member->bitfield.base_kind, member->type->fixnum.is_unsigned, 0);
 
   Type *ptype = ptrof(type);
   assert(!is_global_scope(curscope));
@@ -784,27 +784,27 @@ Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInf
   Expr *dst = new_expr_unary(EX_DEREF, type, tok, ptr);
   Expr *assign;
   if (rhs->kind == EX_FIXNUM || rhs->kind == EX_VAR) {
-    assign = assign_bitfield_member(tok, dst, dst, rhs, minfo);
+    assign = assign_bitfield_member(tok, dst, dst, rhs, member);
   } else {
     Expr *val = alloc_tmp_var(curscope, vtype);
     Expr *val_assign = new_expr_bop(EX_ASSIGN, vtype, tok, val, rhs);
     assign = new_expr_bop(EX_COMMA, type, tok, val_assign,
-                          assign_bitfield_member(tok, dst, dst, val, minfo));
+                          assign_bitfield_member(tok, dst, dst, val, member));
   }
   // Extract bitfield again for the result:
   // If the result is not used then the calculation is eliminated so no need to worry about it.
-  Expr *result = extract_bitfield_value(dst, minfo);
+  Expr *result = extract_bitfield_value(dst, member);
   return new_expr_bop(EX_COMMA, result->type, tok,
                       new_expr_bop(EX_COMMA, assign->type, tok, ptr_assign, assign),
                       result);
 }
 
 static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, const Token *tok,
-                                          const MemberInfo *minfo) {
+                                          const MemberInfo *member) {
   // ++target => (&ptr = &target, src = *ptr, val = ((src + (1 << bitpos)) >> bitpos), *ptr = (src & (mask << bitpos)) | ((val & mask) << bitpos), val)
   // target++ => (&ptr = &target, src = *ptr, val = src >> bitpos, *ptr = (src & (mask << bitpos)) | (((val + 1) & mask) << bitpos), val)
 
-  Type *type = get_fixnum_type(minfo->bitfield.base_kind, target->type->fixnum.is_unsigned, 0);
+  Type *type = get_fixnum_type(member->bitfield.base_kind, target->type->fixnum.is_unsigned, 0);
 
   Type *ptype = ptrof(type);
   assert(!is_global_scope(curscope));
@@ -815,7 +815,7 @@ static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, cons
   Expr *src = alloc_tmp_var(curscope, type);
   Expr *src_assign = new_expr_bop(EX_ASSIGN, type, tok, src, dst);
 
-  Type *vtype = minfo->type;
+  Type *vtype = member->type;
   Expr *val = alloc_tmp_var(curscope, vtype);
 
   enum {
@@ -827,18 +827,18 @@ static Expr *transform_incdec_of_bitfield(enum ExprKind kind, Expr *target, cons
 
   Expr *val_assign, *after;
   if (post) {
-    Expr *before = extract_bitfield_value(src, minfo);
+    Expr *before = extract_bitfield_value(src, member);
     val_assign = new_expr_bop(EX_ASSIGN, vtype, tok, val, make_cast(vtype, tok, before, false));
     after = new_expr_bop(!dec ? EX_ADD : EX_SUB, vtype, tok, before, new_expr_fixlit(vtype, NULL, 1));
   } else {
     Expr *tmp = extract_bitfield_value(
         new_expr_bop(!dec ? EX_ADD : EX_SUB, type, tok, src,
-                     new_expr_fixlit(type, NULL, 1LL << minfo->bitfield.position)),
-        minfo);
+                     new_expr_fixlit(type, NULL, 1LL << member->bitfield.position)),
+        member);
     val_assign = new_expr_bop(EX_ASSIGN, vtype, tok, val, make_cast(vtype, tok, tmp, false));
     after = val;
   }
-  Expr *store = assign_bitfield_member(tok, dst, src, after, minfo);
+  Expr *store = assign_bitfield_member(tok, dst, src, after, member);
 
   return new_expr_bop(
       EX_COMMA, vtype, tok,
@@ -853,9 +853,9 @@ Expr *incdec_of(enum ExprKind kind, Expr *target, const Token *tok) {
   check_referable(tok, target, "lvalue expected");
 #ifndef __NO_BITFIELD
   if (target->kind == EX_MEMBER) {
-    const MemberInfo *minfo = target->member.info;
-    if (minfo->bitfield.width > 0)
-      return transform_incdec_of_bitfield(kind, target, tok, minfo);
+    const MemberInfo *member = target->member.info;
+    if (member->bitfield.width > 0)
+      return transform_incdec_of_bitfield(kind, target, tok, member);
   }
 #endif
   return new_expr_unary(kind, target->type, tok, target);
@@ -1359,12 +1359,12 @@ static Expr *calc_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
 
 #ifndef __NO_BITFIELD
 static Expr *transform_assign_with_bitfield(const Token *tok, Expr *lhs, Expr *rhs,
-                                            const MemberInfo *minfo) {
+                                            const MemberInfo *member) {
   // Transform expression to
   // (ptr = &lhs, src = *ptr, tmp = ((src >> bitpos) & mask) + rhs,
   //  *ptr = (src & ~(mask << bitpos)) | ((tmp & mask) << bitpos), (*ptr >> bitpos) & mask)
 
-  Type *type = get_fixnum_type(minfo->bitfield.base_kind, lhs->type->fixnum.is_unsigned, 0);
+  Type *type = get_fixnum_type(member->bitfield.base_kind, lhs->type->fixnum.is_unsigned, 0);
 
   Type *ptype = ptrof(type);
   assert(!is_global_scope(curscope));
@@ -1375,12 +1375,12 @@ static Expr *transform_assign_with_bitfield(const Token *tok, Expr *lhs, Expr *r
   Expr *src = alloc_tmp_var(curscope, type);
   Expr *src_assign = new_expr_bop(EX_ASSIGN, type, tok, src, dst);
 
-  Expr *tmp = extract_bitfield_value(src, minfo);
+  Expr *tmp = extract_bitfield_value(src, member);
   tmp = calc_assign_with(tok, tmp, rhs);
-  Expr *store = assign_bitfield_member(tok, dst, src, tmp, minfo);
+  Expr *store = assign_bitfield_member(tok, dst, src, tmp, member);
 
   Type *vtype = rhs->type;
-  Expr *result = extract_bitfield_value(dst, minfo);
+  Expr *result = extract_bitfield_value(dst, member);
   return new_expr_bop(EX_COMMA, result->type, tok,
                       new_expr_bop(EX_COMMA, vtype, tok, ptr_assign,
                                    new_expr_bop(EX_COMMA, vtype, tok, src_assign, store)),
@@ -1396,9 +1396,9 @@ Expr *transform_assign_with(const Token *tok, Expr *lhs, Expr *rhs) {
   if (lhs->kind != EX_VAR) {
 #ifndef __NO_BITFIELD
     if (lhs->kind == EX_MEMBER) {
-      const MemberInfo *minfo = lhs->member.info;
-      if (minfo->bitfield.width > 0)
-        return transform_assign_with_bitfield(tok, lhs, rhs, minfo);
+      const MemberInfo *member = lhs->member.info;
+      if (member->bitfield.width > 0)
+        return transform_assign_with_bitfield(tok, lhs, rhs, member);
     }
 #endif
 

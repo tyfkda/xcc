@@ -316,9 +316,9 @@ IR *new_ir_pusharg(VReg *vreg, int index) {
   return ir;
 }
 
-IR *new_ir_call(IrCallInfo *info, VReg *dst, VReg *freg) {
+IR *new_ir_call(IrCallInfo *callinfo, VReg *dst, VReg *freg) {
   IR *ir = new_ir(IR_CALL);
-  ir->call = info;
+  ir->call = callinfo;
   ir->dst = dst;
   ir->opr1 = freg;
   return ir;

@@ -131,8 +131,8 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   size_t offset = 0;
   int reg_count[2] = {0, 0};  // [0]=gp-reg, [1]=fp-reg
   for (int i = 0; i < params->len; ++i) {
-    VarInfo *info = params->data[i];
-    Type *t = info->type;
+    VarInfo *varinfo = params->data[i];
+    Type *t = varinfo->type;
     int n = 0;
     if (is_small_struct(t)) {
       size_t s = type_size(t);
@@ -200,8 +200,8 @@ static VReg *gen_builtin_va_start(Expr *expr) {
 #endif
   int gn = 0;
   for (int i = 0; i < params->len; ++i) {
-    VarInfo *info = params->data[i];
-    const Type *t = info->type;
+    VarInfo *varinfo = params->data[i];
+    const Type *t = varinfo->type;
     if (t->kind == TY_STRUCT) {
       // Small struct:   allow single member only, so it passed by 1 argument.
       // Large struct:   passed as pointer, so it passed by 1 argument.
@@ -286,8 +286,8 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   int reg_count[2] = {0, 0};  // [0]=gp-reg, [1]=fp-reg
   size_t offset = 0;
   for (int i = 0; i < params->len; ++i) {
-    VarInfo *info = params->data[i];
-    Type *t = info->type;
+    VarInfo *varinfo = params->data[i];
+    Type *t = varinfo->type;
     int n = 0;
     if (is_small_struct(t)) {
       size_t s = type_size(t);

@@ -1071,9 +1071,9 @@ static size_t alloc_locals_onto_stack_frame(Function *func, size_t frame_size) {
           Initializer *e = init->multi->data[m - 1];
           if (e != NULL) {
             assert(e->kind == IK_MULTI);
-            MemberInfo *me = &type->struct_.info->members[m - 1];
-            assert(me->type->kind == TY_ARRAY);
-            size += type_size(me->type->pa.ptrof) * e->multi->len;
+            MemberInfo *member = &type->struct_.info->members[m - 1];
+            assert(member->type->kind == TY_ARRAY);
+            size += type_size(member->type->pa.ptrof) * e->multi->len;
           }
         }
       }

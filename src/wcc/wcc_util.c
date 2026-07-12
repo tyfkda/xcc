@@ -36,11 +36,11 @@ GVarInfo *register_gvar_info(const Name *name, VarInfo *varinfo) {
 #if !defined(NDEBUG)
   assert(!table_try_get(&gvar_info_table, name, NULL));
 #endif
-  GVarInfo *info = calloc_or_die(sizeof(*info));
-  info->varinfo = varinfo;
-  info->flag = 0;
-  table_put(&gvar_info_table, name, info);
-  return info;
+  GVarInfo *gvinfo = calloc_or_die(sizeof(*gvinfo));
+  gvinfo->varinfo = varinfo;
+  gvinfo->flag = 0;
+  table_put(&gvar_info_table, name, gvinfo);
+  return gvinfo;
 }
 
 GVarInfo *get_gvar_info_from_name(const Name *name) {
@@ -120,9 +120,9 @@ void write_wasm_header(FILE *ofp) {
 
 Expr *get_sp_var(void) {
   const Name *spname = alloc_cname(SP_NAME);
-  GVarInfo *info = get_gvar_info_from_name(spname);
-  assert(info != NULL);
-  return new_expr_variable(spname, info->varinfo->type, NULL, global_scope);
+  GVarInfo *gvinfo = get_gvar_info_from_name(spname);
+  assert(gvinfo != NULL);
+  return new_expr_variable(spname, gvinfo->varinfo->type, NULL, global_scope);
 }
 
 unsigned char to_wtype(const Type *type) {

@@ -540,8 +540,8 @@ static void gen_ref_var(Expr *expr) {
 
       ADD_VARINT32(finfo->indirect_index);
     } else {
-      GVarInfo *info = get_gvar_info(expr);
-      assert(info != NULL);
+      GVarInfo *gvinfo = get_gvar_info(expr);
+      assert(gvinfo != NULL);
       ADD_CODE(OP_I32_CONST);
       FuncExtra *extra = curfunc->extra;
       DataStorage *code = extra->code;
@@ -549,10 +549,10 @@ static void gen_ref_var(Expr *expr) {
       ri->type = R_WASM_MEMORY_ADDR_SLEB;
       ri->offset = code->len;
       ri->addend = 0;
-      ri->index = info->symbol_index;
+      ri->index = gvinfo->symbol_index;
       vec_push(extra->reloc_code, ri);
 
-      ADD_VARINT32(info->non_prim.address);
+      ADD_VARINT32(gvinfo->non_prim.address);
     }
   } else {
     VReg *vreg = varinfo->local.vreg;
@@ -574,11 +574,11 @@ static void gen_ref_sub(Expr *expr) {
   case EX_MEMBER:
     {
       gen_expr(expr->member.target, true);
-      const MemberInfo *minfo = expr->member.info;
-      if (minfo->offset == 0)
+      const MemberInfo *member = expr->member.info;
+      if (member->offset == 0)
         return;
       ADD_CODE(OP_I32_CONST);
-      ADD_LEB128(minfo->offset);
+      ADD_LEB128(member->offset);
       ADD_CODE(OP_I32_ADD);
       return;
     }
@@ -621,8 +621,8 @@ static void gen_var(Expr *expr, bool needval) {
         ADD_CODE(OP_LOCAL_GET);
         ADD_ULEB128(vreg->prim.local_index);
       } else {
-        GVarInfo *info = get_gvar_info(expr);
-        assert(info != NULL);
+        GVarInfo *gvinfo = get_gvar_info(expr);
+        assert(gvinfo != NULL);
         ADD_CODE(OP_GLOBAL_GET);
         FuncExtra *extra = curfunc->extra;
         DataStorage *code = extra->code;
@@ -630,10 +630,10 @@ static void gen_var(Expr *expr, bool needval) {
         ri->type = R_WASM_GLOBAL_INDEX_LEB;
         ri->offset = code->len;
         ri->addend = 0;
-        ri->index = info->symbol_index;
+        ri->index = gvinfo->symbol_index;
         vec_push(extra->reloc_code, ri);
 
-        ADD_VARUINT32(info->prim.index);
+        ADD_VARUINT32(gvinfo->prim.index);
       }
     }
     break;
@@ -684,8 +684,8 @@ void gen_set_to_var(Expr *var) {
     ADD_ULEB128(vreg->prim.local_index);
   } else {
     assert(!is_global_datasec_var(varinfo, var->var.scope));
-    GVarInfo *info = get_gvar_info(var);
-    assert(info != NULL);
+    GVarInfo *gvinfo = get_gvar_info(var);
+    assert(gvinfo != NULL);
     ADD_CODE(OP_GLOBAL_SET);
     FuncExtra *extra = curfunc->extra;
     DataStorage *code = extra->code;
@@ -693,10 +693,10 @@ void gen_set_to_var(Expr *var) {
     ri->type = R_WASM_GLOBAL_INDEX_LEB;
     ri->offset = code->len;
     ri->addend = 0;
-    ri->index = info->symbol_index;
+    ri->index = gvinfo->symbol_index;
     vec_push(extra->reloc_code, ri);
 
-    ADD_VARUINT32(info->prim.index);
+    ADD_VARUINT32(gvinfo->prim.index);
   }
 }
 
@@ -852,13 +852,13 @@ static void gen_incdec_store(Expr *target, bool needval) {
     ADD_ULEB128(vreg->prim.local_index);
   } else {
     assert(!is_global_datasec_var(varinfo, scope));
-    GVarInfo *info = get_gvar_info(target);
-    assert(info != NULL);
+    GVarInfo *gvinfo = get_gvar_info(target);
+    assert(gvinfo != NULL);
     ADD_CODE(OP_GLOBAL_SET);
-    ADD_ULEB128(info->prim.index);
+    ADD_ULEB128(gvinfo->prim.index);
     if (needval) {
       ADD_CODE(OP_GLOBAL_GET);
-      ADD_ULEB128(info->prim.index);
+      ADD_ULEB128(gvinfo->prim.index);
     }
   }
 }

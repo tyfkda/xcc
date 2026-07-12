@@ -215,7 +215,7 @@ IR *new_ir_jmp(BB *bb);  // Non-conditional jump
 void new_ir_cjmp(VReg *opr1, VReg *opr2, enum ConditionKind cond, BB *bb);  // Conditional jump
 void new_ir_tjmp(VReg *val, BB **bbs, size_t len);
 IR *new_ir_pusharg(VReg *vreg, int index);
-IR *new_ir_call(IrCallInfo *info, VReg *dst, VReg *freg);
+IR *new_ir_call(IrCallInfo *callinfo, VReg *dst, VReg *freg);
 void new_ir_result(VReg *vreg, int index);
 void new_ir_subsp(VReg *value, VReg *dst);
 IR *new_ir_cast(VReg *vreg, enum VRegSize dstsize, int vflag);

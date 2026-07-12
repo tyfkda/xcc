@@ -100,7 +100,7 @@ VarInfo *scope_find(Scope *scope, const Name *name, Scope **pscope);
 VarInfo *scope_add(Scope *scope, const Token *name, Type *type, int storage);
 
 enum TagDefineResult define_type_tag(Scope *scope, const Name *name, enum TypeTagKind kind,
-                                     void *info);
+                                     void *taginfo);
 StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope);
 EnumInfo *find_enum(Scope *scope, const Name *name, Scope **pscope);
 

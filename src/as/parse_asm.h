@@ -82,8 +82,8 @@ typedef struct ParseInfo {
   SectionInfo *current_section;
 } ParseInfo;
 
-SectionInfo *set_current_section(ParseInfo *info, const char *name, const char *segname, int flag);
-SectionInfo *get_section_info(ParseInfo *info, const char *name, const char *segname, int flag);
+SectionInfo *set_current_section(ParseInfo *parser, const char *name, const char *segname, int flag);
+SectionInfo *get_section_info(ParseInfo *parser, const char *name, const char *segname, int flag);
 
 extern const char kSecText[];
 extern const char kSecRodata[];
@@ -144,9 +144,9 @@ typedef struct Expr {
   };
 } Expr;
 
-bool parse_line(Line *line, ParseInfo *info);
-void parse_set_p(ParseInfo *info, const char *p);
-bool parse_error(ParseInfo *info, const char *message);
+bool parse_line(Line *line, ParseInfo *parser);
+void parse_set_p(ParseInfo *parser, const char *p);
+bool parse_error(ParseInfo *parser, const char *message);
 
 typedef struct {
   /*enum Opcode*/ int op;
@@ -161,11 +161,11 @@ typedef struct {
 extern const char *kRawOpTable[];
 extern const ParseInstTable kParseInstTable[];
 
-unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *operand);
+unsigned int parse_operand(ParseInfo *parser, unsigned int opr_flag, Operand *operand);
 
 bool immediate(const char **pp, int64_t *value);
 const Name *unquote_label(const char *p, const char *q);
-Expr *parse_expr(ParseInfo *info);
+Expr *parse_expr(ParseInfo *parser);
 Expr *new_expr(enum ExprKind kind);
 
 typedef struct {
@@ -199,5 +199,5 @@ typedef struct {
   int align;
 } LabelInfo;
 
-LabelInfo *add_label_table(Table *label_table, const Name *label, SectionInfo *section, bool define,
+LabelInfo *add_label_table(Table *label_table, const Name *name, SectionInfo *section, bool define,
                            bool global);

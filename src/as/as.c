@@ -15,23 +15,23 @@
 #define START_ADDRESS   (0x01000000 + PROG_START)
 #define LOAD_ADDRESS    START_ADDRESS
 
-static bool read_line_comment_skip(FILE *fp, ParseInfo *info) {
+static bool read_line_comment_skip(FILE *fp, ParseInfo *parser) {
   bool block_comment = false;
   bool wait_line_end = true;
-  const char *p = info->p;
+  const char *p = parser->p;
   for (;;) {
     if (p == NULL) {
-      ++info->lineno;
+      ++parser->lineno;
       char *rawline = NULL;
       size_t capa = 0;
       ssize_t len = getline_chomp(&rawline, &capa, fp);
       if (len == -1) {  // EOF
-        info->rawline = info->p = NULL;
+        parser->rawline = parser->p = NULL;
         if (block_comment)
-          parse_error(info, "block comment not closed");
+          parse_error(parser, "block comment not closed");
         return false;
       }
-      info->rawline = p = rawline;
+      parser->rawline = p = rawline;
       wait_line_end = false;
     }
 
@@ -58,7 +58,7 @@ static bool read_line_comment_skip(FILE *fp, ParseInfo *info) {
 
     if (wait_line_end) {
       if (*p != '\0')
-        parse_error(info, "line end expected");
+        parse_error(parser, "line end expected");
       p = NULL;
       continue;
     }
@@ -67,31 +67,31 @@ static bool read_line_comment_skip(FILE *fp, ParseInfo *info) {
   }
 
   // Line.
-  info->p = p;
+  parser->p = p;
   return true;
 }
 
-static void parse_file(FILE *fp, ParseInfo *info) {
-  info->lineno = 0;
-  info->rawline = info->p = NULL;
-  info->prefetched = NULL;
-  set_current_section(info, kSecText, kSegText, SF_EXECUTABLE);
+static void parse_file(FILE *fp, ParseInfo *parser) {
+  parser->lineno = 0;
+  parser->rawline = parser->p = NULL;
+  parser->prefetched = NULL;
+  set_current_section(parser, kSecText, kSegText, SF_EXECUTABLE);
 
   for (;;) {
-    if (!read_line_comment_skip(fp, info))
+    if (!read_line_comment_skip(fp, parser))
       break;
 
-    SectionInfo *section = info->current_section;
+    SectionInfo *section = parser->current_section;
     Vector *irs = section->irs;
     Line line;
-    if (!parse_line(&line, info))
+    if (!parse_line(&line, parser))
       continue;
 
     if (line.label != NULL) {
       vec_push(irs, new_ir_label(line.label));
 
-      if (!add_label_table(info->label_table, line.label, section, true, false))
-        ++info->error_count;
+      if (!add_label_table(parser->label_table, line.label, section, true, false))
+        ++parser->error_count;
     }
 
     if (line.dir != NODIRECTIVE)
@@ -99,7 +99,7 @@ static void parse_file(FILE *fp, ParseInfo *info) {
 
     if (line.inst != NULL) {
       Code code;
-      assemble_inst(line.inst, info, &code);
+      assemble_inst(line.inst, parser, &code);
       if (code.len > 0)
         vec_push(irs, new_ir_code(&code));
     }
@@ -225,10 +225,10 @@ int main(int argc, char *argv[]) {
   Table label_table;
   table_init(&label_table);
 
-  ParseInfo info;
-  info.error_count = 0;
-  info.section_infos = &section_infos;
-  info.label_table = &label_table;
+  ParseInfo parser;
+  parser.error_count = 0;
+  parser.section_infos = &section_infos;
+  parser.label_table = &label_table;
 
   if (iarg >= argc)
     error("No input files");
@@ -242,14 +242,14 @@ int main(int argc, char *argv[]) {
       error("Cannot open %s\n", argv[i]);
     }
 
-    info.filename = filename;
-    parse_file(fp, &info);
+    parser.filename = filename;
+    parse_file(fp, &parser);
     fclose(fp);
-    if (info.error_count != 0)
+    if (parser.error_count != 0)
       break;
   }
 
-  if (info.error_count != 0) {
+  if (parser.error_count != 0) {
     return 1;
   }
 

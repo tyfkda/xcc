@@ -27,8 +27,8 @@ void make_code32(Inst *inst, Code *code, unsigned int *buf, int len) {
   code->len += len;
 }
 
-static inline bool assemble_error(ParseInfo *info, const char *message) {
-  parse_error(info, message);
+static inline bool assemble_error(ParseInfo *parser, const char *message) {
+  parse_error(parser, message);
   return false;
 }
 
@@ -645,7 +645,7 @@ static const AsmInstFunc table[] = {
   [FCVT] = asm_f_2r, [FCVTZS] = asm_f_2r, [FCVTZU] = asm_f_2r,
 };
 
-void assemble_inst(Inst *inst, ParseInfo *info, Code *code) {
+void assemble_inst(Inst *inst, ParseInfo *parser, Code *code) {
   code->flag = 0;
   code->len = 0;
 
@@ -666,5 +666,5 @@ void assemble_inst(Inst *inst, ParseInfo *info, Code *code) {
     }
   }
 
-  assemble_error(info, "Illegal operand");
+  assemble_error(parser, "Illegal operand");
 }

@@ -174,13 +174,13 @@ GVarInfo *get_gvar_info(Expr *expr) {
     }
   }
   assert(varinfo != NULL);
-  GVarInfo *info = get_gvar_info_from_name(name);
-  if (info == NULL && (!(varinfo->storage & VS_STATIC) || (varinfo->storage & VS_USED))) {
+  GVarInfo *gvinfo = get_gvar_info_from_name(name);
+  if (gvinfo == NULL && (!(varinfo->storage & VS_STATIC) || (varinfo->storage & VS_USED))) {
     // Returns dummy.
-    info = register_gvar_info(name, varinfo);
-    info->flag |= GVF_UNRESOLVED;
+    gvinfo = register_gvar_info(name, varinfo);
+    gvinfo->flag |= GVF_UNRESOLVED;
   }
-  return info;
+  return gvinfo;
 }
 
 #define add_global_var(type, name)  scope_add(global_scope, name, type, VS_USED)
@@ -588,9 +588,9 @@ static void traverse_varinfo(VarInfo *varinfo) {
     const Name *name = varinfo->ident->ident;
     if (get_gvar_info_from_name(name) == NULL) {
       // Register into global to output linking information.
-      GVarInfo *info = register_gvar_info(name, varinfo);
-      if (info != NULL)
-        info->flag |= GVF_UNRESOLVED;
+      GVarInfo *gvinfo = register_gvar_info(name, varinfo);
+      if (gvinfo != NULL)
+        gvinfo->flag |= GVF_UNRESOLVED;
     }
   }
 }
@@ -879,11 +879,11 @@ static void add_builtins(int flag) {
       if (!same_type(varinfo->type, &tyVoidPtr))
         parse_error(PE_NOFATAL, NULL, "illegal type: %.*s", NAMES(name));
     }
-    GVarInfo *info = get_gvar_info_from_name(name);
-    if (info == NULL)
-      info = register_gvar_info(name, varinfo);
-    assert(info != NULL);
-    info->flag |= GVF_UNRESOLVED;
+    GVarInfo *gvinfo = get_gvar_info_from_name(name);
+    if (gvinfo == NULL)
+      gvinfo = register_gvar_info(name, varinfo);
+    assert(gvinfo != NULL);
+    gvinfo->flag |= GVF_UNRESOLVED;
   }
 }
 
@@ -1017,24 +1017,24 @@ static inline void assign_symbol_index(void) {
   for (int k = 0; k < 3; ++k) {  // 0=unresolved, 1=resolved(data), 2=resolved(bss)
     static const char *kTitle[] = {"import", "data", "bss"};
     VERBOSE("### Globals(%s)\n", kTitle[k]);
-    GVarInfo *info;
-    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-      const VarInfo *varinfo = info->varinfo;
+    GVarInfo *gvinfo;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&gvinfo)) != -1; ) {
+      const VarInfo *varinfo = gvinfo->varinfo;
       assert(!(varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC));
       assert(!((varinfo->storage & (VS_STATIC | VS_USED)) == VS_STATIC));
-      if ((k == 0 && !(info->flag & GVF_UNRESOLVED)) ||
-          (k != 0 && ((info->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
+      if ((k == 0 && !(gvinfo->flag & GVF_UNRESOLVED)) ||
+          (k != 0 && ((gvinfo->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
         continue;
       if (!is_global_datasec_var(varinfo, global_scope)) {
-        info->item_index = info->prim.index = global_index++;
+        gvinfo->item_index = gvinfo->prim.index = global_index++;
       } else if (!(varinfo->storage & VS_EXTERN)) {
-        info->item_index = data_index++;
+        gvinfo->item_index = data_index++;
       } else {
-        info->item_index = (uint32_t)-1;
+        gvinfo->item_index = (uint32_t)-1;
       }
-      info->symbol_index = symbol_index++;
-      VERBOSE("%2d: %.*s (%d)\n", info->item_index, NAMES(varinfo->ident->ident),
-              info->symbol_index);
+      gvinfo->symbol_index = symbol_index++;
+      VERBOSE("%2d: %.*s (%d)\n", gvinfo->item_index, NAMES(varinfo->ident->ident),
+              gvinfo->symbol_index);
     }
   }
 
@@ -1095,9 +1095,9 @@ static inline void assign_data_address(void) {
     if (k == 1)
       VERBOSE("---- BSS  0x%x\n", address);
     const Name *name;
-    GVarInfo *info;
-    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-      const VarInfo *varinfo = info->varinfo;
+    GVarInfo *gvinfo;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&gvinfo)) != -1; ) {
+      const VarInfo *varinfo = gvinfo->varinfo;
       int storage = varinfo->storage;
       if (varinfo->type->kind == TY_FUNC ||
           (storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
@@ -1109,10 +1109,10 @@ static inline void assign_data_address(void) {
 
       // Mapped to memory
       address = ALIGN(address, align_size(varinfo->type));
-      info->non_prim.address = address;
+      gvinfo->non_prim.address = address;
       size_t size = type_size(varinfo->type);
       address += size;
-      VERBOSE("%04x: %.*s  (size=0x%zx)\n", info->non_prim.address, NAMES(varinfo->ident->ident),
+      VERBOSE("%04x: %.*s  (size=0x%zx)\n", gvinfo->non_prim.address, NAMES(varinfo->ident->ident),
               size);
     }
   }

@@ -59,9 +59,9 @@ static bool parse_enum_members(Type *type) {
 }
 
 static bool handle_define_type_tag(Scope *scope, const Token *token, enum TypeTagKind kind,
-                                   void *info) {
+                                   void *taginfo) {
   assert(token->kind == TK_IDENT);
-  switch (define_type_tag(scope, token->ident, kind, info)) {
+  switch (define_type_tag(scope, token->ident, kind, taginfo)) {
   case TAGRESULT_SUCCESS:
     return true;
   case TAGRESULT_CONFLICT:
@@ -190,8 +190,8 @@ static StructInfo *parse_struct(bool is_union, Table *attributes) {
       const Name *name = tinfo.ident != NULL ? tinfo.ident->ident : NULL;
       if (name != NULL) {
         for (int i = 0; i < count; ++i) {
-          const MemberInfo *minfo = &members[i];
-          if (minfo->name != NULL && equal_name(minfo->name, name)) {
+          const MemberInfo *member = &members[i];
+          if (member->name != NULL && equal_name(member->name, name)) {
             parse_error(PE_NOFATAL, tinfo.ident, "`%.*s' already defined", NAMES(name));
             name = NULL;  // Avoid conflict.
             break;
@@ -200,18 +200,18 @@ static StructInfo *parse_struct(bool is_union, Table *attributes) {
       }
 
       members = realloc_or_die(members, sizeof(*members) * (count + 1));
-      MemberInfo *p = &members[count++];
-      memset(p, 0, sizeof(*p));
-      p->name = name;
-      p->type = type;
-      p->offset = 0;
+      MemberInfo *member = &members[count++];
+      memset(member, 0, sizeof(*member));
+      member->name = name;
+      member->type = type;
+      member->offset = 0;
 #ifndef __NO_BITFIELD
       if (bit == NULL) {
-        p->bitfield.active = false;
-        p->bitfield.width = 0;
+        member->bitfield.active = false;
+        member->bitfield.width = 0;
       } else {
-        p->bitfield.active = true;
-        p->bitfield.width = bit->fixnum;
+        member->bitfield.active = true;
+        member->bitfield.width = bit->fixnum;
       }
 #endif
     } while (flex_arr_mem == NULL && match(TK_COMMA));

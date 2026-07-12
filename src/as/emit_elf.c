@@ -51,36 +51,36 @@ static int construct_symtab(Symtab *symtab, Vector *sections, Table *label_table
   }
 
   const Name *name;
-  LabelInfo *info;
-  for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&info)) != -1; ) {
+  LabelInfo *label;
+  for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&label)) != -1; ) {
     int bind;
-    if (info->flag & LF_WEAK) {
+    if (label->flag & LF_WEAK) {
       bind = STB_WEAK;
-    } else if (info->flag & LF_GLOBAL) {
+    } else if (label->flag & LF_GLOBAL) {
       bind = STB_GLOBAL;
-    } else if (info->flag & LF_REFERRED || info->kind == LK_FUNC) {
+    } else if (label->flag & LF_REFERRED || label->kind == LK_FUNC) {
       bind = STB_LOCAL;
     } else {
       continue;
     }
     sym = symtab_add(symtabs[bind], name);
     int type;
-    switch (info->kind) {
+    switch (label->kind) {
     default: assert(false);  // Fallthrough to suppress warning.
     case LK_NONE:    type = STT_NOTYPE; break;
     case LK_FUNC:    type = STT_FUNC; break;
     case LK_OBJECT:  type = STT_OBJECT; break;
     }
     sym->st_info = ELF64_ST_INFO(bind, type);
-    sym->st_value = (info->flag & LF_DEFINED) ? info->address - info->section->start_address : 0;
-    sym->st_size = info->size;
-    assert(info->section == NULL || info->section->index > 0);
+    sym->st_value = (label->flag & LF_DEFINED) ? label->address - label->section->start_address : 0;
+    sym->st_size = label->size;
+    assert(label->section == NULL || label->section->index > 0);
     Elf64_Section shndx = SHN_UNDEF;
-    if (info->section != NULL) {
-      if ((info->flag & (LF_COMM | LF_GLOBAL)) == (LF_COMM | LF_GLOBAL))
+    if (label->section != NULL) {
+      if ((label->flag & (LF_COMM | LF_GLOBAL)) == (LF_COMM | LF_GLOBAL))
         shndx = SHN_COMMON;
       else
-        shndx = info->section->index;  // Symbol index for Local section.
+        shndx = label->section->index;  // Symbol index for Local section.
     }
     sym->st_shndx = shndx;
   }

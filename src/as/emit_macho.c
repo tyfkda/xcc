@@ -64,20 +64,20 @@ static void construct_symtab(Symtab *symtab, Table *label_table, uint64_t start_
   };
   for (enum SymbolKind sk = 0; sk < (int)ARRAY_SIZE(pcounts); ++sk) {
     const Name *name;
-    LabelInfo *info;
+    LabelInfo *label;
     *pcounts[sk] = symtab->count;
-    for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&info)) != -1; ) {
+    for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&label)) != -1; ) {
       switch (sk) {
       case LOCAL:
-        if (!(!(info->flag & LF_GLOBAL) && (info->flag & LF_REFERRED)))
+        if (!(!(label->flag & LF_GLOBAL) && (label->flag & LF_REFERRED)))
           continue;
         break;
       case EXTERNAL:
-        if (!((info->flag & LF_GLOBAL) && (info->flag & LF_DEFINED) && !(info->flag & LF_COMM)))
+        if (!((label->flag & LF_GLOBAL) && (label->flag & LF_DEFINED) && !(label->flag & LF_COMM)))
           continue;
         break;
       case UNDEF:
-        if (!((info->flag & LF_GLOBAL) && (!(info->flag & LF_DEFINED) || (info->flag & LF_COMM))))
+        if (!((label->flag & LF_GLOBAL) && (!(label->flag & LF_DEFINED) || (label->flag & LF_COMM))))
           continue;
         break;
       }
@@ -85,25 +85,25 @@ static void construct_symtab(Symtab *symtab, Table *label_table, uint64_t start_
       struct nlist_64 *sym = symtab_add(symtab, name);
       uint8_t type = 0;
       bool sect = false;
-      if (info->flag & LF_GLOBAL) {
+      if (label->flag & LF_GLOBAL) {
         type = N_EXT;
-        sect = (info->flag & LF_DEFINED) != 0;
-      } else if (info->flag & LF_REFERRED || info->flag & LF_DEFINED) {
+        sect = (label->flag & LF_DEFINED) != 0;
+      } else if (label->flag & LF_REFERRED || label->flag & LF_DEFINED) {
         sect = true;
       } else {
         assert(false);
       }
 
-      if (info->section != NULL && info->flag & LF_COMM) {
+      if (label->section != NULL && label->flag & LF_COMM) {
         // .comm
-        assert(info->align > 0 && IS_POWER_OF_2(info->align));
-        SET_COMM_ALIGN(sym->n_desc, most_significant_bit(info->align));
-        sym->n_value = info->size;
+        assert(label->align > 0 && IS_POWER_OF_2(label->align));
+        SET_COMM_ALIGN(sym->n_desc, most_significant_bit(label->align));
+        sym->n_value = label->size;
       } else if (sect) {
         type |= N_SECT;
-        sym->n_sect = info->section->index;
-        sym->n_desc = info->flag & LF_WEAK ? N_WEAK_DEF : 0;
-        sym->n_value = (info->flag & LF_DEFINED) ? info->address - start_address : 0;
+        sym->n_sect = label->section->index;
+        sym->n_desc = label->flag & LF_WEAK ? N_WEAK_DEF : 0;
+        sym->n_value = (label->flag & LF_DEFINED) ? label->address - start_address : 0;
       }
       sym->n_type = type;
     }

@@ -29,10 +29,10 @@ static void emit_global_number(void *ud, const Type *type, Expr *var, Fixnum off
           assert(offset == 0);
           v += get_indirect_function_index(var->var.name);
         } else {
-          GVarInfo *info = get_gvar_info(var);
-          assert(info != NULL);
-          assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
-          v += info->non_prim.address;
+          GVarInfo *gvinfo = get_gvar_info(var);
+          assert(gvinfo != NULL);
+          assert(!is_prim_type(gvinfo->varinfo->type) || (gvinfo->varinfo->storage & VS_REF_TAKEN));
+          v += gvinfo->non_prim.address;
         }
       }
       data_push(ds, type_size(type) <= I32_SIZE ? OP_I32_CONST : OP_I64_CONST);
@@ -117,16 +117,16 @@ static void emit_number(void *ud, const Type *type, Expr *var, Fixnum offset) {
       vec_push(reloc_data, ri);
     } else {
       assert(var->kind == EX_VAR);
-      const GVarInfo *info = get_gvar_info(var);
-      assert(info != NULL);
-      assert(!is_prim_type(info->varinfo->type) || (info->varinfo->storage & VS_REF_TAKEN));
-      v += info->non_prim.address;
+      const GVarInfo *gvinfo = get_gvar_info(var);
+      assert(gvinfo != NULL);
+      assert(!is_prim_type(gvinfo->varinfo->type) || (gvinfo->varinfo->storage & VS_REF_TAKEN));
+      v += gvinfo->non_prim.address;
 
       RelocInfo *ri = calloc_or_die(sizeof(*ri));
       ri->type = R_WASM_MEMORY_ADDR_I32;
       ri->offset = ds->len;
       ri->addend = offset;
-      ri->index = info->symbol_index;
+      ri->index = gvinfo->symbol_index;
 
       Vector *reloc_data = edp->reloc_data;
       if (reloc_data == NULL)
@@ -180,9 +180,9 @@ static Vector *construct_data_segment(void) {  // <DataSegment*>
 #endif
   for (int k = 0; k < 2; ++k) {  // 0=data, 1=bss
     const Name *name;
-    GVarInfo *info;
-    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-      const VarInfo *varinfo = info->varinfo;
+    GVarInfo *gvinfo;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&gvinfo)) != -1; ) {
+      const VarInfo *varinfo = gvinfo->varinfo;
       int storage = varinfo->storage;
       if (varinfo->type->kind == TY_FUNC ||
           (storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
@@ -193,12 +193,12 @@ static Vector *construct_data_segment(void) {  // <DataSegment*>
         continue;
 
 #ifndef NDEBUG
-      uint32_t adr = info->non_prim.address;
+      uint32_t adr = gvinfo->non_prim.address;
       assert(adr >= address);
 #endif
 
       DataSegment *segment = calloc_or_die(sizeof(*segment));
-      segment->gvarinfo = info;
+      segment->gvarinfo = gvinfo;
       size_t align = align_size(varinfo->type);
       uint32_t p2align;
       for (p2align = 0; align > (1U << p2align); ++p2align)
@@ -312,11 +312,11 @@ static void emit_import_section(EmitWasm *ew) {
     size_t module_name_len = strlen(module_name);
 
     const Name *name;
-    GVarInfo *info;
-    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-      if (!(info->flag & GVF_UNRESOLVED))
+    GVarInfo *gvinfo;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&gvinfo)) != -1; ) {
+      if (!(gvinfo->flag & GVF_UNRESOLVED))
         continue;
-      VarInfo *varinfo = info->varinfo;
+      VarInfo *varinfo = gvinfo->varinfo;
       if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC ||
           is_global_datasec_var(varinfo, global_scope))
         continue;
@@ -387,13 +387,13 @@ static void emit_global_section(EmitWasm *ew) {
   uint32_t globals_count = 0;
   for (int k = 0; k < 2; ++k) {  // 0=resolved(data), 1=resolved(bss)
     const Name *name;
-    GVarInfo *info;
-    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-      const VarInfo *varinfo = info->varinfo;
+    GVarInfo *gvinfo;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&gvinfo)) != -1; ) {
+      const VarInfo *varinfo = gvinfo->varinfo;
       if (varinfo->storage & VS_ENUM_MEMBER || varinfo->type->kind == TY_FUNC)
         continue;
 
-      if ((info->flag & GVF_UNRESOLVED) || is_global_datasec_var(varinfo, global_scope) ||
+      if ((gvinfo->flag & GVF_UNRESOLVED) || is_global_datasec_var(varinfo, global_scope) ||
           (varinfo->global.init == NULL) == (k == 0))
         continue;
       unsigned char wt = to_wtype(varinfo->type);
@@ -639,24 +639,24 @@ static inline uint32_t emit_linking_symtab_global(EmitWasm *ew, DataStorage *lin
   uint32_t count = 0;
   for (int k = 0; k < 3; ++k) {  // 0=unresolved, 1=resolved(data), 2=resolved(bss)
     const Name *name;
-    GVarInfo *info;
+    GVarInfo *gvinfo;
     int flags_bss = k != 2 ? 0 : cc_flags.common ? WASM_SYM_BINDING_WEAK : 0;
-    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&info)) != -1; ) {
-      const VarInfo *varinfo = info->varinfo;
+    for (int it = 0; (it = table_iterate(&gvar_info_table, it, &name, (void**)&gvinfo)) != -1; ) {
+      const VarInfo *varinfo = gvinfo->varinfo;
       int storage = varinfo->storage;
       if (varinfo->type->kind == TY_FUNC ||
           (storage & VS_ENUM_MEMBER) ||  // VS_EXPORT is not set because of `__stack_pointer`.
           (storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
         continue;
-      GVarInfo *info = get_gvar_info_from_name(varinfo->ident->ident);
-      if (info == NULL)
+      GVarInfo *gvinfo = get_gvar_info_from_name(varinfo->ident->ident);
+      if (gvinfo == NULL)
         continue;
-      if ((k == 0 && !(info->flag & GVF_UNRESOLVED)) ||
-          (k != 0 && ((info->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
+      if ((k == 0 && !(gvinfo->flag & GVF_UNRESOLVED)) ||
+          (k != 0 && ((gvinfo->flag & GVF_UNRESOLVED) || (varinfo->global.init == NULL) == (k == 1))))
         continue;
 
       int flags = flags_bss;
-      if (info->flag & GVF_UNRESOLVED)
+      if (gvinfo->flag & GVF_UNRESOLVED)
         flags |= WASM_SYM_UNDEFINED;
       if (varinfo->storage & VS_STATIC)
         flags |= WASM_SYM_BINDING_LOCAL | WASM_SYM_VISIBILITY_HIDDEN;
@@ -666,16 +666,16 @@ static inline uint32_t emit_linking_symtab_global(EmitWasm *ew, DataStorage *lin
         data_uleb128(linking_section, -1, flags);
         const Name *name = varinfo->ident->ident;
         data_string(linking_section, name->chars, name->bytes);
-        if (!(info->flag & GVF_UNRESOLVED)) {  // Defined global: put name. otherwise not required.
-          data_uleb128(linking_section, -1, info->item_index);
+        if (!(gvinfo->flag & GVF_UNRESOLVED)) {  // Defined global: put name. otherwise not required.
+          data_uleb128(linking_section, -1, gvinfo->item_index);
           data_uleb128(linking_section, -1, 0);  // offset (must start from the begining)
           data_uleb128(linking_section, -1, type_size(varinfo->type));  // size
         }
       } else {
         data_push(linking_section, SIK_SYMTAB_GLOBAL);  // kind
         data_uleb128(linking_section, -1, flags);
-        data_uleb128(linking_section, -1, info->item_index);
-        if (info->item_index >= ew->import_global_count) {
+        data_uleb128(linking_section, -1, gvinfo->item_index);
+        if (gvinfo->item_index >= ew->import_global_count) {
           const Name *name = varinfo->ident->ident;
           data_string(linking_section, name->chars, name->bytes);
         }
@@ -771,11 +771,11 @@ static inline void emit_linking_init_funcs(DataStorage *linking_section, Vector 
     data_uleb128(linking_section, -1, ctors.len);  // Count
     for (int i = 0; i < ctors.len; ++i) {
       Function *func = ctors.data[i];
-      FuncInfo *info;
-      info = table_get(&func_info_table, func->ident->ident);
-      assert(info != NULL);
+      FuncInfo *finfo;
+      finfo = table_get(&func_info_table, func->ident->ident);
+      assert(finfo != NULL);
       data_uleb128(linking_section, -1, 65535);  // Priority
-      data_uleb128(linking_section, -1, info->index);  // Symbol index
+      data_uleb128(linking_section, -1, finfo->index);  // Symbol index
     }
     data_close_chunk(linking_section, -1);
   }

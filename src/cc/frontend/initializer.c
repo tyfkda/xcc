@@ -374,8 +374,8 @@ static Initializer *find_desig_indices(InitFlattener *flattener, Initializer *in
           for (int i = 0; ;) {
             intptr_t subindex = VOIDP2INT(stack->data[i]);
             vec_push(indices, INT2VOIDP(subindex));
-            const MemberInfo *minfo = &sinfo->members[subindex];
-            type = minfo->type;
+            const MemberInfo *member = &sinfo->members[subindex];
+            type = member->type;
             if (++i >= stack->len)
               break;
             assert(type->kind == TY_STRUCT);
@@ -837,21 +837,21 @@ static void assign_struct_initial_value(Expr *expr, Initializer *init, Vector *i
       Initializer *init_elem = init->multi->data[i];
       if (init_elem == NULL)
         continue;
-      const MemberInfo *minfo = &sinfo->members[i];
-      Expr *member = new_expr_member(tok, minfo->type, expr, NULL, minfo);
+      const MemberInfo *member = &sinfo->members[i];
+      Expr *access = new_expr_member(tok, member->type, expr, NULL, member);
 #ifndef __NO_BITFIELD
-      if (minfo->bitfield.width > 0) {
+      if (member->bitfield.width > 0) {
         if (init_elem->kind != IK_SINGLE) {
           parse_error(PE_NOFATAL, init_elem->token, "illegal initializer for member `%.*s'",
-                      NAMES(minfo->name));
+                      NAMES(member->name));
         } else {
-          vec_push(inits, new_stmt_expr(assign_to_bitfield(init_elem->token, member,
-                                                            init_elem->single, minfo)));
+          vec_push(inits, new_stmt_expr(assign_to_bitfield(init_elem->token, access,
+                                                           init_elem->single, member)));
         }
       } else
 #endif
       {
-        assign_initial_value(member, init_elem, inits);
+        assign_initial_value(access, init_elem, inits);
       }
     }
   } else {
@@ -873,9 +873,9 @@ static void assign_struct_initial_value(Expr *expr, Initializer *init, Vector *i
         break;
       }
 
-      const MemberInfo *minfo = &sinfo->members[i];
-      Expr *mem = new_expr_member(tok, minfo->type, expr, NULL, minfo);
-      assign_initial_value(mem, init_elem, inits);
+      const MemberInfo *member = &sinfo->members[i];
+      Expr *access = new_expr_member(tok, member->type, expr, NULL, member);
+      assign_initial_value(access, init_elem, inits);
       ++count;
     }
   }

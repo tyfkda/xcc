@@ -309,7 +309,7 @@ Expr *new_expr_deref(const Token *token, Expr *sub);
 Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, Type *type);
 Expr *new_expr_variable(const Name *name, Type *type, const Token *token, Scope *scope);
 Expr *new_expr_member(const Token *token, Type *type, Expr *target, const Name *ident,
-                      const MemberInfo *minfo);
+                      const MemberInfo *member);
 Expr *new_expr_funcall(const Token *token, const Type *functype, Expr *func, Vector *args);
 Expr *new_expr_inlined(const Token *token, const Name *name, Type *functype, Vector *args,
                        struct Stmt *embedded);

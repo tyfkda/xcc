@@ -48,12 +48,12 @@ bool calc_label_address(uint64_t start_address, Vector *sections, Table *label_t
       switch (ir->kind) {
       case IR_LABEL:
         {
-          LabelInfo *info;
-          if (!table_try_get(label_table, ir->label, (void**)&info)) {
+          LabelInfo *label;
+          if (!table_try_get(label_table, ir->label, (void**)&label)) {
             fprintf(stderr, "[%.*s] not found\n", NAMES(ir->label));
             assert(!"Unexpected");
           } else {
-            info->address = address;
+            label->address = address;
           }
         }
         break;
@@ -138,13 +138,13 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
               if (value.label != NULL) {
                 LabelInfo *label_info = table_get(label_table, value.label);
                 if (label_info == NULL) {
-                  UnresolvedInfo *info = calloc_or_die(sizeof(*info));
-                  info->kind = UNRES_X64_GOT_LOAD;
-                  info->label = value.label;
-                  info->src_section = section;
-                  info->offset = address + 3 - start_address;
-                  info->add = value.offset - 4;
-                  vec_push(unresolved, info);
+                  UnresolvedInfo *unres = calloc_or_die(sizeof(*unres));
+                  unres->kind = UNRES_X64_GOT_LOAD;
+                  unres->label = value.label;
+                  unres->src_section = section;
+                  unres->offset = address + 3 - start_address;
+                  unres->add = value.offset - 4;
+                  vec_push(unresolved, unres);
                   break;
                 }
               }
@@ -156,13 +156,13 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                 inst->opr[0].indirect.offset.expr->kind != EX_FIXNUM) {
               Value value = calc_expr(label_table, inst->opr[0].indirect.offset.expr);
               if (value.label != NULL) {
-                UnresolvedInfo *info = calloc_or_die(sizeof(*info));
-                info->kind = UNRES_EXTERN_PC32;
-                info->label = value.label;
-                info->src_section = section;
-                info->offset = address + 3 - start_address;
-                info->add = value.offset - 4;
-                vec_push(unresolved, info);
+                UnresolvedInfo *unres = calloc_or_die(sizeof(*unres));
+                unres->kind = UNRES_EXTERN_PC32;
+                unres->label = value.label;
+                unres->src_section = section;
+                unres->offset = address + 3 - start_address;
+                unres->add = value.offset - 4;
+                vec_push(unresolved, unres);
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
                 put_value(ir->code.buf + 3, value.offset, sizeof(int32_t));
 #endif
@@ -185,13 +185,13 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                   // Make unresolved label jmp to long.
                   size_upgraded |= make_jmp_long(ir);
 
-                  UnresolvedInfo *info = calloc_or_die(sizeof(*info));
-                  info->kind = UNRES_CALL;
-                  info->label = value.label;
-                  info->src_section = section;
-                  info->offset = address + 1 - start_address;
-                  info->add = value.offset - 4;
-                  vec_push(unresolved, info);
+                  UnresolvedInfo *unres = calloc_or_die(sizeof(*unres));
+                  unres->kind = UNRES_CALL;
+                  unres->label = value.label;
+                  unres->src_section = section;
+                  unres->offset = address + 1 - start_address;
+                  unres->add = value.offset - 4;
+                  vec_push(unresolved, unres);
                   break;
                 } else {
                   value.offset += label_info->address;
@@ -219,13 +219,13 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
             if (inst->opr[0].type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr[0].direct.expr);
               if (value.label != NULL) {
-                UnresolvedInfo *info = calloc_or_die(sizeof(*info));
-                info->kind = UNRES_CALL;
-                info->label = value.label;
-                info->src_section = section;
-                info->offset = address + 1 - start_address;
-                info->add = value.offset - 4;
-                vec_push(unresolved, info);
+                UnresolvedInfo *unres = calloc_or_die(sizeof(*unres));
+                unres->kind = UNRES_CALL;
+                unres->label = value.label;
+                unres->src_section = section;
+                unres->offset = address + 1 - start_address;
+                unres->add = value.offset - 4;
+                vec_push(unresolved, unres);
                 break;
               }
               int64_t offset = value.offset - (address + ir->code.len);
@@ -244,14 +244,14 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
         {
           Value value = calc_expr(label_table, ir->expr.expr);
           assert(value.label != NULL);
-          UnresolvedInfo *info = calloc_or_die(sizeof(*info));
-          info->kind = UNRES_ABS64;  // TODO:
-          info->label = value.label;
-          info->src_section = section;
-          info->offset = address - start_address;
-          info->add = value.offset;
+          UnresolvedInfo *unres = calloc_or_die(sizeof(*unres));
+          unres->kind = UNRES_ABS64;  // TODO:
+          unres->label = value.label;
+          unres->src_section = section;
+          unres->offset = address - start_address;
+          unres->add = value.offset;
           ir->expr.addend = value.offset;
-          vec_push(unresolved, info);
+          vec_push(unresolved, unres);
         }
         break;
       case IR_LABEL:

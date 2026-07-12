@@ -207,9 +207,9 @@ static enum RegXmmType find_xmm_register(const char **pp) {
   return NOREGXMM;
 }
 
-static unsigned int parse_direct_register(ParseInfo *info, Operand *operand) {
+static unsigned int parse_direct_register(ParseInfo *parser, Operand *operand) {
   {
-    enum RegXmmType regxmm = find_xmm_register(&info->p);
+    enum RegXmmType regxmm = find_xmm_register(&parser->p);
     if (regxmm != NOREGXMM) {
       operand->type = REG_XMM;
       operand->regxmm = regxmm;
@@ -217,12 +217,12 @@ static unsigned int parse_direct_register(ParseInfo *info, Operand *operand) {
     }
   }
 
-  enum RegType reg = find_register(&info->p);
+  enum RegType reg = find_register(&parser->p);
   if (is_segment(reg)) {
     Expr *offset = NULL;
-    if (*info->p == ':') {
-      ++info->p;
-      offset = parse_expr(info);
+    if (*parser->p == ':') {
+      ++parser->p;
+      offset = parse_expr(parser);
     }
     operand->type = SEGMENT_OFFSET;
     operand->segment.reg = reg;
@@ -245,7 +245,7 @@ static unsigned int parse_direct_register(ParseInfo *info, Operand *operand) {
     size = REG64;
     no = reg - RAX;
   } else {
-    parse_error(info, "illegal register");
+    parse_error(parser, "illegal register");
     return false;
   }
 
@@ -257,19 +257,19 @@ static unsigned int parse_direct_register(ParseInfo *info, Operand *operand) {
 }
 
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-static int parse_label_postfix(ParseInfo *info) {
+static int parse_label_postfix(ParseInfo *parser) {
   static struct {
     const char *name;
     int flag;
   } const kPostfixes[] = {
     {"@gotpcrel", LF_GOTPCREL},
   };
-  const char *p = info->p;
+  const char *p = parser->p;
   for (size_t i = 0; i < ARRAY_SIZE(kPostfixes); ++i) {
     const char *name = kPostfixes[i].name;
     size_t n = strlen(name);
     if (strncasecmp(p, name, n) == 0 && !is_label_chr(p[n])) {
-      info->p = p + n;
+      parser->p = p + n;
       return kPostfixes[i].flag;
     }
   }
@@ -277,51 +277,51 @@ static int parse_label_postfix(ParseInfo *info) {
 }
 #endif
 
-static ExprWithFlag parse_expr_with_flag(ParseInfo *info) {
+static ExprWithFlag parse_expr_with_flag(ParseInfo *parser) {
   // expr = label + nn
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
   // expr@page
   // expr@pageoff
   // expr@gotpage
   // expr@gotpageoff
-  Expr *expr = parse_expr(info);
-  int flag = parse_label_postfix(info);
+  Expr *expr = parse_expr(parser);
+  int flag = parse_label_postfix(parser);
 #else
   int flag = 0;
-  Expr *expr = parse_expr(info);
+  Expr *expr = parse_expr(parser);
 #endif
   return (ExprWithFlag){expr, flag};
 }
 
-static unsigned int parse_indirect_register(ParseInfo *info, ExprWithFlag *offset,
+static unsigned int parse_indirect_register(ParseInfo *parser, ExprWithFlag *offset,
                                             Operand *operand) {
   enum RegType index_reg = NOREG;
   Expr *scale = NULL;
   // Already read "(%".
-  enum RegType base_reg = find_register(&info->p);
+  enum RegType base_reg = find_register(&parser->p);
 
-  info->p = skip_whitespaces(info->p);
-  if (*info->p == ',') {
-    info->p = skip_whitespaces(info->p + 1);
-    if (*info->p != '%' ||
-        (++info->p, index_reg = find_register(&info->p), !is_reg64(index_reg)))
-      parse_error(info, "register expected");
-    info->p = skip_whitespaces(info->p);
-    if (*info->p == ',') {
-      info->p = skip_whitespaces(info->p + 1);
-      scale = parse_expr(info);
+  parser->p = skip_whitespaces(parser->p);
+  if (*parser->p == ',') {
+    parser->p = skip_whitespaces(parser->p + 1);
+    if (*parser->p != '%' ||
+        (++parser->p, index_reg = find_register(&parser->p), !is_reg64(index_reg)))
+      parse_error(parser, "register expected");
+    parser->p = skip_whitespaces(parser->p);
+    if (*parser->p == ',') {
+      parser->p = skip_whitespaces(parser->p + 1);
+      scale = parse_expr(parser);
       if (scale->kind != EX_FIXNUM)
-        parse_error(info, "constant value expected");
-      info->p = skip_whitespaces(info->p);
+        parse_error(parser, "constant value expected");
+      parser->p = skip_whitespaces(parser->p);
     }
   }
-  if (*info->p != ')')
-    parse_error(info, "`)' expected");
+  if (*parser->p != ')')
+    parse_error(parser, "`)' expected");
   else
-    ++info->p;
+    ++parser->p;
 
   if (!(is_reg64(base_reg) || (base_reg == RIP && index_reg == NOREG)))
-    parse_error(info, "register expected");
+    parse_error(parser, "register expected");
 
   if (index_reg == NOREG) {
     char no = base_reg - RAX;
@@ -333,7 +333,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, ExprWithFlag *offse
     return IND;
   } else {
     if (!is_reg64(index_reg))
-      parse_error(info, "register expected");
+      parse_error(parser, "register expected");
 
     operand->type = INDIRECT_WITH_INDEX;
     operand->indirect_with_index.offset = offset->expr;
@@ -350,10 +350,10 @@ static unsigned int parse_indirect_register(ParseInfo *info, ExprWithFlag *offse
   }
 }
 
-static enum RegType parse_deref_register(ParseInfo *info, Operand *operand) {
-  enum RegType reg = find_register(&info->p);
+static enum RegType parse_deref_register(ParseInfo *parser, Operand *operand) {
+  enum RegType reg = find_register(&parser->p);
   if (!is_reg64(reg))
-    parse_error(info, "illegal register");
+    parse_error(parser, "illegal register");
 
   char no = reg - RAX;
   operand->type = DEREF_REG;
@@ -363,46 +363,46 @@ static enum RegType parse_deref_register(ParseInfo *info, Operand *operand) {
   return true;
 }
 
-static unsigned int parse_deref_indirect(ParseInfo *info, Operand *operand) {
-  Expr *offset = parse_expr(info);
-  info->p = skip_whitespaces(info->p);
-  if (*info->p != '(') {
-    parse_error(info, "direct number not implemented");
+static unsigned int parse_deref_indirect(ParseInfo *parser, Operand *operand) {
+  Expr *offset = parse_expr(parser);
+  parser->p = skip_whitespaces(parser->p);
+  if (*parser->p != '(') {
+    parse_error(parser, "direct number not implemented");
     return false;
   }
-  if (info->p[1] != '%') {
-    parse_error(info, "register expected");
+  if (parser->p[1] != '%') {
+    parse_error(parser, "register expected");
     return false;
   }
-  info->p += 2;
+  parser->p += 2;
 
   enum RegType index_reg = NOREG;
   Expr *scale = NULL;
   // Already read "(%".
-  enum RegType base_reg = find_register(&info->p);
+  enum RegType base_reg = find_register(&parser->p);
 
-  info->p = skip_whitespaces(info->p);
-  if (*info->p == ',') {
-    info->p = skip_whitespaces(info->p + 1);
-    if (*info->p != '%' ||
-        (++info->p, index_reg = find_register(&info->p), !is_reg64(index_reg)))
-      parse_error(info, "register expected");
-    info->p = skip_whitespaces(info->p);
-    if (*info->p == ',') {
-      info->p = skip_whitespaces(info->p + 1);
-      scale = parse_expr(info);
+  parser->p = skip_whitespaces(parser->p);
+  if (*parser->p == ',') {
+    parser->p = skip_whitespaces(parser->p + 1);
+    if (*parser->p != '%' ||
+        (++parser->p, index_reg = find_register(&parser->p), !is_reg64(index_reg)))
+      parse_error(parser, "register expected");
+    parser->p = skip_whitespaces(parser->p);
+    if (*parser->p == ',') {
+      parser->p = skip_whitespaces(parser->p + 1);
+      scale = parse_expr(parser);
       if (scale->kind != EX_FIXNUM)
-        parse_error(info, "constant value expected");
-      info->p = skip_whitespaces(info->p);
+        parse_error(parser, "constant value expected");
+      parser->p = skip_whitespaces(parser->p);
     }
   }
-  if (*info->p != ')')
-    parse_error(info, "`)' expected");
+  if (*parser->p != ')')
+    parse_error(parser, "`)' expected");
   else
-    ++info->p;
+    ++parser->p;
 
   if (!is_reg64(base_reg) || (index_reg != NOREG && !is_reg64(index_reg)))
-    parse_error(info, "register expected");
+    parse_error(parser, "register expected");
 
   if (index_reg == NOREG) {
     operand->type = DEREF_INDIRECT;
@@ -430,12 +430,12 @@ static unsigned int parse_deref_indirect(ParseInfo *info, Operand *operand) {
   }
 }
 
-unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *operand) {
-  const char *p = info->p;
+unsigned int parse_operand(ParseInfo *parser, unsigned int opr_flag, Operand *operand) {
+  const char *p = parser->p;
   if (opr_flag & (R8 | R16 | R32 | R64 | R8CL | XMM)) {
     if (*p == '%') {
-      info->p = p + 1;
-      return parse_direct_register(info, operand) & opr_flag;
+      parser->p = p + 1;
+      return parse_direct_register(parser, operand) & opr_flag;
     }
   }
 
@@ -443,49 +443,49 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
     if (*p == '*') {
       if (opr_flag & DER) {
         if (p[1] == '%') {
-          info->p = p + 2;
-          if (parse_deref_register(info, operand))
+          parser->p = p + 2;
+          if (parse_deref_register(parser, operand))
             return DER;
         }
       }
       if (opr_flag & DEI) {
-        info->p = p + 1;
-        return parse_deref_indirect(info, operand);
+        parser->p = p + 1;
+        return parse_deref_indirect(parser, operand);
       }
     }
   }
 
   if (opr_flag & IMM) {
     if (*p == '$') {
-      info->p = p + 1;
-      if (!immediate(&info->p, &operand->immediate))
-        parse_error(info, "syntax error");
+      parser->p = p + 1;
+      if (!immediate(&parser->p, &operand->immediate))
+        parse_error(parser, "syntax error");
       operand->type = IMMEDIATE;
       return IMM;
     }
   }
 
-  ExprWithFlag expr_with_flag = parse_expr_with_flag(info);
-  info->p = skip_whitespaces(info->p);
-  if (*info->p != '(') {
+  ExprWithFlag expr_with_flag = parse_expr_with_flag(parser);
+  parser->p = skip_whitespaces(parser->p);
+  if (*parser->p != '(') {
     if (expr_with_flag.expr != NULL) {
       if (expr_with_flag.expr->kind == EX_LABEL || expr_with_flag.expr->kind == EX_FIXNUM) {
         operand->type = DIRECT;
         operand->direct.expr = expr_with_flag.expr;
         return EXP;
       }
-      parse_error(info, "direct number not implemented");
+      parse_error(parser, "direct number not implemented");
     }
   } else {
-    if (info->p[1] == '%') {
-      info->p += 2;
+    if (parser->p[1] == '%') {
+      parser->p += 2;
       if (expr_with_flag.expr == NULL) {
         Expr *expr = calloc_or_die(sizeof(*expr));
         expr->kind = EX_FIXNUM;
         expr->fixnum = 0;
         expr_with_flag.expr = expr;
       }
-      return parse_indirect_register(info, &expr_with_flag, operand);
+      return parse_indirect_register(parser, &expr_with_flag, operand);
     }
   }
 

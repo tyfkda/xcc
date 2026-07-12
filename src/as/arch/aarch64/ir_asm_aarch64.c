@@ -49,12 +49,12 @@ bool calc_label_address(uint64_t start_address, Vector *sections, Table *label_t
       switch (ir->kind) {
       case IR_LABEL:
         {
-          LabelInfo *info;
-          if (!table_try_get(label_table, ir->label, (void**)&info)) {
+          LabelInfo *label;
+          if (!table_try_get(label_table, ir->label, (void**)&label)) {
             fprintf(stderr, "[%.*s] not found\n", NAMES(ir->label));
             assert(!"Unexpected");
           } else {
-            info->address = address;
+            label->address = address;
           }
         }
         break;
@@ -117,13 +117,13 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
               Value value = calc_expr(label_table, expr->expr);
               if (value.label != NULL) {
                 if (expr->flag == LF_PAGEOFF || expr->flag == (LF_GOT | LF_PAGEOFF)) {
-                  UnresolvedInfo *info = calloc_or_die(sizeof(*info));
-                  info->kind = expr->flag == LF_PAGEOFF ? UNRES_PCREL_LO : UNRES_GOT_LO;
-                  info->label = value.label;
-                  info->src_section = section;
-                  info->offset = address - start_address;
-                  info->add = value.offset;
-                  vec_push(unresolved, info);
+                  UnresolvedInfo *unres = calloc_or_die(sizeof(*unres));
+                  unres->kind = expr->flag == LF_PAGEOFF ? UNRES_PCREL_LO : UNRES_GOT_LO;
+                  unres->label = value.label;
+                  unres->src_section = section;
+                  unres->offset = address - start_address;
+                  unres->add = value.offset;
+                  vec_push(unresolved, unres);
                 }
               }
             }
@@ -147,13 +147,13 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                   break;
                 }
 
-                UnresolvedInfo *info = calloc_or_die(sizeof(*info));
-                info->kind = table[i][1];
-                info->label = value.label;
-                info->src_section = section;
-                info->offset = address - start_address;
-                info->add = value.offset;
-                vec_push(unresolved, info);
+                UnresolvedInfo *unres = calloc_or_die(sizeof(*unres));
+                unres->kind = table[i][1];
+                unres->label = value.label;
+                unres->src_section = section;
+                unres->offset = address - start_address;
+                unres->add = value.offset;
+                vec_push(unresolved, unres);
               }
             }
             break;
@@ -176,13 +176,13 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                   break;
                 }
 
-                UnresolvedInfo *info = calloc_or_die(sizeof(*info));
-                info->kind = table[i][1];
-                info->label = value.label;
-                info->src_section = section;
-                info->offset = address - start_address;
-                info->add = value.offset;
-                vec_push(unresolved, info);
+                UnresolvedInfo *unres = calloc_or_die(sizeof(*unres));
+                unres->kind = table[i][1];
+                unres->label = value.label;
+                unres->src_section = section;
+                unres->offset = address - start_address;
+                unres->add = value.offset;
+                vec_push(unresolved, unres);
               }
             }
             break;
@@ -243,13 +243,13 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
                       break;
                     }
 
-                    UnresolvedInfo *info = calloc_or_die(sizeof(*info));
-                    info->kind = UNRES_CALL;
-                    info->label = value.label;
-                    info->src_section = section;
-                    info->offset = address - start_address;
-                    info->add = value.offset;
-                    vec_push(unresolved, info);
+                    UnresolvedInfo *unres = calloc_or_die(sizeof(*unres));
+                    unres->kind = UNRES_CALL;
+                    unres->label = value.label;
+                    unres->src_section = section;
+                    unres->offset = address - start_address;
+                    unres->add = value.offset;
+                    vec_push(unresolved, unres);
                     break;
                   } else {
                     value.offset += label_info->address;
@@ -280,13 +280,13 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
             if (inst->opr[0].type == DIRECT) {
               Value value = calc_expr(label_table, inst->opr[0].direct.expr.expr);
               if (value.label != NULL) {
-                UnresolvedInfo *info = calloc_or_die(sizeof(*info));
-                info->kind = UNRES_CALL;
-                info->label = value.label;
-                info->src_section = section;
-                info->offset = address - start_address;
-                info->add = value.offset;
-                vec_push(unresolved, info);
+                UnresolvedInfo *unres = calloc_or_die(sizeof(*unres));
+                unres->kind = UNRES_CALL;
+                unres->label = value.label;
+                unres->src_section = section;
+                unres->offset = address - start_address;
+                unres->add = value.offset;
+                vec_push(unresolved, unres);
               }
             }
             break;
@@ -302,14 +302,14 @@ bool resolve_relative_address(Vector *sections, Table *label_table, Vector *unre
         {
           Value value = calc_expr(label_table, ir->expr.expr);
           assert(value.label != NULL);
-          UnresolvedInfo *info = calloc_or_die(sizeof(*info));
-          info->kind = UNRES_ABS64;  // TODO:
-          info->label = value.label;
-          info->src_section = section;
-          info->offset = address - start_address;
-          info->add = value.offset;
+          UnresolvedInfo *unres = calloc_or_die(sizeof(*unres));
+          unres->kind = UNRES_ABS64;  // TODO:
+          unres->label = value.label;
+          unres->src_section = section;
+          unres->offset = address - start_address;
+          unres->add = value.offset;
           ir->expr.addend = value.offset;
-          vec_push(unresolved, info);
+          vec_push(unresolved, unres);
         }
         break;
       case IR_LABEL:

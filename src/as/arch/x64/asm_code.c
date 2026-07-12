@@ -38,8 +38,8 @@ static inline bool opr_reg8(const Reg *reg) {
   return opr_regno(reg) < 4;
 }
 
-static inline bool assemble_error(ParseInfo *info, const char *message) {
-  parse_error(info, message);
+static inline bool assemble_error(ParseInfo *parser, const char *message) {
+  parse_error(parser, message);
   return false;
 }
 
@@ -1689,7 +1689,7 @@ static const AsmInstFunc table[] = {
   [ENDBR64] = asm_endbr64,
 };
 
-void assemble_inst(Inst *inst, ParseInfo *info, Code *code) {
+void assemble_inst(Inst *inst, ParseInfo *parser, Code *code) {
   code->flag = 0;
   code->len = 0;
 
@@ -1710,5 +1710,5 @@ void assemble_inst(Inst *inst, ParseInfo *info, Code *code) {
     }
   }
 
-  assemble_error(info, "Illegal operand");
+  assemble_error(parser, "Illegal operand");
 }

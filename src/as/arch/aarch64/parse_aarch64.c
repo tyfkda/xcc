@@ -223,7 +223,7 @@ static enum CondType find_cond(const char **pp) {
 }
 
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-static int parse_label_postfix(ParseInfo *info) {
+static int parse_label_postfix(ParseInfo *parser) {
   static struct {
     const char *name;
     int flag;
@@ -235,12 +235,12 @@ static int parse_label_postfix(ParseInfo *info) {
     {"@gotpageoff", LF_PAGEOFF | LF_GOT},
 # endif
   };
-  const char *p = info->p;
+  const char *p = parser->p;
   for (size_t i = 0; i < ARRAY_SIZE(kPostfixes); ++i) {
     const char *name = kPostfixes[i].name;
     size_t n = strlen(name);
     if (strncasecmp(p, name, n) == 0 && !is_label_chr(p[n])) {
-      info->p = p + n;
+      parser->p = p + n;
       return kPostfixes[i].flag;
     }
   }
@@ -271,28 +271,28 @@ static int find_aarch_label_flag(const char **pp) {
 }
 #endif
 
-static ExprWithFlag parse_expr_with_flag(ParseInfo *info) {
+static ExprWithFlag parse_expr_with_flag(ParseInfo *parser) {
   // expr = label + nn
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-  Expr *expr = parse_expr(info);
-  int flag = parse_label_postfix(info);
+  Expr *expr = parse_expr(parser);
+  int flag = parse_label_postfix(parser);
 #else
-  const char *p = info->p;
+  const char *p = parser->p;
   int flag = find_aarch_label_flag(&p);
   if (flag != 0)
-    parse_set_p(info, p);
-  Expr *expr = parse_expr(info);
+    parse_set_p(parser, p);
+  Expr *expr = parse_expr(parser);
 #endif
   return (ExprWithFlag){expr, flag};
 }
 
-static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
-  const char *p = skip_whitespaces(info->p);
+static unsigned int parse_indirect_register(ParseInfo *parser, Operand *operand) {
+  const char *p = skip_whitespaces(parser->p);
   enum RegType reg2 = NOREG;
   int extend = 0;
   enum RegType reg = find_register(&p, R64);
   if (reg == NOREG) {
-    parse_error(info, "base register expected");
+    parse_error(parser, "base register expected");
     return 0;
   }
   if (reg == SP) {
@@ -302,7 +302,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
     operand->indirect.reg.size = REG64;
     operand->indirect.reg.no = reg - X0;
   } else {
-    parse_error(info, "base register expected");
+    parse_error(parser, "base register expected");
   }
 
   ExprWithFlag offset_with_flag = {NULL, 0};
@@ -318,12 +318,12 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
         offset_with_flag.expr = new_expr(EX_FIXNUM);
         offset_with_flag.expr->fixnum = imm;
       } else {
-        parse_set_p(info, p);
-        offset_with_flag = parse_expr_with_flag(info);
+        parse_set_p(parser, p);
+        offset_with_flag = parse_expr_with_flag(parser);
         if (offset_with_flag.expr != NULL) {
-          p = info->p;
+          p = parser->p;
         } else {
-          parse_error(info, "offset expected");
+          parse_error(parser, "offset expected");
         }
       }
     } else {
@@ -348,7 +348,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
                 scale = new_expr(EX_FIXNUM);
                 scale->fixnum = imm;
               } else {
-                // parse_error(info, "offset expected");
+                // parse_error(parser, "offset expected");
                 return 0;  // Error
               }
             }
@@ -362,7 +362,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
   }
 
   if (*p != ']')
-    // parse_error(info, "`]' expected");
+    // parse_error(parser, "`]' expected");
     return 0;  // Error
 
   p = skip_whitespaces(p + 1);
@@ -382,7 +382,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
           offset_with_flag.expr->fixnum = imm;
           prepost = 2;
         } else {
-          // parse_error(info, "offset expected");
+          // parse_error(parser, "offset expected");
           return 0;  // Error
         }
       }
@@ -391,7 +391,7 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
     operand->type = INDIRECT;
     operand->indirect.offset = offset_with_flag;
     operand->indirect.prepost = prepost;
-    parse_set_p(info, p);
+    parse_set_p(parser, p);
     return IND;
   } else {
     operand->type = REGISTER_OFFSET;
@@ -406,12 +406,12 @@ static unsigned int parse_indirect_register(ParseInfo *info, Operand *operand) {
     }
     operand->register_offset.extend = extend;
     operand->register_offset.scale = scale;
-    parse_set_p(info, p);
+    parse_set_p(parser, p);
     return ROI;
   }
 }
 
-static bool parse_extend(ParseInfo *info, Operand *operand) {
+static bool parse_extend(ParseInfo *parser, Operand *operand) {
   static const char table[][5] = {
     "uxtb",
     "uxth",
@@ -426,7 +426,7 @@ static bool parse_extend(ParseInfo *info, Operand *operand) {
     "asr",
   };
 
-  const char *p = info->p;
+  const char *p = parser->p;
   for (int i = 0; i < (int)ARRAY_SIZE(table); ++i) {
     const char *ex = table[i];
     size_t n = strlen(ex);
@@ -439,24 +439,24 @@ static bool parse_extend(ParseInfo *info, Operand *operand) {
       if (isspace(*p) && (p = skip_whitespaces(p), *p == '#')) {
         ++p;
         if (!immediate(&p, &imm))
-          parse_error(info, "immediate value expected");
+          parse_error(parser, "immediate value expected");
       } else if (i >= 8) {
-        parse_error(info, "immediate value for shift expected");
+        parse_error(parser, "immediate value for shift expected");
       }
       operand->extend.imm = imm;
-      info->p = p;
+      parser->p = p;
       return true;
     }
   }
   return false;
 }
 
-unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *operand) {
-  const char *p = info->p;
+unsigned int parse_operand(ParseInfo *parser, unsigned int opr_flag, Operand *operand) {
+  const char *p = parser->p;
   if (opr_flag & IMM) {
     if (*p == '#') {
-      info->p = p + 1;
-      if (!immediate(&info->p, &operand->immediate))
+      parser->p = p + 1;
+      if (!immediate(&parser->p, &operand->immediate))
         return 0;
       operand->type = IMMEDIATE;
       return IMM;
@@ -465,13 +465,13 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
 
   if (opr_flag & IND) {
     if (*p == '[') {
-      info->p = p + 1;
-      return parse_indirect_register(info, operand);
+      parser->p = p + 1;
+      return parse_indirect_register(parser, operand);
     }
   }
 
   if (opr_flag & (R32 | R64 | RSP | F32 | F64)) {
-    enum RegType reg = find_register(&info->p, opr_flag);
+    enum RegType reg = find_register(&parser->p, opr_flag);
     if (reg != NOREG) {
       enum RegSize size;
       int no;
@@ -510,7 +510,7 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
   }
 
   if (opr_flag & CND) {
-    enum CondType cond = find_cond(&info->p);
+    enum CondType cond = find_cond(&parser->p);
     if (cond != NOCOND) {
       operand->type = COND;
       operand->cond = cond;
@@ -523,7 +523,7 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
       p += 5;
       int64_t imm;
       if (immediate(&p, &imm) && imm >= 0 && imm <= 48 && (imm & 15) == 0) {
-        info->p = p;
+        parser->p = p;
         operand->type = SHIFT;
         operand->immediate = imm;
         return SFT;
@@ -532,14 +532,14 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
   }
 
   if (opr_flag & EXT) {
-    info->p = p;
-    if (parse_extend(info, operand)) {
+    parser->p = p;
+    if (parse_extend(parser, operand)) {
       return EXT;
     }
   }
 
   if (opr_flag & EXP) {
-    ExprWithFlag expr = parse_expr_with_flag(info);
+    ExprWithFlag expr = parse_expr_with_flag(parser);
     if (expr.expr != NULL) {
       operand->type = DIRECT;
       operand->direct.expr = expr;

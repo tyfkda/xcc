@@ -308,18 +308,18 @@ static enum RoundMode find_round_mode(const char **pp) {
   return NOROUND;
 }
 
-static bool parse_indirect_register(ParseInfo *info, Expr *offset, Operand *operand) {
+static bool parse_indirect_register(ParseInfo *parser, Expr *offset, Operand *operand) {
   // Already read "(".
-  enum RegType base_reg = find_register(&info->p);
+  enum RegType base_reg = find_register(&parser->p);
   if (base_reg == NOREG) {
-    parse_error(info, "register expected");
+    parse_error(parser, "register expected");
     return false;
   }
-  if (*info->p != ')') {
-    parse_error(info, "`)' expected");
+  if (*parser->p != ')') {
+    parse_error(parser, "`)' expected");
     return false;
   }
-  ++info->p;
+  ++parser->p;
 
   char no = base_reg - X0;
   operand->type = INDIRECT;
@@ -329,9 +329,9 @@ static bool parse_indirect_register(ParseInfo *info, Expr *offset, Operand *oper
   return true;
 }
 
-unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *operand) {
+unsigned int parse_operand(ParseInfo *parser, unsigned int opr_flag, Operand *operand) {
   if (opr_flag & RND) {
-    enum RoundMode roundmode = find_round_mode(&info->p);
+    enum RoundMode roundmode = find_round_mode(&parser->p);
     if (roundmode != NOROUND) {
       operand->type = ROUNDMODE;
       operand->roundmode = roundmode;
@@ -340,7 +340,7 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
   }
 
   if (opr_flag & R64) {
-    enum RegType reg = find_register(&info->p);
+    enum RegType reg = find_register(&parser->p);
     if (reg != NOREG) {
       operand->type = REG;
       operand->reg.no = reg - X0;
@@ -348,7 +348,7 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
     }
   }
   if (opr_flag & F64) {
-    enum FRegType freg = find_fregister(&info->p);
+    enum FRegType freg = find_fregister(&parser->p);
     if (freg != NOFREG) {
       operand->type = FREG;
       operand->freg = freg;
@@ -356,11 +356,11 @@ unsigned int parse_operand(ParseInfo *info, unsigned int opr_flag, Operand *oper
     }
   }
 
-  Expr *expr = parse_expr(info);
+  Expr *expr = parse_expr(parser);
   if (opr_flag & IND) {
-    if (*info->p == '(') {
-      info->p += 1;
-      if (parse_indirect_register(info, expr, operand))
+    if (*parser->p == '(') {
+      parser->p += 1;
+      if (parse_indirect_register(parser, expr, operand))
         return IND;
     }
   }

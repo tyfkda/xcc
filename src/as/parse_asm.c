@@ -78,10 +78,10 @@ static const char *kDirectiveTable[] = {
 #endif
 };
 
-SectionInfo *get_section_info(ParseInfo *info, const char *name, const char *segname, int flag) {
+SectionInfo *get_section_info(ParseInfo *parser, const char *name, const char *segname, int flag) {
   const Name *key = alloc_name(name, NULL, true);
   SectionInfo *section;
-  if (!table_try_get(info->section_infos, key, (void**)&section)) {
+  if (!table_try_get(parser->section_infos, key, (void**)&section)) {
     section = calloc_or_die(sizeof(*section));
     section->name = key;
     section->segname = segname;
@@ -99,55 +99,55 @@ SectionInfo *get_section_info(ParseInfo *info, const char *name, const char *seg
       data_init(ds);
       section->ds = ds;
     }
-    table_put(info->section_infos, key, section);
+    table_put(parser->section_infos, key, section);
   }
   return section;
 }
 
-SectionInfo *set_current_section(ParseInfo *info, const char *name, const char *segname, int flag) {
-  SectionInfo *section = get_section_info(info, name, segname, flag);
-  info->current_section = section;
+SectionInfo *set_current_section(ParseInfo *parser, const char *name, const char *segname, int flag) {
+  SectionInfo *section = get_section_info(parser, name, segname, flag);
+  parser->current_section = section;
   return section;
 }
 
 static LabelInfo *new_label(SectionInfo *section) {
-  LabelInfo *info = calloc_or_die(sizeof(*info));
-  info->section = section;
-  info->flag = 0;
-  info->address = 0;
-  info->kind = LK_NONE;
-  info->size = 0;
-  info->align = 0;
-  return info;
+  LabelInfo *label = calloc_or_die(sizeof(*label));
+  label->section = section;
+  label->flag = 0;
+  label->address = 0;
+  label->kind = LK_NONE;
+  label->size = 0;
+  label->align = 0;
+  return label;
 }
 
-LabelInfo *add_label_table(Table *label_table, const Name *label, SectionInfo *section, bool define,
+LabelInfo *add_label_table(Table *label_table, const Name *name, SectionInfo *section, bool define,
                            bool global) {
-  LabelInfo *info = table_get(label_table, label);
-  if (info != NULL) {
+  LabelInfo *label = table_get(label_table, name);
+  if (label != NULL) {
     if (define) {
-      if ((info->flag & LF_DEFINED) != 0) {
-        fprintf(stderr, "`%.*s' already defined\n", NAMES(label));
+      if ((label->flag & LF_DEFINED) != 0) {
+        fprintf(stderr, "`%.*s' already defined\n", NAMES(name));
         return NULL;
       }
-      info->address = 1;
-      info->section = section;
+      label->address = 1;
+      label->section = section;
     }
   } else {
-    info = new_label(section);
-    table_put(label_table, label, info);
+    label = new_label(section);
+    table_put(label_table, name, label);
   }
   if (define)
-    info->flag |= LF_DEFINED;
+    label->flag |= LF_DEFINED;
   if (global)
-    info->flag |= LF_GLOBAL;
-  return info;
+    label->flag |= LF_GLOBAL;
+  return label;
 }
 
-bool parse_error(ParseInfo *info, const char *message) {
-  fprintf(stderr, "%s(%d): %s\n", info->filename, info->lineno, message);
-  fprintf(stderr, "%s\n", info->rawline);
-  ++info->error_count;
+bool parse_error(ParseInfo *parser, const char *message) {
+  fprintf(stderr, "%s(%d): %s\n", parser->filename, parser->lineno, message);
+  fprintf(stderr, "%s\n", parser->rawline);
+  ++parser->error_count;
   return false;
 }
 
@@ -203,15 +203,15 @@ bool is_label_chr(char c) {
   return is_label_first_chr(c) || isdigit(c);
 }
 
-static const char *get_label_end(ParseInfo *info) {
-  const char *start = info->p;
+static const char *get_label_end(ParseInfo *parser) {
+  const char *start = parser->p;
   const char *p = start;
   if (*p == '"') {
     ++p;
     for (;;) {
       char c = *p;
       if (c == '\0') {
-        parse_error(info, "string not closed");
+        parse_error(parser, "string not closed");
         break;
       }
 
@@ -229,7 +229,7 @@ static const char *get_label_end(ParseInfo *info) {
       int uc = *++q;
       if (ucc > 0) {
         if (!isutf8follow(uc)) {
-          parse_error(info, "illegal byte sequence");
+          parse_error(parser, "illegal byte sequence");
           return NULL;
         }
         --ucc;
@@ -243,7 +243,7 @@ static const char *get_label_end(ParseInfo *info) {
     p = (const char*)q;
   }
   if (p <= start)
-    parse_error(info, "empty label");
+    parse_error(parser, "empty label");
   return p;
 }
 
@@ -256,18 +256,18 @@ const Name *unquote_label(const char *p, const char *q) {
   return alloc_name(p + 1, q - 1, false);
 }
 
-static const Name *parse_label(ParseInfo *info) {
-  const char *start = info->p;
-  const char *p = get_label_end(info);
+static const Name *parse_label(ParseInfo *parser) {
+  const char *start = parser->p;
+  const char *p = get_label_end(parser);
   if (p == start)
     return NULL;
 
-  info->p = p;
+  parser->p = p;
   return unquote_label(start, p);
 }
 
-static const Name *parse_section_name(ParseInfo *info) {
-  const char *p = info->p;
+static const Name *parse_section_name(ParseInfo *parser) {
+  const char *p = parser->p;
   const char *start = p;
 
   if (!is_label_first_chr(*p))
@@ -276,7 +276,7 @@ static const Name *parse_section_name(ParseInfo *info) {
   do {
     ++p;
   } while (isalnum_(*p) || *p == '.');
-  info->p = p;
+  parser->p = p;
   return alloc_name(start, p, false);
 }
 
@@ -312,8 +312,8 @@ static Token *new_token(enum TokenKind kind) {
 }
 
 #ifndef __NO_FLONUM
-static Token *read_flonum(ParseInfo *info, int base) {
-  const char *start = info->p;
+static Token *read_flonum(ParseInfo *parser, int base) {
+  const char *start = parser->p;
   char *next;
 #ifdef __XCC
   // long double in XCC is same as double, and if the target platform uses
@@ -324,7 +324,7 @@ static Token *read_flonum(ParseInfo *info, int base) {
 #endif
   Token *tok = new_token(TK_FLONUM);
   tok->flonum = val;
-  info->p = next;
+  parser->p = next;
 
   if (base == 16) {
     // Check exponent part exists.
@@ -334,7 +334,7 @@ static Token *read_flonum(ParseInfo *info, int base) {
         break;
     }
     if (q >= next) {
-      parse_error(info, "hex float literal must have exponent part");
+      parse_error(parser, "hex float literal must have exponent part");
     }
   }
 
@@ -342,9 +342,9 @@ static Token *read_flonum(ParseInfo *info, int base) {
 }
 #endif
 
-static const Token *fetch_token(ParseInfo *info) {
+static const Token *fetch_token(ParseInfo *parser) {
   static const Token kTokEOF = {.kind = TK_EOF};
-  const char *start = skip_whitespaces(info->p);
+  const char *start = skip_whitespaces(parser->p);
   const char *p = start;
   char c = *p;
   switch (c) {
@@ -356,7 +356,7 @@ static const Token *fetch_token(ParseInfo *info) {
       if (c == '0' && tolower(p[1]) == 'x') {
 #ifndef __NO_FLONUM
         if (c == '.')  // Hex float literal.
-          return read_flonum(info, 16);
+          return read_flonum(parser, 16);
 #endif
         if (isxdigit(p[2])) {
           p += 2;
@@ -367,19 +367,19 @@ static const Token *fetch_token(ParseInfo *info) {
       unsigned long long v = strtoull(p, &q, base);
 #ifndef __NO_FLONUM
       if (*q == '.' || tolower(*q) == 'e') {
-        info->p = p;
-        return read_flonum(info, 10);
+        parser->p = p;
+        return read_flonum(parser, 10);
       }
 #endif
       Token *token = new_token(TK_FIXNUM);
       token->fixnum = v;
-      info->p = q;
+      parser->p = q;
       return token;
     }
   case '"':
     {
-      info->p = p;
-      const Name *label = parse_label(info);
+      parser->p = p;
+      const Name *label = parse_label(parser);
       if (label != NULL) {
         Token *token = new_token(TK_LABEL);
         token->label.name = label;
@@ -397,14 +397,14 @@ static const Token *fetch_token(ParseInfo *info) {
       case '*':  kind = TK_MUL; break;
       case '/':  kind = TK_DIV; break;
       }
-      info->p = p + 1;
+      parser->p = p + 1;
       return new_token(kind);
     }
 #ifndef __NO_FLONUM
   case '.':
     if (isdigit(p[1])) {
-      info->p = p;
-      return read_flonum(info, 10);
+      parser->p = p;
+      return read_flonum(parser, 10);
     }
     break;
 #endif
@@ -417,7 +417,7 @@ static const Token *fetch_token(ParseInfo *info) {
       ;
     Token *token = new_token(TK_LABEL);
     token->label.name = alloc_name(label, p, false);
-    info->p = p;
+    parser->p = p;
     return token;
   }
 
@@ -425,16 +425,16 @@ static const Token *fetch_token(ParseInfo *info) {
   return &kTokUnknown;
 }
 
-static const Token *match(ParseInfo *info, enum TokenKind kind) {
-  const Token *token = info->prefetched;
+static const Token *match(ParseInfo *parser, enum TokenKind kind) {
+  const Token *token = parser->prefetched;
   if (token == NULL)
-    token = fetch_token(info);
+    token = fetch_token(parser);
 
   if (token->kind != kind) {
-    info->prefetched = token;
+    parser->prefetched = token;
     return NULL;
   }
-  info->prefetched = NULL;
+  parser->prefetched = NULL;
   return token;
 }
 
@@ -444,17 +444,17 @@ Expr *new_expr(enum ExprKind kind) {
   return expr;
 }
 
-static Expr *prim(ParseInfo *info) {
+static Expr *prim(ParseInfo *parser) {
   Expr *expr = NULL;
   const Token *tok;
-  if ((tok = match(info, TK_LABEL)) != NULL) {
+  if ((tok = match(parser, TK_LABEL)) != NULL) {
     expr = new_expr(EX_LABEL);
     expr->label.name = tok->label.name;
-  } else if ((tok = match(info, TK_FIXNUM)) != NULL) {
+  } else if ((tok = match(parser, TK_FIXNUM)) != NULL) {
     expr = new_expr(EX_FIXNUM);
     expr->fixnum = tok->fixnum;
 #ifndef __NO_FLONUM
-  } else if ((tok = match(info, TK_FLONUM)) != NULL) {
+  } else if ((tok = match(parser, TK_FLONUM)) != NULL) {
     expr = new_expr(EX_FLONUM);
     expr->flonum = tok->flonum;
 #endif
@@ -462,10 +462,10 @@ static Expr *prim(ParseInfo *info) {
   return expr;
 }
 
-static Expr *unary(ParseInfo *info) {
+static Expr *unary(ParseInfo *parser) {
   const Token *tok;
-  if ((tok = match(info, TK_ADD)) != NULL) {
-    Expr *expr = unary(info);
+  if ((tok = match(parser, TK_ADD)) != NULL) {
+    Expr *expr = unary(parser);
     if (expr == NULL)
       return NULL;
     switch (expr->kind) {
@@ -481,8 +481,8 @@ static Expr *unary(ParseInfo *info) {
     }
   }
 
-  if ((tok = match(info, TK_SUB)) != NULL) {
-    Expr *expr = unary(info);
+  if ((tok = match(parser, TK_SUB)) != NULL) {
+    Expr *expr = unary(parser);
     if (expr == NULL)
       return NULL;
     switch (expr->kind) {
@@ -503,20 +503,20 @@ static Expr *unary(ParseInfo *info) {
     }
   }
 
-  return prim(info);
+  return prim(parser);
 }
 
-static Expr *parse_mul(ParseInfo *info) {
-  Expr *expr = unary(info);
+static Expr *parse_mul(ParseInfo *parser) {
+  Expr *expr = unary(parser);
   if (expr == NULL)
     return expr;
 
   const Token *tok;
-  while ((tok = match(info, TK_MUL)) != NULL ||
-         (tok = match(info, TK_DIV)) != NULL) {
-    Expr *rhs = unary(info);
+  while ((tok = match(parser, TK_MUL)) != NULL ||
+         (tok = match(parser, TK_DIV)) != NULL) {
+    Expr *rhs = unary(parser);
     if (rhs == NULL) {
-      parse_error(info, "expression error");
+      parse_error(parser, "expression error");
       break;
     }
 
@@ -536,17 +536,17 @@ static Expr *parse_mul(ParseInfo *info) {
   return expr;
 }
 
-static Expr *parse_add(ParseInfo *info) {
-  Expr *expr = parse_mul(info);
+static Expr *parse_add(ParseInfo *parser) {
+  Expr *expr = parse_mul(parser);
   if (expr == NULL)
     return expr;
 
   const Token *tok;
-  while ((tok = match(info, TK_ADD)) != NULL ||
-         (tok = match(info, TK_SUB)) != NULL) {
-    Expr *rhs = parse_mul(info);
+  while ((tok = match(parser, TK_ADD)) != NULL ||
+         (tok = match(parser, TK_SUB)) != NULL) {
+    Expr *rhs = parse_mul(parser);
     if (rhs == NULL) {
-      parse_error(info, "expression error");
+      parse_error(parser, "expression error");
       break;
     }
 
@@ -567,9 +567,9 @@ static Expr *parse_add(ParseInfo *info) {
   return expr;
 }
 
-Expr *parse_expr(ParseInfo *info) {
-  info->prefetched = NULL;
-  return parse_add(info);
+Expr *parse_expr(ParseInfo *parser) {
+  parser->prefetched = NULL;
+  return parse_add(parser);
 }
 
 #define R_NOOP  0
@@ -585,8 +585,8 @@ static const Name *alloc_dummy_label(void) {
 }
 #endif
 
-static /*enum RawOpcode*/int find_raw_opcode(ParseInfo *info) {
-  const char *p = info->p;
+static /*enum RawOpcode*/int find_raw_opcode(ParseInfo *parser) {
+  const char *p = parser->p;
   const char *start = p;
 
   while (isalnum(*p) || *p == '.')
@@ -599,7 +599,7 @@ static /*enum RawOpcode*/int find_raw_opcode(ParseInfo *info) {
         break;
       size_t len = strlen(name);
       if (n == len && strncasecmp(start, name, n) == 0) {
-        info->p = skip_whitespaces(p);
+        parser->p = skip_whitespaces(p);
         return i + 1;
       }
     }
@@ -607,13 +607,13 @@ static /*enum RawOpcode*/int find_raw_opcode(ParseInfo *info) {
   return R_NOOP;
 }
 
-static bool parse_inst(ParseInfo *info, Line *line) {
+static bool parse_inst(ParseInfo *parser, Line *line) {
   Inst inst;
   inst.op = NOOP;
   for (int i = 0; i < (int)ARRAY_SIZE(inst.opr); ++i)
     inst.opr[i].type = NOOPERAND;
 
-  /*enum RawOpcode*/int op = find_raw_opcode(info);
+  /*enum RawOpcode*/int op = find_raw_opcode(parser);
   if (op != R_NOOP) {
     const ParseInstTable *pt = &kParseInstTable[op];
     int n = pt->count;
@@ -632,20 +632,20 @@ static bool parse_inst(ParseInfo *info, Line *line) {
         break;
 
       if (i > 0) {
-        if (*info->p != ',') {
+        if (*parser->p != ',') {
           if (candidates[0]->opr_flags[i] == 0)
             break;
-          parse_error(info, "comma expected");
+          parse_error(parser, "comma expected");
           return false;  // Error
         }
-        info->p = skip_whitespaces(info->p + 1);
+        parser->p = skip_whitespaces(parser->p + 1);
       }
 
       Operand *opr = &inst.opr[i];
-      unsigned int result = parse_operand(info, opr_flags, opr);
+      unsigned int result = parse_operand(parser, opr_flags, opr);
       if (result == 0) {
-        parse_error(info, "illegal operand");
-        info->p = NULL;
+        parse_error(parser, "illegal operand");
+        parser->p = NULL;
         return false;  // Error
       }
 
@@ -657,7 +657,7 @@ static bool parse_inst(ParseInfo *info, Line *line) {
         }
       }
 
-      info->p = skip_whitespaces(info->p);
+      parser->p = skip_whitespaces(parser->p);
     }
 
     if (n > 0) {
@@ -696,13 +696,13 @@ static bool parse_inst(ParseInfo *info, Line *line) {
   return true;
 }
 
-void parse_set_p(ParseInfo *info, const char *p) {
-  info->p = p;
-  info->prefetched = NULL;
+void parse_set_p(ParseInfo *parser, const char *p) {
+  parser->p = p;
+  parser->prefetched = NULL;
 }
 
-static char unescape_char(ParseInfo *info) {
-  const char *p = info->p;
+static char unescape_char(ParseInfo *parser) {
+  const char *p = parser->p;
   char c = *p++;
   switch (c) {
   case '0': case '1': case '2': case '3': case '4':
@@ -717,7 +717,7 @@ static char unescape_char(ParseInfo *info) {
           break;
         x = (x << 3) | (cc - '0');
       }
-      info->p = p - 1;
+      parser->p = p - 1;
       return x;
     }
   case 'x':
@@ -729,7 +729,7 @@ static char unescape_char(ParseInfo *info) {
           break;  // TODO: Error
         x = (x << 4) | v;
       }
-      info->p = p - 1;
+      parser->p = p - 1;
       return x;
     }
   case 'a':  return '\a';
@@ -741,52 +741,52 @@ static char unescape_char(ParseInfo *info) {
   case 'v':  return '\v';
 
   default:
-    parse_error(info, "illegal escape");
+    parse_error(parser, "illegal escape");
     // Fallthrough
   case '\'': case '"': case '\\':
     return c;
   }
 }
 
-static size_t unescape_string(ParseInfo *info, char *dst) {
+static size_t unescape_string(ParseInfo *parser, char *dst) {
   size_t len = 0;
-  for (; *info->p != '"'; ++info->p, ++len) {
-    char c = *info->p;
+  for (; *parser->p != '"'; ++parser->p, ++len) {
+    char c = *parser->p;
     if (c == '\0')
-      parse_error(info, "string not closed");
+      parse_error(parser, "string not closed");
     if (c == '\\') {
-      ++info->p;
-      c = unescape_char(info);
+      ++parser->p;
+      c = unescape_char(parser);
     }
     if (dst != NULL)
       *dst++ = c;
   }
-  ++info->p;
+  ++parser->p;
   return len;
 }
 
 #if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
-static char *parse_string(ParseInfo *info) {
-  const char *start = skip_whitespaces(info->p);
+static char *parse_string(ParseInfo *parser) {
+  const char *start = skip_whitespaces(parser->p);
   if (*start != '"')
     return NULL;
 
-  info->p = start;
-  const char *p = get_label_end(info);
+  parser->p = start;
+  const char *p = get_label_end(parser);
   if (p == start)
     return NULL;
 
-  info->p = p;
+  parser->p = p;
 
   const char *s = start + 1, *e = p - 1;
   return strndup(s, e - s);
 }
 
-static uint32_t parse_section_flag(ParseInfo *info) {
+static uint32_t parse_section_flag(ParseInfo *parser) {
   uint32_t flag = 0;
-  char *flag_str = parse_string(info);
+  char *flag_str = parse_string(parser);
   if (flag_str == NULL) {
-    parse_error(info, ".section: flag string expected");
+    parse_error(parser, ".section: flag string expected");
   } else {
     for (char *p = flag_str; *p != '\0'; ++p) {
       switch (*p) {
@@ -794,7 +794,7 @@ static uint32_t parse_section_flag(ParseInfo *info) {
       case 'w':  flag |= SF_WRITABLE; break;
       case 'x':  flag |= SF_EXECUTABLE; break;
       default:
-        parse_error(info, ".section: illegal flag character");
+        parse_error(parser, ".section: illegal flag character");
         break;
       }
     }
@@ -803,48 +803,48 @@ static uint32_t parse_section_flag(ParseInfo *info) {
 }
 #endif
 
-static bool dir_string(ParseInfo *info, enum DirectiveType dir) {
-  if (*info->p != '"')
-    return parse_error(info, "`\"' expected");
-  ++info->p;
-  const char *p = info->p;
-  size_t len = unescape_string(info, NULL);
+static bool dir_string(ParseInfo *parser, enum DirectiveType dir) {
+  if (*parser->p != '"')
+    return parse_error(parser, "`\"' expected");
+  ++parser->p;
+  const char *p = parser->p;
+  size_t len = unescape_string(parser, NULL);
   if (dir == DT_STRING)
     ++len;
   char *str = calloc_or_die(len);
-  info->p = p;  // Again.
-  unescape_string(info, str);
+  parser->p = p;  // Again.
+  unescape_string(parser, str);
 
-  SectionInfo *section = info->current_section;
+  SectionInfo *section = parser->current_section;
   Vector *irs = section->irs;
   vec_push(irs, new_ir_data(str, len));
   return true;
 }
 
-static bool dir_comm(ParseInfo *info, enum DirectiveType dir) {
+static bool dir_comm(ParseInfo *parser, enum DirectiveType dir) {
   UNUSED(dir);
-  const Name *name = parse_label(info);
+  const Name *name = parse_label(parser);
   if (name == NULL)
-    return parse_error(info, ".comm: label expected");
-  info->p = skip_whitespaces(info->p);
-  if (*info->p != ',')
-    return parse_error(info, ".comm: `,' expected");
-  info->p = skip_whitespaces(info->p + 1);
+    return parse_error(parser, ".comm: label expected");
+  parser->p = skip_whitespaces(parser->p);
+  if (*parser->p != ',')
+    return parse_error(parser, ".comm: `,' expected");
+  parser->p = skip_whitespaces(parser->p + 1);
   int64_t size;
-  if (!immediate(&info->p, &size) || size <= 0)
-    return parse_error(info, ".comm: size expected");
+  if (!immediate(&parser->p, &size) || size <= 0)
+    return parse_error(parser, ".comm: size expected");
 
   int64_t align = 0;
-  if (*info->p == ',') {
-    info->p = skip_whitespaces(info->p + 1);
-    if (!immediate(&info->p, &align) ||
+  if (*parser->p == ',') {
+    parser->p = skip_whitespaces(parser->p + 1);
+    if (!immediate(&parser->p, &align) ||
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
         align < 0
 #else
         align < 1
 #endif
     ) {
-      return parse_error(info, ".comm: optional alignment expected");
+      return parse_error(parser, ".comm: optional alignment expected");
     }
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
     // p2align on macOS.
@@ -852,14 +852,14 @@ static bool dir_comm(ParseInfo *info, enum DirectiveType dir) {
 #endif
   }
 
-  SectionInfo *section = get_section_info(info, kSecBss, kSegBss, SF_BSS | SF_WRITABLE);
+  SectionInfo *section = get_section_info(parser, kSecBss, kSegBss, SF_BSS | SF_WRITABLE);
   Vector *irs = section->irs;
   if (align > 1)
     vec_push(irs, new_ir_align(align));
   vec_push(irs, new_ir_label(name));
   vec_push(irs, new_ir_bss(size));
 
-  LabelInfo *label = add_label_table(info->label_table, name, section, true, false);
+  LabelInfo *label = add_label_table(parser->label_table, name, section, true, false);
   if (label == NULL)
     return false;
   label->size = size;
@@ -868,82 +868,82 @@ static bool dir_comm(ParseInfo *info, enum DirectiveType dir) {
   return true;
 }
 
-static bool dir_zero(ParseInfo *info, enum DirectiveType dir) {
+static bool dir_zero(ParseInfo *parser, enum DirectiveType dir) {
   UNUSED(dir);
   int64_t num;
-  if (!immediate(&info->p, &num))
-    return parse_error(info, ".zero: number expected");
+  if (!immediate(&parser->p, &num))
+    return parse_error(parser, ".zero: number expected");
 
-  SectionInfo *section = info->current_section;
+  SectionInfo *section = parser->current_section;
   Vector *irs = section->irs;
   vec_push(irs, new_ir_zero(num));
   return true;
 }
 
-static bool dir_text(ParseInfo *info, enum DirectiveType dir) {
+static bool dir_text(ParseInfo *parser, enum DirectiveType dir) {
   UNUSED(dir);
-  set_current_section(info, kSecText, kSegText, SF_EXECUTABLE);
+  set_current_section(parser, kSecText, kSegText, SF_EXECUTABLE);
   return true;
 }
 
-static bool dir_data(ParseInfo *info, enum DirectiveType dir) {
+static bool dir_data(ParseInfo *parser, enum DirectiveType dir) {
   UNUSED(dir);
-  set_current_section(info, kSecData, kSegData, SF_WRITABLE);
+  set_current_section(parser, kSecData, kSegData, SF_WRITABLE);
   return true;
 }
 
-static bool dir_bss(ParseInfo *info, enum DirectiveType dir) {
+static bool dir_bss(ParseInfo *parser, enum DirectiveType dir) {
   UNUSED(dir);
-  set_current_section(info, kSecBss, kSegBss, SF_BSS | SF_WRITABLE);
+  set_current_section(parser, kSecBss, kSegBss, SF_BSS | SF_WRITABLE);
   return true;
 }
 
-static bool dir_align(ParseInfo *info, enum DirectiveType dir) {
+static bool dir_align(ParseInfo *parser, enum DirectiveType dir) {
   int64_t align;
-  if (!immediate(&info->p, &align))
-    return parse_error(info, ".align: number expected");
+  if (!immediate(&parser->p, &align))
+    return parse_error(parser, ".align: number expected");
   if (dir == DT_P2ALIGN)
     align = 1 << align;
 
-  SectionInfo *section = info->current_section;
+  SectionInfo *section = parser->current_section;
   Vector *irs = section->irs;
   vec_push(irs, new_ir_align(align));
   return true;
 }
 
-static bool dir_type(ParseInfo *info, enum DirectiveType dir) {
+static bool dir_type(ParseInfo *parser, enum DirectiveType dir) {
   UNUSED(dir);
-  const Name *name = parse_label(info);
+  const Name *name = parse_label(parser);
   if (name == NULL)
-    return parse_error(info, ".type: label expected");
-  if (*info->p != ',')
-    return parse_error(info, ".type: `,' expected");
-  info->p = skip_whitespaces(info->p + 1);
+    return parse_error(parser, ".type: label expected");
+  if (*parser->p != ',')
+    return parse_error(parser, ".type: `,' expected");
+  parser->p = skip_whitespaces(parser->p + 1);
   enum LabelKind kind = LK_NONE;
-  if (strcmp(info->p, "@function") == 0) {
+  if (strcmp(parser->p, "@function") == 0) {
     kind = LK_FUNC;
-    info->p += 9;
-  } else if (strcmp(info->p, "@object") == 0) {
+    parser->p += 9;
+  } else if (strcmp(parser->p, "@object") == 0) {
     kind = LK_OBJECT;
-    info->p += 7;
+    parser->p += 7;
   } else {
-    return parse_error(info, "illegal .type");
+    return parse_error(parser, "illegal .type");
   }
 
-  SectionInfo *section = info->current_section;
-  LabelInfo *label = add_label_table(info->label_table, name, section, false, false);
+  SectionInfo *section = parser->current_section;
+  LabelInfo *label = add_label_table(parser->label_table, name, section, false, false);
   if (label != NULL) {
     label->kind = kind;
   }
   return true;
 }
 
-static bool dir_bytes(ParseInfo *info, enum DirectiveType dir) {
-  Expr *expr = parse_expr(info);
+static bool dir_bytes(ParseInfo *parser, enum DirectiveType dir) {
+  Expr *expr = parse_expr(parser);
   if (expr == NULL)
-    return parse_error(info, "expression expected");
+    return parse_error(parser, "expression expected");
 
-  SectionInfo *section = info->current_section;
+  SectionInfo *section = parser->current_section;
   Vector *irs = section->irs;
 
   assert(expr->kind != EX_FLONUM);
@@ -962,10 +962,10 @@ static bool dir_bytes(ParseInfo *info, enum DirectiveType dir) {
 }
 
 #ifndef __NO_FLONUM
-static bool dir_float(ParseInfo *info, enum DirectiveType dir) {
-  Expr *expr = parse_expr(info);
+static bool dir_float(ParseInfo *parser, enum DirectiveType dir) {
+  Expr *expr = parse_expr(parser);
   if (expr == NULL)
-    return parse_error(info, "expression expected");
+    return parse_error(parser, "expression expected");
 
   Flonum value;
   switch (expr->kind) {
@@ -991,25 +991,25 @@ static bool dir_float(ParseInfo *info, enum DirectiveType dir) {
     memcpy(buf, (void*)&dval, sizeof(dval));  // TODO: Endian
   }
 
-  SectionInfo *section = info->current_section;
+  SectionInfo *section = parser->current_section;
   Vector *irs = section->irs;
   vec_push(irs, new_ir_data(buf, size));
   return true;
 }
 #endif
 
-static bool dir_label_attrib(ParseInfo *info, enum DirectiveType dir) {
-  const Name *name = parse_label(info);
+static bool dir_label_attrib(ParseInfo *parser, enum DirectiveType dir) {
+  const Name *name = parse_label(parser);
   if (name == NULL) {
     char buf[32];
     snprintf(buf, sizeof(buf), "%s: label expected", dir == DT_GLOBL ? ".globl" : ".local");
-    return parse_error(info, buf);
+    return parse_error(parser, buf);
   }
 
-  SectionInfo *section = info->current_section;
-  LabelInfo *label = add_label_table(info->label_table, name, section, false, dir == DT_GLOBL);
+  SectionInfo *section = parser->current_section;
+  LabelInfo *label = add_label_table(parser->label_table, name, section, false, dir == DT_GLOBL);
   if (label == NULL) {
-    ++info->error_count;
+    ++parser->error_count;
   } else {
     if (dir == DT_WEAK)
       label->flag |= LF_WEAK;
@@ -1017,35 +1017,35 @@ static bool dir_label_attrib(ParseInfo *info, enum DirectiveType dir) {
   return true;
 }
 
-static bool dir_section(ParseInfo *info, enum DirectiveType dir) {
+static bool dir_section(ParseInfo *parser, enum DirectiveType dir) {
   UNUSED(dir);
-  const Name *name = parse_section_name(info);
+  const Name *name = parse_section_name(parser);
   if (name == NULL)
-    return parse_error(info, ".section: section name expected");
+    return parse_error(parser, ".section: section name expected");
 #if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
   int flag = 0;
-  const char *p = skip_whitespaces(info->p);
+  const char *p = skip_whitespaces(parser->p);
   if (*p == ',') {
-    info->p = p + 1;
-    flag = parse_section_flag(info);
+    parser->p = p + 1;
+    flag = parse_section_flag(parser);
   }
 
   char *sectname = strndup(name->chars, name->bytes);
-  set_current_section(info, sectname, kSegRodata, flag);
+  set_current_section(parser, sectname, kSegRodata, flag);
 #else
-  const char *p = skip_whitespaces(info->p);
+  const char *p = skip_whitespaces(parser->p);
   if (*p != ',')
-    return parse_error(info, "`,' expected");
-  info->p = skip_whitespaces(p + 1);
-  const Name *name2 = parse_section_name(info);
+    return parse_error(parser, "`,' expected");
+  parser->p = skip_whitespaces(p + 1);
+  const Name *name2 = parse_section_name(parser);
   if (name2 == NULL)
-    return parse_error(info, ".section: section name expected");
+    return parse_error(parser, ".section: section name expected");
 
   int flag = 0;
-  p = skip_whitespaces(info->p);
+  p = skip_whitespaces(parser->p);
   if (*p == ',') {
-    info->p = p + 1;
-    const Name *modname = parse_section_name(info);
+    parser->p = p + 1;
+    const Name *modname = parse_section_name(parser);
     if (modname != NULL) {
       if (equal_name(modname, alloc_cname("mod_init_funcs"))) {
         flag |= SF_INIT_FUNCS;
@@ -1054,27 +1054,27 @@ static bool dir_section(ParseInfo *info, enum DirectiveType dir) {
       }
     }
     if (flag == 0)
-      return parse_error(info, ".section: section name expected");
+      return parse_error(parser, ".section: section name expected");
   }
 
   char *segname = strndup(name->chars, name->bytes);
   char *sectname = strndup(name2->chars, name2->bytes);
-  set_current_section(info, sectname, segname, flag);
+  set_current_section(parser, sectname, segname, flag);
 #endif
   return true;
 }
 
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
-static bool dir_subsections_via_symbols(ParseInfo *info, enum DirectiveType dir) {
+static bool dir_subsections_via_symbols(ParseInfo *parser, enum DirectiveType dir) {
   // TODO: Handle this flag.
-  UNUSED(info);
+  UNUSED(parser);
   UNUSED(dir);
   return true;
 }
 #endif
 
-static inline bool handle_directive(ParseInfo *info, enum DirectiveType dir) {
-  typedef bool (*DirectiveFunc)(ParseInfo *info, enum DirectiveType dir);
+static inline bool handle_directive(ParseInfo *parser, enum DirectiveType dir) {
+  typedef bool (*DirectiveFunc)(ParseInfo *parser, enum DirectiveType dir);
 
   static const DirectiveFunc kDirectiveFuncTable[] = {
     [NODIRECTIVE] = NULL,
@@ -1101,39 +1101,39 @@ static inline bool handle_directive(ParseInfo *info, enum DirectiveType dir) {
   DirectiveFunc func = kDirectiveFuncTable[dir];
   if (func == NULL)
     return true;
-  return (*func)(info, dir);
+  return (*func)(parser, dir);
 }
 
-bool parse_line(Line *line, ParseInfo *info) {
+bool parse_line(Line *line, ParseInfo *parser) {
   memset(line, 0, sizeof(*line));
   line->label = NULL;
   line->inst = NULL;
   line->dir = NODIRECTIVE;
 
-  const char *p = skip_whitespaces(info->p);
-  info->p = p;
-  const char *q = get_label_end(info);
+  const char *p = skip_whitespaces(parser->p);
+  parser->p = p;
+  const char *q = get_label_end(parser);
   const char *r = skip_whitespaces(q);
   if (*r == ':') {
     const Name *label = unquote_label(p, q);
     if (label == NULL)
-      return parse_error(info, "illegal label");
+      return parse_error(parser, "illegal label");
     line->label = label;
-    info->p = p = skip_whitespaces(r + 1);
+    parser->p = p = skip_whitespaces(r + 1);
   } else if (*p == '.') {
     enum DirectiveType dir = find_directive(p + 1, q - p - 1);
     if (dir == NODIRECTIVE) {
-      parse_error(info, "unknown directive");
+      parse_error(parser, "unknown directive");
       return false;
     }
     line->dir = dir;
-    info->p = r;
-    return handle_directive(info, dir);
+    parser->p = r;
+    return handle_directive(parser, dir);
   }
 
   if (*p != '\0') {
-    info->p = p;
-    if (!parse_inst(info, line))
+    parser->p = p;
+    if (!parse_inst(parser, line))
       return false;
   }
   return true;

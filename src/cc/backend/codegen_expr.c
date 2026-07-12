@@ -256,12 +256,12 @@ static VReg *gen_ref_sub(Expr *expr) {
     return gen_expr(expr->unary.sub);
   case EX_MEMBER:
     {
-      const MemberInfo *minfo = expr->member.info;
+      const MemberInfo *member = expr->member.info;
       VReg *vreg = gen_expr(expr->member.target);
-      if (minfo->offset == 0)
+      if (member->offset == 0)
         return vreg;
       enum VRegSize vsize = to_vsize(&tySize);
-      VReg *imm = new_const_vreg(minfo->offset, vsize, VRF_UNSIGNED);
+      VReg *imm = new_const_vreg(member->offset, vsize, VRF_UNSIGNED);
       return new_ir_bop(IR_ADD, vreg, imm, vsize);
     }
   case EX_COMPLIT:

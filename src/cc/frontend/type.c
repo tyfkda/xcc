@@ -57,15 +57,15 @@ static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t
   int i = *pi;
   enum FixnumKind kind;
   {
-    MemberInfo *minfo = &sinfo->members[i];
-    assert(minfo->bitfield.active);
-    if (minfo->bitfield.width == 0)
+    MemberInfo *member = &sinfo->members[i];
+    assert(member->bitfield.active);
+    if (member->bitfield.width == 0)
       return size;
 
-    size_t align = align_size(minfo->type);
+    size_t align = align_size(member->type);
     size_t remain = size % align;
     if (remain == 0) {
-      kind = minfo->type->fixnum.kind;
+      kind = member->type->fixnum.kind;
       if (kind > FX_LLONG)
         kind = FX_INT;
     } else {
@@ -92,17 +92,17 @@ static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t
   unsigned int s = type_size(bitfield_type) * TARGET_CHAR_BIT;
   unsigned int bit_position = 0;
   for (int len = sinfo->member_count; i < len && bit_position != s; ++i) {
-    MemberInfo *minfo = &sinfo->members[i];
-    if (minfo->bitfield.width <= 0)
+    MemberInfo *member = &sinfo->members[i];
+    if (member->bitfield.width <= 0)
       break;
 
-    assert(minfo->bitfield.active);
-    if (bit_position + minfo->bitfield.width > s) {
+    assert(member->bitfield.active);
+    if (bit_position + member->bitfield.width > s) {
       enum FixnumKind k;
       for (k = kind; ++k <= FX_LLONG; ) {
         const Type *t = get_fixnum_type(k, false, 0);
         unsigned int ss = type_size(t) * TARGET_CHAR_BIT;
-        if (bit_position + minfo->bitfield.width <= ss) {
+        if (bit_position + member->bitfield.width <= ss) {
           bitfield_type = t;
           s = ss;
           kind = k;
@@ -113,22 +113,22 @@ static size_t calc_bitfield_size(StructInfo *sinfo, int *pi, size_t size, size_t
         break;
     }
 
-    minfo->bitfield.position = bit_position;
-    bit_position += minfo->bitfield.width;
+    member->bitfield.position = bit_position;
+    bit_position += member->bitfield.width;
   }
 
   size_t align = align_size(bitfield_type);
   size = ALIGN(size, align);
   for (int j = *pi; j < i; ++j) {
-    MemberInfo *minfo = &sinfo->members[j];
-    minfo->offset = size;
+    MemberInfo *member = &sinfo->members[j];
+    member->offset = size;
   }
   size += type_size(bitfield_type);
 
   // Write back base kind.
   for (int j = *pi; j < i; ++j) {
-    MemberInfo *minfo = &sinfo->members[j];
-    minfo->bitfield.base_kind = kind;
+    MemberInfo *member = &sinfo->members[j];
+    member->bitfield.base_kind = kind;
   }
 
   *pi = i - 1;
@@ -147,32 +147,32 @@ static void calc_struct_size(StructInfo *sinfo, size_t aligned) {
   size_t max_align = 1;
 
   for (int i = 0, len = sinfo->member_count; i < len; ++i) {
-    MemberInfo *minfo = &sinfo->members[i];
-    size_t sz = type_size(minfo->type);
+    MemberInfo *member = &sinfo->members[i];
+    size_t sz = type_size(member->type);
     size_t align = 1;
     if (!(sinfo->flag & SIF_UNION)) {
 #ifndef __NO_BITFIELD
-      if (minfo->bitfield.active) {
+      if (member->bitfield.active) {
         size = calc_bitfield_size(sinfo, &i, size, &align);
       } else
 #endif
       {
-        align = align_size(minfo->type);
+        align = align_size(member->type);
         if (!packed)
           size = ALIGN(size, align);
-        minfo->offset = size;
+        member->offset = size;
         size += sz;
       }
     } else {
-      minfo->offset = 0;
+      member->offset = 0;
 #ifndef __NO_BITFIELD
-      if (minfo->bitfield.width > 0) {
-        minfo->bitfield.position = 0;
-        minfo->bitfield.base_kind = minfo->type->fixnum.kind;
+      if (member->bitfield.width > 0) {
+        member->bitfield.position = 0;
+        member->bitfield.base_kind = member->type->fixnum.kind;
       } else
 #endif
       {
-        align = align_size(minfo->type);
+        align = align_size(member->type);
       }
       if (size < sz)
         size = sz;
@@ -365,8 +365,8 @@ Type *create_struct_type(StructInfo *sinfo, const Name *name, int qualifier) {
 int find_struct_member(const StructInfo *sinfo, const Name *name) {
   const MemberInfo *members = sinfo->members;
   for (int i = 0, len = sinfo->member_count; i < len; ++i) {
-    const MemberInfo *info = &members[i];
-    if (info->name != NULL && equal_name(info->name, name))
+    const MemberInfo *member = &members[i];
+    if (member->name != NULL && equal_name(member->name, name))
       return i;
   }
   return -1;

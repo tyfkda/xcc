@@ -37,8 +37,8 @@ static inline bool is_im12(int64_t x) {
   return x <= ((1L << 11) - 1) && x >= -(1L << 11);
 }
 
-static inline bool assemble_error(ParseInfo *info, const char *message) {
-  parse_error(info, message);
+static inline bool assemble_error(ParseInfo *parser, const char *message) {
+  parse_error(parser, message);
   return false;
 }
 
@@ -675,7 +675,7 @@ static const AsmInstFunc table[] = {
   [FCVT_D_S] = asm_2fr, [FCVT_S_D] = asm_2fr,
 };
 
-void assemble_inst(Inst *inst, ParseInfo *info, Code *code) {
+void assemble_inst(Inst *inst, ParseInfo *parser, Code *code) {
   code->flag = 0;
   code->len = 0;
 
@@ -696,5 +696,5 @@ void assemble_inst(Inst *inst, ParseInfo *info, Code *code) {
     }
   }
 
-  assemble_error(info, "Illegal operand");
+  assemble_error(parser, "Illegal operand");
 }

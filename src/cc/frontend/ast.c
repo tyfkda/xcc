@@ -142,11 +142,11 @@ Expr *new_expr_ternary(const Token *token, Expr *cond, Expr *tval, Expr *fval, T
 }
 
 Expr *new_expr_member(const Token *token, Type *type, Expr *target, const Name *ident,
-                      const MemberInfo *minfo) {
+                      const MemberInfo *member) {
   Expr *expr = new_expr(EX_MEMBER, type, token);
   expr->member.target = target;
   expr->member.ident = ident;
-  expr->member.info = minfo;
+  expr->member.info = member;
   return expr;
 }
 

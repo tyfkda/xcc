@@ -15,8 +15,8 @@ Vector *static_vars;
 
 int var_find(const Vector *vars, const Name *name) {
   for (int i = 0, len = vars->len; i < len; ++i) {
-    VarInfo *info = vars->data[i];
-    if (info->ident != NULL && equal_name(info->ident->ident, name))
+    VarInfo *varinfo = vars->data[i];
+    if (varinfo->ident != NULL && equal_name(varinfo->ident->ident, name))
       return i;
   }
   return -1;
@@ -114,11 +114,11 @@ VarInfo *scope_add(Scope *scope, const Token *name, Type *type, int storage) {
 
 typedef struct {
   enum TypeTagKind kind;
-  void *info;  // StructInfo* or EnumInfo*
+  void *taginfo;  // StructInfo* or EnumInfo*
 } TypeTag;
 
 enum TagDefineResult define_type_tag(Scope *scope, const Name *name, enum TypeTagKind kind,
-                                     void *info) {
+                                     void *taginfo) {
   Table *table = scope->type_tag_table;
   if (table == NULL)
     scope->type_tag_table = table = alloc_table();
@@ -130,10 +130,10 @@ enum TagDefineResult define_type_tag(Scope *scope, const Name *name, enum TypeTa
   } else {
     if (typetag->kind != kind)
       return TAGRESULT_CONFLICT;
-    if (typetag->info != NULL)
+    if (typetag->taginfo != NULL)
       return TAGRESULT_DUPLICATED;
   }
-  typetag->info = info;
+  typetag->taginfo = taginfo;
   return TAGRESULT_SUCCESS;
 }
 
@@ -145,7 +145,7 @@ StructInfo *find_struct(Scope *scope, const Name *name, Scope **pscope) {
     if (typetag != NULL) {
       if (pscope != NULL)
         *pscope = scope;
-      return typetag->kind == TAG_STRUCT ? typetag->info : NULL;
+      return typetag->kind == TAG_STRUCT ? typetag->taginfo : NULL;
     }
   }
   if (pscope != NULL)
@@ -161,7 +161,7 @@ EnumInfo *find_enum(Scope *scope, const Name *name, Scope **pscope) {
     if (typetag != NULL) {
       if (pscope != NULL)
         *pscope = scope;
-      return typetag->kind == TAG_ENUM ? typetag->info : NULL;
+      return typetag->kind == TAG_ENUM ? typetag->taginfo : NULL;
     }
   }
   if (pscope != NULL)

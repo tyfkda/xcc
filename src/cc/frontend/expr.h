@@ -14,8 +14,8 @@ Expr *make_refer(const Token *tok, Expr *expr);
 Expr *promote_to_int(Expr *expr);
 Expr *make_expr_num_bop(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs);
 #ifndef __NO_BITFIELD
-Expr *extract_bitfield_value(Expr *src, const MemberInfo *minfo);
-Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInfo *minfo);
+Expr *extract_bitfield_value(Expr *src, const MemberInfo *member);
+Expr *assign_to_bitfield(const Token *tok, Expr *lhs, Expr *rhs, const MemberInfo *member);
 #endif
 Expr *incdec_of(enum ExprKind kind, Expr *target, const Token *tok);
 Expr *make_expr_cmp(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs);
