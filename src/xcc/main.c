@@ -225,15 +225,19 @@ static int compile_csource(const char *source_fn, enum OutType out_type, const c
 static int compile_asm(const char *source_fn, enum OutType out_type, const char *ofn, int ofd,
                        Vector *as_cmd, Vector *ld_cmd) {
   const char *objfn = NULL;
+  int obj_fd = -1;
   if (out_type > OutAssembly) {
     if (ofn != NULL && out_type < OutExecutable) {
       objfn = ofn;
     } else {
-      size_t len = strlen(source_fn);
-      char *p = malloc_or_die(len + 3);
-      memcpy(p, source_fn, len);
-      strcpy(p + len, ".o");
-      objfn = p;
+      char template[] = "/tmp/xcc-XXXXXX.o";
+      obj_fd = mkstemps(template, 2);
+      if (obj_fd == -1) {
+        perror("Failed to open output file");
+        exit(1);
+      }
+      objfn = strdup(template);
+      vec_push(&remove_on_exit, objfn);
     }
 
     assert(as_cmd->len >= 3);
@@ -244,6 +248,9 @@ static int compile_asm(const char *source_fn, enum OutType out_type, const char 
   int status = 0;
   pid_t as_pid = exec_with_ofd((char**)as_cmd->data, ofd);
   waitpid(as_pid, &status, 0);
+  if (obj_fd != -1) {
+    close(obj_fd);
+  }
 
   if (out_type >= OutExecutable)
     vec_push(ld_cmd, objfn);
