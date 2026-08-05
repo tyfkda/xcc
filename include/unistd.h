@@ -41,6 +41,8 @@ int chdir(const char *path);
 int brk(void *addr);
 void *sbrk(intptr_t increment);
 
+long syscall(long number, ...);
+
 #if !defined(__wasm)
 int unlinkat(int dirfd, const char *pathname, int flags);
 int dup(int);
