@@ -8,7 +8,6 @@
 
 #include "ast.h"
 #include "be_aux.h"
-#include "expr.h"
 #include "fe_misc.h"  // curscope, extract_bitfield_vale
 #include "ir.h"
 #include "regalloc.h"
@@ -284,7 +283,7 @@ static VReg *gen_ref_sub(Expr *expr) {
 }
 
 static VReg *gen_lval(Expr *expr) {
-  return gen_ref_sub(reduce_refer(expr));
+  return gen_ref_sub(expr);
 }
 
 static VReg *gen_variable(Expr *expr) {

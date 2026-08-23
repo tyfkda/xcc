@@ -4,7 +4,6 @@
 #include <assert.h>
 
 #include "ast.h"
-#include "expr.h"
 #include "fe_misc.h"  // curfunc, curscope
 #include "table.h"
 #include "type.h"
@@ -256,22 +255,19 @@ static Expr *gen_struct_funarg(Expr *arg, FuncallWork *work, size_t offset) {
   const Type *type = arg->type;
   Expr *dst = NULL;
   size_t size = type_size(type);
+  Expr *lspvar = work->lspvar;
+  assert(lspvar != NULL);
+  dst = lspvar;
+  // _memcpy(local.sp + offset, &arg, size);
+  if (offset != 0)
+    dst = new_expr_bop(EX_ADD, &tyVoidPtr, NULL, lspvar, new_expr_fixlit(&tySize, NULL, offset));
   if (size > 0) {
-    Expr *lspvar = work->lspvar;
-    assert(lspvar != NULL);
-    dst = lspvar;
-    // _memcpy(local.sp + offset, &arg, size);
-    if (offset != 0)
-      dst = new_expr_bop(EX_ADD, &tyVoidPtr, NULL, lspvar, new_expr_fixlit(&tySize, NULL, offset));
     gen_expr(dst, true);
     gen_expr(arg, true);
 
     ADD_CODE(OP_I32_CONST);
     ADD_LEB128(size);
     ADD_CODE(OP_0xFC, OPFC_MEMORY_COPY, 0, 0);
-  } else {
-    // TODO: Suppress zero sized struct.
-    dst = make_refer(arg->token, arg);
   }
   return dst;
 }
@@ -603,7 +599,7 @@ static void gen_ref_sub(Expr *expr) {
 }
 
 void gen_lval(Expr *expr) {
-  gen_ref_sub(reduce_refer(expr));
+  gen_ref_sub(expr);
 }
 
 static void gen_var(Expr *expr, bool needval) {

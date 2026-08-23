@@ -167,8 +167,11 @@ size_t calc_funcall_work_size(Expr *expr) {
   for (int i = 0; i < param_count; ++i) {
     Expr *arg = args->data[i];
     const Type *type = arg->type;
-    if (is_stack_param(type) && !is_small_struct(type))
-      work_size = ALIGN(work_size, align_size(type)) + type_size(type);
+    if (is_stack_param(type) && !is_small_struct(type)) {
+      size_t size = type_size(type);
+      size = MAX(size, 1);
+      work_size = ALIGN(work_size, align_size(type)) + size;
+    }
   }
 
   if (functype->func.vaargs) {
@@ -180,6 +183,7 @@ size_t calc_funcall_work_size(Expr *expr) {
         const Type *type = arg->type;
         assert(!(type->kind == TY_FIXNUM && type->fixnum.kind < FX_INT));
         size_t size = type_size(type), align = align_size(type);
+        size = MAX(size, 1);
         if (is_stack_param(type)) {
           indirect_size += ALIGN(indirect_size, align) + size;
           size = align = TARGET_POINTER_SIZE;
