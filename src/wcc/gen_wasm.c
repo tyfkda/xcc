@@ -96,6 +96,9 @@ void gen_cond(Expr *cond, bool tf, bool needval) {
     gen_expr(cond->bop.lhs, false);
     gen_cond(cond->bop.rhs, tf, needval);
     break;
+  case EX_EXPECT:
+    gen_cond(cond->bop.lhs, tf, needval);
+    break;
   default: assert(false); break;
   }
 }

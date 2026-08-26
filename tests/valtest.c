@@ -2543,6 +2543,10 @@ TEST(builtin_expect) {
     EXPECT("ternary expect, fail", 22, y);
     y = __builtin_expect(x < 100, true) ? 44 : 55;
     EXPECT("ternary expect, hit", 44, y);
+
+    EXPECT("ternary expect && expect, fail", 77,
+           (__builtin_expect(x > 1, true) &&
+            __builtin_expect(x < 100, true)) ? 66 : 77);
   }
   {
     int acc, i;

@@ -169,6 +169,9 @@ void gen_cond_jmp(Expr *cond, BB *tbb, BB *fbb) {
     gen_expr(cond->bop.lhs);
     gen_cond_jmp(cond->bop.rhs, tbb, fbb);
     break;
+  case EX_EXPECT:
+    gen_cond_jmp(cond->bop.lhs, tbb, fbb);
+    break;
   default: assert(false); break;
   }
 }
