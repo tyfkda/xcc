@@ -38,7 +38,7 @@
     "alpinejs": "~3.14.9",
     "buffer": "~6.0.3",
     "core-js": "~3.41.0",
-    "fflate": "~0.8.2",
+    "fflate": "~0.8.3",
     "path-browserify": "~1.0.1",
     "split.js": "~1.6.5"
   }
