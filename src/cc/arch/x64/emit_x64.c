@@ -234,7 +234,6 @@ void emit_defun_body(Function *func) {
       _GLOBL(label);
     else
       _LOCAL(label);
-    EMIT_ALIGN(2);
 #if XCC_TARGET_PLATFORM != XCC_PLATFORM_APPLE
     EMIT_ASM(".type", quote_label(fmt_name(name)), "@function");
 #endif
