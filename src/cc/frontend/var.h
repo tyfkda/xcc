@@ -71,7 +71,9 @@ void init_global(void);
 
 int var_find(const Vector *vars, const Name *name);  // <VarInfo*>
 VarInfo *var_add(Vector *vars, const Token *name, Type *type, int storage);  // <VarInfo*>
-static inline bool is_local_storage(const VarInfo *varinfo)  { return !(varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER | VS_TYPEDEF)); }
+static inline bool is_local_storage(const VarInfo *varinfo) {
+  return !(varinfo->storage & (VS_STATIC | VS_EXTERN | VS_ENUM_MEMBER | VS_TYPEDEF));
+}
 
 // Scope
 

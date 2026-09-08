@@ -354,7 +354,8 @@ Expr *used_as_value_for_func(Expr *expr, bool for_func) {
     {
       const MemberInfo *member = expr->member.info;
       if (member->bitfield.width > 0) {
-        Type *type = get_fixnum_type(member->bitfield.base_kind, member->type->fixnum.is_unsigned, 0);
+        Type *type = get_fixnum_type(member->bitfield.base_kind, member->type->fixnum.is_unsigned,
+                                     0);
         Expr *ptr = make_cast(ptrof(type), expr->token, make_refer(expr->token, expr), true);
         Expr *load = new_expr_deref(NULL, ptr);
         return extract_bitfield_value(load, member);

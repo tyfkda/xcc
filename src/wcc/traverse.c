@@ -1121,7 +1121,8 @@ static inline void assign_function_index(Vector *decls) {
   for (int i = 0; i < alias_funcs.len; ++i) {
     FuncInfo *finfo = alias_funcs.data[i];
     finfo->index = index++;
-    VERBOSE("%2d: %.*s  (alias: %.*s)\n", finfo->index, NAMES(finfo->func_name), NAMES(finfo->varinfo->global.alias->ident->ident));
+    VERBOSE("%2d: %.*s  (alias: %.*s)\n", finfo->index, NAMES(finfo->func_name),
+            NAMES(finfo->varinfo->global.alias->ident->ident));
   }
   vec_release(&alias_funcs);
   VERBOSES("\n");

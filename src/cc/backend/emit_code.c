@@ -532,7 +532,8 @@ static void emit_defun(Function *func) {
       emit_comment(NULL);
       for (int i = 0; i < vars->len; ++i) {
         VarInfo *varinfo = vars->data[i];
-        assert(!((varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) || varinfo->type->kind == TY_FUNC));
+        assert(!((varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
+                 varinfo->type->kind == TY_FUNC));
         emit_varinfo(varinfo, varinfo->global.init);
       }
     }
@@ -565,7 +566,8 @@ static inline void emit_alias(const VarInfo *varinfo, const VarInfo *alias) {
     _GLOBL(label);
   else
     _LOCAL(label);
-  const char *alias_label = format_func_name(alias->ident->ident, (alias->storage & VS_STATIC) == 0);
+  const char *alias_label = format_func_name(
+      alias->ident->ident, (alias->storage & VS_STATIC) == 0);
 #if XCC_TARGET_PLATFORM == XCC_PLATFORM_APPLE
   emit_asm_raw(fmt("%s = %s\n", label, alias_label));
 #else

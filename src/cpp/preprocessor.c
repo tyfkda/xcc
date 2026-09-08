@@ -688,7 +688,8 @@ void set_preserve_comment(bool enable) {
   preserve_comment = enable;
 }
 
-static bool process_conditional_directive(PreprocessFile *ppf, const char *directive, const char **pnext) {
+static bool process_conditional_directive(PreprocessFile *ppf, const char *directive,
+                                          const char **pnext) {
   bool result = false;
   enum {
     IFDEF,

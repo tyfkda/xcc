@@ -105,7 +105,8 @@ SectionInfo *get_section_info(ParseInfo *parser, const char *name, const char *s
   return section;
 }
 
-SectionInfo *set_current_section(ParseInfo *parser, const char *name, const char *segname, int flag) {
+SectionInfo *set_current_section(ParseInfo *parser, const char *name, const char *segname,
+                                 int flag) {
   SectionInfo *section = get_section_info(parser, name, segname, flag);
   parser->current_section = section;
   return section;

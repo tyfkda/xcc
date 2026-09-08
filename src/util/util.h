@@ -112,8 +112,12 @@ void sb_init(StringBuffer *sb);
 void sb_clear(StringBuffer *sb);
 bool sb_empty(StringBuffer *sb);
 void sb_insert(StringBuffer *sb, int pos, const char *start, const char *end);
-static inline void sb_append(StringBuffer *sb, const char *start, const char *end)  { sb_insert(sb, sb->elems->len, start, end); }
-static inline void sb_prepend(StringBuffer *sb, const char *start, const char *end)  { sb_insert(sb, 0, start, end); }
+static inline void sb_append(StringBuffer *sb, const char *start, const char *end) {
+  sb_insert(sb, sb->elems->len, start, end);
+}
+static inline void sb_prepend(StringBuffer *sb, const char *start, const char *end) {
+  sb_insert(sb, 0, start, end);
+}
 char *sb_join(StringBuffer *sb, const char *separator);
 static inline char *sb_to_string(StringBuffer *sb)  { return sb_join(sb, NULL); }
 

@@ -818,7 +818,8 @@ static unsigned char *asm_add_ir(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_add_iir(Inst *inst, Code *code) {
-  assert(inst->opr[0].indirect_with_index.offset->kind == EX_FIXNUM && inst->opr[0].indirect_with_index.offset->fixnum == 0);  // TODO
+  assert(inst->opr[0].indirect_with_index.offset->kind == EX_FIXNUM &&
+         inst->opr[0].indirect_with_index.offset->fixnum == 0);  // TODO
   unsigned char scale = 0;
   Expr *scale_expr = inst->opr[0].indirect_with_index.scale;
   if (scale_expr != NULL) {
@@ -938,7 +939,8 @@ static unsigned char *asm_sub_ir(Inst *inst, Code *code) {
 }
 
 static unsigned char *asm_sub_iir(Inst *inst, Code *code) {
-  assert(inst->opr[0].indirect_with_index.offset->kind == EX_FIXNUM && inst->opr[0].indirect_with_index.offset->fixnum == 0);  // TODO
+  assert(inst->opr[0].indirect_with_index.offset->kind == EX_FIXNUM &&
+         inst->opr[0].indirect_with_index.offset->fixnum == 0);  // TODO
   unsigned char scale = 0;
   Expr *scale_expr = inst->opr[0].indirect_with_index.scale;
   if (scale_expr != NULL) {
@@ -1421,7 +1423,7 @@ static unsigned char *asm_popcnt(Inst *inst, Code *code) {
   int sno = opr_regno(&inst->opr[0].reg);
   int dno = opr_regno(&inst->opr[1].reg);
   short buf[] = {
-    (size) == REG16 ? 0x66 : -1, \
+    (size) == REG16 ? 0x66 : -1,
     prefix,
     sno >= 8 || dno >= 8 || size == REG64 ? (unsigned char)0x40 | ((sno & 8) >> 3) | ((dno & 8) >> 1) | (size != REG64 ? 0 : 8) : -1,
     0x0f,
@@ -1537,7 +1539,8 @@ static unsigned char *asm_jmp_deii(Inst *inst, Code *code) {
       short b = inst->opr[0].indirect_with_index.base_reg.no;
       short scale_bit = most_significant_bit(scale);
       short i = inst->opr[0].indirect_with_index.index_reg.no;
-      short prefix = inst->opr[0].indirect_with_index.base_reg.x | (inst->opr[0].indirect_with_index.index_reg.x << 1);
+      short prefix = inst->opr[0].indirect_with_index.base_reg.x |
+                     (inst->opr[0].indirect_with_index.index_reg.x << 1);
       short offset_bit = offset == 0 && b != RBP - RAX ? 0x20 : is_im8(offset) ? 0x60 : 0xa0;
       short buf[] = {
         prefix != 0 ? 0x40 | prefix : -1,

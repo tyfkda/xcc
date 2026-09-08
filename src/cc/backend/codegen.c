@@ -501,7 +501,8 @@ static void gen_switch_cond_table_jump(Stmt *swtch, VReg *vreg, Stmt **cases, in
   BB *nextbb = new_bb();
   VReg *val = vreg;
   if (min != 0)
-    val = new_ir_bop(IR_SUB, vreg, new_const_vreg(min, vreg->vsize, vreg->flag & VRF_MASK), vreg->vsize);
+    val = new_ir_bop(IR_SUB, vreg, new_const_vreg(min, vreg->vsize, vreg->flag & VRF_MASK),
+                     vreg->vsize);
   if (!(val->flag & VRF_UNSIGNED))
     val = new_ir_cast(val, val->vsize, (val->flag & VRF_MASK) | VRF_UNSIGNED)->dst;
   new_ir_cjmp(val, new_const_vreg(max - min, val->vsize, val->flag & VRF_MASK), COND_GT, skip_bb);
@@ -990,7 +991,8 @@ static size_t alloc_params_onto_stack_frame(Function *func, bool *prequire_stack
 #if VAARG_FP_AS_GP
     // Register parameters are put below stack frame, so not added to frame_size.
 #else
-    frame_size = (kArchSetting.max_reg_args[GPREG] + kArchSetting.max_reg_args[FPREG]) * TARGET_POINTER_SIZE;
+    int total = kArchSetting.max_reg_args[GPREG] + kArchSetting.max_reg_args[FPREG];
+    frame_size = total * TARGET_POINTER_SIZE;
 #endif
   }
 

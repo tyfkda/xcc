@@ -1040,7 +1040,8 @@ static void parse_global_var_decl(ParsedTypeInfo *tinfo, Type *type, Vector *dec
         if (tinfo->ident == NULL) {
           parse_error(PE_NOFATAL, NULL, "ident expected");
         } else {
-          Function *func = define_func(type, tinfo->ident, type->func.param_vars, tinfo->storage, attributes);
+          Function *func = define_func(type, tinfo->ident, type->func.param_vars, tinfo->storage,
+                                       attributes);
           varinfo = scope_find(global_scope, tinfo->ident->ident, NULL);
           assert(varinfo != NULL);
 
@@ -1058,7 +1059,8 @@ static void parse_global_var_decl(ParsedTypeInfo *tinfo, Type *type, Vector *dec
       } else {
         bool has_initializer = match(TK_ASSIGN) != NULL;
         if (tinfo->ident != NULL) {
-          varinfo = add_var_to_scope(global_scope, tinfo->ident, type, tinfo->storage, !has_initializer);
+          varinfo = add_var_to_scope(global_scope, tinfo->ident, type, tinfo->storage,
+                                     !has_initializer);
           if (same_type(type, varinfo->type))
             init = varinfo->global.init;
           else

@@ -132,7 +132,6 @@ enum OperandType {
   SEGMENT_OFFSET,
 };
 
-
 #define LF_GOTPCREL  (1 << 0)
 
 typedef struct {

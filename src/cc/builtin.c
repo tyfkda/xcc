@@ -205,7 +205,8 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     if (t->kind == TY_STRUCT) {
       // Small struct:   allow single member only, so it passed by 1 argument.
       // Large struct:   passed as pointer, so it passed by 1 argument.
-      gn += is_small_struct(t) ? (type_size(t) + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE : 1;
+      gn += is_small_struct(t) ? (type_size(t) + (TARGET_POINTER_SIZE - 1)) / TARGET_POINTER_SIZE
+                               : 1;
     } else {
       if (!is_flonum(t))
         ++gn;
@@ -250,7 +251,9 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   VReg *p = new_ir_bofs(fi)->dst;
   if (offset > 0) {
     enum VRegSize vsize = to_vsize(&tyVoidPtr);
-    p = new_ir_bop(IR_ADD, p, new_const_vreg(ALIGN(offset, TARGET_POINTER_SIZE), vsize, VRF_UNSIGNED), vsize);
+    p = new_ir_bop(IR_ADD, p,
+                   new_const_vreg(ALIGN(offset, TARGET_POINTER_SIZE), vsize, VRF_UNSIGNED),
+                   vsize);
   }
 
   // (void)(ap = fp + <vaarg saved offset>)
@@ -323,7 +326,8 @@ static VReg *gen_builtin_va_start(Expr *expr) {
                               to_vsize(&tyInt), VRF_UNSIGNED));
 
   // ap->fp_offset = (MAX_REG_ARGS[FPREG] + reg_count[FPREG]) * TARGET_POINTER_SIZE
-  VReg *fp_offset = new_ir_bop(IR_ADD, ap, new_const_vreg(type_size(&tyInt), to_vsize(&tySize), VRF_UNSIGNED),
+  VReg *fp_offset = new_ir_bop(IR_ADD, ap,
+                               new_const_vreg(type_size(&tyInt), to_vsize(&tySize), VRF_UNSIGNED),
                                ap->vsize);
   new_ir_store(fp_offset, 0,
                new_const_vreg((MAX_REG_ARGS[GPREG] + MIN(reg_count[FPREG], MAX_REG_ARGS[FPREG])) *
@@ -334,7 +338,8 @@ static VReg *gen_builtin_va_start(Expr *expr) {
   {
     enum VRegSize vsize = to_vsize(&tyVoidPtr);
     VReg *overflow_arg_area = new_ir_bop(
-        IR_ADD, ap, new_const_vreg(type_size(&tyInt) + type_size(&tyInt), vsize, VRF_UNSIGNED), vsize);
+        IR_ADD, ap, new_const_vreg(type_size(&tyInt) + type_size(&tyInt), vsize, VRF_UNSIGNED),
+        vsize);
     FuncBackend *fnbe = curfunc->extra;
     FrameInfo *fi = &fnbe->vaarg_frame_info;
     VReg *p = new_ir_bofs(fi)->dst;
@@ -353,7 +358,8 @@ static VReg *gen_builtin_va_start(Expr *expr) {
     enum VRegSize vsize = to_vsize(&tyVoidPtr);
     VReg *reg_save_area = new_ir_bop(
         IR_ADD, ap,
-        new_const_vreg(type_size(&tyInt) + type_size(&tyInt) + type_size(&tyVoidPtr), vsize, VRF_UNSIGNED),
+        new_const_vreg(type_size(&tyInt) + type_size(&tyInt) + type_size(&tyVoidPtr), vsize,
+                       VRF_UNSIGNED),
         vsize);
     FrameInfo *fi = calloc_or_die(sizeof(*fi));
     fi->offset = -(MAX_REG_ARGS[GPREG] + MAX_REG_ARGS[FPREG]) * TARGET_POINTER_SIZE;

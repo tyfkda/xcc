@@ -69,15 +69,15 @@ static void construct_symtab(Symtab *symtab, Table *label_table, uint64_t start_
     for (int it = 0; (it = table_iterate(label_table, it, &name, (void**)&label)) != -1; ) {
       switch (sk) {
       case LOCAL:
-        if (!(!(label->flag & LF_GLOBAL) && (label->flag & LF_REFERRED)))
+        if ((label->flag & LF_GLOBAL) || !(label->flag & LF_REFERRED))
           continue;
         break;
       case EXTERNAL:
-        if (!((label->flag & LF_GLOBAL) && (label->flag & LF_DEFINED) && !(label->flag & LF_COMM)))
+        if (!(label->flag & LF_GLOBAL) || !(label->flag & LF_DEFINED) || (label->flag & LF_COMM))
           continue;
         break;
       case UNDEF:
-        if (!((label->flag & LF_GLOBAL) && (!(label->flag & LF_DEFINED) || (label->flag & LF_COMM))))
+        if (!(label->flag & LF_GLOBAL) || ((label->flag & LF_DEFINED) && !(label->flag & LF_COMM)))
           continue;
         break;
       }
@@ -282,12 +282,10 @@ static inline void reverse_relas(Vector *sections) {
 }
 
 static inline uint64_t arrange_section_offsets(Work *work, int section_count) {
-  const uint32_t size_of_cmds =
-      sizeof(struct segment_command_64) +
+  const uint32_t size_of_cmds = sizeof(struct segment_command_64) +
       sizeof(struct section_64) * section_count +
       sizeof(struct build_version_command) +
-      sizeof(struct symtab_command) +
-      sizeof(struct dysymtab_command);
+                                sizeof(struct symtab_command) + sizeof(struct dysymtab_command);
   work->size_of_cmds = size_of_cmds;
   const uint64_t section_start_off = sizeof(struct mach_header_64) + size_of_cmds;
   work->section_start_off = section_start_off;

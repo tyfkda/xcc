@@ -463,7 +463,8 @@ static void read_linking(WasmObj *wasmobj, unsigned char *p, unsigned char *end)
   }
 }
 
-static DataSegmentForLink *find_target_data_segment(DataSegmentForLink *data_segments, uint32_t count, uint32_t offset) {
+static DataSegmentForLink *find_target_data_segment(
+    DataSegmentForLink *data_segments, uint32_t count, uint32_t offset) {
   int lo = -1, hi = count;
   while (hi - lo > 1) {
     const int m = lo + ((hi - lo) >> 1);
@@ -524,7 +525,8 @@ static void read_reloc(WasmObj *wasmobj, unsigned char *p, int is_data) {
       p->addend = addend;
 
       if (is_data) {  // Relocation is exist, so the correspoinding segment is not bss.
-        DataSegmentForLink *ds = find_target_data_segment(data_segments, data_segment_count, offset);
+        DataSegmentForLink *ds = find_target_data_segment(data_segments, data_segment_count,
+                                                          offset);
         assert(ds != NULL);
         ds->is_bss = false;
       }

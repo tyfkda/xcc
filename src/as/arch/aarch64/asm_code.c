@@ -337,7 +337,8 @@ static unsigned char *asm_ldrstr(Inst *inst, Code *code) {
           }
           s2 = n == b;
         }
-        W_LDR_R(b, opr1->reg.no, opr2->register_offset.base_reg.no, opr2->register_offset.index_reg.no, s, s2, opt);
+        W_LDR_R(b, opr1->reg.no, opr2->register_offset.base_reg.no,
+                opr2->register_offset.index_reg.no, s, s2, opt);
       }
       break;
     case STRB: case STRH: case STR:

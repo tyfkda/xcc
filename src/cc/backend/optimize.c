@@ -572,12 +572,13 @@ static inline int muldiv_to_shift(RegAlloc *ra, BB *bb, int i) {
       int bits = TARGET_CHAR_BIT << vsize;
       VReg *tmps = reg_alloc_spawn(ra, vsize, ir->opr1->flag & VRF_MASK);
       IR *mov_to_tmps = new_ir_mov(tmps, ir->opr1);
-      IR *sign_bit = new_ir_bop_raw(IR_RSHIFT, tmps, tmps,
-                                    reg_alloc_spawn_const(ra, bits - 1, vsize, tmps->flag & VRF_MASK));
+      IR *sign_bit = new_ir_bop_raw(
+          IR_RSHIFT, tmps, tmps, reg_alloc_spawn_const(ra, bits - 1, vsize, tmps->flag & VRF_MASK));
       IR *mov_to_tmpu = new_ir_cast(tmps, tmps->vsize, (tmps->flag & VRF_MASK) | VRF_UNSIGNED);
       VReg *tmpu = mov_to_tmpu->dst;
-      IR *addend = new_ir_bop_raw(IR_RSHIFT, tmpu, tmpu,
-                                  reg_alloc_spawn_const(ra, bits - shift, vsize, tmpu->flag & VRF_MASK));
+      IR *addend = new_ir_bop_raw(
+          IR_RSHIFT, tmpu, tmpu,
+          reg_alloc_spawn_const(ra, bits - shift, vsize, tmpu->flag & VRF_MASK));
       VReg *patched = reg_alloc_spawn(ra, vsize, ir->opr1->flag & VRF_MASK);
       IR *add = new_ir_bop_raw(IR_ADD, patched, ir->opr1, tmpu);
       vec_insert(bb->irs, i++, mov_to_tmps);

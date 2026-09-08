@@ -83,7 +83,8 @@ typedef struct ParseInfo {
   SectionInfo *current_section;
 } ParseInfo;
 
-SectionInfo *set_current_section(ParseInfo *parser, const char *name, const char *segname, int flag);
+SectionInfo *set_current_section(ParseInfo *parser, const char *name, const char *segname,
+                                 int flag);
 SectionInfo *get_section_info(ParseInfo *parser, const char *name, const char *segname, int flag);
 
 extern const char kSecText[];

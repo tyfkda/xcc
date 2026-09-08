@@ -269,7 +269,8 @@ static inline bool resolve_rela_element(const ResolveRelaWork *work, int j, Elf6
       const int PAGE = 12;
       const uint32_t MASK = ~0x60ffffe0;
       uint32_t d = (work->address >> PAGE) - (work->pc >> PAGE);
-      *(uint32_t*)work->p = (*(uint32_t*)work->p & MASK) | ((d & 0x03) << 29) | ((d & 0x1ffffc) << 3);
+      *(uint32_t*)work->p =
+          (*(uint32_t*)work->p & MASK) | ((d & 0x03) << 29) | ((d & 0x1ffffc) << 3);
     }
     break;
   case R_AARCH64_ADD_ABS_LO12_NC:  // S + A
@@ -281,7 +282,8 @@ static inline bool resolve_rela_element(const ResolveRelaWork *work, int j, Elf6
   case R_AARCH64_CALL26:  // S+A-P
     {
       const uint32_t MASK = -(1U << 26);
-      *(uint32_t*)work->p = (*(uint32_t*)work->p & MASK) | (((work->address - work->pc) >> 2) & ~MASK);
+      *(uint32_t*)work->p =
+          (*(uint32_t*)work->p & MASK) | (((work->address - work->pc) >> 2) & ~MASK);
     }
     break;
 
@@ -350,8 +352,10 @@ static inline bool resolve_rela_element(const ResolveRelaWork *work, int j, Elf6
              (rtype == R_RISCV_LO12_I &&
               hitype == R_RISCV_HI20));
       const Elf64_Sym *hisym = &work->symhdrinfo->symtab.syms[ELF64_R_SYM(hirela->r_info)];
-      uint64_t hiaddress = calc_rela_sym_address(work->ld, work->elfobj, hirela, hisym, work->strinfo);
-      uint64_t hipc = work->elfobj->section_infos[work->shdr->sh_info].progbits.address + hirela->r_offset;
+      uint64_t hiaddress = calc_rela_sym_address(work->ld, work->elfobj, hirela, hisym,
+                                                 work->strinfo);
+      uint64_t hipc = work->elfobj->section_infos[work->shdr->sh_info].progbits.address +
+                      hirela->r_offset;
 
       int64_t offset = hiaddress - (rtype == R_RISCV_PCREL_LO12_I ? hipc : 0);
       assert(offset < (1L << 31) && offset >= -(1L << 31));
@@ -1078,7 +1082,8 @@ static Symtab *generate_symbol_table(LinkEditor *ld, Vector *symbols) {
     OutSymbol *ds = symbols->data[i];
     while (ds->address >= next_address) {
       ++secno;
-      next_address = secno < SECTION_COUNT - 1 ? ld->section_groups[secno + 1].start_address : UINT64_MAX;
+      next_address = secno < SECTION_COUNT - 1 ? ld->section_groups[secno + 1].start_address
+                                               : UINT64_MAX;
     }
 
     uint64_t address = ds->address;

@@ -405,7 +405,8 @@ typedef struct {
   int regarg[2];  // [0]=gp-reg, [1]=fp-reg
 } FuncallWork;
 
-static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, FuncallWork *work, ArgInfo *arg_infos) {
+static inline ArgInfo *collect_funargs(const Type *functype, Vector *args, FuncallWork *work,
+                                       ArgInfo *arg_infos) {
   ssize_t offset = 0;
   int stack_arg_count = 0;
   int reg_arg_count[2] = {0, 0};
@@ -905,7 +906,8 @@ static VReg *gen_expr_incdec(Expr *expr) {
 #ifndef __NO_FLONUM
       is_flonum(target->type) ? gen_flonum(new_expr_flolit(target->type, NULL, 1)) :
 #endif
-          new_const_vreg(type->kind == TY_PTR ? type_size(type->pa.ptrof) : 1, vsize, to_vflag(type));
+          new_const_vreg(type->kind == TY_PTR ? type_size(type->pa.ptrof) : 1, vsize,
+                         to_vflag(type));
   VReg *after = new_ir_bop(kOpAddSub[IS_DEC(expr)], val, addend, vsize);
   if (varinfo != NULL)  new_ir_mov(varinfo->local.vreg, after);
   else                  new_ir_store(lval, 0, after);

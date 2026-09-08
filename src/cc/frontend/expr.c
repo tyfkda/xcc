@@ -861,7 +861,8 @@ Expr *incdec_of(enum ExprKind kind, Expr *target, const Token *tok) {
   return new_expr_unary(kind, target->type, tok, target);
 }
 
-static Expr *make_expr_cmp_const_folding(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
+static Expr *make_expr_cmp_const_folding(
+    enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
 #define JUDGE(kind, tf, l, r)               \
   switch (kind) {                           \
   default: assert(false); /* Fallthrough */ \
@@ -937,7 +938,8 @@ static Expr *make_expr_cmp_const_folding(enum ExprKind kind, const Token *tok, E
 #undef JUDGE
 }
 
-static Expr *make_expr_equality_unnested(enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
+static Expr *make_expr_equality_unnested(
+    enum ExprKind kind, const Token *tok, Expr *lhs, Expr *rhs) {
   // !(x == true) => x != true
   // !(x && y) => !x || !y
 
@@ -1022,7 +1024,8 @@ static Expr *make_expr_equality_unnested(enum ExprKind kind, const Token *tok, E
   return NULL;
 }
 
-static Expr *make_expr_cmp_check_range(enum ExprKind kind, const Token *tok, Expr **pLhs, Expr **pRhs) {
+static Expr *make_expr_cmp_check_range(
+    enum ExprKind kind, const Token *tok, Expr **pLhs, Expr **pRhs) {
   Expr *lhs = *pLhs;
   Expr *rhs = *pRhs;
   bool swapped = false;

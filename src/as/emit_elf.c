@@ -276,7 +276,7 @@ static inline void construct_rela_element(
 
       rela->r_offset = u->offset;
       rela->r_info = ELF64_R_INFO(symidx, u->kind == UNRES_RISCV_JAL ? R_RISCV_JAL
-                                                                      : R_RISCV_RVC_JUMP);
+                                                                     : R_RISCV_RVC_JUMP);
       rela->r_addend = u->add;
     }
     break;

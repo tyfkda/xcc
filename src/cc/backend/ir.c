@@ -118,7 +118,8 @@ VReg *new_ir_bop(enum IrKind kind, VReg *opr1, VReg *opr2, enum VRegSize vsize) 
           break;
         default: assert(false); break;
         }
-        return new_const_vreg(wrap_value(value, 1 << vsize, (opr1->flag & VRF_UNSIGNED) != 0), vsize, opr1->flag & VRF_MASK);
+        return new_const_vreg(wrap_value(value, 1 << vsize, (opr1->flag & VRF_UNSIGNED) != 0),
+                              vsize, opr1->flag & VRF_MASK);
       } else {
         switch (kind) {
         case IR_ADD:
@@ -222,7 +223,8 @@ VReg *new_ir_unary(enum IrKind kind, VReg *opr, enum VRegSize vsize) {
     case IR_BITNOT:  value = ~opr->fixnum; break;
     default: assert(false); break;
     }
-    return new_const_vreg(wrap_value(value, 1 << vsize, (opr->flag & VRF_UNSIGNED) != 0), vsize, opr->flag & VRF_MASK);
+    return new_const_vreg(wrap_value(value, 1 << vsize, (opr->flag & VRF_UNSIGNED) != 0), vsize,
+                          opr->flag & VRF_MASK);
   }
 
   IR *ir = new_ir(kind);
