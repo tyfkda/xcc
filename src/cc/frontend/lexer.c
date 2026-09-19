@@ -182,7 +182,7 @@ static int backslash(int c, bool is_wide, const char **pp) {
       }
       *pp = p - 1;
       if (!is_wide)
-        vv = (char)vv;
+        vv = (signed char)vv;
       return vv;
     }
   case 'x':
@@ -197,7 +197,7 @@ static int backslash(int c, bool is_wide, const char **pp) {
       }
       *pp = p - 1;
       if (!is_wide)
-        vv = (char)vv;
+        vv = (signed char)vv;
       return vv;
     }
   case 'a':  return '\a';
