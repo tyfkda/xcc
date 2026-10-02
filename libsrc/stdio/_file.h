@@ -43,6 +43,7 @@ extern int _fflush(FILE *fp);
 
 extern void _add_opened_file(FILE *fp);
 extern void _remove_opened_file(FILE *fp);
+extern void _flush_opened_files(void);
 extern int _detect_open_flag(const char *mode);
 
 static inline int _fputc(int c, FILE *fp) {

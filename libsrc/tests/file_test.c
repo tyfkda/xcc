@@ -115,4 +115,24 @@ TEST(ungetc) {
   }
 }
 
+TEST(fflush_null) {
+  // fflush(NULL) must flush all output streams (C11 7.21.5.2p2).
+  const char fn[] = "tmp_fflush_null.txt";
+  FILE *fp = fopen(fn, "w");
+  if (EXPECT_NOT_NULL(fp)) {
+    // No newline, so the data stays buffered until flushed.
+    EXPECT_EQ(5, fwrite("hello", 1, 5, fp));
+    EXPECT_EQ(0, fflush(NULL));
+    // Data must have reached the file before fclose.
+    struct stat st;
+    if (EXPECT_EQ(0, stat(fn, &st))) {
+      EXPECT_EQ(5, st.st_size);
+    }
+    EXPECT_EQ(0, fclose(fp));
+    EXPECT_EQ(0, remove(fn));
+  }
+  // No opened files: still succeeds.
+  EXPECT_EQ(0, fflush(NULL));
+}
+
 XTEST_MAIN();
