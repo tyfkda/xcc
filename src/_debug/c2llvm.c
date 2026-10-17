@@ -300,18 +300,57 @@ static void dir_pusharg(FILE *fp, IR *ir, RegAlloc *ra) {
 }
 
 static void dir_call(FILE *fp, IR *ir, RegAlloc *ra) {
-  fprintf(fp, "\t");
-  if (ir->dst != NULL) {
-    dump_vreg(fp, ir->dst, ra);
-    fprintf(fp, " = ");
+  int valNoFunc = -1;
+  if (ir->call->label == NULL) {
+    valNoFunc = load_value(fp, ir->opr1, ra);
+  }
+
+  VReg **args = ir->call->args;
+  Vector *argValNos = new_vector();
+  for (int i = 0, n = ir->call->total_arg_count; i < n; ++i) {
+    VReg *arg = args[i];
+    int valNo = load_value(fp, arg, ra);
+    vec_push(argValNos, INT2VOIDP(valNo));
+  }
+
+  int valNoDst = -1;
+  VReg *dst = ir->dst;
+  if (dst != NULL) {
+    valNoDst = ++tmpValNo;
+    if (!(dst->flag & _VRF_ALLOCATED))
+      assert(dst->phys < 0), dst->phys = tmpValNo;
+    fprintf(fp, "\t%%%d = call %s ", valNoDst, get_llvm_type_from_vreg(dst));
+  } else {
+    fprintf(fp, "\tcall void ");
+  }
+  if (ir->call->vaarg_start >= 0) {
+    fprintf(fp, "(");
+    int n = ir->call->vaarg_start;
+    for (int i = 0; i < n; ++i) {
+      if (i != 0)
+        fprintf(fp, ", ");
+      VReg *arg = args[i];
+      fprintf(fp, "%s", get_llvm_type_from_vreg(arg));
+    }
+    fprintf(fp, "%s...) ", n > 0 ? ", " : "");
   }
   if (ir->call->label != NULL) {
-    fprintf(fp, "%.*s(args=#%d)\n", NAMES(ir->call->label), ir->call->reg_arg_count);
+    fprintf(fp, "@%.*s(", NAMES(ir->call->label));
   } else {
-    fprintf(fp, "*");
-    dump_vreg(fp, ir->opr1, ra);
-    fprintf(fp, "(args=#%d)\n", ir->call->reg_arg_count);
+    fprintf(fp, "%%%d(", valNoFunc);
   }
+
+  for (int i = 0, n = ir->call->total_arg_count; i < n; ++i) {
+    if (i != 0)
+      fprintf(fp, ", ");
+    VReg *arg = args[i];
+    int valNo = VOIDP2INT(argValNos->data[i]);
+    fprintf(fp, "%s ", get_llvm_type_from_vreg(arg));
+    dump_value(fp, arg, valNo);
+  }
+  fprintf(fp, ")\n");
+
+  free_vector(argValNos);
 }
 
 static void dir_keep(FILE *fp, IR *ir, RegAlloc *ra) {
@@ -378,6 +417,9 @@ static void dump_func_param(FILE *fp, const Type *functype) {
       else
         fprintf(fp, "%s %%.param.%.*s", get_llvm_type_from_vreg(vreg), NAMES(varinfo->ident->ident));
     }
+
+    if (functype->func.vaargs)
+      fprintf(fp, "%s...", functype->func.param_vars->len > 0 ? ", " : "");
   }
 }
 
@@ -414,6 +456,10 @@ static void dump_func_ir(FILE *fp, Function *func) {
         fprintf(fp, ", param(%d)", vreg->reg_param_index);
       }
       fprintf(fp, "\n");
+
+      if (vreg->flag & VRF_PARAM) {
+        fprintf(fp, "\tstore %s %%.param.%.*s, ptr %%V%d\n", get_llvm_type_from_vreg(vreg), NAMES(varinfo->ident->ident), vreg->virt + 1);
+      }
     }
   }
   for (int i = 0; i < stack_vars->len; ++i) {

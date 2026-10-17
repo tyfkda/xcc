@@ -1,6 +1,10 @@
-int main(void) {
+int sum(int n) {
     int acc = 0;
-    for (int i = 1; i <= 5; ++i)
+    for (int i = 1; i <= n; ++i)
         acc += i;
     return acc;
+}
+
+int main(int argc, char *argv[]) {
+    return sum(10);
 }
