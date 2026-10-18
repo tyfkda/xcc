@@ -1,11 +1,15 @@
 #include <assert.h>
+#include <ctype.h>
 #include <inttypes.h>  // PRId64, PRIdPTR
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "cc_misc.h"
 #include "codegen.h"
+#include "emit_code.h"
 #include "fe_misc.h"
+#include "initializer.h"
 #include "ir.h"
 #include "lexer.h"
 #include "optimize.h"
@@ -116,6 +120,154 @@ static void dump_vregs(FILE *fp, const char *title, Vector *regs, bool newline) 
     fprintf(fp, "]");
 }
 
+////////////////////////////////////////////////
+
+static const char *escape_hex(int c) {
+  char *s = malloc_or_die(5);
+  // Escaping with hex-digits are not limited, so it may be broken if hex character followed.
+  // Must use octal: octal is 3 digits.
+  snprintf(s, 5, "\\%02x", c & 0xff);
+  return s;
+}
+
+static const char *escape(int c) {
+  switch (c) {
+  case '\0': return "\\00";  // "\nnn": Octal, atmost 3 digits in assembler.
+  // case '\n': return "\\n";
+  // case '\r': return "\\r";
+  // case '\t': return "\\t";
+  case '"': return "\\\"";
+  case '\\': return "\\\\";
+  default:
+    if (c < 0x20 || c >= 0x7f)
+      return escape_hex(c);
+    return NULL;
+  }
+}
+
+static void escape_string_for_llvm(const char *str, size_t size, StringBuffer *sb) {
+  const char *s, *p;
+  const char *end = str + size;
+  bool hex = false;
+  for (s = p = str; p < end; ++p) {
+    const char *e;
+    if (hex && isxdigit(*p)) {
+      e = escape_hex(*p);
+    } else {
+      e = escape(*p);
+      if (e == NULL) {
+        hex = false;
+        continue;
+      }
+    }
+
+    if (p > s)
+      sb_append(sb, s, p);
+    sb_append(sb, e, NULL);
+    s = p + 1;
+    hex = e[1] == 'x';
+  }
+  if (p > s) {
+    assert(!hex);
+    sb_append(sb, s, p);
+  }
+}
+
+static void emit_align(void *ud, int align) {
+  UNUSED(ud);
+  UNUSED(align);
+}
+static void emit_number(void *ud, const Type *type, Expr *var, int64_t offset) {
+  FILE *fp = ud;
+  const char *output;
+  if (var == NULL) {
+    output = is_flonum(type) ? hexnum(offset) : num(offset);
+  } else {
+    const Name *name = var->var.name;
+    Scope *scope;
+    VarInfo *varinfo = scope_find(var->var.scope, name, &scope);
+    assert(varinfo != NULL);
+    if (!is_global_scope(scope) && varinfo->storage & VS_STATIC) {
+      varinfo = varinfo->static_.svar;
+      assert(varinfo != NULL);
+      name = varinfo->ident->ident;
+    }
+
+    char *label = fmt_name(name);
+    label = quote_label(label);
+    if (offset == 0) {
+      output = label;
+    } else {
+      output = fmt("%s + %" PRId64, label, offset);
+    }
+  }
+
+  // switch (type_size(type)) {
+  // case 1: _BYTE(output); break;
+  // case 2: _SHORT(output); break;
+  // case 4: _LONG(output); break;
+  // case 8: _QUAD(output); break;
+  // default: assert(false); break;
+  // }
+  fprintf(fp, "%s %s", get_llvm_type(type), output);
+}
+static void emit_string(void *ud, Expr *str, size_t size) {
+  FILE *fp = ud;
+  assert(str->kind == EX_STR);
+  size_t csize = type_size(str->type->pa.ptrof);
+  size_t src_size = str->str.len * csize;
+  if (src_size > size)
+    src_size = size;
+
+  StringBuffer sb;
+  sb_init(&sb);
+  sb_append(&sb, "\"", NULL);
+  escape_string_for_llvm(str->str.buf, src_size /*- is_string*/, &sb);
+  if (size > src_size) {
+    static const char NULCHR[] = "\\00";
+    for (size_t i = 0, n = size - src_size; i < n; ++i)
+      sb_append(&sb, NULCHR, NULL);
+  }
+  sb_append(&sb, "\"", NULL);
+  const char *escaped = sb_to_string(&sb);
+  fprintf(fp, "[%zu x i8] c%s", size, escaped);
+}
+
+static void emit_varinfo(FILE *fp, const VarInfo *varinfo, const Initializer *init) {
+  static const ConstructInitialValueVTable kVtable = {
+    .emit_align = emit_align,
+    .emit_number = emit_number,
+    .emit_string = emit_string,
+  };
+
+  const Type *type = varinfo->type;
+  size_t size = type_size(type);
+  const char *internal = "";
+  if (varinfo->storage & VS_STATIC) {  // global
+    internal = " internal";
+  }
+  const char *constant = "global";
+  if (init != NULL && size > 0) {
+    if (type->qualifier & TQ_CONST)
+      constant = "constant";
+  }
+
+  const Name *name = varinfo->ident->ident;
+  char *label = quote_label(fmt_name(name));
+  if (init != NULL && size > 0) {
+    fprintf(fp, "@%s =%s %s ", label, internal, constant);
+    construct_initial_value(type, init, &kVtable, fp);
+    fprintf(fp, "\n");
+  } else {
+    size = MAX(size, 1);
+    size_t align = align_size(type);
+    fprintf(fp, "@%s =%s %s ", label, internal, constant);
+    fprintf(fp, "[%zu x i8] zeroinitializer, align %zu\n", size, align);
+  }
+}
+
+////////////////////////////////////////////////
+
 static int tmpValNo;
 
 static int load_value(FILE *fp, VReg *vreg, RegAlloc *ra) {
@@ -148,11 +300,17 @@ static void dir_bofs(FILE *fp, IR *ir, RegAlloc *ra) {
 }
 
 static void dir_iofs(FILE *fp, IR *ir, RegAlloc *ra) {
-  fprintf(fp, "\t");
-  dump_vreg(fp, ir->dst, ra);
-  fprintf(fp, " = &%.*s", NAMES(ir->iofs.label));
+  UNUSED(ra);
+  VReg *dst = ir->dst;
+  int valNoDst = ++tmpValNo;
+  if (!(dst->flag & _VRF_ALLOCATED))
+    assert(dst->phys < 0), dst->phys = tmpValNo;
+
+  const Name *name = ir->iofs.label;
+  char *label = quote_label(fmt_name(name));
+  fprintf(fp, "\t%%%d = getelementptr i8, ptr @%s", valNoDst, label);
   if (ir->iofs.offset != 0) {
-    int64_t offset = ir->iofs.offset; fprintf(fp, " %c %" PRId64, offset >= 0 ? '+' : '-', offset > 0 ? offset : -offset);
+    fprintf(fp, ", i64 %" PRId64 "\n", ir->iofs.offset);
   }
   fprintf(fp, "\n");
 }
@@ -164,15 +322,15 @@ static void dir_sofs(FILE *fp, IR *ir, RegAlloc *ra) {
 }
 
 static void dir_load(FILE *fp, IR *ir, RegAlloc *ra) {
-  fprintf(fp, "\t");
-  dump_vreg(fp, ir->dst, ra);
-  fprintf(fp, " = load [");
-  dump_vreg(fp, ir->opr1, ra);
-  if (ir->load.offset > 0)
-    fprintf(fp, " + %" PRId64, ir->load.offset);
-  else if (ir->load.offset < 0)
-    fprintf(fp, " - %" PRId64, -ir->load.offset);
-  fprintf(fp, "]\n");
+  int valNo = load_value(fp, ir->opr1, ra);
+
+  VReg *dst = ir->dst;
+  int valNoDst = ++tmpValNo;
+  if (!(dst->flag & _VRF_ALLOCATED))
+    assert(dst->phys < 0), dst->phys = tmpValNo;
+  fprintf(fp, "\t%%%d = load %s, ptr ", valNoDst, get_llvm_type_from_vreg(ir->dst));
+  dump_value(fp, ir->opr1, valNo);
+  fprintf(fp, "\n");
 }
 
 static void dir_store(FILE *fp, IR *ir, RegAlloc *ra) {
@@ -449,6 +607,26 @@ static void dump_func_param(FILE *fp, const Type *functype) {
 
 static void dump_func_ir(FILE *fp, Function *func) {
   FuncBackend *fnbe = func->extra;
+
+  bool emit = fnbe != NULL;    // Code emission is not omitted.
+  VarInfo *funcvi = scope_find(global_scope, func->ident->ident, NULL);
+  assert(funcvi != NULL);
+  if (emit || (funcvi->storage & VS_USED)) {
+    // Static inline function is not emitted, but it must output its static variables.
+    // Static variables.
+    Vector *vars = func->static_vars;
+    if (vars != NULL && vars->len > 0) {
+      emit_comment(NULL);
+      for (int i = 0; i < vars->len; ++i) {
+        VarInfo *varinfo = vars->data[i];
+        assert(!((varinfo->storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
+                 varinfo->type->kind == TY_FUNC));
+        emit_varinfo(fp, varinfo, varinfo->global.init);
+        fprintf(fp, "\n");
+      }
+    }
+  }
+
   if (fnbe == NULL)
     return;
   BBContainer *bbcon = fnbe->bbcon;
@@ -648,8 +826,41 @@ void do_dump_ir(FILE *fp, Vector *decls) {
   }
 }
 
+static void dump_vars(FILE *fp) {
+  for (int i = 0; i < global_scope->vars->len; ++i) {
+    VarInfo *varinfo = global_scope->vars->data[i];
+    int storage = varinfo->storage;
+    // const VarInfo *alias = varinfo->global.alias;
+    // if (alias != NULL) {
+    //   emit_alias(varinfo, alias);
+    //   continue;
+    // }
+    if (varinfo->type->kind == TY_FUNC) {
+      if ((storage & (VS_USED | VS_INLINE)) == VS_USED &&
+          varinfo->global.func == NULL) {
+        const Type *functype = varinfo->type;
+        assert(functype->kind == TY_FUNC);
+        fprintf(fp, "declare %s @%.*s(", get_llvm_type(functype->func.ret), NAMES(varinfo->ident->ident));
+        dump_func_param(fp, functype);
+        fprintf(fp, ")\n");
+      }
+      continue;
+    }
+
+    if ((storage & (VS_EXTERN | VS_ENUM_MEMBER)) ||
+        (storage & (VS_STATIC | VS_USED)) == VS_STATIC)  // Static variable but not used.
+      continue;
+    emit_varinfo(fp, varinfo, varinfo->global.init);
+  }
+  fprintf(fp, "\n");
+}
+
 void gen_llvm(Vector *decls) {
-  do_dump_ir(stdout, decls);
+  FILE *fp = stdout;
+  init_emit(fp);
+
+  dump_vars(fp);
+  do_dump_ir(fp, decls);
 }
 
 ////

@@ -5,6 +5,9 @@ int sum(unsigned char n) {
     return acc;
 }
 
+int x = 100;
+
 int main(int argc, char *argv[]) {
-    return sum(10);
+    static int n = 10;
+    return sum(n) + x;
 }
