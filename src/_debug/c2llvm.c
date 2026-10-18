@@ -671,6 +671,7 @@ static void dump_func_ir(FILE *fp, Function *func) {
 
   if (fnbe == NULL)
     return;
+fprintf(stderr, "dump_func_ir: %.*s\n", NAMES(func->ident->ident));
   BBContainer *bbcon = fnbe->bbcon;
   assert(bbcon != NULL);
 
