@@ -1,5 +1,5 @@
-int sum(int n) {
-    int acc = 0;
+int sum(unsigned char n) {
+    long acc = 0;
     for (int i = 1; i <= n; ++i)
         acc += i;
     return acc;

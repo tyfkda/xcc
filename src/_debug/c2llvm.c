@@ -234,11 +234,35 @@ static void dir_bop(FILE *fp, IR *ir, RegAlloc *ra) {
 }
 
 static void dir_cast(FILE *fp, IR *ir, RegAlloc *ra) {
-  fprintf(fp, "\t");
-  dump_vreg(fp, ir->dst, ra);
-  fprintf(fp, " = (CAST)");
-  dump_vreg(fp, ir->opr1, ra);
-  fprintf(fp, "\n");
+  assert((ir->opr1->flag & VRF_CONST) == 0);
+  if (ir->dst->flag & VRF_FLONUM) {
+    assert(!"TODO");
+  } else if (ir->opr1->flag & VRF_FLONUM) {
+    assert(!"TODO");
+  } else {
+    const char *cast_opr;
+    if (ir->dst->vsize < ir->opr1->vsize) {
+      cast_opr = "trunc";
+    } else if (ir->dst->vsize > ir->opr1->vsize) {
+      cast_opr = (ir->opr1->flag & VRF_UNSIGNED) ? "zext" : "sext";
+    } else {
+      cast_opr = "bitcast";
+    }
+
+    int valNo = load_value(fp, ir->opr1, ra);
+    VReg *dst = ir->dst;
+    int valNoDst = ++tmpValNo;
+    if (!(dst->flag & _VRF_ALLOCATED))
+      assert(dst->phys < 0), dst->phys = tmpValNo;
+    fprintf(fp, "\t%%%d = %s %s ", valNoDst, cast_opr, get_llvm_type_from_vreg(ir->opr1));
+    dump_value(fp, ir->opr1, valNo);
+    fprintf(fp, " to %s\n", get_llvm_type_from_vreg(dst));
+    if (dst->flag & _VRF_ALLOCATED) {
+      fprintf(fp, "\tstore %s %%%d, ptr ", get_llvm_type_from_vreg(dst), valNoDst);
+      dump_vreg(fp, dst, ra);
+      fprintf(fp, "\n");
+    }
+  }
 }
 
 static void dir_mov(FILE *fp, IR *ir, RegAlloc *ra) {
