@@ -487,6 +487,22 @@ static void dir_jmp(FILE *fp, IR *ir, RegAlloc *ra) {
   fprintf(fp, "\tbr label %%%.*s\n", NAMES(ir->jmp.bb->label));
 }
 
+static void dir_tjmp(FILE *fp, IR *ir, RegAlloc *ra) {
+  int valNo = load_value(fp, ir->opr1, ra);
+  int valNoUnreachable = ++tmpValNo;
+
+  const char *opr1_type = get_llvm_type_from_vreg(ir->opr1);
+  fprintf(fp, "\tswitch %s ", opr1_type);
+  dump_value(fp, ir->opr1, valNo);
+  fprintf(fp, ", label %%.tjmp.%d [\n", valNoUnreachable);
+  for (size_t i = 0, n = ir->tjmp.len; i < n; ++i) {
+    BB *bb = ir->tjmp.bbs[i];
+    fprintf(fp, "\t\t%s %zu,label %%%.*s\n", opr1_type, i, NAMES(bb->label));
+  }
+  fprintf(fp, "\t]\n");
+  fprintf(fp, ".tjmp.%d:\tunreachable\n", valNoUnreachable);
+}
+
 static void dir_jmp_cond(FILE *fp, IR *ir, RegAlloc *ra, BB *nextbb) {
   assert(ir->jmp.cond != COND_ANY);
   static char *kCond[] = {NULL, NULL, "eq", "ne", "slt", "sle", "sge", "sgt", NULL, NULL, "eq", "ne", "ult", "ule", "uge", "ugt"};
@@ -594,7 +610,6 @@ static void dir_dummy(FILE *fp, IR *ir, RegAlloc *ra) {
 #define dir_rshift   dir_bop
 #define dir_neg   dir_unary
 #define dir_bitnot   dir_unary
-#define dir_tjmp   dir_dummy
 #define dir_subsp   dir_dummy
 
 static void (*kIrTable[])(FILE *fp, IR *ir, RegAlloc *ra) = {

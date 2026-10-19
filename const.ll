@@ -22,23 +22,70 @@ l.0007: ;  from=[l.0002, l.0004]
 ; BB 2
 l.0006: ;  from=[l.0007]
 	%5 = load i32, ptr %V3
-	%6 = sext i32 %5 to i64
-	%7 = load i64, ptr %V2
-	%8 = add i64 %7, %6
-	store i64 %8, ptr %V2
+	%6 = sub i32 %5, 1
+	%7 = bitcast i32 %6 to i32
+	%8 = icmp sgt i32 %7, 4
+	br i1 %8, label %l.0015, label %l.0016
 ; BB 3
-  br label %l.0004
-l.0004: ;  from=[l.0006]
-	%9 = load i32, ptr %V3
-	%10 = add i32 %9, 1
-	store i32 %10, ptr %V3
-	br label %l.0007
+l.0016: ;  from=[l.0006]
+	switch i32 %7, label %.tjmp.9 [
+		i32 0,label %l.0010
+		i32 1,label %l.0011
+		i32 2,label %l.0012
+		i32 3,label %l.0013
+		i32 4,label %l.0014
+	]
+.tjmp.9:	unreachable
 ; BB 4
-l.0005: ;  from=[l.0007]
-	%11 = load i64, ptr %V2
-	%12 = trunc i64 %11 to i32
-	ret i32 %12
+l.0010: ;  from=[l.0016]
+	%10 = load i64, ptr %V2
+	%11 = add i64 %10, 11
+	store i64 %11, ptr %V2
+	br label %l.0004
 ; BB 5
+l.0011: ;  from=[l.0016]
+	%12 = load i64, ptr %V2
+	%13 = add i64 %12, 22
+	store i64 %13, ptr %V2
+	br label %l.0004
+; BB 6
+l.0012: ;  from=[l.0016]
+	%14 = load i64, ptr %V2
+	%15 = add i64 %14, 33
+	store i64 %15, ptr %V2
+	br label %l.0004
+; BB 7
+l.0013: ;  from=[l.0016]
+	%16 = load i64, ptr %V2
+	%17 = add i64 %16, 44
+	store i64 %17, ptr %V2
+	br label %l.0004
+; BB 8
+l.0014: ;  from=[l.0016]
+	%18 = load i64, ptr %V2
+	%19 = add i64 %18, 55
+	store i64 %19, ptr %V2
+	br label %l.0004
+; BB 9
+l.0015: ;  from=[l.0006]
+	%20 = load i32, ptr %V3
+	%21 = sext i32 %20 to i64
+	%22 = load i64, ptr %V2
+	%23 = add i64 %22, %21
+	store i64 %23, ptr %V2
+; BB 10
+  br label %l.0004
+l.0004: ;  from=[l.0014, l.0013, l.0012, l.0011, l.0010, l.0015]
+	%24 = load i32, ptr %V3
+	%25 = add i32 %24, 1
+	store i32 %25, ptr %V3
+	br label %l.0007
+; BB 11
+l.0005: ;  from=[l.0007]
+	%26 = load i64, ptr %V2
+	%27 = trunc i64 %26 to i32
+	ret i32 %27
+; BB 12
 }
 
 
@@ -51,20 +98,20 @@ define i32 @main(i32 %.param.argc, i64 %.param.argv) {
 	store i64 %.param.argv, ptr %V2
 
 ; BB 0
-  br label %l.0010
-l.0010: ; 
-	%13 = getelementptr i8, ptr @l.0001
-	%14 = load i32, ptr %13
-	%15 = trunc i32 %14 to i8
-	; pusharg %16 (index=#0)
-	%16 = call i32 @sum(i8 %15)
-	%17 = getelementptr i8, ptr @x
-	%18 = load i32, ptr %17
-	%19 = icmp sgt i32 %18, 0
-	%20 = zext i1 %19 to i8
-	%21 = sext i8 %20 to i32
-	%22 = add i32 %16, %21
-	ret i32 %22
+  br label %l.0025
+l.0025: ; 
+	%28 = getelementptr i8, ptr @l.0001
+	%29 = load i32, ptr %28
+	%30 = trunc i32 %29 to i8
+	; pusharg %31 (index=#0)
+	%31 = call i32 @sum(i8 %30)
+	%32 = getelementptr i8, ptr @x
+	%33 = load i32, ptr %32
+	%34 = icmp sgt i32 %33, 0
+	%35 = zext i1 %34 to i8
+	%36 = sext i8 %35 to i32
+	%37 = add i32 %31, %36
+	ret i32 %37
 ; BB 1
 }
 
