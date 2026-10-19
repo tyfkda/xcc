@@ -60,8 +60,11 @@ l.0010: ;
 	%16 = call i32 @sum(i8 %15)
 	%17 = getelementptr i8, ptr @x
 	%18 = load i32, ptr %17
-	%19 = add i32 %16, %18
-	ret i32 %19
+	%19 = icmp sgt i32 %18, 0
+	%20 = zext i1 %19 to i8
+	%21 = sext i8 %20 to i32
+	%22 = add i32 %16, %21
+	ret i32 %22
 ; BB 1
 }
 

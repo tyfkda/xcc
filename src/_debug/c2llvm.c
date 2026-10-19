@@ -391,6 +391,34 @@ static void dir_bop(FILE *fp, IR *ir, RegAlloc *ra) {
   }
 }
 
+static void dir_cond(FILE *fp, IR *ir, RegAlloc *ra) {
+  assert(!(ir->opr1->flag & VRF_FLONUM));
+
+  VReg *dst = ir->dst, *opr1 = ir->opr1, *opr2 = ir->opr2;
+
+  assert(ir->cond.kind != COND_NONE);
+  assert(ir->cond.kind != COND_ANY);
+  static char *kCond[] = {NULL, NULL, "eq", "ne", "slt", "sle", "sge", "sgt", NULL, NULL, "eq", "ne", "ult", "ule", "uge", "ugt"};
+  int valNo1 = load_value(fp, opr1, ra);
+  int valNo2 = load_value(fp, opr2, ra);
+  int valNoTmp = ++tmpValNo;
+  fprintf(fp, "\t%%%d = icmp %s %s ", valNoTmp, kCond[ir->cond.kind], get_llvm_type_from_vreg(opr1));
+  dump_value(fp, opr1, valNo1);
+  fprintf(fp, ", ");
+  dump_value(fp, opr2, valNo2);
+  fprintf(fp, "\n");
+
+  int valNoDst = ++tmpValNo;
+  if (!(dst->flag & _VRF_ALLOCATED))
+    assert(dst->phys < 0), dst->phys = tmpValNo;
+  fprintf(fp, "\t%%%d = zext i1 %%%d to %s\n", valNoDst, valNoTmp, get_llvm_type_from_vreg(dst));
+  if (dst->flag & _VRF_ALLOCATED) {
+    fprintf(fp, "\tstore %s %%%d, ptr ", get_llvm_type_from_vreg(dst), valNoDst);
+    dump_vreg(fp, dst, ra);
+    fprintf(fp, "\n");
+  }
+}
+
 static void dir_cast(FILE *fp, IR *ir, RegAlloc *ra) {
   assert((ir->opr1->flag & VRF_CONST) == 0);
   if (ir->dst->flag & VRF_FLONUM) {
@@ -564,7 +592,6 @@ static void dir_dummy(FILE *fp, IR *ir, RegAlloc *ra) {
 #define dir_bitxor   dir_bop
 #define dir_lshift   dir_bop
 #define dir_rshift   dir_bop
-#define dir_cond   dir_dummy
 #define dir_neg   dir_unary
 #define dir_bitnot   dir_unary
 #define dir_tjmp   dir_dummy

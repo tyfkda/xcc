@@ -9,5 +9,5 @@ int x = 100;
 
 int main(int argc, char *argv[]) {
     static int n = 10;
-    return sum(n) + x;
+    return sum(n) + (x > 0);
 }
