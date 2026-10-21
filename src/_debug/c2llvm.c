@@ -42,6 +42,9 @@ char *get_llvm_type(const Type *type) {
 }
 
 char *get_llvm_type_from_vreg(const VReg *vreg) {
+  if (vreg->flag & VRF_PTR)
+    return "ptr";
+
   if (vreg->flag & VRF_FLONUM) {
     assert(false);
   } else {

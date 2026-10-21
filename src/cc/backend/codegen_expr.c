@@ -35,6 +35,8 @@ int to_vflag_with_storage(const Type *type, int storage) {
     flag |= VRF_FLONUM;
   if (is_unsigned(type))
     flag |= VRF_UNSIGNED;
+  if (type->kind == TY_PTR)
+    flag |= VRF_PTR;
   if (type->qualifier & TQ_VOLATILE)
     flag |= (storage & VS_REGISTER) ? (VRF_VOLATILEREG | VRF_NO_SPILL) : VRF_VOLATILE;
   return flag;

@@ -245,7 +245,7 @@ IR *new_ir_bofs(FrameInfo *fi) {
   IR *ir = new_ir(IR_BOFS);
   ir->bofs.frameinfo = fi;
   ir->bofs.offset = 0;
-  ir->dst = reg_alloc_spawn(curra, vtVoidPtr, VRF_UNSIGNED);
+  ir->dst = reg_alloc_spawn(curra, vtVoidPtr, VRF_UNSIGNED | VRF_PTR);
   return ir;
 }
 
@@ -254,14 +254,14 @@ IR *new_ir_iofs(const Name *label, bool global) {
   ir->iofs.label = label;
   ir->iofs.global = global;
   ir->iofs.offset = 0;
-  ir->dst = reg_alloc_spawn(curra, vtVoidPtr, VRF_UNSIGNED);
+  ir->dst = reg_alloc_spawn(curra, vtVoidPtr, VRF_UNSIGNED | VRF_PTR);
   return ir;
 }
 
 IR *new_ir_sofs(VReg *offset) {
   IR *ir = new_ir(IR_SOFS);
   ir->opr1 = offset;
-  ir->dst = reg_alloc_spawn(curra, vtVoidPtr, VRF_UNSIGNED);
+  ir->dst = reg_alloc_spawn(curra, vtVoidPtr, VRF_UNSIGNED | VRF_PTR);
   return ir;
 }
 

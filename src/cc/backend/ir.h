@@ -39,8 +39,9 @@ enum VRegSize {
 #define VRF_VOLATILEREG  (1 << 9)  // Volatile, but register
 #define VRF_FP_GP_PARAM  (1 << 10) // FP, but passed by GP register
 #define VRF_UNSIGNED     (1 << 11) // Unsigned
+#define VRF_PTR          (1 << 12) // The value is a pointer
 
-#define VRF_MASK         (VRF_FLONUM | VRF_UNSIGNED)
+#define VRF_MASK         (VRF_FLONUM | VRF_UNSIGNED | VRF_PTR)
 #define VRF_FORCEMEMORY  (VRF_REF | VRF_SPILLED | VRF_VOLATILE)
 
 typedef struct VReg {
