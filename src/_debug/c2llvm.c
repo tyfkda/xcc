@@ -293,10 +293,23 @@ static void dump_value(FILE *fp, VReg *vreg, int valNo) {
 }
 
 static void dir_bofs(FILE *fp, IR *ir, RegAlloc *ra) {
-  int64_t offset = ir->bofs.frameinfo->offset + ir->bofs.offset;
-  fprintf(fp, "\t");
-  dump_vreg(fp, ir->dst, ra);
-  fprintf(fp, " = %%fp %c %" PRId64 "\n", offset >= 0 ? '+' : '-', offset > 0 ? offset : -offset);
+  UNUSED(ra);
+  VarInfo *varinfo = ir->bofs.frameinfo->varinfo;
+  assert(varinfo != NULL);
+  assert(is_local_storage(varinfo));
+
+  VReg *dst = ir->dst;
+  int valNoDst = ++tmpValNo;
+  if (!(dst->flag & _VRF_ALLOCATED))
+    assert(dst->phys < 0), dst->phys = tmpValNo;
+
+  VReg *vreg = varinfo->local.vreg;
+  assert(vreg != NULL);
+  fprintf(fp, "\t%%%d = getelementptr ptr, ptr %%V%d", valNoDst , vreg->virt + 1);
+  if (ir->bofs.offset != 0) {
+    fprintf(fp, ", i32 %" PRId64, ir->bofs.offset);
+  }
+  fprintf(fp, "\n");
 }
 
 static void dir_iofs(FILE *fp, IR *ir, RegAlloc *ra) {

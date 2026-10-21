@@ -13,6 +13,7 @@ typedef struct VarInfo VarInfo;
 typedef struct Vector Vector;
 
 typedef struct FrameInfo {
+  VarInfo *varinfo;
   size_t size;
   int offset;
 } FrameInfo;

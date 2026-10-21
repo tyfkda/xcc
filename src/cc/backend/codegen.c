@@ -100,6 +100,7 @@ static void alloc_variable_registers(Function *func) {
 #endif
       if (!is_prim_type(type)) {
         FrameInfo *fi = calloc_or_die(sizeof(*fi));
+        fi->varinfo = varinfo;
         fi->size = type_size(type);
         fi->offset = 0;
         varinfo->local.frameinfo = fi;
@@ -114,6 +115,7 @@ static void alloc_variable_registers(Function *func) {
         vreg->flag |= (storage & VS_REGISTER) ? (VRF_VOLATILEREG | VRF_NO_SPILL) : VRF_VOLATILE;
       varinfo->local.vreg = vreg;
       varinfo->local.frameinfo = &vreg->frame;
+      vreg->frame.varinfo = varinfo;
     }
   }
 

@@ -619,6 +619,7 @@ static inline void gen_funargs(Expr *expr, FuncallWork *work) {
     Type *type = expr->type;
     ret_varinfo = scope_add(curscope, token, type, VS_USED);
     FrameInfo *fi = calloc_or_die(sizeof(*fi));
+    fi->varinfo = ret_varinfo;
     fi->size = type_size(type);
     fi->offset = 0;
     ret_varinfo->local.frameinfo = fi;
