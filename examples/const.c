@@ -18,7 +18,14 @@
 int main(int argc, char *argv[]) {
     // static int n = 10;
     // return sum(n) + (x > 0);
-    int x = 55;
-    int *p = &x;
-    return *p;
+    // int x = 55;
+    // int *p = &x;
+    // return *p;
+    int a[5];
+    for (int i = 0; i < 5; ++i)
+        a[i] = i * i;
+    int acc = 0;
+    for (int i = 0; i < 5; ++i)
+        acc += a[i];
+    return acc;
 }

@@ -307,8 +307,11 @@ static void dir_bofs(FILE *fp, IR *ir, RegAlloc *ra) {
     assert(dst->phys < 0), dst->phys = tmpValNo;
 
   VReg *vreg = varinfo->local.vreg;
-  assert(vreg != NULL);
-  fprintf(fp, "\t%%%d = getelementptr ptr, ptr %%V%d", valNoDst , vreg->virt + 1);
+  if (vreg == NULL) {
+    fprintf(fp, "\t%%%d = getelementptr ptr, ptr %%V%.*s", valNoDst , NAMES(varinfo->ident->ident));
+  } else {
+    fprintf(fp, "\t%%%d = getelementptr ptr, ptr %%V%d", valNoDst , vreg->virt + 1);
+  }
   if (ir->bofs.offset != 0) {
     fprintf(fp, ", i32 %" PRId64, ir->bofs.offset);
   }
@@ -350,10 +353,13 @@ static void dir_load(FILE *fp, IR *ir, RegAlloc *ra) {
 }
 
 static void dir_store(FILE *fp, IR *ir, RegAlloc *ra) {
-  fprintf(fp, "\tstore [");
-  dump_vreg(fp, ir->opr2, ra);
-  fprintf(fp, "] = ");
-  dump_vreg(fp, ir->opr1, ra);
+  int valNo1 = load_value(fp, ir->opr1, ra);
+  int valNo2 = load_value(fp, ir->opr2, ra);
+
+  fprintf(fp, "\tstore %s ", get_llvm_type_from_vreg(ir->opr1));
+  dump_value(fp, ir->opr1, valNo1);
+  fprintf(fp, ", ptr ");
+  dump_value(fp, ir->opr2, valNo2);
   fprintf(fp, "\n");
 }
 
@@ -395,11 +401,22 @@ static void dir_bop(FILE *fp, IR *ir, RegAlloc *ra) {
   int valNoDst = ++tmpValNo;
   if (!(dst->flag & _VRF_ALLOCATED))
     assert(dst->phys < 0), dst->phys = tmpValNo;
-  fprintf(fp, "\t%%%d = %s %s ", valNoDst, kOps[ir->kind], get_llvm_type_from_vreg(ir->dst));
-  dump_value(fp, ir->opr1, valNo1);
-  fprintf(fp, ", ");
-  dump_value(fp, ir->opr2, valNo2);
-  fprintf(fp, "\n");
+
+  if (ir->dst->flag & VRF_PTR) {
+    assert(ir->opr1->flag & VRF_PTR);
+    assert(!(ir->opr2->flag & VRF_PTR));
+    fprintf(fp, "\t%%%d = getelementptr ptr, ptr ", valNoDst);
+    dump_value(fp, ir->opr1, valNo1);
+    fprintf(fp, ", %s ", get_llvm_type_from_vreg(ir->opr2));
+    dump_value(fp, ir->opr2, valNo2);
+    fprintf(fp, "\n");
+  } else {
+    fprintf(fp, "\t%%%d = %s %s ", valNoDst, kOps[ir->kind], get_llvm_type_from_vreg(ir->dst));
+    dump_value(fp, ir->opr1, valNo1);
+    fprintf(fp, ", ");
+    dump_value(fp, ir->opr2, valNo2);
+    fprintf(fp, "\n");
+  }
   if (dst->flag & _VRF_ALLOCATED) {
     fprintf(fp, "\tstore %s %%%d, ptr ", get_llvm_type_from_vreg(dst), valNoDst);
     dump_vreg(fp, dst, ra);
