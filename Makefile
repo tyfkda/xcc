@@ -166,7 +166,7 @@ test-riscv64:	cross-compile-riscv64
 
 .PHONY: cross-compile-riscv64
 cross-compile-riscv64:
-	$(MAKE) ARCHTYPE:=riscv64 PLATFORM:=posix HOST_CC_PREFIX=$(shell ./tool/find-riscv-toolchain)-
+	$(MAKE) ARCHTYPE=riscv64 PLATFORM=posix HOST_CC_PREFIX=$(shell ./tool/find-riscv-toolchain)-
 
 # Test SSA.
 .PHONY: test-ssa
