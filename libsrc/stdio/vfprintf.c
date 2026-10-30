@@ -114,91 +114,190 @@ static long double pow10(int order) {
   return a;
 }
 
-static int printnonfinite(FILE *fp, long double x, int order, int suborder, bool sign,
-                          bool leftalign) {
-  int o = sprintsign(fp, signbit(x), sign, &order);
-  return o + snprintstr(fp, isnan(x) ? "nan" : "inf", order, suborder, leftalign, ' ');
+// Float conversions (%f %F %e %E %g %G) following C99: field width, the
+// '-', '0', '+' and '#' flags, and precision (including .0).
+
+// The exact rounding error of the product p = a * b (Dekker's two-product,
+// for 53-bit doubles: long double is a double on this target). Its sign says
+// whether the true product is above or below p.
+static long double product_error(long double a, long double b, long double p) {
+  const long double split = 134217729.0;  // 2^27 + 1
+  long double t = split * a;
+  long double ahi = t - (t - a), alo = a - ahi;
+  t = split * b;
+  long double bhi = t - (t - b), blo = b - bhi;
+  return ((ahi * bhi - p) + ahi * blo + alo * bhi) + alo * blo;
 }
 
-static int printfloat(FILE *fp, long double x, int order, int suborder, bool sign, bool leftalign,
-                      char padding) {
-  if (!isfinite(x))
-    return printnonfinite(fp, x, order, suborder, sign, leftalign);
-
-  bool neg = signbit(x);
-  if (neg)
-    x = -x;
-  int o = sprintsign(fp, neg, sign, &order);
-
-  unsigned long long int_part = x;
-  suborder = suborder > 0 ? suborder : 6;
-  long double one = pow10(suborder);
-  unsigned long long fraction = (x - int_part) * one + 0.5;
-  if (fraction >= one) {
+// Appends `x` (0 <= x < 1e18) with `prec` decimals to `p`; returns the end.
+// Rounds to nearest using the exact value of x, and true ties to even, as glibc does.
+// Digits past the 18th decimal are written as zeros.
+static char *put_fixed(char *p, long double x, int prec, bool alt) {
+  int extra = 0;
+  if (prec > 18) {
+    extra = (prec > 300 ? 300 : prec) - 18;
+    prec = 18;
+  }
+  unsigned long long int_part = (unsigned long long)x;
+  long double one = pow10(prec);
+  long double part = x - (long double)int_part;
+  long double scaled = part * one;
+  unsigned long long frac = (unsigned long long)scaled;
+  long double rest = scaled - (long double)frac;
+  if (rest == 0.5) {
+    // Looks like a tie, but the multiplication may have rounded: 0.05 * 10 is
+    // just over 0.5 exactly, so it rounds up; 2.5 really is a tie, so it goes to even.
+    long double err = product_error(part, one, scaled);
+    if (err > 0 || (err == 0 && ((prec > 0 ? frac : int_part) & 1) != 0))
+      ++frac;
+  } else if (rest > 0.5) {
+    ++frac;
+  }
+  if ((long double)frac >= one) {
     ++int_part;
-    fraction -= one;
+    frac -= (unsigned long long)one;
   }
-  o += snprintullong(fp, int_part, 10, kHexDigits, order, padding);
-  _fputc('.', fp); ++o;
-  o += snprintullong(fp, fraction, 10, kHexDigits, suborder, '0');
-  return o;
+  char digits[24];
+  int n = 0;
+  do {
+    digits[n++] = '0' + (char)(int_part % 10);
+    int_part /= 10;
+  } while (int_part != 0);
+  while (n > 0)
+    *p++ = digits[--n];
+  if (prec > 0 || alt)
+    *p++ = '.';
+  for (int i = prec - 1; i >= 0; --i) {
+    p[i] = '0' + (char)(frac % 10);
+    frac /= 10;
+  }
+  p += prec;
+  for (; extra > 0; --extra)
+    *p++ = '0';
+  return p;
 }
 
-static int normalize_float(long double *px) {
+// Splits x > 0 into m * 10^e with 1 <= m < 10.
+static int decimal_exponent(long double *px) {
   long double x = *px;
-  int exp = 0;
-  if (x >= 1e6) {
-    do {
-      x /= 10;
-      ++exp;
-    } while (x >= 10);
-  }
-  if (x > 0 && x <= 1e-4) {
-    do {
-      x *= 10;
-      --exp;
-    } while (x < 1.0);
+  int e = 0;
+  if (x >= 10) {
+    while (x >= pow10(e + 1))
+      ++e;
+    x /= pow10(e);
+  } else if (x < 1) {
+    while (x * pow10(-e) < 1)
+      --e;
+    x *= pow10(-e);
   }
   *px = x;
-  return exp;
+  return e;
 }
 
-static int printscientific(FILE *fp, long double x, int order, int suborder, bool sign,
-                           bool leftalign, char padding) {
-  if (!isfinite(x))
-    return printnonfinite(fp, x, order, suborder, sign, leftalign);
+static char *put_scientific(char *p, long double x, int prec, bool alt, bool upper, int *pexp) {
+  int e = 0;
+  if (x != 0) {
+    e = decimal_exponent(&x);
+    // Rounding can carry to 10.0: renormalise.
+    long double one = pow10(prec > 18 ? 18 : prec);
+    if ((long double)(unsigned long long)(x * one + 0.5) >= 10 * one) {
+      x /= 10;
+      ++e;
+    }
+  }
+  p = put_fixed(p, x, prec, alt);
+  *p++ = upper ? 'E' : 'e';
+  *p++ = e < 0 ? '-' : '+';
+  int ae = e < 0 ? -e : e;
+  if (ae >= 100)
+    *p++ = '0' + (char)(ae / 100);
+  *p++ = '0' + (char)((ae / 10) % 10);
+  *p++ = '0' + (char)(ae % 10);
+  if (pexp != NULL)
+    *pexp = e;
+  return p;
+}
 
+static char *strip_zeros(char *start, char *p) {
+  char *dot = NULL;
+  for (char *q = start; q < p; ++q)
+    if (*q == '.')
+      dot = q;
+  if (dot == NULL)
+    return p;
+  while (p > dot + 1 && p[-1] == '0')
+    --p;
+  if (p == dot + 1)
+    --p;
+  return p;
+}
+
+static int printflonum(FILE *fp, long double x, int conv, int width, int prec, bool sign,
+                       bool leftalign, char padding, bool alt) {
+  char body[400];   // sign + up to 18 digits + '.' + at most 300 decimals + exponent
+  char *p = body;
+  bool upper = conv == 'F' || conv == 'E' || conv == 'G';
   bool neg = signbit(x);
   if (neg)
     x = -x;
-  int o = sprintsign(fp, neg, sign, &order);
+  if (neg)
+    *p++ = '-';
+  else if (sign)
+    *p++ = '+';
+  char *digits = p;
+  if (!isfinite(x)) {
+    const char *s = isnan(x) ? (upper ? "NAN" : "nan") : (upper ? "INF" : "inf");
+    while (*s != '\0')
+      *p++ = *s++;
+    padding = ' ';
+  } else if (conv == 'e' || conv == 'E') {
+    p = put_scientific(p, x, prec < 0 ? 6 : prec, alt, upper, NULL);
+  } else if (conv == 'g' || conv == 'G') {
+    int P = prec < 0 ? 6 : prec == 0 ? 1 : prec;
+    int e = 0;
+    char probe[400];
+    if (x != 0)
+      put_scientific(probe, x, P - 1, false, upper, &e);
+    if (e < -4 || e >= P) {
+      p = put_scientific(p, x, P - 1, alt, upper, NULL);
+      if (!alt) {
+        // Strip zeros from the mantissa only.
+        char *ech = p;
+        while (ech > digits && *ech != 'e' && *ech != 'E')
+          --ech;
+        char tail[8];
+        int tn = (int)(p - ech);
+        for (int i = 0; i < tn; ++i)
+          tail[i] = ech[i];
+        p = strip_zeros(digits, ech);
+        for (int i = 0; i < tn; ++i)
+          *p++ = tail[i];
+      }
+    } else {
+      p = put_fixed(p, x, P - 1 - e, alt);
+      if (!alt)
+        p = strip_zeros(digits, p);
+    }
+  } else if (x >= 1e18) {
+    p = put_scientific(p, x, prec < 0 ? 6 : prec, alt, upper, NULL);   // too big for the fixed path
+  } else {
+    p = put_fixed(p, x, prec < 0 ? 6 : prec, alt);
+  }
 
-  int e = normalize_float(&x);
-  unsigned long long int_part = x;
-  suborder = suborder > 0 ? suborder : 6;
-  long double one = pow10(suborder);
-  unsigned long long fraction = (x - int_part) * one + 0.5;
-  if (fraction >= one) {
-    ++int_part;
-    fraction -= one;
+  int len = (int)(p - body);
+  int pad = width > len ? width - len : 0;
+  if (leftalign) {
+    putnstr(fp, len, body);
+    putpadding(fp, pad, ' ');
+  } else if (padding == '0') {
+    putnstr(fp, (int)(digits - body), body);   // the sign goes before the zeros
+    putpadding(fp, pad, '0');
+    putnstr(fp, (int)(p - digits), digits);
+  } else {
+    putpadding(fp, pad, ' ');
+    putnstr(fp, len, body);
   }
-  while (fraction % 10 == 0 && suborder > 0) {
-    fraction /= 10;
-    --suborder;
-  }
-  o += snprintullong(fp, int_part, 10, kHexDigits, order, padding);
-  if (fraction != 0) {
-    _fputc('.', fp); ++o;
-    o += snprintullong(fp, fraction, 10, kHexDigits, suborder, '0');
-  }
-
-  if (e != 0) {
-    _fputc('e', fp); ++o;
-    o += sprintsign(fp, e < 0, true, &order);
-    e = e < 0 ? -e : e;
-    o += snprintullong(fp, e, 10, kHexDigits, 2, '0');
-  }
-  return o;
+  return len + pad;
 }
 #endif
 
@@ -222,17 +321,18 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
     // Handle '%'
     char padding = ' ';
     int order = 0, suborder = 0;
+    bool has_prec = false, alt = false;
     bool sign = false;
     bool leftalign = false;
     bool sizez = false;
     int nlong = 0;
     c = fmt[++i];
 
-    if (c == '+') {
-      sign = true;
-      c = fmt[++i];
-    } else if (c == '-') {
-      leftalign = true;
+    for (;;) {
+      if (c == '+') sign = true;
+      else if (c == '-') leftalign = true;
+      else if (c == '#') alt = true;
+      else break;
       c = fmt[++i];
     }
     if (c == '0') {
@@ -248,6 +348,7 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       c = fmt[++i];
     }
     if (c == '.') {
+      has_prec = true;
       c = fmt[++i];
       if (isdigit(c)) {
         do {
@@ -358,24 +459,14 @@ int vfprintf(FILE *fp, const char *fmt_, va_list ap) {
       ++o;
       break;
 #ifndef __NO_FLONUM
-    case 'f':
+    case 'f': case 'F': case 'e': case 'E': case 'g': case 'G':
       {
         long double x;
         switch (nlong) {
         case 0:  x = va_arg(ap, double); break;
         default: x = va_arg(ap, long double); break;
         }
-        o += printfloat(fp, x, order, suborder, sign, leftalign, padding);
-      }
-      break;
-    case 'g':
-      {
-        long double x;
-        switch (nlong) {
-        case 0:  x = va_arg(ap, double); break;
-        default: x = va_arg(ap, long double); break;
-        }
-        o += printscientific(fp, x, order, suborder, sign, leftalign, padding);
+        o += printflonum(fp, x, c, order, has_prec ? suborder : -1, sign, leftalign, padding, alt);
       }
       break;
 #endif

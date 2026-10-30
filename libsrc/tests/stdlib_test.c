@@ -111,6 +111,13 @@ TEST(strtod) {
   EXPECT_PTREQ(s, p);
   EXPECT_DEQ(987.06125, strtod(s="987.06125", NULL));  // Null accepted
 
+  // Correctly rounded to the nearest double.
+  EXPECT_DEQ(0.15, strtod("0.15", NULL));
+  EXPECT_DEQ(0.1, strtod("0.1", NULL));
+  EXPECT_DEQ(1.005, strtod("1.005", NULL));
+  EXPECT_DEQ(123.456789, strtod("123456.789e-3", NULL));
+  EXPECT_DEQ(-2.5e-7, strtod("-0.00000025", NULL));
+
   union u { double d; uint64_t x; } u;
   u.d = strtod("-0.0", NULL);
   EXPECT_EQ(0x8000000000000000LL, u.x);

@@ -152,15 +152,34 @@ TEST(vsnprintf) {
   EXPECT("Scientific:-0", "Scientific:%g", -0.0);
   EXPECT("Scientific:123400", "Scientific:%g", 1.234e5);
   EXPECT("Scientific:1.234e+06", "Scientific:%g", 1.234e6);
-  // EXPECT("Scientific:0.0001234", "Scientific:%g", 1.234e-4);
+  EXPECT("Scientific:0.0001234", "Scientific:%g", 1.234e-4);
   EXPECT("Scientific:1.234e-05", "Scientific:%g", 1.234e-5);
   EXPECT("Scientific:-inf", "Scientific:%g", -HUGE_VAL);
   EXPECT("Scientific:nan", "Scientific:%g", NAN);
 
-  EXPECT("DBL_MIN:2.225074e-308", "DBL_MIN:%g", DBL_MIN);
-  EXPECT("DBL_MAX:1.797693e+308", "DBL_MAX:%g", DBL_MAX);
-  EXPECT("FLT_MIN:1.175494e-38", "FLT_MIN:%g", FLT_MIN);
-  EXPECT("FLT_MAX:3.402823e+38", "FLT_MAX:%g", FLT_MAX);  // 3.402824e+38 ?
+  EXPECT("DBL_MIN:2.22507e-308", "DBL_MIN:%g", DBL_MIN);
+  EXPECT("DBL_MAX:1.79769e+308", "DBL_MAX:%g", DBL_MAX);
+  EXPECT("FLT_MIN:1.17549e-38", "FLT_MIN:%g", FLT_MIN);
+  EXPECT("FLT_MAX:3.40282e+38", "FLT_MAX:%g", FLT_MAX);
+
+  EXPECT("Width:    3.14", "Width:%8.2f", 3.14159);
+  EXPECT("Left:3.14    |", "Left:%-8.2f|", 3.14159);
+  EXPECT("Zero:-0003.14", "Zero:%08.2f", -3.14159);
+  EXPECT("Plus:+2.2", "Plus:%+.1f", 2.25);  // A true tie rounds to even
+  EXPECT("Prec0:2", "Prec0:%.0f", 2.5);
+  EXPECT("Prec0:4", "Prec0:%.0f", 3.5);
+  EXPECT("Prec0:1024", "Prec0:%.0f", 1024.0);
+  EXPECT("Alt:3.", "Alt:%#.0f", 3.0);
+  EXPECT("Round: -0.1", "Round:%5.1f", -0.05);  // -0.05 is stored as slightly more than 0.05
+  EXPECT("Round:0.1", "Round:%.1f", 0.15);  // 0.15 is stored as slightly less
+  EXPECT("Round:0.12", "Round:%.2f", 0.125);  // An exact tie: to even
+  EXPECT("Round:1.00", "Round:%.2f", 1.005);
+  EXPECT("Exp:1.234568e+04", "Exp:%e", 12345.678);
+  EXPECT("Exp:1.23E-04", "Exp:%.2E", 0.000123);
+  EXPECT("Exp:  1.0e+100", "Exp:%10.1e", 1e100);
+  EXPECT("G:1.23457E+08", "G:%G", 123456789.0);
+  EXPECT("G:2.00000", "G:%#g", 2.0);
+  EXPECT("Mixed:1.5e+00 7", "Mixed:%.1e %d", 1.5, 7);
 #endif
 #undef EXPECT
 }

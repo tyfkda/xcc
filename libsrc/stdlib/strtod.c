@@ -30,24 +30,69 @@ static double strtod_i(const char *p, const char **pp) {
   return result;
 }
 
-static double strtod_i2(const char *p, const char **pp) {
-  const char *q = p, *r = p;
-  for (;;) {
-    char c = *q;
-    if (!(c >= '0' && c <= '9'))
-      break;
-    ++q;
-    if (c != '0')
-      r = q;
-  }
 
-  double result = 0;
-  for (size_t order = r - p; r > p; --order) {
-    char c = *(--r);
-    result += (c - '0') / ipow(10, order);
+// Decimal text to double, correctly rounded for the usual case. The digits are gathered into one integer, then scaled by a single
+// power of ten; when the integer is at most 2^53 and the power is at most
+// 10^22, both are exact doubles, so the one multiply or divide rounds
+// correctly (Clinger's fast path). The old digit-by-digit sum read 0.15 as
+// 0.15000000000000002. Longer or more extreme numbers use the old approximation.
+static double strtod_dec(const char *p, const char **pp) {
+  unsigned long long mantissa = 0;
+  int digits = 0, exp10 = 0;
+  bool any = false;
+  for (; *p >= '0' && *p <= '9'; ++p) {
+    any = true;
+    if (digits < 19) {
+      mantissa = mantissa * 10 + (unsigned long long)(*p - '0');
+      if (mantissa != 0)
+        ++digits;
+    } else {
+      ++exp10;   // past 19 digits: keep the size, drop the digit
+    }
   }
-  *pp = q;
-  return result;
+  if (*p == '.') {
+    const char *q = p + 1;
+    for (; *q >= '0' && *q <= '9'; ++q) {
+      any = true;
+      if (digits < 19) {
+        mantissa = mantissa * 10 + (unsigned long long)(*q - '0');
+        if (mantissa != 0)
+          ++digits;
+        --exp10;
+      }
+    }
+    if (any)
+      p = q;
+  }
+  if (!any) {
+    *pp = p;
+    return 0;
+  }
+  if (tolower(*p) == 'e') {
+    const char *q = p + 1;
+    bool neg2 = _parse_sign(&q);
+    const char *start = q;
+    long e = 0;
+    for (; *q >= '0' && *q <= '9'; ++q)
+      if (e < 100000)
+        e = e * 10 + (*q - '0');
+    if (q != start) {
+      exp10 += (int)(neg2 ? -e : e);
+      p = q;
+    }
+  }
+  *pp = p;
+
+  double m = (double)mantissa;
+  if (mantissa <= (1ULL << 53) && exp10 >= -22 && exp10 <= 22)
+    return exp10 < 0 ? m / ipow(10, -exp10) : m * ipow(10, exp10);
+  if (exp10 < 0) {
+    // Divide in steps so 10^-exp10 never overflows to infinity.
+    for (; exp10 < -300; exp10 += 300)
+      m /= ipow(10, 300);
+    return m / ipow(10, -exp10);
+  }
+  return m * ipow(10, exp10);
 }
 
 #define strtod_h(p, pp)  strtoull(p, (char**)(pp), 16)
@@ -113,26 +158,7 @@ double strtod(const char *restrict p_, char **restrict pp) {
     result = strtod_hex(p, &p);
   } else {
     op = p;
-    result = strtod_i(p, &p);
-    if (*p == '.') {
-      const char *q = p + 1;
-      double frac = strtod_i2(q, &p);
-      result += frac;
-    }
-    if (tolower(*p) == 'e') {
-      const char *q = p + 1;
-      bool neg2 = _parse_sign(&q);
-      double order = strtod_i(q, &p);
-      if (q == p) {
-        // Error.
-      } else {
-        double k = ipow(10, order);
-        if (neg2)
-          result /= k;
-        else
-          result *= k;
-      }
-    }
+    result = strtod_dec(p, &p);
   }
   if (p == op)
     p = orig;
