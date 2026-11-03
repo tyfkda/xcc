@@ -182,13 +182,20 @@ static int decimal_exponent(long double *px) {
   long double x = *px;
   int e = 0;
   if (x >= 10) {
-    while (x >= pow10(e + 1))
+    do {
       ++e;
+    } while (x >= pow10(e + 1));
     x /= pow10(e);
   } else if (x < 1) {
-    while (x * pow10(-e) < 1)
-      --e;
-    x *= pow10(-e);
+    // Multiply in steps: 10^309 and up overflow, which broke 1e-310.
+    for (; x < 1e-300; e -= 300)
+      x *= pow10(300);
+    int d = 0;
+    do {
+      ++d;
+    } while (x * pow10(d) < 1);
+    x *= pow10(d);
+    e -= d;
   }
   *px = x;
   return e;
@@ -258,7 +265,7 @@ static int printflonum(FILE *fp, long double x, int conv, int width, int prec, b
     char probe[400];
     if (x != 0)
       put_scientific(probe, x, P - 1, false, upper, &e);
-    if (e < -4 || e >= P) {
+    if (e < -4 || e >= P || x >= 1e18) {   // put_fixed needs x < 1e18
       p = put_scientific(p, x, P - 1, alt, upper, NULL);
       if (!alt) {
         // Strip zeros from the mantissa only.

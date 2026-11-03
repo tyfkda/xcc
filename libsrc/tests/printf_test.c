@@ -177,6 +177,8 @@ TEST(vsnprintf) {
   EXPECT("Exp:1.234568e+04", "Exp:%e", 12345.678);
   EXPECT("Exp:1.23E-04", "Exp:%.2E", 0.000123);
   EXPECT("Exp:  1.0e+100", "Exp:%10.1e", 1e100);
+  EXPECT("Exp:1.000000e-310", "Exp:%e", 1e-310);  // Subnormal
+  EXPECT("G:1e-310", "G:%g", 1e-310);
   EXPECT("G:1.23457E+08", "G:%G", 123456789.0);
   EXPECT("G:2.00000", "G:%#g", 2.0);
   EXPECT("Mixed:1.5e+00 7", "Mixed:%.1e %d", 1.5, 7);

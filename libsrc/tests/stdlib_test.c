@@ -117,6 +117,8 @@ TEST(strtod) {
   EXPECT_DEQ(1.005, strtod("1.005", NULL));
   EXPECT_DEQ(123.456789, strtod("123456.789e-3", NULL));
   EXPECT_DEQ(-2.5e-7, strtod("-0.00000025", NULL));
+  EXPECT_DEQ(0.0, strtod("0e400", NULL));  // Not 0 * inf = NaN
+  EXPECT_DEQ(0.0, strtod("0.000e-400", NULL));
 
   union u { double d; uint64_t x; } u;
   u.d = strtod("-0.0", NULL);

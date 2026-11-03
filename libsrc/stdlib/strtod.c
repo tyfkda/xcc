@@ -31,11 +31,12 @@ static double strtod_i(const char *p, const char **pp) {
 }
 
 
-// Decimal text to double, correctly rounded for the usual case. The digits are gathered into one integer, then scaled by a single
-// power of ten; when the integer is at most 2^53 and the power is at most
-// 10^22, both are exact doubles, so the one multiply or divide rounds
-// correctly (Clinger's fast path). The old digit-by-digit sum read 0.15 as
-// 0.15000000000000002. Longer or more extreme numbers use the old approximation.
+// Decimal text to double, correctly rounded for the usual case. The digits
+// are gathered into one integer, then scaled by a single power of ten; when
+// the integer is at most 2^53 and the power is at most 10^22, both are exact
+// doubles, so the one multiply or divide rounds correctly (Clinger's fast
+// path). The old digit-by-digit sum read 0.15 as 0.15000000000000002.
+// Longer or more extreme numbers are only approximated.
 static double strtod_dec(const char *p, const char **pp) {
   unsigned long long mantissa = 0;
   int digits = 0, exp10 = 0;
@@ -82,10 +83,10 @@ static double strtod_dec(const char *p, const char **pp) {
     }
   }
   *pp = p;
+  if (mantissa == 0)
+    return 0;  // avoid 0 * inf = NaN for 0e400
 
   double m = (double)mantissa;
-  if (mantissa <= (1ULL << 53) && exp10 >= -22 && exp10 <= 22)
-    return exp10 < 0 ? m / ipow(10, -exp10) : m * ipow(10, exp10);
   if (exp10 < 0) {
     // Divide in steps so 10^-exp10 never overflows to infinity.
     for (; exp10 < -300; exp10 += 300)
