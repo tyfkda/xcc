@@ -139,7 +139,7 @@ WCC_LIBC_OBJS:=$(addprefix $(WCC_OBJ_DIR)/,$(notdir $(WCC_LIBC_SRCS:.c=.o)))
 echo-wcc-libc-objs:
 	@echo $(WCC_LIBC_OBJS)
 
-$(WCC_CRT0_OBJS) $(WCC_LIBC_OBJC): | $(WCC_OBJ_DIR)
+$(WCC_CRT0_OBJS) $(WCC_LIBC_OBJS): | $(WCC_OBJ_DIR)
 $(WCC_OBJ_DIR):
 	mkdir -p $(WCC_OBJ_DIR)
 
