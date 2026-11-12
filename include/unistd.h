@@ -41,6 +41,11 @@ int chdir(const char *path);
 int brk(void *addr);
 void *sbrk(intptr_t increment);
 
+#if defined(__wasm)
+__attribute__((import_module("wasi_snapshot_preview1"), import_name(/* omit */)))
+#endif
+unsigned int sleep(unsigned int sec);
+
 #if !defined(__wasm)
 int unlinkat(int dirfd, const char *pathname, int flags);
 int dup(int);

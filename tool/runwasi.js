@@ -58,6 +58,9 @@ async function getRealpaths(map) {
   if (typeof WebAssembly.Suspending !== 'undefined') {
     const originalProcExit = wasiImport.proc_exit
     wasiImport.proc_exit = code => { exitCode = code; return originalProcExit(code) }
+
+    const sleepFunc = ms => new Promise(resolve => setTimeout(resolve, ms * 1000))
+    wasiImport.sleep = new WebAssembly.Suspending(sleepFunc)
   }
 
   try {
