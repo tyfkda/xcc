@@ -179,23 +179,31 @@ static char *put_fixed(char *p, long double x, int prec, bool alt) {
 
 // Splits x > 0 into m * 10^e with 1 <= m < 10.
 static int decimal_exponent(long double *px) {
+  static const long double kPowers[] = {
+    1e256, 1e128, 1e64, 1e32, 1e16, 1e8, 1e4, 1e2, 1e1
+  };
+  const int N = sizeof(kPowers) / sizeof(*kPowers);
+  const int kPowerIndex = 256;
+
   long double x = *px;
   int e = 0;
+
   if (x >= 10) {
-    do {
-      ++e;
-    } while (x >= pow10(e + 1));
-    x /= pow10(e);
+    for (int i = 0; i < N; ++i) {
+      long double p = kPowers[i];
+      if (x >= p) {
+        x /= p;
+        e += kPowerIndex >> i;
+      }
+    }
   } else if (x < 1) {
-    // Multiply in steps: 10^309 and up overflow, which broke 1e-310.
-    for (; x < 1e-300; e -= 300)
-      x *= pow10(300);
-    int d = 0;
-    do {
-      ++d;
-    } while (x * pow10(d) < 1);
-    x *= pow10(d);
-    e -= d;
+    for (int i = 0; i < N; ++i) {
+      long double y = x * kPowers[i];
+      if (y < 10.0) {
+        x = y;
+        e -= kPowerIndex >> i;
+      }
+    }
   }
   *px = x;
   return e;
